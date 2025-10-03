@@ -9,20 +9,20 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 
 // Import routes
-import authRoutes from '@/routes/auth';
-import userRoutes from '@/routes/users';
-import animalRoutes from '@/routes/animals';
-import adoptionRoutes from '@/routes/adoptions';
-import partnerRoutes from '@/routes/partners';
-import eventRoutes from '@/routes/events';
-import donationRoutes from '@/routes/donations';
-import volunteerRoutes from '@/routes/volunteers';
-import notificationRoutes from '@/routes/notifications';
-import transparencyRoutes from '@/routes/transparency';
+import authRoutes from './routes/auth';
+import userRoutes from './routes/users';
+import animalRoutes from './routes/animals';
+import adoptionRoutes from './routes/adoptions';
+import partnerRoutes from './routes/partners';
+import eventRoutes from './routes/events';
+import donationRoutes from './routes/donations';
+import volunteerRoutes from './routes/volunteers';
+import notificationRoutes from './routes/notifications';
+import transparencyRoutes from './routes/transparency';
 
 // Import middleware
-import { errorHandler } from '@/middleware/errorHandler';
-import { notFound } from '@/middleware/notFound';
+import { errorHandler } from './middleware/errorHandler';
+import { notFound } from './middleware/notFound';
 
 // Load environment variables
 dotenv.config();

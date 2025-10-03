@@ -2,23 +2,13 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { body, validationResult } from 'express-validator';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // Register
-router.post('/register', [
-  body('email').isEmail().normalizeEmail(),
-  body('name').trim().isLength({ min: 2, max: 100 }),
-  body('phone').optional().isMobilePhone('pt-BR'),
-  body('password').isLength({ min: 6 })
-], async (req, res) => {
+router.post('/register', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
 
     const { email, name, phone, password } = req.body;
 
@@ -75,15 +65,8 @@ router.post('/register', [
 });
 
 // Login
-router.post('/login', [
-  body('email').isEmail().normalizeEmail(),
-  body('password').notEmpty()
-], async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
 
     const { email, password } = req.body;
 
