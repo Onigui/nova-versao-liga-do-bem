@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Liga do Bem",
+    "slug": "liga-do-bem-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.novaversao.ligadobem.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.novaversao.ligadobem.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Este app precisa acessar sua localização para mostrar parceiros próximos a você."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Este app precisa acessar a câmera para escanear QR codes dos parceiros."
+        }
+      ]
+    ]
+  }
+}

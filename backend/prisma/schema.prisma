@@ -1,0 +1,432 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo de usuários/membros
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  avatar    String?
+  role      UserRole @default(MEMBER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  membership      Membership?
+  donations       Donation[]
+  adoptions       Adoption[]
+  volunteerWorks  VolunteerWork[]
+  notifications   Notification[]
+  deviceTokens    DeviceToken[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+  VOLUNTEER
+  PARTNER
+}
+
+// Modelo de membership
+model Membership {
+  id            String           @id @default(cuid())
+  userId        String           @unique
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberId      String           @unique // ID da carteirinha
+  status        MembershipStatus @default(ACTIVE)
+  startDate     DateTime         @default(now())
+  endDate       DateTime?
+  monthlyFee    Decimal          @default(29.90)
+  nextPayment   DateTime
+  paymentMethod String?
+  qrCode        String?          // Código QR para validação
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@map("memberships")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_PAYMENT
+  SUSPENDED
+}
+
+// Modelo de parceiros
+model Partner {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  email       String?
+  phone       String?
+  website     String?
+  logo        String?
+  address     String
+  latitude    Float?
+  longitude   Float?
+  city        String
+  state       String
+  zipCode     String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  services     PartnerService[]
+  discounts    PartnerDiscount[]
+  validations  PartnerValidation[]
+
+  @@map("partners")
+}
+
+// Serviços dos parceiros
+model PartnerService {
+  id        String @id @default(cuid())
+  partnerId String
+  partner   Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  name      String
+  price     Decimal?
+  createdAt DateTime @default(now())
+
+  @@map("partner_services")
+}
+
+// Descontos dos parceiros
+model PartnerDiscount {
+  id          String @id @default(cuid())
+  partnerId   String
+  partner     Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  percentage  Float?
+  fixedAmount Decimal?
+  isActive    Boolean @default(true)
+  validFrom   DateTime
+  validUntil  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("partner_discounts")
+}
+
+// Validações de desconto
+model PartnerValidation {
+  id          String   @id @default(cuid())
+  partnerId   String
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discountId  String?
+  discount    PartnerDiscount? @relation(fields: [discountId], references: [id])
+  amount      Decimal
+  validatedAt DateTime @default(now())
+
+  @@map("partner_validations")
+}
+
+// Modelo de animais
+model Animal {
+  id          String      @id @default(cuid())
+  name        String
+  species     AnimalType
+  breed       String?
+  age         Int? // em meses
+  gender      AnimalGender
+  size        AnimalSize
+  description String?
+  image       String?
+  isAdopted   Boolean     @default(false)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Informações médicas
+  isVaccinated   Boolean @default(false)
+  isCastrated    Boolean @default(false)
+  hasSpecialNeeds Boolean @default(false)
+  specialNeeds   String?
+
+  // Relacionamentos
+  adoptions Adoption[]
+
+  @@map("animals")
+}
+
+enum AnimalType {
+  DOG
+  CAT
+  BIRD
+  RABBIT
+  OTHER
+}
+
+enum AnimalGender {
+  MALE
+  FEMALE
+}
+
+enum AnimalSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+// Modelo de adoções
+model Adoption {
+  id          String        @id @default(cuid())
+  animalId    String
+  animal      Animal        @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      AdoptionStatus @default(PENDING)
+  applicationDate DateTime  @default(now())
+  approvedDate DateTime?
+  completedDate DateTime?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("adoptions")
+}
+
+enum AdoptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+// Modelo de voluntários
+model VolunteerWork {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("volunteer_works")
+}
+
+// Modelo de eventos
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        EventType
+  startDate   DateTime
+  endDate     DateTime?
+  location    String?
+  address     String?
+  latitude    Float?
+  longitude   Float?
+  maxAttendees Int?
+  currentAttendees Int @default(0)
+  image       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  registrations EventRegistration[]
+
+  @@map("events")
+}
+
+enum EventType {
+  ADOPTION_FAIR
+  FUNDRAISING
+  VOLUNTEER_MEETING
+  MEDICAL_CAMPAIGN
+  EDUCATION
+  OTHER
+}
+
+// Inscrições em eventos
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    RegistrationStatus @default(REGISTERED)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@map("event_registrations")
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+}
+
+// Modelo de doações
+model Donation {
+  id          String        @id @default(cuid())
+  userId      String?
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  amount      Decimal
+  method      PaymentMethod
+  status      PaymentStatus @default(PENDING)
+  transactionId String?
+  description String?
+  isAnonymous Boolean       @default(false)
+  donorName   String? // Para doações anônimas
+  donorEmail  String? // Para doações anônimas
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("donations")
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  BANK_TRANSFER
+  CASH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+// Modelo de notificações
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType
+  data      Json? // Dados adicionais
+  isRead    Boolean          @default(false)
+  sentAt    DateTime         @default(now())
+  readAt    DateTime?
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  ADOPTION_UPDATE
+  EVENT_REMINDER
+  PAYMENT_REMINDER
+  GENERAL
+  DONATION_CONFIRMATION
+  VOLUNTEER_OPPORTUNITY
+}
+
+// Tokens de dispositivos para push notifications
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String // ios, android
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("device_tokens")
+}
+
+// Modelo de transparência financeira
+model FinancialReport {
+  id          String   @id @default(cuid())
+  year        Int
+  month       Int?
+  type        ReportType
+  title       String
+  description String?
+  income      Decimal  @default(0)
+  expenses    Decimal  @default(0)
+  fileUrl     String? // URL do PDF
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  expenseItems FinancialExpense[]
+
+  @@unique([year, month, type])
+  @@map("financial_reports")
+}
+
+enum ReportType {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  SPECIAL
+}
+
+// Itens de despesa detalhados
+model FinancialExpense {
+  id         String         @id @default(cuid())
+  reportId   String
+  report     FinancialReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  category   ExpenseCategory
+  description String
+  amount     Decimal
+  createdAt  DateTime       @default(now())
+
+  @@map("financial_expenses")
+}
+
+enum ExpenseCategory {
+  VETERINARY
+  FOOD
+  MEDICATIONS
+  INFRASTRUCTURE
+  EVENTS
+  ADMINISTRATIVE
+  TRANSPORT
+  OTHER
+}
+
+// Modelo de configurações do sistema
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  type      ConfigType @default(STRING)
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+enum ConfigType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}

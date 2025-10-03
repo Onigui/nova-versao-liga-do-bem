@@ -1,0 +1,48 @@
+{
+  "name": "liga-do-bem-web",
+  "version": "1.0.0",
+  "description": "Website institucional da Liga do Bem Botucatu",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "export": "next export"
+  },
+  "dependencies": {
+    "next": "^14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@next/font": "^14.0.4",
+    "axios": "^1.6.2",
+    "styled-components": "^6.1.6",
+    "react-hook-form": "^7.48.2",
+    "react-query": "^3.39.3",
+    "framer-motion": "^10.16.16",
+    "react-icons": "^4.12.0",
+    "swiper": "^11.0.5",
+    "react-intersection-observer": "^9.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.0.4",
+    "typescript": "^5.3.3",
+    "@types/styled-components": "^5.1.34"
+  },
+  "keywords": [
+    "liga-do-bem",
+    "ong",
+    "animais",
+    "website",
+    "nextjs",
+    "typescript"
+  ],
+  "author": "Liga do Bem Botucatu",
+  "license": "MIT"
+}

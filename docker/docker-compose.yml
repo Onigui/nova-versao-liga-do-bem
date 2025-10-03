@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: liga-do-bem-db
+    environment:
+      POSTGRES_DB: liga_do_bem_db
+      POSTGRES_USER: liga_do_bem_user
+      POSTGRES_PASSWORD: liga_do_bem_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - liga-do-bem-network
+
+  # Backend API
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: liga-do-bem-api
+    environment:
+      DATABASE_URL: postgresql://liga_do_bem_user:liga_do_bem_password@postgres:5432/liga_do_bem_db
+      NODE_ENV: development
+      PORT: 3001
+      JWT_SECRET: development-jwt-secret-key
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+    volumes:
+      - ../backend:/app
+      - /app/node_modules
+    networks:
+      - liga-do-bem-network
+    command: npm run dev
+
+  # Frontend Web
+  frontend:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: liga-do-bem-web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ../web:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - liga-do-bem-network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  liga-do-bem-network:
+    driver: bridge
