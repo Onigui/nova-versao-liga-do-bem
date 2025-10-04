@@ -4,15 +4,17 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package*.json ./
-RUN npm ci --only=production
+
+# Install dependencies (without postinstall script)
+RUN npm ci --only=production --ignore-scripts
 
 # Copy source code
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client and install remaining dependencies
+RUN npm run prisma:generate
 
 # Build TypeScript
 RUN npm run build
