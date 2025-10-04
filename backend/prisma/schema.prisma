@@ -29,6 +29,8 @@ model User {
   volunteerWorks  VolunteerWork[]
   notifications   Notification[]
   deviceTokens    DeviceToken[]
+  partnerValidations PartnerValidation[]
+  eventRegistrations EventRegistration[]
 
   @@map("users")
 }
@@ -119,6 +121,9 @@ model PartnerDiscount {
   validFrom   DateTime
   validUntil  DateTime?
   createdAt   DateTime @default(now())
+  
+  // Relacionamentos
+  validations PartnerValidation[]
 
   @@map("partner_discounts")
 }
