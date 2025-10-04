@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: nova-versao-liga-do-bem-api
+    env: node
+    plan: free
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        value: liga-do-bem-jwt-secret-key-2024-production
+      - key: FRONTEND_URL
+        value: https://nova-versao-liga-do-bem-web.onrender.com
+      - key: MOBILE_URL
+        value: exp://localhost:19000
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
