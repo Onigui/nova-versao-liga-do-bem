@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (without postinstall script)
-RUN npm ci --only=production --ignore-scripts
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci --ignore-scripts
 
 # Copy source code
 COPY . .
@@ -18,6 +18,9 @@ RUN npm run prisma:generate
 
 # Build TypeScript
 RUN npm run build
+
+# Remove dev dependencies to reduce image size
+RUN npm prune --production
 
 # Expose port
 EXPOSE 3001
