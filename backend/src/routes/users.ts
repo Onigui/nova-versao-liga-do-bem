@@ -12,16 +12,6 @@ router.get('/profile', authenticate, async (req: any, res) => {
       where: { id: req.user.id },
       include: {
         membership: true
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        avatar: true,
-        role: true,
-        membership: true,
-        createdAt: true
       }
     });
 
