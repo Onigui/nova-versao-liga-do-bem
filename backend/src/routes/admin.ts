@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { generateToken, verifyToken } from '../utils/jwt';
-import { authMiddleware } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -29,7 +29,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const user = await prisma.user.findFirst({
       where: {
         email: email,
-        role: 'ADMIN' // Assumindo que temos um role ADMIN
+        role: 'ADMIN'
       },
       select: {
         id: true,
@@ -93,9 +93,9 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // Verificar token do admin
-router.get('/verify', authMiddleware, async (req: Request, res: Response) => {
+router.get('/verify', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    const userId = (req as any).user.id;
     
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -142,9 +142,9 @@ router.post('/logout', (req: Request, res: Response) => {
 });
 
 // Dashboard - estatísticas gerais
-router.get('/dashboard', authMiddleware, async (req: Request, res: Response) => {
+router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    const userId = (req as any).user.id;
     
     // Verificar se é admin
     const user = await prisma.user.findUnique({
@@ -161,14 +161,14 @@ router.get('/dashboard', authMiddleware, async (req: Request, res: Response) => 
     // Buscar estatísticas
     const [
       totalUsers,
-      totalCompanies,
+      totalPartners,
       totalAnimals,
       totalDonations,
       recentUsers,
-      recentCompanies
+      recentPartners
     ] = await Promise.all([
       prisma.user.count(),
-      prisma.company.count(),
+      prisma.partner.count(),
       prisma.animal.count(),
       prisma.donation.count(),
       prisma.user.findMany({
@@ -181,14 +181,14 @@ router.get('/dashboard', authMiddleware, async (req: Request, res: Response) => 
           createdAt: true
         }
       }),
-      prisma.company.findMany({
+      prisma.partner.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
           name: true,
           category: true,
-          status: true,
+          isActive: true,
           createdAt: true
         }
       })
@@ -205,14 +205,14 @@ router.get('/dashboard', authMiddleware, async (req: Request, res: Response) => 
     res.json({
       stats: {
         totalUsers,
-        totalCompanies,
+        totalPartners,
         totalAnimals,
         totalDonations,
         monthlyGrowth
       },
       recent: {
         users: recentUsers,
-        companies: recentCompanies
+        partners: recentPartners
       }
     });
 
@@ -225,9 +225,9 @@ router.get('/dashboard', authMiddleware, async (req: Request, res: Response) => 
 });
 
 // Listar todas as empresas (para admin)
-router.get('/companies', authMiddleware, async (req: Request, res: Response) => {
+router.get('/companies', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    const userId = (req as any).user.id;
     
     // Verificar se é admin
     const user = await prisma.user.findUnique({
@@ -241,13 +241,13 @@ router.get('/companies', authMiddleware, async (req: Request, res: Response) => 
       });
     }
 
-    const companies = await prisma.company.findMany({
+    const companies = await prisma.partner.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
-        partnerDiscounts: true,
+        discounts: true,
         _count: {
           select: {
-            partnerDiscounts: true
+            discounts: true
           }
         }
       }
@@ -258,14 +258,13 @@ router.get('/companies', authMiddleware, async (req: Request, res: Response) => 
         id: company.id,
         name: company.name,
         category: company.category,
-        status: company.status,
-        discount: company.partnerDiscounts[0]?.discountPercentage || 0,
+        status: company.isActive ? 'active' : 'inactive',
+        discount: company.discounts[0]?.percentage || 0,
         location: company.address,
-        hours: company.businessHours,
         phone: company.phone,
         email: company.email,
         createdAt: company.createdAt,
-        discountCount: company._count.partnerDiscounts
+        discountCount: company._count.discounts
       }))
     });
 
@@ -278,9 +277,9 @@ router.get('/companies', authMiddleware, async (req: Request, res: Response) => 
 });
 
 // Listar todos os membros (para admin)
-router.get('/members', authMiddleware, async (req: Request, res: Response) => {
+router.get('/members', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    const userId = (req as any).user.id;
     
     // Verificar se é admin
     const user = await prisma.user.findUnique({
@@ -296,7 +295,7 @@ router.get('/members', authMiddleware, async (req: Request, res: Response) => {
 
     const members = await prisma.user.findMany({
       where: {
-        role: 'MEMBER' // Assumindo que temos roles diferentes
+        role: 'MEMBER'
       },
       orderBy: { createdAt: 'desc' },
       select: {
