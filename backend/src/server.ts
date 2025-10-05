@@ -19,6 +19,7 @@ import donationRoutes from './routes/donations';
 import volunteerRoutes from './routes/volunteers';
 import notificationRoutes from './routes/notifications';
 import transparencyRoutes from './routes/transparency';
+import adminRoutes from './routes/admin';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -86,6 +87,7 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/transparency', transparencyRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Socket.io for real-time notifications
 io.on('connection', (socket) => {

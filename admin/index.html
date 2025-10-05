@@ -541,6 +541,9 @@
                             <p class="header-subtitle">Visão geral da plataforma Liga do Bem</p>
                         </div>
                         <div class="header-actions">
+                            <div class="user-info" style="display: flex; align-items: center; gap: 1rem;">
+                                <!-- Informações do usuário serão inseridas aqui via JavaScript -->
+                            </div>
                             <button class="btn btn-secondary">
                                 <span>📊</span>
                                 Exportar Relatório
@@ -926,6 +929,63 @@
     </div>
 
     <script>
+        // Verificar autenticação
+        function checkAuth() {
+            const token = localStorage.getItem('admin_token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                if (payload.exp <= Date.now() / 1000) {
+                    localStorage.removeItem('admin_token');
+                    localStorage.removeItem('admin_user');
+                    window.location.href = 'login.html';
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                localStorage.removeItem('admin_token');
+                localStorage.removeItem('admin_user');
+                window.location.href = 'login.html';
+                return false;
+            }
+        }
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_user');
+            window.location.href = 'login.html';
+        }
+
+        // Mostrar informações do usuário
+        function showUserInfo() {
+            const user = localStorage.getItem('admin_user');
+            if (user) {
+                const userData = JSON.parse(user);
+                const userInfo = document.querySelector('.user-info');
+                if (userInfo) {
+                    userInfo.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 32px; height: 32px; background: linear-gradient(135deg, var(--primary-purple), var(--secondary-pink)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                ${userData.name ? userData.name.charAt(0).toUpperCase() : 'A'}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: var(--text-dark);">${userData.name || 'Administrador'}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-gray);">${userData.email}</div>
+                            </div>
+                        </div>
+                        <button onclick="logout()" style="background: var(--error-red); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 0.875rem; cursor: pointer;">
+                            Sair
+                        </button>
+                    `;
+                }
+            }
+        }
+
         // Navegação entre seções
         function showSection(sectionId) {
             // Esconder todas as seções
@@ -1096,6 +1156,15 @@
 
         // Inicializar tabelas
         document.addEventListener('DOMContentLoaded', function() {
+            // Verificar autenticação primeiro
+            if (!checkAuth()) {
+                return;
+            }
+            
+            // Mostrar informações do usuário
+            showUserInfo();
+            
+            // Inicializar tabelas
             renderCompaniesTable();
             renderMembersTable();
         });
