@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { generateToken } from '../utils/jwt';
+import { generateToken, verifyToken } from '../utils/jwt';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -103,8 +103,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         name: user.name,
         phone: user.phone,
-        role: user.role,
-        membership: user.membership
+        role: user.role
       },
       token
     });
@@ -151,9 +150,13 @@ router.post('/oauth/google', async (req, res) => {
           id: true,
           email: true,
           name: true,
+          phone: true,
+          password: true,
           avatar: true,
           role: true,
-          createdAt: true
+          isActive: true,
+          createdAt: true,
+          updatedAt: true
         }
       });
     }
@@ -190,7 +193,7 @@ router.post('/refresh', async (req, res) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = verifyToken(token) as any;
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -212,11 +215,11 @@ router.post('/refresh', async (req, res) => {
     }
 
     // Generate new token
-    const newToken = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET as string,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const newToken = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    });
 
     res.json({
       message: 'Token renovado com sucesso',
