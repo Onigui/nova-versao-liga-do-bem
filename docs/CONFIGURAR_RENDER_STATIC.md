@@ -16,7 +16,7 @@ O site está mostrando "Not Found" porque o Render ainda está configurado para 
    
    **Build Command:** (deixe vazio)
    
-   **Publish Directory:** (deixe vazio)
+   **Publish Directory:** `web`
    
    **Root Directory:** (deixe vazio)
    
@@ -29,9 +29,12 @@ O site está mostrando "Not Found" porque o Render ainda está configurado para 
 ### 📁 **Estrutura Atual:**
 ```
 nova-versao-liga-do-bem/
-├── index.html          ← Arquivo principal do site
-├── _redirects          ← Configuração de redirecionamentos
-├── package.json        ← Package.json simples
+├── web/
+│   ├── index.html      ← Arquivo principal do site
+│   ├── _redirects      ← Configuração de redirecionamentos
+│   └── package.json    ← Package.json do web
+├── backend/            ← Backend API
+├── mobile/             ← App mobile
 └── ...                 ← Outros arquivos
 ```
 
