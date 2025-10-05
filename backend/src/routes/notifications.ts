@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, optionalAuth } from '@/middleware/auth';
+import { authenticate, optionalAuth } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 
 const router = Router();
