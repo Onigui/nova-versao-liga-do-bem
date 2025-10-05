@@ -6,6 +6,7 @@
     <title>Painel Administrativo - Liga do Bem</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐾</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-purple: #8B5CF6;
@@ -770,12 +771,212 @@
 
             <section id="reports-section" class="content-section">
                 <div class="header">
-                    <h1 class="header-title">Relatórios e Analytics</h1>
-                    <p class="header-subtitle">Acompanhe métricas e performance</p>
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Relatórios e Analytics</h1>
+                            <p class="header-subtitle">Acompanhe métricas detalhadas e performance da plataforma</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="exportReport('pdf')">
+                                <span>📄</span>
+                                Exportar PDF
+                            </button>
+                            <button class="btn btn-secondary" onclick="exportReport('excel')">
+                                <span>📊</span>
+                                Exportar Excel
+                            </button>
+                            <button class="btn btn-primary" onclick="refreshReports()">
+                                <span>🔄</span>
+                                Atualizar Dados
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div style="text-align: center; padding: 4rem; color: var(--text-gray);">
-                    <h3>Seção em Desenvolvimento</h3>
-                    <p>Esta funcionalidade será implementada em breve.</p>
+
+                <!-- Filtros de Período -->
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon blue">📅</div>
+                            <h3 class="card-title">Período</h3>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <select id="periodSelect" class="form-input" style="flex: 1;">
+                                <option value="7">Últimos 7 dias</option>
+                                <option value="30" selected>Últimos 30 dias</option>
+                                <option value="90">Últimos 90 dias</option>
+                                <option value="365">Último ano</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon green">📊</div>
+                            <h3 class="card-title">Métricas Principais</h3>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <button class="btn btn-secondary" onclick="toggleMetric('all')" style="flex: 1;">Todas</button>
+                            <button class="btn btn-secondary" onclick="toggleMetric('users')" style="flex: 1;">Usuários</button>
+                            <button class="btn btn-secondary" onclick="toggleMetric('companies')" style="flex: 1;">Empresas</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráficos Principais -->
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="dashboard-card" style="grid-column: 1 / -1;">
+                        <div class="card-header">
+                            <div class="card-icon purple">📈</div>
+                            <h3 class="card-title">Crescimento de Usuários e Empresas</h3>
+                        </div>
+                        <div style="height: 300px; display: flex; align-items: center; justify-content: center; background: var(--bg-gray-50); border-radius: 12px;">
+                            <canvas id="growthChart" width="800" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Métricas Detalhadas -->
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon blue">👥</div>
+                            <h3 class="card-title">Usuários por Categoria</h3>
+                        </div>
+                        <div style="height: 250px; display: flex; align-items: center; justify-content: center;">
+                            <canvas id="usersChart" width="400" height="250"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon green">🏢</div>
+                            <h3 class="card-title">Empresas por Status</h3>
+                        </div>
+                        <div style="height: 250px; display: flex; align-items: center; justify-content: center;">
+                            <canvas id="companiesChart" width="400" height="250"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Detalhados -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3 class="table-title">Analytics Detalhados</h3>
+                    </div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Métrica</th>
+                                <th>Período Atual</th>
+                                <th>Período Anterior</th>
+                                <th>Crescimento</th>
+                                <th>Tendência</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics-table-body">
+                            <tr>
+                                <td>Novos Usuários</td>
+                                <td>1,247</td>
+                                <td>1,156</td>
+                                <td><span class="card-change positive">↗️ +7.9%</span></td>
+                                <td><span class="status-badge status-active">Crescendo</span></td>
+                            </tr>
+                            <tr>
+                                <td>Empresas Parceiras</td>
+                                <td>24</td>
+                                <td>18</td>
+                                <td><span class="card-change positive">↗️ +33.3%</span></td>
+                                <td><span class="status-badge status-active">Crescendo</span></td>
+                            </tr>
+                            <tr>
+                                <td>QR Codes Escaneados</td>
+                                <td>15,642</td>
+                                <td>12,891</td>
+                                <td><span class="card-change positive">↗️ +21.3%</span></td>
+                                <td><span class="status-badge status-active">Crescendo</span></td>
+                            </tr>
+                            <tr>
+                                <td>Descontos Utilizados</td>
+                                <td>3,891</td>
+                                <td>3,456</td>
+                                <td><span class="card-change positive">↗️ +12.6%</span></td>
+                                <td><span class="status-badge status-active">Crescendo</span></td>
+                            </tr>
+                            <tr>
+                                <td>Doações Recebidas</td>
+                                <td>R$ 12,450</td>
+                                <td>R$ 15,230</td>
+                                <td><span class="card-change negative">↘️ -18.3%</span></td>
+                                <td><span class="status-badge status-pending">Atenção</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Insights e Recomendações -->
+                <div class="dashboard-grid" style="margin-top: 2rem;">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon orange">💡</div>
+                            <h3 class="card-title">Insights Automáticos</h3>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border-left: 4px solid var(--success-green);">
+                                <strong style="color: var(--success-green);">✅ Crescimento Positivo</strong>
+                                <p style="margin: 0.5rem 0 0; color: var(--text-gray); font-size: 0.875rem;">
+                                    Seus usuários cresceram 7.9% este mês. Continue o bom trabalho!
+                                </p>
+                            </div>
+                            <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid var(--warning-orange);">
+                                <strong style="color: var(--warning-orange);">⚠️ Atenção Necessária</strong>
+                                <p style="margin: 0.5rem 0 0; color: var(--text-gray); font-size: 0.875rem;">
+                                    As doações diminuíram 18.3%. Considere uma campanha de arrecadação.
+                                </p>
+                            </div>
+                            <div style="padding: 1rem; background: rgba(6, 182, 212, 0.1); border-radius: 8px; border-left: 4px solid var(--accent-blue);">
+                                <strong style="color: var(--accent-blue);">💡 Oportunidade</strong>
+                                <p style="margin: 0.5rem 0 0; color: var(--text-gray); font-size: 0.875rem;">
+                                    33% mais empresas se cadastraram. Aproveite para expandir a rede de parceiros.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon purple">🎯</div>
+                            <h3 class="card-title">Metas e Objetivos</h3>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="font-weight: 500;">Novos Usuários</span>
+                                    <span style="color: var(--text-gray);">1,247 / 2,000</span>
+                                </div>
+                                <div style="height: 8px; background: var(--bg-gray-200); border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; background: linear-gradient(90deg, var(--success-green), #34D399); width: 62.4%;"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="font-weight: 500;">Empresas Parceiras</span>
+                                    <span style="color: var(--text-gray);">24 / 50</span>
+                                </div>
+                                <div style="height: 8px; background: var(--bg-gray-200); border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; background: linear-gradient(90deg, var(--accent-blue), #67E8F9); width: 48%;"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="font-weight: 500;">Meta de Doações</span>
+                                    <span style="color: var(--text-gray);">R$ 12,450 / R$ 25,000</span>
+                                </div>
+                                <div style="height: 8px; background: var(--bg-gray-200); border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; background: linear-gradient(90deg, var(--warning-orange), #FCD34D); width: 49.8%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -1167,7 +1368,185 @@
             // Inicializar tabelas
             renderCompaniesTable();
             renderMembersTable();
+            
+            // Inicializar gráficos
+            setTimeout(() => {
+                initializeCharts();
+            }, 500);
         });
+
+        // Variáveis globais para gráficos
+        let growthChart, usersChart, companiesChart;
+
+        // Funções para relatórios
+        function exportReport(format) {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<span class="loading"></span> Gerando...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                alert(`Relatório ${format.toUpperCase()} gerado com sucesso!`);
+            }, 2000);
+        }
+
+        function refreshReports() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<span class="loading"></span> Atualizando...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                
+                // Atualizar dados dos gráficos
+                updateCharts();
+                alert('Dados atualizados com sucesso!');
+            }, 1500);
+        }
+
+        function toggleMetric(metric) {
+            document.querySelectorAll('.header-actions button').forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            });
+            
+            event.target.classList.remove('btn-secondary');
+            event.target.classList.add('btn-primary');
+            
+            // Filtrar dados baseado na métrica selecionada
+            console.log(`Filtrando por: ${metric}`);
+        }
+
+        function updateCharts() {
+            // Atualizar gráfico de crescimento
+            if (growthChart) {
+                const newData = generateRandomData(7);
+                growthChart.data.datasets[0].data = newData.users;
+                growthChart.data.datasets[1].data = newData.companies;
+                growthChart.update();
+            }
+        }
+
+        function generateRandomData(days) {
+            const users = [];
+            const companies = [];
+            let userBase = 1000;
+            let companyBase = 15;
+            
+            for (let i = 0; i < days; i++) {
+                userBase += Math.floor(Math.random() * 50) + 10;
+                companyBase += Math.floor(Math.random() * 2);
+                users.push(userBase);
+                companies.push(companyBase);
+            }
+            
+            return { users, companies };
+        }
+
+        function initializeCharts() {
+            // Gráfico de crescimento
+            const growthCtx = document.getElementById('growthChart');
+            if (growthCtx) {
+                const data = generateRandomData(30);
+                growthChart = new Chart(growthCtx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 30}, (_, i) => `Dia ${i + 1}`),
+                        datasets: [{
+                            label: 'Usuários',
+                            data: data.users,
+                            borderColor: 'rgb(139, 92, 246)',
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }, {
+                            label: 'Empresas',
+                            data: data.companies,
+                            borderColor: 'rgb(236, 72, 153)',
+                            backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Gráfico de usuários por categoria
+            const usersCtx = document.getElementById('usersChart');
+            if (usersCtx) {
+                usersChart = new Chart(usersCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Membros Ativos', 'Voluntários', 'Administradores'],
+                        datasets: [{
+                            data: [1200, 40, 7],
+                            backgroundColor: [
+                                'rgb(16, 185, 129)',
+                                'rgb(6, 182, 212)',
+                                'rgb(139, 92, 246)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Gráfico de empresas por status
+            const companiesCtx = document.getElementById('companiesChart');
+            if (companiesCtx) {
+                companiesChart = new Chart(companiesCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Ativas', 'Pendentes', 'Inativas'],
+                        datasets: [{
+                            data: [18, 4, 2],
+                            backgroundColor: [
+                                'rgb(16, 185, 129)',
+                                'rgb(245, 158, 11)',
+                                'rgb(239, 68, 68)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+        }
 
         console.log('🛠️ Painel Administrativo Liga do Bem carregado!');
         console.log('📊 Dashboard: Visão geral da plataforma');
@@ -1175,6 +1554,7 @@
         console.log('👥 Membros: Gestão de usuários');
         console.log('💰 Descontos: Configuração de promoções');
         console.log('📍 Localizações: GPS e horários');
+        console.log('📈 Relatórios: Analytics avançados');
     </script>
 </body>
 </html>
