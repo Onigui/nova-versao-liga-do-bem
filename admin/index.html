@@ -1139,15 +1139,29 @@
             }
             
             try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                if (payload.exp <= Date.now() / 1000) {
-                    localStorage.removeItem('admin_token');
-                    localStorage.removeItem('admin_user');
-                    window.location.href = 'login.html';
-                    return false;
+                // Verificar se é um token demo (base64 simples) ou JWT real
+                if (token.includes('.')) {
+                    // Token JWT real
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    if (payload.exp <= Date.now() / 1000) {
+                        localStorage.removeItem('admin_token');
+                        localStorage.removeItem('admin_user');
+                        window.location.href = 'login.html';
+                        return false;
+                    }
+                } else {
+                    // Token demo (base64 simples)
+                    const payload = JSON.parse(atob(token));
+                    if (payload.exp <= Date.now() / 1000) {
+                        localStorage.removeItem('admin_token');
+                        localStorage.removeItem('admin_user');
+                        window.location.href = 'login.html';
+                        return false;
+                    }
                 }
                 return true;
             } catch (error) {
+                console.error('Erro ao verificar token:', error);
                 localStorage.removeItem('admin_token');
                 localStorage.removeItem('admin_user');
                 window.location.href = 'login.html';
