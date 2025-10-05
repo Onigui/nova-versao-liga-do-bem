@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐾</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dOWWgHiFYYrE8Y&callback=initMap&libraries=places"></script>
     <style>
         :root {
             --primary-purple: #8B5CF6;
@@ -369,6 +370,85 @@
                 align-items: flex-start;
                 gap: 1rem;
             }
+        }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--bg-gray-100);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-gray);
+            padding: 0.25rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-gray-100);
+            color: var(--text-dark);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            padding: 1.5rem;
+            border-top: 1px solid var(--bg-gray-100);
+        }
+
+        .modal label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .modal textarea.form-input {
+            resize: vertical;
+            min-height: 80px;
         }
 
         /* Modal */
@@ -760,12 +840,213 @@
 
             <section id="locations-section" class="content-section">
                 <div class="header">
-                    <h1 class="header-title">Localizações e Horários</h1>
-                    <p class="header-subtitle">Configure localização e horários das empresas</p>
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Mapa Interativo - Empresas Parceiras</h1>
+                            <p class="header-subtitle">Visualize e gerencie a localização das empresas parceiras</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="toggleMapView('all')">
+                                <span>📍</span>
+                                Todas
+                            </button>
+                            <button class="btn btn-secondary" onclick="toggleMapView('active')">
+                                <span>✅</span>
+                                Ativas
+                            </button>
+                            <button class="btn btn-primary" onclick="addNewLocation()">
+                                <span>➕</span>
+                                Adicionar Localização
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div style="text-align: center; padding: 4rem; color: var(--text-gray);">
-                    <h3>Seção em Desenvolvimento</h3>
-                    <p>Esta funcionalidade será implementada em breve.</p>
+
+                <!-- Filtros do Mapa -->
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon blue">🔍</div>
+                            <h3 class="card-title">Buscar Localização</h3>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <input type="text" id="searchLocation" class="form-input" placeholder="Digite endereço ou empresa..." style="flex: 1;">
+                            <button class="btn btn-secondary" onclick="searchOnMap()">
+                                <span>🔍</span>
+                                Buscar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon green">🏷️</div>
+                            <h3 class="card-title">Filtrar por Categoria</h3>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                            <select id="categoryFilter" class="form-input" style="flex: 1;">
+                                <option value="">Todas as categorias</option>
+                                <option value="Veterinário">Veterinário</option>
+                                <option value="Pet Shop">Pet Shop</option>
+                                <option value="Restaurante">Restaurante</option>
+                                <option value="Farmácia">Farmácia</option>
+                                <option value="Hotel">Hotel</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mapa Principal -->
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="dashboard-card" style="grid-column: 2 / -1;">
+                        <div class="card-header">
+                            <div class="card-icon purple">🗺️</div>
+                            <h3 class="card-title">Mapa das Empresas Parceiras</h3>
+                            <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+                                <button class="btn btn-secondary" onclick="centerMapOnBotucatu()" style="font-size: 0.875rem;">
+                                    <span>🏠</span>
+                                    Botucatu
+                                </button>
+                                <button class="btn btn-secondary" onclick="showAllMarkers()" style="font-size: 0.875rem;">
+                                    <span>📍</span>
+                                    Todas
+                                </button>
+                            </div>
+                        </div>
+                        <div style="height: 500px; border-radius: 12px; overflow: hidden; position: relative;">
+                            <div id="map" style="width: 100%; height: 100%;"></div>
+                            <div id="mapLoading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: none;">
+                                <div class="loading"></div>
+                                <span>Carregando mapa...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Empresas -->
+                    <div class="dashboard-card" style="grid-column: 1;">
+                        <div class="card-header">
+                            <div class="card-icon orange">📋</div>
+                            <h3 class="card-title">Empresas Próximas</h3>
+                        </div>
+                        <div id="companiesList" style="max-height: 500px; overflow-y: auto;">
+                            <!-- Lista será preenchida dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estatísticas do Mapa -->
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon blue">📊</div>
+                            <h3 class="card-title">Estatísticas de Cobertura</h3>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-gray-50); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--primary-purple);" id="totalCompanies">24</div>
+                                <div style="color: var(--text-gray); font-size: 0.875rem;">Total de Empresas</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-gray-50); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--success-green);" id="activeCompanies">18</div>
+                                <div style="color: var(--text-gray); font-size: 0.875rem;">Empresas Ativas</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-gray-50); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--accent-blue);" id="coverageArea">85%</div>
+                                <div style="color: var(--text-gray); font-size: 0.875rem;">Cobertura da Cidade</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-gray-50); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--warning-orange);" id="avgDistance">2.3km</div>
+                                <div style="color: var(--text-gray); font-size: 0.875rem;">Distância Média</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon green">🎯</div>
+                            <h3 class="card-title">Gestão de Localizações</h3>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <button class="btn btn-secondary" onclick="exportLocations()">
+                                <span>📤</span>
+                                Exportar Localizações
+                            </button>
+                            <button class="btn btn-secondary" onclick="importLocations()">
+                                <span>📥</span>
+                                Importar CSV
+                            </button>
+                            <button class="btn btn-secondary" onclick="validateLocations()">
+                                <span>✅</span>
+                                Validar Endereços
+                            </button>
+                            <button class="btn btn-primary" onclick="optimizeRoutes()">
+                                <span>🚀</span>
+                                Otimizar Rotas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal para Adicionar Localização -->
+                <div id="locationModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Adicionar Nova Localização</h3>
+                            <button class="modal-close" onclick="closeLocationModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="locationForm">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                    <div>
+                                        <label>Nome da Empresa</label>
+                                        <input type="text" id="companyName" class="form-input" required>
+                                    </div>
+                                    <div>
+                                        <label>Categoria</label>
+                                        <select id="companyCategory" class="form-input" required>
+                                            <option value="">Selecione...</option>
+                                            <option value="Veterinário">Veterinário</option>
+                                            <option value="Pet Shop">Pet Shop</option>
+                                            <option value="Restaurante">Restaurante</option>
+                                            <option value="Farmácia">Farmácia</option>
+                                            <option value="Hotel">Hotel</option>
+                                            <option value="Outros">Outros</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label>Endereço</label>
+                                    <input type="text" id="companyAddress" class="form-input" placeholder="Digite o endereço completo..." required>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                    <div>
+                                        <label>Telefone</label>
+                                        <input type="tel" id="companyPhone" class="form-input">
+                                    </div>
+                                    <div>
+                                        <label>Email</label>
+                                        <input type="email" id="companyEmail" class="form-input">
+                                    </div>
+                                    <div>
+                                        <label>Website</label>
+                                        <input type="url" id="companyWebsite" class="form-input">
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label>Horários de Funcionamento</label>
+                                    <textarea id="companyHours" class="form-input" rows="3" placeholder="Ex: Segunda a Sexta: 08:00 - 18:00&#10;Sábado: 08:00 - 12:00&#10;Domingo: Fechado"></textarea>
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label>Desconto Oferecido</label>
+                                    <input type="text" id="companyDiscount" class="form-input" placeholder="Ex: 10% de desconto">
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeLocationModal()">Cancelar</button>
+                            <button class="btn btn-primary" onclick="saveLocation()">Salvar Localização</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -1562,12 +1843,434 @@
             }
         }
 
+        // Variáveis globais para o mapa
+        let map;
+        let markers = [];
+        let companiesData = [];
+
+        // Dados de exemplo das empresas
+        const sampleCompanies = [
+            {
+                id: 1,
+                name: "Pet Shop Central",
+                category: "Pet Shop",
+                address: "Rua das Flores, 123, Botucatu - SP",
+                phone: "(14) 3882-1234",
+                email: "contato@petshopcentral.com",
+                website: "https://petshopcentral.com",
+                hours: "Seg-Sex: 08:00-18:00, Sáb: 08:00-12:00",
+                discount: "15% de desconto",
+                lat: -22.8858,
+                lng: -48.4449,
+                isActive: true
+            },
+            {
+                id: 2,
+                name: "Clínica Veterinária Amigo",
+                category: "Veterinário",
+                address: "Av. São Paulo, 456, Botucatu - SP",
+                phone: "(14) 3882-5678",
+                email: "contato@clinicavetamigo.com",
+                hours: "Seg-Sex: 07:00-19:00, Sáb: 07:00-13:00",
+                discount: "10% de desconto",
+                lat: -22.8868,
+                lng: -48.4459,
+                isActive: true
+            },
+            {
+                id: 3,
+                name: "Restaurante Pet Friendly",
+                category: "Restaurante",
+                address: "Praça da Matriz, 789, Botucatu - SP",
+                phone: "(14) 3882-9012",
+                email: "contato@petfriendly.com",
+                hours: "Seg-Dom: 11:00-22:00",
+                discount: "20% de desconto",
+                lat: -22.8848,
+                lng: -48.4439,
+                isActive: true
+            },
+            {
+                id: 4,
+                name: "Farmácia Animal",
+                category: "Farmácia",
+                address: "Rua 15 de Novembro, 321, Botucatu - SP",
+                phone: "(14) 3882-3456",
+                email: "contato@farmaciaanimal.com",
+                hours: "Seg-Sex: 08:00-18:00, Sáb: 08:00-12:00",
+                discount: "12% de desconto",
+                lat: -22.8878,
+                lng: -48.4469,
+                isActive: false
+            }
+        ];
+
+        // Funções do Mapa
+        function initMap() {
+            // Centro do mapa (Botucatu)
+            const botucatu = { lat: -22.8858, lng: -48.4449 };
+            
+            // Configuração do mapa
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 13,
+                center: botucatu,
+                styles: [
+                    {
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }]
+                    }
+                ]
+            });
+
+            // Carregar empresas
+            loadCompanies();
+            
+            // Configurar listeners
+            setupMapListeners();
+        }
+
+        function loadCompanies() {
+            companiesData = [...sampleCompanies];
+            renderCompaniesOnMap();
+            renderCompaniesList();
+            updateStatistics();
+        }
+
+        function renderCompaniesOnMap() {
+            // Limpar marcadores existentes
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+
+            companiesData.forEach(company => {
+                if (company.lat && company.lng) {
+                    const marker = new google.maps.Marker({
+                        position: { lat: company.lat, lng: company.lng },
+                        map: map,
+                        title: company.name,
+                        icon: getMarkerIcon(company.category, company.isActive)
+                    });
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: createInfoWindowContent(company)
+                    });
+
+                    marker.addListener('click', () => {
+                        infoWindow.open(map, marker);
+                    });
+
+                    markers.push(marker);
+                }
+            });
+        }
+
+        function getMarkerIcon(category, isActive) {
+            const colors = {
+                'Veterinário': isActive ? '#10B981' : '#EF4444',
+                'Pet Shop': isActive ? '#3B82F6' : '#EF4444',
+                'Restaurante': isActive ? '#F59E0B' : '#EF4444',
+                'Farmácia': isActive ? '#8B5CF6' : '#EF4444',
+                'Hotel': isActive ? '#06B6D4' : '#EF4444',
+                'Outros': isActive ? '#6B7280' : '#EF4444'
+            };
+
+            const color = colors[category] || '#6B7280';
+            
+            return {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: '#FFFFFF',
+                strokeWeight: 2
+            };
+        }
+
+        function createInfoWindowContent(company) {
+            return `
+                <div style="padding: 1rem; min-width: 250px;">
+                    <h3 style="margin: 0 0 0.5rem; color: var(--primary-purple);">${company.name}</h3>
+                    <p style="margin: 0 0 0.5rem; color: var(--text-gray); font-size: 0.875rem;">${company.category}</p>
+                    <p style="margin: 0 0 0.5rem; font-size: 0.875rem;">${company.address}</p>
+                    <p style="margin: 0 0 0.5rem; font-size: 0.875rem;">📞 ${company.phone}</p>
+                    <p style="margin: 0 0 0.5rem; font-size: 0.875rem;">⏰ ${company.hours}</p>
+                    <p style="margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--success-green);">💰 ${company.discount}</p>
+                </div>
+            `;
+        }
+
+        function renderCompaniesList() {
+            const container = document.getElementById('companiesList');
+            container.innerHTML = '';
+
+            companiesData.slice(0, 10).forEach(company => {
+                const item = document.createElement('div');
+                item.style.cssText = `
+                    padding: 1rem;
+                    border-bottom: 1px solid var(--bg-gray-100);
+                    cursor: pointer;
+                    transition: background-color 0.2s ease;
+                `;
+                
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0; font-size: 1rem; color: var(--text-dark);">${company.name}</h4>
+                        <span class="status-badge ${company.isActive ? 'status-active' : 'status-inactive'}">
+                            ${company.isActive ? 'Ativa' : 'Inativa'}
+                        </span>
+                    </div>
+                    <p style="margin: 0; font-size: 0.875rem; color: var(--text-gray);">${company.category}</p>
+                    <p style="margin: 0; font-size: 0.875rem; color: var(--text-gray);">${company.discount}</p>
+                `;
+
+                item.addEventListener('click', () => {
+                    if (company.lat && company.lng) {
+                        map.setCenter({ lat: company.lat, lng: company.lng });
+                        map.setZoom(16);
+                    }
+                });
+
+                item.addEventListener('mouseenter', () => {
+                    item.style.backgroundColor = 'var(--bg-gray-50)';
+                });
+
+                item.addEventListener('mouseleave', () => {
+                    item.style.backgroundColor = 'transparent';
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        function updateStatistics() {
+            const total = companiesData.length;
+            const active = companiesData.filter(c => c.isActive).length;
+            const coverage = Math.round((active / total) * 100);
+            const avgDistance = "2.3km"; // Simulado
+
+            document.getElementById('totalCompanies').textContent = total;
+            document.getElementById('activeCompanies').textContent = active;
+            document.getElementById('coverageArea').textContent = `${coverage}%`;
+            document.getElementById('avgDistance').textContent = avgDistance;
+        }
+
+        function setupMapListeners() {
+            // Filtro de categoria
+            document.getElementById('categoryFilter').addEventListener('change', (e) => {
+                const category = e.target.value;
+                filterCompaniesByCategory(category);
+            });
+
+            // Busca de localização
+            document.getElementById('searchLocation').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    searchOnMap();
+                }
+            });
+        }
+
+        function filterCompaniesByCategory(category) {
+            if (!category) {
+                renderCompaniesOnMap();
+                renderCompaniesList();
+                return;
+            }
+
+            const filtered = companiesData.filter(company => company.category === category);
+            
+            // Limpar marcadores
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+
+            // Adicionar apenas marcadores filtrados
+            filtered.forEach(company => {
+                if (company.lat && company.lng) {
+                    const marker = new google.maps.Marker({
+                        position: { lat: company.lat, lng: company.lng },
+                        map: map,
+                        title: company.name,
+                        icon: getMarkerIcon(company.category, company.isActive)
+                    });
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: createInfoWindowContent(company)
+                    });
+
+                    marker.addListener('click', () => {
+                        infoWindow.open(map, marker);
+                    });
+
+                    markers.push(marker);
+                }
+            });
+
+            // Atualizar lista
+            const container = document.getElementById('companiesList');
+            container.innerHTML = '';
+
+            filtered.slice(0, 10).forEach(company => {
+                const item = document.createElement('div');
+                item.style.cssText = `
+                    padding: 1rem;
+                    border-bottom: 1px solid var(--bg-gray-100);
+                    cursor: pointer;
+                    transition: background-color 0.2s ease;
+                `;
+                
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0; font-size: 1rem; color: var(--text-dark);">${company.name}</h4>
+                        <span class="status-badge ${company.isActive ? 'status-active' : 'status-inactive'}">
+                            ${company.isActive ? 'Ativa' : 'Inativa'}
+                        </span>
+                    </div>
+                    <p style="margin: 0; font-size: 0.875rem; color: var(--text-gray);">${company.category}</p>
+                    <p style="margin: 0; font-size: 0.875rem; color: var(--text-gray);">${company.discount}</p>
+                `;
+
+                item.addEventListener('click', () => {
+                    if (company.lat && company.lng) {
+                        map.setCenter({ lat: company.lat, lng: company.lng });
+                        map.setZoom(16);
+                    }
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        function searchOnMap() {
+            const query = document.getElementById('searchLocation').value.trim();
+            if (!query) return;
+
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: query + ', Botucatu, SP' }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    map.setCenter(results[0].geometry.location);
+                    map.setZoom(15);
+                    
+                    // Criar marcador temporário
+                    new google.maps.Marker({
+                        position: results[0].geometry.location,
+                        map: map,
+                        title: 'Busca: ' + query,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 10,
+                            fillColor: '#FF0000',
+                            fillOpacity: 1,
+                            strokeColor: '#FFFFFF',
+                            strokeWeight: 2
+                        }
+                    });
+                } else {
+                    alert('Localização não encontrada. Tente novamente.');
+                }
+            });
+        }
+
+        function centerMapOnBotucatu() {
+            map.setCenter({ lat: -22.8858, lng: -48.4449 });
+            map.setZoom(13);
+        }
+
+        function showAllMarkers() {
+            renderCompaniesOnMap();
+            renderCompaniesList();
+        }
+
+        function toggleMapView(view) {
+            const buttons = document.querySelectorAll('.header-actions button');
+            buttons.forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            });
+            
+            event.target.classList.remove('btn-secondary');
+            event.target.classList.add('btn-primary');
+
+            if (view === 'active') {
+                const activeCompanies = companiesData.filter(c => c.isActive);
+                filterCompaniesByCategory(''); // Limpar filtro
+                // Filtrar apenas ativas
+                const container = document.getElementById('companiesList');
+                container.innerHTML = '';
+
+                activeCompanies.slice(0, 10).forEach(company => {
+                    const item = document.createElement('div');
+                    item.style.cssText = `
+                        padding: 1rem;
+                        border-bottom: 1px solid var(--bg-gray-100);
+                        cursor: pointer;
+                        transition: background-color 0.2s ease;
+                    `;
+                    
+                    item.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h4 style="margin: 0; font-size: 1rem; color: var(--text-dark);">${company.name}</h4>
+                            <span class="status-badge status-active">Ativa</span>
+                        </div>
+                        <p style="margin: 0; font-size: 0.875rem; color: var(--text-gray);">${company.category}</p>
+                        <p style="margin: 0; font-size: 0.875rem; color: var(--text-gray);">${company.discount}</p>
+                    `;
+
+                    item.addEventListener('click', () => {
+                        if (company.lat && company.lng) {
+                            map.setCenter({ lat: company.lat, lng: company.lng });
+                            map.setZoom(16);
+                        }
+                    });
+
+                    container.appendChild(item);
+                });
+            } else {
+                renderCompaniesOnMap();
+                renderCompaniesList();
+            }
+        }
+
+        // Funções do Modal
+        function addNewLocation() {
+            document.getElementById('locationModal').style.display = 'flex';
+        }
+
+        function closeLocationModal() {
+            document.getElementById('locationModal').style.display = 'none';
+            document.getElementById('locationForm').reset();
+        }
+
+        function saveLocation() {
+            const form = document.getElementById('locationForm');
+            const formData = new FormData(form);
+            
+            // Simular salvamento
+            alert('Localização salva com sucesso!');
+            closeLocationModal();
+        }
+
+        // Funções de gestão
+        function exportLocations() {
+            alert('Exportando localizações...');
+        }
+
+        function importLocations() {
+            alert('Importando localizações...');
+        }
+
+        function validateLocations() {
+            alert('Validando endereços...');
+        }
+
+        function optimizeRoutes() {
+            alert('Otimizando rotas...');
+        }
+
         console.log('🛠️ Painel Administrativo Liga do Bem carregado!');
         console.log('📊 Dashboard: Visão geral da plataforma');
         console.log('🏢 Empresas: Gestão de parceiros');
         console.log('👥 Membros: Gestão de usuários');
         console.log('💰 Descontos: Configuração de promoções');
-        console.log('📍 Localizações: GPS e horários');
+        console.log('📍 Mapa Interativo: GPS e localizações');
         console.log('📈 Relatórios: Analytics avançados');
     </script>
 </body>
