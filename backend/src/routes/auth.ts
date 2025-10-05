@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { generateToken } from '../utils/jwt';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -45,11 +45,11 @@ router.post('/register', async (req, res) => {
     });
 
     // Generate JWT
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET as string,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    });
 
     res.status(201).json({
       message: 'Usuário criado com sucesso',
@@ -72,10 +72,7 @@ router.post('/login', async (req, res) => {
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        membership: true
-      }
+      where: { email }
     });
 
     if (!user) {
@@ -93,11 +90,11 @@ router.post('/login', async (req, res) => {
     }
 
     // Generate JWT
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET as string,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    });
 
     res.json({
       message: 'Login realizado com sucesso',
@@ -162,11 +159,11 @@ router.post('/oauth/google', async (req, res) => {
     }
 
     // Generate JWT
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET as string,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    });
 
     res.json({
       message: 'Login OAuth realizado com sucesso',
