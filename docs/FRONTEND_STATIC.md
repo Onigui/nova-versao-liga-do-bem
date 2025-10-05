@@ -12,9 +12,9 @@ Para configurar este static site no Render:
 ### 2. Configurações
 - **Name**: `nova-versao-liga-do-bem-web`
 - **Branch**: `master`
-- **Root Directory**: (deixar vazio - raiz do projeto)
+- **Root Directory**: `web`
 - **Build Command**: (deixar vazio)
-- **Publish Directory**: (deixar vazio - raiz do projeto)
+- **Publish Directory**: `web`
 
 ### 3. Environment Variables
 Nenhuma variável de ambiente necessária para o static site.
