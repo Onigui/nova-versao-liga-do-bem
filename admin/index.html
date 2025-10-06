@@ -1669,6 +1669,9 @@
     </div>
 
     <script>
+        // Configuração da API
+        const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com';
+        
         // Verificar autenticação
         function checkAuth() {
             const token = localStorage.getItem('admin_token');
@@ -1891,21 +1894,101 @@
             `).join('');
         }
 
+        // Função para carregar membros do backend
+        async function loadMembers() {
+            try {
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    console.error('Token não encontrado');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/api/admin/members`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    membersData = data.members || [];
+                    renderMembersTable();
+                } else {
+                    console.error('Erro ao carregar membros:', response.status);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar membros:', error);
+            }
+        }
+
         function renderMembersTable() {
             const tbody = document.getElementById('members-table-body');
             tbody.innerHTML = membersData.map(member => `
                 <tr>
                     <td>${member.name}</td>
                     <td>${member.email}</td>
-                    <td>${member.phone}</td>
-                    <td><span class="status-badge status-${member.status}">${member.status === 'active' ? 'Ativo' : 'Inativo'}</span></td>
-                    <td>${member.points}</td>
-                    <td>${member.date}</td>
+                    <td>${member.phone || 'N/A'}</td>
+                    <td><span class="status-badge status-${member.isActive ? 'active' : 'inactive'}">${member.isActive ? 'Ativo' : 'Inativo'}</span></td>
+                    <td>${member.points || 0}</td>
+                    <td>${new Date(member.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td>
                         <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;">Editar</button>
                     </td>
                 </tr>
             `).join('');
+        }
+
+        // Função para carregar dados do dashboard
+        async function loadDashboardData() {
+            try {
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    console.error('Token não encontrado');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/api/admin/dashboard`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro ao carregar dados: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Atualizar cards de estatísticas
+                document.getElementById('totalMembers').textContent = data.stats.totalMembers.toLocaleString();
+                document.getElementById('activePartners').textContent = data.stats.activePartners.toLocaleString();
+                document.getElementById('totalAdoptions').textContent = data.stats.totalAdoptions.toLocaleString();
+                document.getElementById('monthlyRevenue').textContent = `R$ ${data.stats.monthlyRevenue.toLocaleString()}`;
+
+                // Atualizar gráficos
+                updateCharts(data.stats);
+                
+            } catch (error) {
+                console.error('Erro ao carregar dados do dashboard:', error);
+                // Fallback para dados simulados em caso de erro
+                const stats = {
+                    totalMembers: 1247,
+                    activePartners: 89,
+                    totalAdoptions: 342,
+                    monthlyRevenue: 15680
+                };
+                
+                document.getElementById('totalMembers').textContent = stats.totalMembers.toLocaleString();
+                document.getElementById('activePartners').textContent = stats.activePartners.toLocaleString();
+                document.getElementById('totalAdoptions').textContent = stats.totalAdoptions.toLocaleString();
+                document.getElementById('monthlyRevenue').textContent = `R$ ${stats.monthlyRevenue.toLocaleString()}`;
+                
+                updateCharts(stats);
+            }
         }
 
         // Inicializar tabelas
@@ -1918,9 +2001,14 @@
             // Mostrar informações do usuário
             showUserInfo();
             
+            // Carregar dados do dashboard
+            loadDashboardData();
+            
+            // Carregar dados do backend
+            loadMembers();
+            
             // Inicializar tabelas
             renderCompaniesTable();
-            renderMembersTable();
             
             // Inicializar gráficos
             setTimeout(() => {
@@ -2188,8 +2276,34 @@
             setupMapListeners();
         }
 
-        function loadCompanies() {
-            companiesData = [...sampleCompanies];
+        async function loadCompanies() {
+            try {
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    console.error('Token não encontrado');
+                    companiesData = [...sampleCompanies];
+                } else {
+                    const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        companiesData = data.companies || [];
+                    } else {
+                        console.error('Erro ao carregar empresas:', response.status);
+                        companiesData = [...sampleCompanies];
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar empresas:', error);
+                companiesData = [...sampleCompanies];
+            }
+            
             renderCompaniesOnMap();
             renderCompaniesList();
             updateStatistics();
@@ -2497,13 +2611,58 @@
             document.getElementById('locationForm').reset();
         }
 
-        function saveLocation() {
-            const form = document.getElementById('locationForm');
-            const formData = new FormData(form);
-            
-            // Simular salvamento
-            alert('Localização salva com sucesso!');
-            closeLocationModal();
+        async function saveLocation() {
+            try {
+                const form = document.getElementById('locationForm');
+                const formData = new FormData(form);
+                
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    alert('Token não encontrado. Faça login novamente.');
+                    return;
+                }
+
+                const companyData = {
+                    name: formData.get('companyName'),
+                    cnpj: formData.get('cnpj'),
+                    email: formData.get('email'),
+                    phone: formData.get('phone'),
+                    address: formData.get('address'),
+                    city: formData.get('city'),
+                    state: formData.get('state'),
+                    zipCode: formData.get('zipCode'),
+                    latitude: parseFloat(formData.get('latitude')),
+                    longitude: parseFloat(formData.get('longitude')),
+                    openingHours: formData.get('openingHours'),
+                    closingHours: formData.get('closingHours'),
+                    workingDays: formData.get('workingDays'),
+                    category: formData.get('category'),
+                    description: formData.get('description'),
+                    discount: parseFloat(formData.get('discount')),
+                    isActive: true
+                };
+
+                const response = await fetch(`${API_BASE_URL}/api/partners`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(companyData)
+                });
+
+                if (response.ok) {
+                    alert('Empresa parceira cadastrada com sucesso!');
+                    closeLocationModal();
+                    loadCompanies(); // Recarregar lista de empresas
+                } else {
+                    const error = await response.json();
+                    alert(`Erro ao salvar: ${error.message || 'Erro desconhecido'}`);
+                }
+            } catch (error) {
+                console.error('Erro ao salvar empresa:', error);
+                alert('Erro ao salvar empresa. Tente novamente.');
+            }
         }
 
         // Funções de gestão
@@ -2726,7 +2885,7 @@
                     return;
                 }
 
-                const response = await fetch(`https://nova-versao-liga-do-bem-api.onrender.com${endpoint}`, {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2754,7 +2913,7 @@
         async function loadNotificationStats() {
             try {
                 const token = localStorage.getItem('admin_token');
-                const response = await fetch('https://nova-versao-liga-do-bem-api.onrender.com/api/notifications/admin/stats', {
+                const response = await fetch(`${API_BASE_URL}/api/notifications/admin/stats`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
