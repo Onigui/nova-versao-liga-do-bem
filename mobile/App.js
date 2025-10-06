@@ -9,6 +9,8 @@ import * as Font from 'expo-font';
 
 // Import screens
 import HomeScreen from './src/screens/HomeScreen';
+import PartnersScreen from './src/screens/PartnersScreen';
+import SearchPartnerScreen from './src/screens/SearchPartnerScreen';
 import AdoptionScreen from './src/screens/AdoptionScreen';
 import VolunteersScreen from './src/screens/VolunteersScreen';
 import EventsScreen from './src/screens/EventsScreen';
@@ -57,6 +59,24 @@ function HomeStack() {
         component={QRScannerScreen}
         options={{ 
           title: 'Escanear QR Code',
+          headerStyle: { backgroundColor: '#4CAF50' },
+          headerTintColor: '#fff'
+        }}
+      />
+      <Stack.Screen 
+        name="Partners" 
+        component={PartnersScreen}
+        options={{ 
+          title: 'Parceiros Próximos',
+          headerStyle: { backgroundColor: '#4CAF50' },
+          headerTintColor: '#fff'
+        }}
+      />
+      <Stack.Screen 
+        name="SearchPartner" 
+        component={SearchPartnerScreen}
+        options={{ 
+          title: 'Buscar Parceiro',
           headerStyle: { backgroundColor: '#4CAF50' },
           headerTintColor: '#fff'
         }}

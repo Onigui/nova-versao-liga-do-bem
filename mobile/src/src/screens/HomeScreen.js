@@ -216,6 +216,26 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionButton}
+            onPress={() => navigation.navigate('Partners')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="location" size={24} color="#8B5CF6" />
+            </View>
+            <Text style={styles.quickActionText}>Parceiros Próximos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('SearchPartner')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="search" size={24} color="#06B6D4" />
+            </View>
+            <Text style={styles.quickActionText}>Buscar Parceiro</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
             onPress={() => navigation.navigate('QRScanner')}
           >
             <View style={styles.quickActionIcon}>
