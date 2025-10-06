@@ -45,7 +45,7 @@ try {
     console.log('⚠️ Firebase Admin SDK não configurado - usando modo simulado');
   }
 } catch (error) {
-  console.log('⚠️ Firebase Admin SDK não disponível - usando modo simulado:', error.message);
+  console.log('⚠️ Firebase Admin SDK não disponível - usando modo simulado:', error instanceof Error ? error.message : String(error));
 }
 
 export interface NotificationPayload {
