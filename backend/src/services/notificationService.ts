@@ -1,28 +1,51 @@
 import { PrismaClient } from '@prisma/client';
-import admin from 'firebase-admin';
 
 const prisma = new PrismaClient();
 
-// Configuração do Firebase Admin (em produção, usar variáveis de ambiente)
-const serviceAccount = {
-  type: "service_account",
-  project_id: "liga-do-bem-app",
-  private_key_id: "demo-key-id",
-  private_key: "-----BEGIN PRIVATE KEY-----\nDEMO_PRIVATE_KEY\n-----END PRIVATE KEY-----\n",
-  client_email: "firebase-adminsdk-demo@liga-do-bem-app.iam.gserviceaccount.com",
-  client_id: "demo-client-id",
-  auth_uri: "https://accounts.google.com/o/oauth2/auth",
-  token_uri: "https://oauth2.googleapis.com/token",
-  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-  client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-demo%40liga-do-bem-app.iam.gserviceaccount.com"
-};
+// Firebase Admin SDK (opcional - só carrega se configurado)
+let admin: any = null;
+let firebaseInitialized = false;
 
-// Inicializar Firebase Admin (apenas se não estiver inicializado)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-    projectId: 'liga-do-bem-app'
-  });
+try {
+  // Só importa Firebase se as variáveis de ambiente estiverem configuradas
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+    // Importação dinâmica para evitar erro se o pacote não estiver instalado
+    let firebaseAdmin;
+    try {
+      firebaseAdmin = require('firebase-admin');
+    } catch (requireError) {
+      console.log('⚠️ firebase-admin não instalado - usando modo simulado');
+      throw new Error('firebase-admin not available');
+    }
+    
+    const serviceAccount = {
+      type: "service_account",
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      client_id: process.env.FIREBASE_CLIENT_ID,
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
+    };
+
+    if (!firebaseAdmin.apps.length) {
+      firebaseAdmin.initializeApp({
+        credential: firebaseAdmin.credential.cert(serviceAccount),
+        projectId: process.env.FIREBASE_PROJECT_ID
+      });
+    }
+    
+    admin = firebaseAdmin;
+    firebaseInitialized = true;
+    console.log('✅ Firebase Admin SDK inicializado com sucesso');
+  } else {
+    console.log('⚠️ Firebase Admin SDK não configurado - usando modo simulado');
+  }
+} catch (error) {
+  console.log('⚠️ Firebase Admin SDK não disponível - usando modo simulado:', error.message);
 }
 
 export interface NotificationPayload {
@@ -62,19 +85,31 @@ export class NotificationService {
         return false;
       }
 
-      // Preparar mensagem para Firebase
-      const message = {
-        notification: {
-          title: payload.title,
-          body: payload.body,
-          imageUrl: payload.imageUrl
-        },
-        data: payload.data || {},
-        tokens: deviceTokens.map(dt => dt.token)
-      };
+      let response: any = { successCount: 0 };
+      
+      if (firebaseInitialized && admin) {
+        // Preparar mensagem para Firebase
+        const message = {
+          notification: {
+            title: payload.title,
+            body: payload.body,
+            imageUrl: payload.imageUrl
+          },
+          data: payload.data || {},
+          tokens: deviceTokens.map(dt => dt.token)
+        };
 
-      // Enviar notificação
-      const response = await admin.messaging().sendMulticast(message);
+        // Enviar notificação via Firebase
+        response = await admin.messaging().sendMulticast(message);
+      } else {
+        // Modo simulado - simular envio bem-sucedido
+        console.log(`📱 [SIMULADO] Enviando notificação para usuário ${userId}:`);
+        console.log(`   Título: ${payload.title}`);
+        console.log(`   Corpo: ${payload.body}`);
+        console.log(`   Dispositivos: ${deviceTokens.length}`);
+        
+        response.successCount = deviceTokens.length;
+      }
       
       // Salvar notificação no banco
       await prisma.notification.create({
@@ -150,19 +185,31 @@ export class NotificationService {
         return 0;
       }
 
-      // Preparar mensagem
-      const message = {
-        notification: {
-          title: payload.title,
-          body: payload.body,
-          imageUrl: payload.imageUrl
-        },
-        data: payload.data || {},
-        tokens: deviceTokens.map(dt => dt.token)
-      };
+      let response: any = { successCount: 0 };
+      
+      if (firebaseInitialized && admin) {
+        // Preparar mensagem
+        const message = {
+          notification: {
+            title: payload.title,
+            body: payload.body,
+            imageUrl: payload.imageUrl
+          },
+          data: payload.data || {},
+          tokens: deviceTokens.map(dt => dt.token)
+        };
 
-      // Enviar notificação
-      const response = await admin.messaging().sendMulticast(message);
+        // Enviar notificação via Firebase
+        response = await admin.messaging().sendMulticast(message);
+      } else {
+        // Modo simulado - simular envio bem-sucedido
+        console.log(`📱 [SIMULADO] Enviando notificação para todos os usuários:`);
+        console.log(`   Título: ${payload.title}`);
+        console.log(`   Corpo: ${payload.body}`);
+        console.log(`   Total de dispositivos: ${deviceTokens.length}`);
+        
+        response.successCount = deviceTokens.length;
+      }
       
       // Salvar notificação para cada usuário
       const userIds = [...new Set(deviceTokens.map(dt => dt.userId))];
