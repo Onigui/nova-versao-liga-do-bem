@@ -14,7 +14,7 @@ interface AuthRequest extends Request {
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace('Bearer ', '');
 
     if (!token) {
       return res.status(401).json({
@@ -72,7 +72,7 @@ export const authorize = (...roles: string[]) => {
 
 export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace('Bearer ', '');
 
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
