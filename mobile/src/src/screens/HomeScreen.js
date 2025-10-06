@@ -246,6 +246,16 @@ const HomeScreen = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.quickActionButton}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="notifications" size={24} color="#F59E0B" />
+            </View>
+            <Text style={styles.quickActionText}>Notificações</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
             onPress={() => navigation.navigate('DonationScreen')}
           >
             <View style={styles.quickActionIcon}>
