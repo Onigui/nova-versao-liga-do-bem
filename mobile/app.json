@@ -28,7 +28,11 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {},
@@ -53,6 +57,11 @@
         }
       ]
     ],
-    "extra": {}
+    "extra": {
+      "eas": {
+        "projectId": "73886b96-ebaa-4d18-b125-c8b3d53cc8ec"
+      }
+    },
+    "owner": "onigui"
   }
 }
