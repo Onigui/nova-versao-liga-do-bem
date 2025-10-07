@@ -125,7 +125,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
     }
 
     // Buscar pagamento
-    const payment = await prisma.payment.findUnique({
+    const payment = await prisma.payment.findFirst({
       where: { gatewayId: paymentId }
     });
 
@@ -168,11 +168,10 @@ async function processPaymentSuccess(payment: any) {
   try {
     // Se for mensalidade, ativar/renovar usuário
     if (payment.type === 'MEMBERSHIP' && payment.userEmail) {
-      await prisma.user.upsert({
+      const user = await prisma.user.upsert({
         where: { email: payment.userEmail },
         update: {
           isActive: true,
-          membershipExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
           updatedAt: new Date()
         },
         create: {
@@ -181,8 +180,25 @@ async function processPaymentSuccess(payment: any) {
           phone: payment.userPhone,
           password: 'temp_password', // Em produção, gerar senha temporária
           role: 'MEMBER',
-          isActive: true,
-          membershipExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          isActive: true
+        }
+      });
+
+      // Atualizar ou criar membership
+      await prisma.membership.upsert({
+        where: { userId: user.id },
+        update: {
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+          status: 'ACTIVE',
+          nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          updatedAt: new Date()
+        },
+        create: {
+          userId: user.id,
+          memberId: `MEM${Date.now()}`,
+          status: 'ACTIVE',
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         }
       });
     }
@@ -194,7 +210,7 @@ async function processPaymentSuccess(payment: any) {
         amount: payment.amount,
         type: payment.type,
         description: payment.description,
-        status: 'APPROVED',
+        status: 'COMPLETED',
         paymentId: payment.id
       }
     });
