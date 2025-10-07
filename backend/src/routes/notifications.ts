@@ -81,7 +81,6 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       notifications,
       pagination: {
         limit,
-        offset,
         total: notifications.length
       }
     });
