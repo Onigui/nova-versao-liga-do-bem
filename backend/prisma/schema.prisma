@@ -32,6 +32,8 @@ model User {
   deviceTokens    DeviceToken[]
   partnerValidations PartnerValidation[]
   eventRegistrations EventRegistration[]
+  payments        Payment[]
+  transactions    Transaction[]
 
   @@map("users")
 }
@@ -339,6 +341,86 @@ model Notification {
   readAt    DateTime?
 
   @@map("notifications")
+}
+
+// Modelo de pagamentos
+model Payment {
+  id          String   @id @default(cuid())
+  amount      Decimal
+  description String
+  type        PaymentType
+  status      PaymentStatus @default(PENDING)
+  gateway     String
+  gatewayId   String?
+  paymentUrl  String?
+  qrCode      String?
+  expiresAt   DateTime?
+  paidAt      DateTime?
+  gatewayData Json?
+  
+  // Dados do usuário (para pagamentos sem login)
+  userEmail   String?
+  userName    String?
+  userPhone   String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relacionamentos
+  transactions Transaction[]
+
+  @@map("payments")
+}
+
+// Modelo de transações
+model Transaction {
+  id          String          @id @default(cuid())
+  userId      String?
+  user        User?           @relation(fields: [userId], references: [id])
+  amount      Decimal
+  type        TransactionType
+  description String
+  status      TransactionStatus @default(COMPLETED)
+  paymentId   String?
+  payment     Payment?        @relation(fields: [paymentId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("transactions")
+}
+
+// Enums para pagamentos
+enum PaymentType {
+  DONATION
+  MEMBERSHIP
+  EVENT
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+// Enums para transações
+enum TransactionType {
+  DONATION
+  MEMBERSHIP
+  EVENT
+  REFUND
+  REWARD
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
 }
 
 enum NotificationType {

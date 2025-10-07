@@ -523,6 +523,372 @@
             border-radius: 50%;
             background: currentColor;
         }
+
+        /* Donation Section Styles */
+        .donation-section {
+            padding: 4rem 0;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        }
+
+        .donation-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .donation-form {
+            background: white;
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .donation-form h3 {
+            color: var(--text-dark);
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .amount-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .amount-btn {
+            padding: 1rem;
+            border: 2px solid var(--bg-gray-100);
+            border-radius: 12px;
+            background: white;
+            font-weight: 600;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .amount-btn:hover,
+        .amount-btn.selected {
+            border-color: var(--primary-purple);
+            background: var(--primary-purple);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .amount-btn.custom {
+            grid-column: span 3;
+            background: var(--bg-gray-50);
+        }
+
+        .custom-amount {
+            margin-bottom: 2rem;
+        }
+
+        .custom-amount label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .custom-amount input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid var(--bg-gray-100);
+            border-radius: 12px;
+            font-size: 1rem;
+        }
+
+        .donor-info {
+            margin-bottom: 2rem;
+        }
+
+        .donor-info h4 {
+            margin-bottom: 1rem;
+            color: var(--text-dark);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .donor-info input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--bg-gray-100);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .donate-btn {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, var(--primary-purple), var(--secondary-pink));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .donate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .donate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .donation-info {
+            background: white;
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .donation-info h3 {
+            color: var(--text-dark);
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .usage-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .usage-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .usage-icon {
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        .usage-item h4 {
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .usage-item p {
+            color: var(--text-gray);
+            font-size: 0.9rem;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            border-radius: 24px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-xl);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 2rem 1rem;
+            border-bottom: 1px solid var(--bg-gray-100);
+        }
+
+        .modal-header h3 {
+            color: var(--text-dark);
+            margin: 0;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: var(--text-gray);
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        .payment-info {
+            background: var(--bg-gray-50);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .payment-info p {
+            margin: 0.5rem 0;
+            color: var(--text-dark);
+        }
+
+        .payment-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .payment-option {
+            padding: 1rem;
+            border: 2px solid var(--bg-gray-100);
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .payment-option:hover,
+        .payment-option.selected {
+            border-color: var(--primary-purple);
+            background: var(--primary-purple);
+            color: white;
+        }
+
+        .payment-method {
+            background: var(--bg-gray-50);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .qr-code-container {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .qr-code-container div {
+            width: 200px;
+            height: 200px;
+            background: white;
+            border-radius: 12px;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid var(--bg-gray-100);
+        }
+
+        .copy-container {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .copy-container input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid var(--bg-gray-100);
+            border-radius: 8px;
+        }
+
+        .copy-container button {
+            padding: 0.75rem 1rem;
+            background: var(--primary-purple);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--bg-gray-100);
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .process-payment-btn,
+        .generate-boleto-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--primary-purple), var(--secondary-pink));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .process-payment-btn:hover,
+        .generate-boleto-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        @media (max-width: 768px) {
+            .donation-container {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            
+            .amount-options {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .amount-btn.custom {
+                grid-column: span 2;
+            }
+            
+            .payment-options {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -617,6 +983,158 @@
             </div>
         </div>
     </section>
+
+    <!-- Donation Section -->
+    <section class="donation-section" id="doacao">
+        <div class="container">
+            <h2 class="section-title">Faça Sua Doação</h2>
+            <p class="section-subtitle">Cada doação faz a diferença na vida dos animais. Escolha o valor e contribua para nossa causa.</p>
+            
+            <div class="donation-container">
+                <div class="donation-form">
+                    <h3>Escolha o Valor da Doação</h3>
+                    
+                    <div class="amount-options">
+                        <button class="amount-btn" data-amount="25">R$ 25</button>
+                        <button class="amount-btn" data-amount="50">R$ 50</button>
+                        <button class="amount-btn" data-amount="100">R$ 100</button>
+                        <button class="amount-btn" data-amount="200">R$ 200</button>
+                        <button class="amount-btn" data-amount="500">R$ 500</button>
+                        <button class="amount-btn custom">Outro Valor</button>
+                    </div>
+                    
+                    <div class="custom-amount" style="display: none;">
+                        <label for="customAmount">Digite o valor:</label>
+                        <input type="number" id="customAmount" placeholder="0,00" min="1" step="0.01">
+                    </div>
+                    
+                    <div class="donor-info">
+                        <h4>Seus Dados (opcional)</h4>
+                        <div class="form-row">
+                            <input type="text" id="donorName" placeholder="Seu nome">
+                            <input type="email" id="donorEmail" placeholder="Seu e-mail">
+                        </div>
+                        <input type="tel" id="donorPhone" placeholder="Seu telefone (opcional)">
+                    </div>
+                    
+                    <button class="donate-btn" onclick="processDonation()">
+                        <span class="loading" style="display: none;"></span>
+                        <span class="btn-text">Doar Agora</span>
+                    </button>
+                </div>
+                
+                <div class="donation-info">
+                    <h3>Como Utilizamos Sua Doação</h3>
+                    <div class="usage-list">
+                        <div class="usage-item">
+                            <span class="usage-icon">🏥</span>
+                            <div>
+                                <h4>Tratamentos Veterinários</h4>
+                                <p>Consultas, vacinas, castrações e cirurgias</p>
+                            </div>
+                        </div>
+                        <div class="usage-item">
+                            <span class="usage-icon">🍽️</span>
+                            <div>
+                                <h4>Alimentação</h4>
+                                <p>Ração de qualidade para todos os animais</p>
+                            </div>
+                        </div>
+                        <div class="usage-item">
+                            <span class="usage-icon">🚗</span>
+                            <div>
+                                <h4>Resgates</h4>
+                                <p>Transporte e combustível para resgates</p>
+                            </div>
+                        </div>
+                        <div class="usage-item">
+                            <span class="usage-icon">🏠</span>
+                            <div>
+                                <h4>Estrutura</h4>
+                                <p>Manutenção dos abrigos e equipamentos</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Processando Pagamento</h3>
+                <button class="close-modal" onclick="closePaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="payment-info">
+                    <p><strong>Valor:</strong> <span id="paymentAmount"></span></p>
+                    <p><strong>Descrição:</strong> <span id="paymentDescription"></span></p>
+                </div>
+                
+                <div class="payment-options">
+                    <button class="payment-option" onclick="payWithPIX()">
+                        <span>🔗</span>
+                        PIX
+                    </button>
+                    <button class="payment-option" onclick="payWithCard()">
+                        <span>💳</span>
+                        Cartão de Crédito
+                    </button>
+                    <button class="payment-option" onclick="payWithBoleto()">
+                        <span>📄</span>
+                        Boleto Bancário
+                    </button>
+                </div>
+                
+                <div id="pixPayment" class="payment-method" style="display: none;">
+                    <div class="qr-code-container">
+                        <div id="qrCode"></div>
+                        <p>Escaneie o QR Code com seu app do banco</p>
+                    </div>
+                    <div class="pix-copy">
+                        <label>Ou copie o código PIX:</label>
+                        <div class="copy-container">
+                            <input type="text" id="pixCode" readonly>
+                            <button onclick="copyPixCode()">Copiar</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="cardPayment" class="payment-method" style="display: none;">
+                    <form id="cardForm">
+                        <div class="form-group">
+                            <label>Número do Cartão</label>
+                            <input type="text" placeholder="0000 0000 0000 0000" maxlength="19">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Validade</label>
+                                <input type="text" placeholder="MM/AA" maxlength="5">
+                            </div>
+                            <div class="form-group">
+                                <label>CVV</label>
+                                <input type="text" placeholder="000" maxlength="3">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Nome no Cartão</label>
+                            <input type="text" placeholder="Nome completo">
+                        </div>
+                        <button type="submit" class="process-payment-btn">Processar Pagamento</button>
+                    </form>
+                </div>
+                
+                <div id="boletoPayment" class="payment-method" style="display: none;">
+                    <div class="boleto-info">
+                        <p>📄 O boleto será gerado e enviado para seu e-mail</p>
+                        <button class="generate-boleto-btn" onclick="generateBoleto()">Gerar Boleto</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Stats Section -->
     <section class="stats-section">
@@ -882,6 +1400,212 @@
         console.log('🐾 Liga do Bem Botucatu - Site carregado com sucesso!');
         console.log('📱 Backend API: https://nova-versao-liga-do-bem-api.onrender.com');
         console.log('🌐 Frontend Web: https://nova-versao-liga-do-bem-web.onrender.com');
+        // Payment System JavaScript
+        let selectedAmount = 0;
+        let currentPayment = null;
+        const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com';
+
+        // Amount selection
+        document.addEventListener('DOMContentLoaded', function() {
+            const amountButtons = document.querySelectorAll('.amount-btn');
+            const customAmountInput = document.getElementById('customAmount');
+            const customAmountDiv = document.querySelector('.custom-amount');
+
+            amountButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (this.classList.contains('custom')) {
+                        customAmountDiv.style.display = 'block';
+                        customAmountInput.focus();
+                        selectedAmount = 0;
+                    } else {
+                        customAmountDiv.style.display = 'none';
+                        selectedAmount = parseFloat(this.dataset.amount);
+                        updateButtonStates();
+                    }
+                });
+            });
+
+            customAmountInput.addEventListener('input', function() {
+                selectedAmount = parseFloat(this.value) || 0;
+                updateButtonStates();
+            });
+        });
+
+        function updateButtonStates() {
+            document.querySelectorAll('.amount-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if (btn.dataset.amount && parseFloat(btn.dataset.amount) === selectedAmount) {
+                    btn.classList.add('selected');
+                }
+            });
+        }
+
+        async function processDonation() {
+            if (selectedAmount <= 0) {
+                alert('Por favor, selecione um valor para doação.');
+                return;
+            }
+
+            const donorName = document.getElementById('donorName').value;
+            const donorEmail = document.getElementById('donorEmail').value;
+            const donorPhone = document.getElementById('donorPhone').value;
+
+            const donateBtn = document.querySelector('.donate-btn');
+            const loading = donateBtn.querySelector('.loading');
+            const btnText = donateBtn.querySelector('.btn-text');
+
+            try {
+                loading.style.display = 'inline-block';
+                btnText.textContent = 'Processando...';
+                donateBtn.disabled = true;
+
+                const response = await fetch(`${API_BASE_URL}/api/payments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: selectedAmount,
+                        description: `Doação para Liga do Bem - R$ ${selectedAmount.toFixed(2)}`,
+                        type: 'DONATION',
+                        email: donorEmail || null,
+                        name: donorName || null,
+                        phone: donorPhone || null
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro ao processar doação: ${response.status}`);
+                }
+
+                const data = await response.json();
+                currentPayment = data.payment;
+                
+                // Show payment modal
+                showPaymentModal();
+
+            } catch (error) {
+                console.error('Erro ao processar doação:', error);
+                alert('Erro ao processar doação. Tente novamente.');
+            } finally {
+                loading.style.display = 'none';
+                btnText.textContent = 'Doar Agora';
+                donateBtn.disabled = false;
+            }
+        }
+
+        function showPaymentModal() {
+            const modal = document.getElementById('paymentModal');
+            const amountSpan = document.getElementById('paymentAmount');
+            const descriptionSpan = document.getElementById('paymentDescription');
+
+            amountSpan.textContent = `R$ ${currentPayment.amount}`;
+            descriptionSpan.textContent = currentPayment.description;
+
+            modal.style.display = 'block';
+        }
+
+        function closePaymentModal() {
+            const modal = document.getElementById('paymentModal');
+            modal.style.display = 'none';
+            
+            // Hide all payment methods
+            document.querySelectorAll('.payment-method').forEach(method => {
+                method.style.display = 'none';
+            });
+        }
+
+        function payWithPIX() {
+            selectPaymentMethod('pixPayment');
+            // Simulate PIX QR code
+            const qrCodeDiv = document.getElementById('qrCode');
+            qrCodeDiv.innerHTML = '<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f0f0f0; border-radius: 8px; font-size: 0.8rem; color: #666;">QR Code PIX<br>Será gerado aqui</div>';
+            
+            const pixCode = document.getElementById('pixCode');
+            pixCode.value = '00020126580014br.gov.bcb.pix0136a1b2c3d4-e5f6-7890-abcd-ef1234567890520400005303986540' + currentPayment.amount.toFixed(2) + '5802BR5913Liga do Bem6014Botucatu62070503***6304';
+        }
+
+        function payWithCard() {
+            selectPaymentMethod('cardPayment');
+        }
+
+        function payWithBoleto() {
+            selectPaymentMethod('boletoPayment');
+        }
+
+        function selectPaymentMethod(methodId) {
+            // Remove selected class from all options
+            document.querySelectorAll('.payment-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked option
+            event.target.closest('.payment-option').classList.add('selected');
+            
+            // Hide all payment methods
+            document.querySelectorAll('.payment-method').forEach(method => {
+                method.style.display = 'none';
+            });
+            
+            // Show selected method
+            document.getElementById(methodId).style.display = 'block';
+        }
+
+        function copyPixCode() {
+            const pixCode = document.getElementById('pixCode');
+            pixCode.select();
+            pixCode.setSelectionRange(0, 99999); // For mobile devices
+            document.execCommand('copy');
+            alert('Código PIX copiado para a área de transferência!');
+        }
+
+        function generateBoleto() {
+            alert('Boleto será gerado e enviado para seu e-mail em breve!');
+            // In production, integrate with boleto generation service
+        }
+
+        // Card form submission
+        document.addEventListener('DOMContentLoaded', function() {
+            const cardForm = document.getElementById('cardForm');
+            if (cardForm) {
+                cardForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    processCardPayment();
+                });
+            }
+        });
+
+        async function processCardPayment() {
+            const processBtn = document.querySelector('.process-payment-btn');
+            const originalText = processBtn.textContent;
+            
+            try {
+                processBtn.textContent = 'Processando...';
+                processBtn.disabled = true;
+                
+                // Simulate card payment processing
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // In production, integrate with payment gateway
+                alert('Pagamento processado com sucesso! Obrigado pela sua doação!');
+                closePaymentModal();
+                
+            } catch (error) {
+                console.error('Erro ao processar pagamento:', error);
+                alert('Erro ao processar pagamento. Tente novamente.');
+            } finally {
+                processBtn.textContent = originalText;
+                processBtn.disabled = false;
+            }
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('paymentModal');
+            if (event.target === modal) {
+                closePaymentModal();
+            }
+        });
     </script>
 </body>
 </html>

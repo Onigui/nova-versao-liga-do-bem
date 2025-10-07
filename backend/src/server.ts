@@ -18,6 +18,7 @@ import eventRoutes from './routes/events';
 import donationRoutes from './routes/donations';
 import volunteerRoutes from './routes/volunteers';
 import notificationRoutes from './routes/notifications';
+import paymentRoutes from './routes/payments';
 import transparencyRoutes from './routes/transparency';
 import adminRoutes from './routes/admin';
 
@@ -86,6 +87,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/transparency', transparencyRoutes);
 app.use('/api/admin', adminRoutes);
 
