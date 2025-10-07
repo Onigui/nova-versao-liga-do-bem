@@ -20,20 +20,17 @@ class NotificationService {
     try {
       await prisma.deviceToken.upsert({
         where: {
-          userId_token: {
-            userId: userId,
-            token: token
-          }
+          token: token
         },
         update: {
           platform: platform,
-          lastUsed: new Date()
+          isActive: true
         },
         create: {
           userId: userId,
           token: token,
           platform: platform,
-          lastUsed: new Date()
+          isActive: true
         }
       });
 
@@ -67,7 +64,7 @@ class NotificationService {
     try {
       const notifications = await prisma.notification.findMany({
         where: { userId: userId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { sentAt: 'desc' },
         take: limit
       });
       return notifications;
@@ -84,7 +81,10 @@ class NotificationService {
     try {
       await prisma.notification.update({
         where: { id: notificationId },
-        data: { read: true }
+        data: { 
+          isRead: true,
+          readAt: new Date()
+        }
       });
       return true;
     } catch (error) {
@@ -100,13 +100,16 @@ class NotificationService {
     try {
       // Buscar todos os membros ativos
       const members = await prisma.user.findMany({
-        where: { role: 'MEMBER' },
-        include: { deviceTokens: true }
+        where: { role: 'MEMBER' as any }
       });
 
       let sentCount = 0;
       for (const member of members) {
-        if (member.deviceTokens.length > 0) {
+        const tokens = await prisma.deviceToken.findMany({
+          where: { userId: member.id, isActive: true }
+        });
+        
+        if (tokens.length > 0) {
           const sent = await this.sendToUser(member.id, payload);
           if (sent) sentCount++;
         }
@@ -156,7 +159,7 @@ class NotificationService {
 
       let successCount = 0;
       if (response.ok) {
-        const result = await response.json();
+        const result: any = await response.json();
         successCount = result.success || deviceTokens.length;
         console.log(`✅ Notificação Firebase enviada para ${successCount} dispositivos`);
       } else {
@@ -171,8 +174,7 @@ class NotificationService {
           title: payload.title,
           message: payload.body,
           type: 'GENERAL',
-          data: payload.data || {},
-          sentAt: new Date()
+          data: payload.data || {}
         }
       });
 
@@ -190,15 +192,19 @@ class NotificationService {
    */
   static async sendToRole(role: string, payload: NotificationPayload): Promise<number> {
     try {
-      // Buscar todos os usuários da role
+      // Buscar todos os usuários da role com seus tokens
       const users = await prisma.user.findMany({
-        where: { role: role },
-        include: { deviceTokens: true }
+        where: { role: role as any }
       });
 
+      // Buscar tokens para cada usuário
       let totalSent = 0;
       for (const user of users) {
-        if (user.deviceTokens.length > 0) {
+        const tokens = await prisma.deviceToken.findMany({
+          where: { userId: user.id, isActive: true }
+        });
+        
+        if (tokens.length > 0) {
           const success = await this.sendToUser(user.id, payload);
           if (success) totalSent++;
         }
