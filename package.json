@@ -20,5 +20,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Onigui/nova-versao-liga-do-bem.git"
+  },
+  "dependencies": {
+    "react-native-maps": "^1.26.14",
+    "react-native-qrcode-svg": "^6.3.15"
   }
 }

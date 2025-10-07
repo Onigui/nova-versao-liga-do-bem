@@ -203,3 +203,5 @@ mobile\android\app\build\outputs\apk\release\app-release.apk
 
 **Depois de instalar o Java 17, me avise e vamos gerar o APK!** 🚀
 
+
+
