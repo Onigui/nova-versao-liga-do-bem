@@ -126,6 +126,14 @@
         .main-content {
             flex: 1;
             margin-left: 280px;
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
             padding: 2rem;
         }
 
@@ -1446,7 +1454,7 @@
             </section>
 
             <!-- Seção de Pagamentos -->
-            <section id="payments-section" class="content-section" style="display: none;">
+            <section id="payments-section" class="content-section">
                 <div class="header">
                     <div class="header-content">
                         <div>
@@ -1899,6 +1907,7 @@
             // Esconder todas as seções
             document.querySelectorAll('.content-section').forEach(section => {
                 section.classList.remove('active');
+                section.style.display = 'none';
             });
             
             // Remover active de todos os links
@@ -1907,10 +1916,32 @@
             });
             
             // Mostrar seção selecionada
-            document.getElementById(sectionId + '-section').classList.add('active');
+            const targetSection = document.getElementById(sectionId + '-section');
+            if (targetSection) {
+                targetSection.classList.add('active');
+                targetSection.style.display = 'block';
+            }
             
             // Adicionar active ao link selecionado
-            event.target.classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(link => {
+                if (link.getAttribute('href') === `#${sectionId}`) {
+                    link.classList.add('active');
+                }
+            });
+
+            // Carregar dados específicos da seção
+            if (sectionId === 'dashboard') {
+                loadDashboardData();
+            } else if (sectionId === 'companies') {
+                loadCompanies();
+            } else if (sectionId === 'members') {
+                loadMembers();
+            } else if (sectionId === 'payments') {
+                loadPaymentStats();
+                loadPayments(1);
+            } else if (sectionId === 'notifications') {
+                loadNotificationStats();
+            }
         }
 
         // Modal functions
@@ -3336,6 +3367,12 @@
             loadPaymentStats();
             loadPayments(1);
         }
+
+        // Inicializar página - mostrar dashboard por padrão
+        document.addEventListener('DOMContentLoaded', function() {
+            // Garantir que apenas o dashboard esteja visível inicialmente
+            showSection('dashboard');
+        });
     </script>
 </body>
 </html>
