@@ -17,6 +17,9 @@ import DonationScreen from '../screens/DonationScreen';
 import AboutScreen from '../screens/AboutScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import VolunteerScreen from '../screens/VolunteerScreen';
+import TransparencyScreen from '../screens/TransparencyScreen';
+import EventsCalendarScreen from '../screens/EventsCalendarScreen';
 
 // Detail Screens
 import SearchPartnerScreen from '../screens/SearchPartnerScreen';
@@ -210,6 +213,42 @@ export function AppStack() {
         options={{
           headerShown: true,
           title: 'Sobre Nós',
+          headerStyle: {
+            backgroundColor: '#ffffff',
+          },
+          headerTintColor: '#8B5CF6',
+        }}
+      />
+      <Stack.Screen 
+        name="Volunteer" 
+        component={VolunteerScreen}
+        options={{
+          headerShown: true,
+          title: 'Voluntariado',
+          headerStyle: {
+            backgroundColor: '#ffffff',
+          },
+          headerTintColor: '#8B5CF6',
+        }}
+      />
+      <Stack.Screen 
+        name="Transparency" 
+        component={TransparencyScreen}
+        options={{
+          headerShown: true,
+          title: 'Transparência',
+          headerStyle: {
+            backgroundColor: '#ffffff',
+          },
+          headerTintColor: '#8B5CF6',
+        }}
+      />
+      <Stack.Screen 
+        name="EventsCalendar" 
+        component={EventsCalendarScreen}
+        options={{
+          headerShown: true,
+          title: 'Eventos',
           headerStyle: {
             backgroundColor: '#ffffff',
           },

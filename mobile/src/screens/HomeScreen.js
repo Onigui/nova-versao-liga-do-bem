@@ -176,7 +176,35 @@ export default function HomeScreen({ navigation }) {
             title="Doar"
             subtitle="Ajude nossa causa"
             color="#EF4444"
-            onPress={() => navigation.navigate('Doação')}
+            onPress={() => navigation.navigate('Donation')}
+          />
+          <QuickAction
+            icon="people"
+            title="Voluntariado"
+            subtitle="Doe seu tempo e amor"
+            color="#3B82F6"
+            onPress={() => navigation.navigate('Volunteer')}
+          />
+          <QuickAction
+            icon="calendar"
+            title="Eventos"
+            subtitle="Calendário de atividades"
+            color="#EC4899"
+            onPress={() => navigation.navigate('EventsCalendar')}
+          />
+          <QuickAction
+            icon="pie-chart"
+            title="Transparência"
+            subtitle="Prestação de contas"
+            color="#10B981"
+            onPress={() => navigation.navigate('Transparency')}
+          />
+          <QuickAction
+            icon="notifications"
+            title="Notificações"
+            subtitle="Mensagens e avisos"
+            color="#F59E0B"
+            onPress={() => navigation.navigate('Notifications')}
           />
         </View>
       </View>
