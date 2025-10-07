@@ -13,6 +13,9 @@
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
+      },
+      "cache": {
+        "disabled": false
       }
     },
     "production": {
