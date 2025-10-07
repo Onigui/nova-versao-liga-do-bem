@@ -2000,7 +2000,7 @@
         });
 
         // Dados de exemplo para as tabelas
-        const companiesData = [
+        let companiesData = [
             {
                 name: 'Pet Shop Amigo',
                 category: 'Pet Shop',
@@ -2374,7 +2374,22 @@
         // Variáveis globais para o mapa
         let map;
         let markers = [];
-        let companiesData = [];
+
+        // Função de inicialização do Google Maps
+        function initMap() {
+            if (typeof google !== 'undefined' && google.maps) {
+                // Inicializar mapa se ainda não foi inicializado
+                if (!map) {
+                    map = new google.maps.Map(document.getElementById('map'), {
+                        center: { lat: -22.8859, lng: -48.4444 }, // Botucatu
+                        zoom: 13
+                    });
+                }
+                console.log('Google Maps inicializado');
+            } else {
+                console.log('Google Maps ainda não carregou');
+            }
+        }
 
         // Dados de exemplo das empresas
         const sampleCompanies = [
@@ -2486,12 +2501,28 @@
                 companiesData = [...sampleCompanies];
             }
             
-            renderCompaniesOnMap();
-            renderCompaniesList();
-            updateStatistics();
+            // Inicializar mapa se ainda não foi inicializado
+            if (typeof google !== 'undefined' && google.maps) {
+                if (!map) {
+                    initMap();
+                }
+                renderCompaniesOnMap();
+                renderCompaniesList();
+                updateStatistics();
+            } else {
+                console.log('Google Maps não disponível ainda');
+                // Renderizar apenas a lista sem o mapa
+                renderCompaniesList();
+                updateStatistics();
+            }
         }
 
         function renderCompaniesOnMap() {
+            if (!map) {
+                console.log('Mapa não inicializado ainda');
+                return;
+            }
+            
             // Limpar marcadores existentes
             markers.forEach(marker => marker.setMap(null));
             markers = [];
