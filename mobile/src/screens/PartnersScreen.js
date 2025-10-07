@@ -6,17 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Dimensions,
   Linking,
   Platform,
   RefreshControl,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width } = Dimensions.get('window');
 const API_BASE_URL = 'https://liga-do-bem-backend.onrender.com/api';
 
 export default function PartnersScreen({ navigation }) {
@@ -27,7 +24,6 @@ export default function PartnersScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [userLocation, setUserLocation] = useState(null);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
 
   useEffect(() => {
     requestLocationPermission();
@@ -63,7 +59,7 @@ export default function PartnersScreen({ navigation }) {
           category: 'Pet Shop',
           discount: '15%',
           description: 'Desconto em rações, acessórios e produtos veterinários',
-          address: 'Rua Amando de Barros, 1234 - Centro',
+          address: 'Rua Amando de Barros, 1234 - Centro, Botucatu - SP',
           phone: '(14) 3811-1234',
           whatsapp: '14981234567',
           latitude: -22.8858,
@@ -77,7 +73,7 @@ export default function PartnersScreen({ navigation }) {
           category: 'Veterinária',
           discount: '20%',
           description: 'Desconto em consultas, vacinas e exames',
-          address: 'Av. Dom Lúcio, 456 - Vila Assunção',
+          address: 'Av. Dom Lúcio, 456 - Vila Assunção, Botucatu - SP',
           phone: '(14) 3815-5678',
           whatsapp: '14987654321',
           latitude: -22.8950,
@@ -91,7 +87,7 @@ export default function PartnersScreen({ navigation }) {
           category: 'Estética',
           discount: '10%',
           description: 'Desconto em serviços de banho, tosa e hidratação',
-          address: 'Rua Professor Montenegro, 789 - Centro',
+          address: 'Rua Professor Montenegro, 789 - Centro, Botucatu - SP',
           phone: '(14) 3813-9012',
           whatsapp: '14999887766',
           latitude: -22.8900,
@@ -161,13 +157,10 @@ export default function PartnersScreen({ navigation }) {
   };
 
   const openMaps = (partner) => {
-    const scheme = Platform.select({
-      ios: 'maps:',
-      android: 'geo:',
-    });
+    const address = encodeURIComponent(partner.address);
     const url = Platform.select({
-      ios: `${scheme}?q=${partner.latitude},${partner.longitude}`,
-      android: `${scheme}${partner.latitude},${partner.longitude}?q=${encodeURIComponent(partner.name)}`,
+      ios: `maps:0,0?q=${address}`,
+      android: `geo:0,0?q=${address}`,
     });
     Linking.openURL(url);
   };
@@ -202,30 +195,6 @@ export default function PartnersScreen({ navigation }) {
               <Ionicons name="close-circle" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
-        </View>
-
-        {/* View Mode Toggle */}
-        <View style={styles.viewModeContainer}>
-          <TouchableOpacity
-            style={[styles.viewModeButton, viewMode === 'list' && styles.viewModeActive]}
-            onPress={() => setViewMode('list')}
-          >
-            <Ionicons
-              name="list"
-              size={20}
-              color={viewMode === 'list' ? '#FFFFFF' : '#6B7280'}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.viewModeButton, viewMode === 'map' && styles.viewModeActive]}
-            onPress={() => setViewMode('map')}
-          >
-            <Ionicons
-              name="map"
-              size={20}
-              color={viewMode === 'map' ? '#FFFFFF' : '#6B7280'}
-            />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -262,126 +231,77 @@ export default function PartnersScreen({ navigation }) {
         ))}
       </ScrollView>
 
-      {/* Map View */}
-      {viewMode === 'map' && userLocation && (
-        <View style={styles.mapContainer}>
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={styles.map}
-            initialRegion={{
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            }}
-            showsUserLocation
-            showsMyLocationButton
+      {/* Partners List */}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {filteredPartners.map((partner) => (
+          <TouchableOpacity
+            key={partner.id}
+            style={styles.partnerCard}
+            onPress={() => navigation.navigate('PartnerDetail', { partner })}
           >
-            {filteredPartners.map((partner) => (
-              <Marker
-                key={partner.id}
-                coordinate={{
-                  latitude: partner.latitude,
-                  longitude: partner.longitude,
-                }}
-                title={partner.name}
-                description={partner.discount + ' de desconto'}
-                onCalloutPress={() => navigation.navigate('PartnerDetail', { partner })}
-              >
-                <View style={styles.customMarker}>
-                  <Ionicons name="storefront" size={20} color="#FFFFFF" />
-                </View>
-              </Marker>
-            ))}
-          </MapView>
-        </View>
-      )}
-
-      {/* List View */}
-      {viewMode === 'list' && (
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          {filteredPartners.map((partner) => (
-            <TouchableOpacity
-              key={partner.id}
-              style={styles.partnerCard}
-              onPress={() => navigation.navigate('PartnerDetail', { partner })}
+            <LinearGradient
+              colors={['#8B5CF6', '#7C3AED']}
+              style={styles.discountBadge}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
             >
-              <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
-                style={styles.discountBadge}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.discountText}>{partner.discount}</Text>
-              </LinearGradient>
+              <Text style={styles.discountText}>{partner.discount}</Text>
+            </LinearGradient>
 
-              <View style={styles.partnerInfo}>
-                <Text style={styles.partnerName}>{partner.name}</Text>
-                <View style={styles.partnerMeta}>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="pricetag" size={14} color="#8B5CF6" />
-                    <Text style={styles.metaText}>{partner.category}</Text>
-                  </View>
-                  {partner.distance && (
-                    <View style={styles.metaItem}>
-                      <Ionicons name="location" size={14} color="#10B981" />
-                      <Text style={styles.metaText}>
-                        {partner.distance.toFixed(1)} km
-                      </Text>
-                    </View>
-                  )}
+            <View style={styles.partnerInfo}>
+              <Text style={styles.partnerName}>{partner.name}</Text>
+              <View style={styles.partnerMeta}>
+                <View style={styles.metaItem}>
+                  <Ionicons name="pricetag" size={14} color="#8B5CF6" />
+                  <Text style={styles.metaText}>{partner.category}</Text>
                 </View>
-                <Text style={styles.partnerAddress} numberOfLines={1}>
-                  {partner.address}
-                </Text>
+                {partner.distance && (
+                  <View style={styles.metaItem}>
+                    <Ionicons name="location" size={14} color="#10B981" />
+                    <Text style={styles.metaText}>
+                      {partner.distance.toFixed(1)} km
+                    </Text>
+                  </View>
+                )}
               </View>
-
-              <View style={styles.partnerActions}>
-                <TouchableOpacity
-                  style={styles.actionIcon}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    openMaps(partner);
-                  }}
-                >
-                  <Ionicons name="navigate" size={20} color="#8B5CF6" />
-                </TouchableOpacity>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </View>
-            </TouchableOpacity>
-          ))}
-
-          {filteredPartners.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>Nenhum parceiro encontrado</Text>
-              <Text style={styles.emptyText}>
-                Tente ajustar os filtros ou buscar por outro termo
+              <Text style={styles.partnerAddress} numberOfLines={1}>
+                {partner.address}
               </Text>
             </View>
-          )}
-        </ScrollView>
-      )}
+
+            <View style={styles.partnerActions}>
+              <TouchableOpacity
+                style={styles.actionIcon}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  openMaps(partner);
+                }}
+              >
+                <Ionicons name="navigate" size={20} color="#8B5CF6" />
+              </TouchableOpacity>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </View>
+          </TouchableOpacity>
+        ))}
+
+        {filteredPartners.length === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="search-outline" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>Nenhum parceiro encontrado</Text>
+            <Text style={styles.emptyText}>
+              Tente ajustar os filtros ou buscar por outro termo
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
-
-  function openMaps(partner) {
-    const scheme = Platform.select({
-      ios: 'maps:',
-      android: 'geo:',
-    });
-    const url = Platform.select({
-      ios: `${scheme}?q=${partner.latitude},${partner.longitude}`,
-      android: `${scheme}${partner.latitude},${partner.longitude}?q=${encodeURIComponent(partner.name)}`,
-    });
-    Linking.openURL(url);
-  }
 }
 
 const styles = StyleSheet.create({
@@ -395,11 +315,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    flexDirection: 'row',
-    gap: 12,
   },
   searchBar: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
@@ -412,23 +329,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#1F2937',
-  },
-  viewModeContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
-  },
-  viewModeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  viewModeActive: {
-    backgroundColor: '#8B5CF6',
   },
   filtersContainer: {
     backgroundColor: '#FFFFFF',
@@ -462,28 +362,6 @@ const styles = StyleSheet.create({
   },
   filterTextActive: {
     color: '#FFFFFF',
-  },
-  mapContainer: {
-    flex: 1,
-  },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-  customMarker: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#8B5CF6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   scrollView: {
     flex: 1,
