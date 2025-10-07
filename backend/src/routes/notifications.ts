@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
-import NotificationService from '../services/notificationService';
+import NotificationService, { NotificationPayload } from '../services/notificationService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -74,9 +74,8 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
 
-    const notifications = await NotificationService.getUserNotifications(userId, limit, offset);
+    const notifications = await NotificationService.getUserNotifications(userId, limit);
 
     res.json({
       notifications,
