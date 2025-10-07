@@ -2,52 +2,45 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-console.log('🚀 Iniciando build do APK da Liga do Bem...');
+console.log('🚀 Iniciando build do APK para Liga do Bem Botucatu...\n');
 
 try {
-  // Verificar se estamos no diretório correto
-  if (!fs.existsSync('App.js')) {
-    console.error('❌ App.js não encontrado. Execute este script na pasta mobile/');
-    process.exit(1);
+  // Verificar se estamos na pasta correta
+  const packageJsonPath = path.join(__dirname, '..', 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    throw new Error('package.json não encontrado. Execute este script na pasta mobile/');
   }
 
-  console.log('📱 Configurando Expo...');
+  console.log('📦 Instalando dependências...');
+  execSync('npm install', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+
+  console.log('🔧 Configurando Expo...');
+  execSync('npx expo install', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+
+  console.log('📱 Gerando APK...');
+  console.log('⚠️  Isso pode levar alguns minutos...\n');
   
-  // Configurar o projeto Expo
-  execSync('npx expo install --fix', { stdio: 'inherit' });
-  
-  console.log('🔧 Configurando dependências...');
-  
-  // Instalar dependências específicas se necessário
-  const dependencies = [
-    '@react-navigation/native',
-    '@react-navigation/stack',
-    'react-native-screens',
-    'react-native-safe-area-context'
-  ];
-  
-  dependencies.forEach(dep => {
-    try {
-      execSync(`npm install ${dep}`, { stdio: 'inherit' });
-    } catch (error) {
-      console.warn(`⚠️  Não foi possível instalar ${dep}`);
-    }
+  // Gerar APK usando Expo Build
+  execSync('npx expo build:android --type apk', { 
+    stdio: 'inherit', 
+    cwd: path.join(__dirname, '..') 
   });
 
-  console.log('📦 Gerando bundle...');
-  
-  // Gerar bundle para Android
-  execSync('npx expo export --platform android', { stdio: 'inherit' });
-  
-  console.log('✅ Build concluído!');
-  console.log('📁 Arquivos gerados na pasta dist/');
-  console.log('');
-  console.log('📱 Para gerar APK, você pode:');
-  console.log('1. Usar o Expo Application Services (EAS): npx eas build --platform android');
-  console.log('2. Usar o Expo Go app para testar: npx expo start');
-  console.log('3. Usar o Android Studio para compilar o bundle');
+  console.log('\n✅ APK gerado com sucesso!');
+  console.log('📁 O arquivo APK estará disponível em:');
+  console.log('   https://expo.dev/accounts/[seu-usuario]/projects/liga-do-bem-botucatu/builds');
+  console.log('\n📱 Para instalar no seu dispositivo:');
+  console.log('   1. Baixe o APK do link acima');
+  console.log('   2. Ative "Fontes desconhecidas" nas configurações do Android');
+  console.log('   3. Instale o APK');
   
 } catch (error) {
-  console.error('❌ Erro durante o build:', error.message);
+  console.error('\n❌ Erro durante o build:', error.message);
+  console.log('\n🔧 Soluções possíveis:');
+  console.log('   1. Verifique se você tem uma conta Expo');
+  console.log('   2. Execute: npx expo login');
+  console.log('   3. Configure o app.json com suas credenciais');
+  console.log('   4. Tente novamente');
+  
   process.exit(1);
 }
