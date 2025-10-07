@@ -17,6 +17,16 @@ try {
   console.log('🔧 Configurando Expo...');
   execSync('npx expo install', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
 
+  // Verificar se google-services.json existe
+  const googleServicesPath = path.join(__dirname, '..', 'google-services.json');
+  if (!fs.existsSync(googleServicesPath)) {
+    console.log('⚠️  Arquivo google-services.json não encontrado!');
+    console.log('   Certifique-se de que o arquivo está na pasta mobile/');
+    console.log('   Baixe-o do Firebase Console e coloque na pasta mobile/');
+  } else {
+    console.log('✅ Arquivo google-services.json encontrado');
+  }
+
   console.log('📱 Gerando APK...');
   console.log('⚠️  Isso pode levar alguns minutos...\n');
   

@@ -57,7 +57,9 @@
           "color": "#8B5CF6",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging"
     ],
     "extra": {
       "eas": {

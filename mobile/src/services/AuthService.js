@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import NotificationService from './NotificationService';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -62,6 +63,9 @@ export const AuthProvider = ({ children }) => {
         
         setToken(authToken);
         setUser(userData);
+        
+        // Registrar para notificações push após login bem-sucedido
+        NotificationService.registerForPushNotifications(authToken);
         
         return { success: true };
       } else {
