@@ -7,7 +7,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // Registrar token de dispositivo para notificações push
-router.post('/register-token', authenticate, async (req: Request, res: Response) => {
+router.post('/register', authenticate, async (req: Request, res: Response) => {
   try {
     const { token, platform } = req.body;
     const userId = (req as any).user.id;

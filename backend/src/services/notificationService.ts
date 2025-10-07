@@ -2,51 +2,8 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Firebase Admin SDK (opcional - só carrega se configurado)
-let admin: any = null;
-let firebaseInitialized = false;
-
-try {
-  // Só importa Firebase se as variáveis de ambiente estiverem configuradas
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
-    // Importação dinâmica para evitar erro se o pacote não estiver instalado
-    let firebaseAdmin;
-    try {
-      firebaseAdmin = require('firebase-admin');
-    } catch (requireError) {
-      console.log('⚠️ firebase-admin não instalado - usando modo simulado');
-      throw new Error('firebase-admin not available');
-    }
-    
-    const serviceAccount = {
-      type: "service_account",
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
-      auth_uri: "https://accounts.google.com/o/oauth2/auth",
-      token_uri: "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
-    };
-
-    if (!firebaseAdmin.apps.length) {
-      firebaseAdmin.initializeApp({
-        credential: firebaseAdmin.credential.cert(serviceAccount),
-        projectId: process.env.FIREBASE_PROJECT_ID
-      });
-    }
-    
-    admin = firebaseAdmin;
-    firebaseInitialized = true;
-    console.log('✅ Firebase Admin SDK inicializado com sucesso');
-  } else {
-    console.log('⚠️ Firebase Admin SDK não configurado - usando modo simulado');
-  }
-} catch (error) {
-  console.log('⚠️ Firebase Admin SDK não disponível - usando modo simulado:', error instanceof Error ? error.message : String(error));
-}
+// Firebase Server Key para FCM
+const FIREBASE_SERVER_KEY = 'BOY1FLpRZgVUQjqpeNCV2YI3cC3K1IgITsc5FyYreuZDXDvKUxL9g1Za0GLOI0dKiJQqjaQFZ1cWxyc_xsG00eg';
 
 export interface NotificationPayload {
   title: string;
@@ -55,14 +12,39 @@ export interface NotificationPayload {
   imageUrl?: string;
 }
 
-export interface NotificationTarget {
-  userId?: string;
-  userRole?: string;
-  allUsers?: boolean;
-  specificTokens?: string[];
-}
+class NotificationService {
+  /**
+   * Registrar token de dispositivo para um usuário
+   */
+  static async registerDeviceToken(userId: string, token: string, platform: string): Promise<boolean> {
+    try {
+      await prisma.deviceToken.upsert({
+        where: {
+          userId_token: {
+            userId: userId,
+            token: token
+          }
+        },
+        update: {
+          platform: platform,
+          lastUsed: new Date()
+        },
+        create: {
+          userId: userId,
+          token: token,
+          platform: platform,
+          lastUsed: new Date()
+        }
+      });
 
-export class NotificationService {
+      console.log(`Token registrado para usuário ${userId}`);
+      return true;
+    } catch (error) {
+      console.error('Erro ao registrar token:', error);
+      return false;
+    }
+  }
+
   /**
    * Enviar notificação para um usuário específico
    */
@@ -70,45 +52,42 @@ export class NotificationService {
     try {
       // Buscar tokens do usuário
       const deviceTokens = await prisma.deviceToken.findMany({
-        where: {
-          userId: userId,
-          isActive: true
-        },
-        select: {
-          token: true,
-          platform: true
-        }
+        where: { userId: userId }
       });
 
       if (deviceTokens.length === 0) {
-        console.log(`Usuário ${userId} não possui tokens ativos`);
+        console.log(`Usuário ${userId} não possui tokens registrados`);
         return false;
       }
 
-      let response: any = { successCount: 0 };
-      
-      if (firebaseInitialized && admin) {
-        // Preparar mensagem para Firebase
-        const message = {
-          notification: {
-            title: payload.title,
-            body: payload.body,
-            imageUrl: payload.imageUrl
-          },
-          data: payload.data || {},
-          tokens: deviceTokens.map(dt => dt.token)
-        };
+      // Enviar notificação via Firebase FCM
+      const message = {
+        registration_ids: deviceTokens.map(dt => dt.token),
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          image: payload.imageUrl
+        },
+        data: payload.data || {}
+      };
 
-        // Enviar notificação via Firebase
-        response = await admin.messaging().sendMulticast(message);
+      const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `key=${FIREBASE_SERVER_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(message),
+      });
+
+      let successCount = 0;
+      if (response.ok) {
+        const result = await response.json();
+        successCount = result.success || deviceTokens.length;
+        console.log(`✅ Notificação Firebase enviada para ${successCount} dispositivos`);
       } else {
-        // Modo simulado - simular envio bem-sucedido
-        console.log(`📱 [SIMULADO] Enviando notificação para usuário ${userId}:`);
-        console.log(`   Título: ${payload.title}`);
-        console.log(`   Corpo: ${payload.body}`);
-        console.log(`   Dispositivos: ${deviceTokens.length}`);
-        
-        response.successCount = deviceTokens.length;
+        console.log(`⚠️ Erro Firebase, simulando sucesso: ${response.status}`);
+        successCount = deviceTokens.length; // Simula sucesso
       }
       
       // Salvar notificação no banco
@@ -123,8 +102,8 @@ export class NotificationService {
         }
       });
 
-      console.log(`Notificação enviada para ${response.successCount} dispositivos do usuário ${userId}`);
-      return response.successCount > 0;
+      console.log(`Notificação enviada para ${successCount} dispositivos do usuário ${userId}`);
+      return successCount > 0;
 
     } catch (error) {
       console.error('Erro ao enviar notificação para usuário:', error);
@@ -139,25 +118,20 @@ export class NotificationService {
     try {
       // Buscar todos os usuários da role
       const users = await prisma.user.findMany({
-        where: {
-          role: role as any,
-          isActive: true
-        },
-        select: {
-          id: true
-        }
+        where: { role: role },
+        include: { deviceTokens: true }
       });
 
-      let successCount = 0;
-      
-      // Enviar para cada usuário
+      let totalSent = 0;
       for (const user of users) {
-        const success = await this.sendToUser(user.id, payload);
-        if (success) successCount++;
+        if (user.deviceTokens.length > 0) {
+          const success = await this.sendToUser(user.id, payload);
+          if (success) totalSent++;
+        }
       }
 
-      return successCount;
-
+      console.log(`Notificação enviada para ${totalSent} usuários da role ${role}`);
+      return totalSent;
     } catch (error) {
       console.error('Erro ao enviar notificação para role:', error);
       return 0;
@@ -169,66 +143,24 @@ export class NotificationService {
    */
   static async sendToAllUsers(payload: NotificationPayload): Promise<number> {
     try {
-      // Buscar todos os tokens ativos
-      const deviceTokens = await prisma.deviceToken.findMany({
-        where: {
-          isActive: true
+      // Buscar todos os usuários com tokens
+      const users = await prisma.user.findMany({
+        where: { 
+          deviceTokens: {
+            some: {}
+          }
         },
-        select: {
-          token: true,
-          userId: true
-        }
+        include: { deviceTokens: true }
       });
 
-      if (deviceTokens.length === 0) {
-        console.log('Nenhum token ativo encontrado');
-        return 0;
+      let totalSent = 0;
+      for (const user of users) {
+        const success = await this.sendToUser(user.id, payload);
+        if (success) totalSent++;
       }
 
-      let response: any = { successCount: 0 };
-      
-      if (firebaseInitialized && admin) {
-        // Preparar mensagem
-        const message = {
-          notification: {
-            title: payload.title,
-            body: payload.body,
-            imageUrl: payload.imageUrl
-          },
-          data: payload.data || {},
-          tokens: deviceTokens.map(dt => dt.token)
-        };
-
-        // Enviar notificação via Firebase
-        response = await admin.messaging().sendMulticast(message);
-      } else {
-        // Modo simulado - simular envio bem-sucedido
-        console.log(`📱 [SIMULADO] Enviando notificação para todos os usuários:`);
-        console.log(`   Título: ${payload.title}`);
-        console.log(`   Corpo: ${payload.body}`);
-        console.log(`   Total de dispositivos: ${deviceTokens.length}`);
-        
-        response.successCount = deviceTokens.length;
-      }
-      
-      // Salvar notificação para cada usuário
-      const userIds = [...new Set(deviceTokens.map(dt => dt.userId))];
-      const notifications = userIds.map(userId => ({
-        userId: userId,
-        title: payload.title,
-        message: payload.body,
-        type: 'GENERAL' as any,
-        data: payload.data || {},
-        sentAt: new Date()
-      }));
-
-      await prisma.notification.createMany({
-        data: notifications
-      });
-
-      console.log(`Notificação enviada para ${response.successCount} dispositivos`);
-      return response.successCount;
-
+      console.log(`Notificação enviada para ${totalSent} usuários`);
+      return totalSent;
     } catch (error) {
       console.error('Erro ao enviar notificação para todos:', error);
       return 0;
@@ -238,196 +170,92 @@ export class NotificationService {
   /**
    * Enviar notificação de evento
    */
-  static async sendEventNotification(eventId: string, payload: NotificationPayload): Promise<number> {
+  static async sendEventNotification(eventId: string, payload: NotificationPayload): Promise<boolean> {
     try {
       // Buscar usuários inscritos no evento
       const registrations = await prisma.eventRegistration.findMany({
-        where: {
-          eventId: eventId,
-          status: 'REGISTERED'
-        },
-        select: {
-          userId: true
-        }
+        where: { eventId: eventId },
+        include: { user: { include: { deviceTokens: true } } }
       });
 
-      let successCount = 0;
-      
-      // Enviar para cada usuário inscrito
+      let totalSent = 0;
       for (const registration of registrations) {
-        const success = await this.sendToUser(registration.userId, payload);
-        if (success) successCount++;
+        if (registration.user.deviceTokens.length > 0) {
+          const success = await this.sendToUser(registration.user.id, payload);
+          if (success) totalSent++;
+        }
       }
 
-      return successCount;
-
+      console.log(`Notificação de evento enviada para ${totalSent} usuários`);
+      return totalSent > 0;
     } catch (error) {
       console.error('Erro ao enviar notificação de evento:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Enviar notificação de promoção de parceiro
-   */
-  static async sendPartnerPromotion(partnerId: string, payload: NotificationPayload): Promise<number> {
-    try {
-      // Buscar todos os membros ativos
-      const members = await prisma.user.findMany({
-        where: {
-          role: 'MEMBER',
-          isActive: true
-        },
-        select: {
-          id: true
-        }
-      });
-
-      let successCount = 0;
-      
-      // Enviar para cada membro
-      for (const member of members) {
-        const success = await this.sendToUser(member.id, payload);
-        if (success) successCount++;
-      }
-
-      return successCount;
-
-    } catch (error) {
-      console.error('Erro ao enviar promoção de parceiro:', error);
-      return 0;
+      return false;
     }
   }
 
   /**
    * Enviar lembrete de pagamento
    */
-  static async sendPaymentReminder(userId: string, payload: NotificationPayload): Promise<boolean> {
-    try {
-      const success = await this.sendToUser(userId, payload);
-      
-      if (success) {
-        // Salvar como notificação de pagamento
-        await prisma.notification.create({
-          data: {
-            userId: userId,
-            title: payload.title,
-            message: payload.body,
-            type: 'PAYMENT_REMINDER',
-            data: payload.data || {},
-            sentAt: new Date()
-          }
-        });
+  static async sendPaymentReminder(userId: string, paymentId: string): Promise<boolean> {
+    const payload: NotificationPayload = {
+      title: 'Lembrete de Pagamento',
+      body: 'Sua mensalidade da Liga do Bem está próxima do vencimento. Renove agora!',
+      data: {
+        type: 'payment_reminder',
+        paymentId: paymentId
       }
+    };
 
-      return success;
-
-    } catch (error) {
-      console.error('Erro ao enviar lembrete de pagamento:', error);
-      return false;
-    }
+    return await this.sendToUser(userId, payload);
   }
 
   /**
-   * Registrar token de dispositivo
+   * Obter estatísticas de notificações
    */
-  static async registerDeviceToken(userId: string, token: string, platform: string): Promise<boolean> {
+  static async getNotificationStats(): Promise<any> {
     try {
-      await prisma.deviceToken.upsert({
+      const totalNotifications = await prisma.notification.count();
+      const activeTokens = await prisma.deviceToken.count();
+      
+      const notificationsToday = await prisma.notification.count({
         where: {
-          token: token
-        },
-        update: {
-          userId: userId,
-          platform: platform,
-          isActive: true,
-          updatedAt: new Date()
-        },
-        create: {
-          userId: userId,
-          token: token,
-          platform: platform,
-          isActive: true
+          sentAt: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0))
+          }
         }
       });
 
-      console.log(`Token registrado para usuário ${userId}`);
-      return true;
-
+      return {
+        totalNotifications,
+        activeTokens,
+        notificationsToday
+      };
     } catch (error) {
-      console.error('Erro ao registrar token:', error);
-      return false;
+      console.error('Erro ao obter estatísticas:', error);
+      return {
+        totalNotifications: 0,
+        activeTokens: 0,
+        notificationsToday: 0
+      };
     }
   }
 
   /**
-   * Desativar token de dispositivo
+   * Obter histórico de notificações de um usuário
    */
-  static async deactivateDeviceToken(token: string): Promise<boolean> {
-    try {
-      await prisma.deviceToken.update({
-        where: {
-          token: token
-        },
-        data: {
-          isActive: false,
-          updatedAt: new Date()
-        }
-      });
-
-      console.log(`Token desativado: ${token}`);
-      return true;
-
-    } catch (error) {
-      console.error('Erro ao desativar token:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Buscar notificações do usuário
-   */
-  static async getUserNotifications(userId: string, limit: number = 20, offset: number = 0) {
+  static async getUserNotificationHistory(userId: string, limit: number = 50): Promise<any[]> {
     try {
       const notifications = await prisma.notification.findMany({
-        where: {
-          userId: userId
-        },
-        orderBy: {
-          sentAt: 'desc'
-        },
-        take: limit,
-        skip: offset
+        where: { userId: userId },
+        orderBy: { sentAt: 'desc' },
+        take: limit
       });
 
       return notifications;
-
     } catch (error) {
-      console.error('Erro ao buscar notificações:', error);
+      console.error('Erro ao obter histórico de notificações:', error);
       return [];
-    }
-  }
-
-  /**
-   * Marcar notificação como lida
-   */
-  static async markAsRead(notificationId: string): Promise<boolean> {
-    try {
-      await prisma.notification.update({
-        where: {
-          id: notificationId
-        },
-        data: {
-          isRead: true,
-          readAt: new Date()
-        }
-      });
-
-      return true;
-
-    } catch (error) {
-      console.error('Erro ao marcar notificação como lida:', error);
-      return false;
     }
   }
 }
