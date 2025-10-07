@@ -194,7 +194,7 @@ async function processPaymentSuccess(payment: any) {
         amount: payment.amount,
         type: payment.type,
         description: payment.description,
-        status: 'COMPLETED',
+        status: 'APPROVED',
         paymentId: payment.id
       }
     });

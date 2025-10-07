@@ -52,7 +52,7 @@ router.post('/', [
       await prisma.donation.update({
         where: { id: donation.id },
         data: {
-          status: 'COMPLETED',
+          status: 'APPROVED',
           transactionId: `TXN_${Date.now()}`
         }
       });
@@ -96,7 +96,7 @@ router.get('/', [
       where.userId = userId;
     } else {
       // For anonymous users, only show completed donations
-      where.status = 'COMPLETED';
+      where.status = 'APPROVED';
       where.isAnonymous = true;
     }
 
@@ -179,7 +179,7 @@ router.get('/:id', optionalAuth, async (req: any, res) => {
 router.get('/stats/summary', async (req, res) => {
   try {
     const totalDonations = await prisma.donation.aggregate({
-      where: { status: 'COMPLETED' },
+      where: { status: 'APPROVED' },
       _sum: { amount: true },
       _count: true
     });
@@ -187,7 +187,7 @@ router.get('/stats/summary', async (req, res) => {
     const monthlyDonations = await prisma.donation.groupBy({
       by: ['method'],
       where: {
-        status: 'COMPLETED',
+        status: 'APPROVED',
         createdAt: {
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
         }
@@ -198,7 +198,7 @@ router.get('/stats/summary', async (req, res) => {
 
     const recentDonations = await prisma.donation.findMany({
       where: { 
-        status: 'COMPLETED',
+        status: 'APPROVED',
         isAnonymous: false
       },
       take: 10,

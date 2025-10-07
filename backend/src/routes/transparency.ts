@@ -56,7 +56,7 @@ router.get('/stats', async (req, res) => {
   try {
     // Get total donations
     const totalDonations = await prisma.donation.aggregate({
-      where: { status: 'COMPLETED' },
+      where: { status: 'APPROVED' },
       _sum: { amount: true },
       _count: true
     });
@@ -93,7 +93,7 @@ router.get('/stats', async (req, res) => {
         SUM(amount) as total_amount,
         COUNT(*) as total_count
       FROM "donations" 
-      WHERE status = 'COMPLETED'
+      WHERE status = 'APPROVED'
         AND "createdAt" >= NOW() - INTERVAL '12 months'
       GROUP BY EXTRACT(YEAR FROM "createdAt"), EXTRACT(MONTH FROM "createdAt")
       ORDER BY year DESC, month DESC
@@ -172,7 +172,7 @@ router.get('/impact', async (req, res) => {
     // Adoptions this year
     const adoptionsThisYear = await prisma.adoption.count({
       where: {
-        status: 'COMPLETED',
+        status: 'APPROVED',
         completedDate: {
           gte: new Date(currentYear, 0, 1)
         }
@@ -182,7 +182,7 @@ router.get('/impact', async (req, res) => {
     // Donations this year
     const donationsThisYear = await prisma.donation.aggregate({
       where: {
-        status: 'COMPLETED',
+        status: 'APPROVED',
         createdAt: {
           gte: new Date(currentYear, 0, 1)
         }
