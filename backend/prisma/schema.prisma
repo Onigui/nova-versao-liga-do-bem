@@ -318,14 +318,6 @@ enum PaymentMethod {
   OTHER
 }
 
-enum PaymentStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-  CANCELLED
-  REFUNDED
-}
 
 // Modelo de notificações
 model Notification {
