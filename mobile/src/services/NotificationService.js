@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = 'https://liga-do-bem-backend.onrender.com/api';
@@ -16,7 +16,8 @@ Notifications.setNotificationHandler({
 
 export class NotificationService {
   static async requestPermissions() {
-    if (Device.isDevice) {
+    const isDevice = !Constants.isDevice || Platform.OS !== 'web';
+    if (isDevice) {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
