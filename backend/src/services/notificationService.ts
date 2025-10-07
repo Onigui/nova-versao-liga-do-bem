@@ -46,6 +46,80 @@ class NotificationService {
   }
 
   /**
+   * Desativar token de dispositivo
+   */
+  static async deactivateDeviceToken(token: string): Promise<boolean> {
+    try {
+      await prisma.deviceToken.deleteMany({
+        where: { token: token }
+      });
+      return true;
+    } catch (error) {
+      console.error('Erro ao desativar token:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Buscar notificações de um usuário
+   */
+  static async getUserNotifications(userId: string, limit: number = 50): Promise<any[]> {
+    try {
+      const notifications = await prisma.notification.findMany({
+        where: { userId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: limit
+      });
+      return notifications;
+    } catch (error) {
+      console.error('Erro ao buscar notificações:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Marcar notificação como lida
+   */
+  static async markAsRead(notificationId: string): Promise<boolean> {
+    try {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { read: true }
+      });
+      return true;
+    } catch (error) {
+      console.error('Erro ao marcar como lida:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Enviar promoção de parceiro
+   */
+  static async sendPartnerPromotion(partnerId: string, payload: NotificationPayload): Promise<number> {
+    try {
+      // Buscar todos os membros ativos
+      const members = await prisma.user.findMany({
+        where: { role: 'MEMBER' },
+        include: { deviceTokens: true }
+      });
+
+      let sentCount = 0;
+      for (const member of members) {
+        if (member.deviceTokens.length > 0) {
+          const sent = await this.sendToUser(member.id, payload);
+          if (sent) sentCount++;
+        }
+      }
+
+      return sentCount;
+    } catch (error) {
+      console.error('Erro ao enviar promoção:', error);
+      return 0;
+    }
+  }
+
+  /**
    * Enviar notificação para um usuário específico
    */
   static async sendToUser(userId: string, payload: NotificationPayload): Promise<boolean> {

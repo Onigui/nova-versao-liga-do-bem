@@ -402,13 +402,13 @@ router.post('/admin/send-payment-reminder', authenticate, async (req: Request, r
       });
     }
 
-    const payload = {
+    const payload: NotificationPayload = {
       title,
       body,
       data: data || {}
     };
 
-    const success = await NotificationService.sendPaymentReminder(targetUserId, payload);
+    const success = await NotificationService.sendToUser(targetUserId, payload);
 
     if (success) {
       res.json({
