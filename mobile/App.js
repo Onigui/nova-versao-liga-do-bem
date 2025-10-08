@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
-// import NotificationService from './src/services/NotificationService';
+import NotificationService from './src/services/NotificationService';
 
 // Navigation
 import { AuthStack, AppStack } from './src/navigation/AppNavigator';
