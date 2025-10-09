@@ -1,34 +1,21 @@
-# Excluir pastas desnecessárias
+# Excluir pastas da raiz que não são necessárias para o build
 admin/
 backend/
 web/
 docs/
+node_modules/
+.git/
 
-# Excluir cache e temporários
-mobile/.expo/
-mobile/android/.gradle/
-mobile/node_modules/
-mobile/dist/
-mobile/mobile/
-
-# Excluir arquivos de build local
-mobile/*.ps1
-mobile/scripts/
-mobile/env.production
+# Excluir arquivos de documentação
+*.md
+!mobile/README.md
 
 # Excluir arquivos de configuração local
-mobile/.easignore
-mobile/build-local.ps1
-mobile/monitor-build.ps1
+*.ps1
+.env*
+!mobile/.env*
 
-# Manter apenas o essencial
-!mobile/App.js
-!mobile/app.json
-!mobile/package.json
-!mobile/package-lock.json
-!mobile/babel.config.js
-!mobile/metro.config.js
-!mobile/eas.json
-!mobile/google-services.json
-!mobile/src/
-!mobile/assets/
+# Excluir cache do mobile
+mobile/.expo/
+mobile/android/.gradle/
+mobile/dist/
