@@ -1,0 +1,50 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# Android
+android/app/build/
+android/build/
+android/.gradle/
+android/app/release/
+android/app/debug/
+
+# Temp/Scripts
+*.ps1
+scripts/
+build-local.js
+monitor-build.js
+
