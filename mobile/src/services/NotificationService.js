@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'https://liga-do-bem-backend.onrender.com/api';
+const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
 // Configurar como as notificações são tratadas quando recebidas
 Notifications.setNotificationHandler({

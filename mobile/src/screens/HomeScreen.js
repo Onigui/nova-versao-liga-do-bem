@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../services/AuthService';
 
-const API_BASE_URL = 'https://liga-do-bem-backend.onrender.com/api';
+const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
 export default function HomeScreen({ navigation }) {
   const { user, isAuthenticated } = useAuth();
