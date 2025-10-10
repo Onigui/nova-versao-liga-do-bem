@@ -1,12 +1,8 @@
-# Ignorar tudo exceto o essencial do mobile
-*
-!App.js
-!app.json
-!package.json
-!package-lock.json
-!babel.config.js
-!metro.config.js
-!eas.json
-!google-services.json
-!src/**
-!assets/**
+# Ignorar apenas o que é realmente desnecessário
+node_modules/
+.expo/
+.git/
+android/
+*.log
+.DS_Store
+Thumbs.db
