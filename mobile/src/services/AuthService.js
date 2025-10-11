@@ -49,6 +49,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      console.log('Tentando fazer login...', { email, apiUrl: `${API_BASE_URL}/auth/login` });
+      
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
@@ -57,7 +59,10 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('Resposta do servidor:', response.status, response.statusText);
+
       const data = await response.json();
+      console.log('Dados recebidos:', data);
 
       if (response.ok) {
         const { token: authToken, user: userData } = data;
@@ -69,15 +74,20 @@ export const AuthProvider = ({ children }) => {
         setUser(userData);
         
         // Registrar para notificações push após login bem-sucedido
-        NotificationService.registerForPushNotifications(authToken);
+        try {
+          await NotificationService.registerForPushNotifications(authToken);
+        } catch (notifError) {
+          console.log('Erro ao registrar notificações (não crítico):', notifError);
+        }
         
         return { success: true };
       } else {
-        return { success: false, error: data.message || 'Erro ao fazer login' };
+        console.error('Erro de login:', data);
+        return { success: false, error: data.message || data.error || 'Email ou senha incorretos' };
       }
     } catch (error) {
-      console.error('Erro no login:', error);
-      return { success: false, error: 'Erro de conexão' };
+      console.error('Erro de conexão no login:', error);
+      return { success: false, error: `Erro de conexão: ${error.message || 'Verifique sua internet'}` };
     }
   };
 
