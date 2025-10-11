@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     loadStoredAuth();
@@ -31,10 +32,13 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedToken = await AsyncStorage.getItem('auth_token');
       const storedUser = await AsyncStorage.getItem('user_data');
+      const storedGuestMode = await AsyncStorage.getItem('guest_mode');
       
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
+      } else if (storedGuestMode === 'true') {
+        setIsGuest(true);
       }
     } catch (error) {
       console.error('Erro ao carregar dados de autenticação:', error);
@@ -144,12 +148,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const continueAsGuest = async () => {
+    try {
+      await AsyncStorage.setItem('guest_mode', 'true');
+      setIsGuest(true);
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao continuar como visitante:', error);
+      return { success: false, error: 'Erro ao continuar como visitante' };
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('auth_token');
       await AsyncStorage.removeItem('user_data');
+      await AsyncStorage.removeItem('guest_mode');
       setToken(null);
       setUser(null);
+      setIsGuest(false);
     } catch (error) {
       console.error('Erro no logout:', error);
     }
@@ -176,12 +193,14 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     loading,
+    isGuest,
     login,
     register,
     loginWithGoogle,
     logout,
+    continueAsGuest,
     makeAuthenticatedRequest,
-    isAuthenticated: !!user && !!token,
+    isAuthenticated: (!!user && !!token) || isGuest,
   };
 
   return (

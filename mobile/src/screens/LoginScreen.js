@@ -16,11 +16,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../services/AuthService';
 
 export default function LoginScreen({ navigation }) {
-  const { login } = useAuth();
+  const { login, continueAsGuest } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -30,14 +31,32 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const success = await login(email, password);
-      if (!success) {
-        Alert.alert('Erro', 'Email ou senha incorretos');
+      const result = await login(email, password);
+      if (!result.success) {
+        Alert.alert('Erro', result.error || 'Email ou senha incorretos');
       }
+      // Se success = true, o AuthProvider já atualiza o estado e o usuário será redirecionado automaticamente
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível fazer login. Tente novamente.');
+      console.error('Erro no login:', error);
+      Alert.alert('Erro', 'Não foi possível fazer login. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGuestAccess = async () => {
+    setGuestLoading(true);
+    try {
+      const result = await continueAsGuest();
+      if (!result.success) {
+        Alert.alert('Erro', 'Não foi possível continuar como visitante');
+      }
+      // Se success = true, o AuthProvider já atualiza o estado e o usuário será redirecionado automaticamente
+    } catch (error) {
+      console.error('Erro ao continuar como visitante:', error);
+      Alert.alert('Erro', 'Não foi possível continuar como visitante');
+    } finally {
+      setGuestLoading(false);
     }
   };
 
@@ -158,13 +177,20 @@ export default function LoginScreen({ navigation }) {
 
           {/* Guest Access */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('Home')}
-            style={styles.guestAccess}
+            onPress={handleGuestAccess}
+            style={[styles.guestAccess, guestLoading && styles.guestAccessDisabled]}
+            disabled={guestLoading}
           >
-            <Text style={styles.guestAccessText}>
-              Continuar como visitante
-            </Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            {guestLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.guestAccessText}>
+                  Continuar como visitante
+                </Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+              </>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -313,6 +339,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 24,
     gap: 8,
+  },
+  guestAccessDisabled: {
+    opacity: 0.6,
   },
   guestAccessText: {
     color: '#FFFFFF',
