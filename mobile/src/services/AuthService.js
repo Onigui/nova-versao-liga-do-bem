@@ -61,6 +61,21 @@ export const AuthProvider = ({ children }) => {
 
       console.log('Resposta do servidor:', response.status, response.statusText);
 
+      // Verificar se a resposta é JSON válida
+      const contentType = response.headers.get('content-type');
+      console.log('Content-Type da resposta:', contentType);
+
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.log('Resposta não-JSON recebida:', textResponse);
+        
+        if (response.status === 404) {
+          return { success: false, error: 'Endpoint de login não encontrado. Verifique se o backend está funcionando.' };
+        } else {
+          return { success: false, error: `Servidor retornou: ${textResponse}` };
+        }
+      }
+
       const data = await response.json();
       console.log('Dados recebidos:', data);
 

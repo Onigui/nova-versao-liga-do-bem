@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 8,
   },
   filterButton: {
@@ -370,7 +370,8 @@ const styles = StyleSheet.create({
   partnerCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginVertical: 8,
+    marginVertical: 6,
+    marginTop: 8,
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',

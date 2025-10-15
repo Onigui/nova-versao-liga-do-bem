@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 8,
   },
   filterButton: {
@@ -307,6 +307,7 @@ const styles = StyleSheet.create({
   },
   grid: {
     padding: 16,
+    paddingTop: 8,
     gap: 16,
   },
   animalCard: {
