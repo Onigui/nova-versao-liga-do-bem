@@ -275,8 +275,8 @@ const styles = StyleSheet.create({
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 4,
+    gap: 6,
   },
   filterButton: {
     flexDirection: 'row',
@@ -307,8 +307,8 @@ const styles = StyleSheet.create({
   },
   grid: {
     padding: 16,
-    paddingTop: 8,
-    gap: 16,
+    paddingTop: 4,
+    gap: 12,
   },
   animalCard: {
     backgroundColor: '#FFFFFF',
