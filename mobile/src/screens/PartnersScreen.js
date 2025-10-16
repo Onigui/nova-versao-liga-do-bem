@@ -199,12 +199,12 @@ export default function PartnersScreen({ navigation }) {
       </View>
 
       {/* Filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersContainer}
-        contentContainerStyle={styles.filtersContent}
-      >
+      <View style={styles.filtersContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersContent}
+        >
         {categories.map((category) => (
           <TouchableOpacity
             key={category.id}
@@ -229,7 +229,8 @@ export default function PartnersScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* Partners List */}
       <ScrollView
@@ -334,11 +335,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    minHeight: 50,
+    paddingVertical: 8,
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 0,
     gap: 6,
     alignItems: 'center',
   },

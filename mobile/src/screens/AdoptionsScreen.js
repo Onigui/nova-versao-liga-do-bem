@@ -134,12 +134,12 @@ export default function AdoptionsScreen({ navigation }) {
       </View>
 
       {/* Filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersContainer}
-        contentContainerStyle={styles.filtersContent}
-      >
+      <View style={styles.filtersContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersContent}
+        >
         {filters.map((filter) => (
           <TouchableOpacity
             key={filter.id}
@@ -164,7 +164,8 @@ export default function AdoptionsScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* Animals List */}
       <ScrollView
@@ -272,11 +273,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    minHeight: 50,
+    paddingVertical: 8,
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 0,
     gap: 6,
     alignItems: 'center',
   },
