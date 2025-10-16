@@ -8,7 +8,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 const AuthContext = createContext({});
 
-const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
+const API_BASE_URL = 'https://nova-versao-liga-do-bem.onrender.com/api';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

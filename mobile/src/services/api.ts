@@ -3,7 +3,7 @@ import axios from 'axios';
 // Configuração base da API
 const API_BASE_URL = __DEV__ 
   ? 'http://localhost:3001' 
-  : 'https://nova-versao-liga-do-bem-api.onrender.com';
+  : 'https://nova-versao-liga-do-bem.onrender.com';
 
 // Criar instância do axios
 const api = axios.create({
