@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
     marginVertical: 4,
-    marginTop: 0,
+    marginTop: 12,
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',

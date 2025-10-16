@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   },
   grid: {
     padding: 16,
-    paddingTop: 0,
+    paddingTop: 12,
     gap: 12,
   },
   animalCard: {
