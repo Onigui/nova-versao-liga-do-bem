@@ -334,11 +334,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    minHeight: 50,
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 0,
     gap: 6,
+    alignItems: 'center',
   },
   filterButton: {
     flexDirection: 'row',
@@ -371,7 +373,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
     marginVertical: 4,
-    marginTop: 4,
+    marginTop: 0,
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',

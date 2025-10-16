@@ -272,11 +272,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    minHeight: 50,
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 0,
     gap: 6,
+    alignItems: 'center',
   },
   filterButton: {
     flexDirection: 'row',
@@ -307,7 +309,7 @@ const styles = StyleSheet.create({
   },
   grid: {
     padding: 16,
-    paddingTop: 4,
+    paddingTop: 0,
     gap: 12,
   },
   animalCard: {
