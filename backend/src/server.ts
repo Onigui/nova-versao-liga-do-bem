@@ -29,6 +29,63 @@ import { notFound } from './middleware/notFound';
 // Load environment variables
 dotenv.config();
 
+// Import Prisma client
+import { PrismaClient } from '@prisma/client';
+
+// Initialize Prisma client
+const prisma = new PrismaClient();
+
+// Function to ensure database is ready
+async function ensureDatabaseReady() {
+  try {
+    console.log('🔍 Verificando banco de dados...');
+    
+    // Test database connection
+    await prisma.$connect();
+    console.log('✅ Conexão com banco de dados estabelecida');
+    
+    // Check if users table exists by trying a simple query
+    try {
+      await prisma.user.findMany({ take: 1 });
+      console.log('✅ Tabela users existe');
+    } catch (error: any) {
+      if (error.code === 'P2021') {
+        console.log('⚠️ Tabela users não existe, criando...');
+        
+        // Create users table manually
+        await prisma.$executeRaw`
+          CREATE TABLE IF NOT EXISTS "users" (
+            "id" TEXT NOT NULL,
+            "email" TEXT NOT NULL,
+            "password" TEXT NOT NULL,
+            "name" TEXT NOT NULL,
+            "phone" TEXT,
+            "avatar" TEXT,
+            "role" TEXT NOT NULL DEFAULT 'MEMBER',
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL,
+            CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+          );
+        `;
+        
+        // Create unique index for email
+        await prisma.$executeRaw`
+          CREATE UNIQUE INDEX IF NOT EXISTS "users_email_key" ON "users"("email");
+        `;
+        
+        console.log('✅ Tabela users criada com sucesso');
+      } else {
+        throw error;
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao verificar banco de dados:', error);
+    process.exit(1);
+  }
+}
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
@@ -132,11 +189,23 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start server
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-});
+async function startServer() {
+  try {
+    // Ensure database is ready before starting server
+    await ensureDatabaseReady();
+    
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
