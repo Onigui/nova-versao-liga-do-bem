@@ -32,7 +32,8 @@ router.post('/register', async (req, res) => {
         email,
         name,
         phone,
-        password: hashedPassword
+        password: hashedPassword,
+        role: 'MEMBER' // Garantir que seja MEMBER
       },
       select: {
         id: true,
