@@ -16,8 +16,9 @@ RUN npm ci --ignore-scripts
 # Copy source code
 COPY . .
 
-# Generate Prisma client and install remaining dependencies
+# Generate Prisma client and run migrations
 RUN npm run prisma:generate
+RUN npx prisma migrate deploy
 
 # Remove dev dependencies to reduce image size (keep TypeScript for runtime)
 RUN npm prune --production --ignore-scripts
