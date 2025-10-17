@@ -52,6 +52,15 @@ async function ensureDatabaseReady() {
       if (error.code === 'P2021') {
         console.log('⚠️ Tabela users não existe, criando...');
         
+        // Create UserRole enum first
+        await prisma.$executeRaw`
+          DO $$ BEGIN
+            CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'MEMBER', 'VOLUNTEER', 'PARTNER');
+          EXCEPTION
+            WHEN duplicate_object THEN null;
+          END $$;
+        `;
+        
         // Create users table manually
         await prisma.$executeRaw`
           CREATE TABLE IF NOT EXISTS "users" (
@@ -61,7 +70,7 @@ async function ensureDatabaseReady() {
             "name" TEXT NOT NULL,
             "phone" TEXT,
             "avatar" TEXT,
-            "role" TEXT NOT NULL DEFAULT 'MEMBER',
+            "role" "UserRole" NOT NULL DEFAULT 'MEMBER',
             "isActive" BOOLEAN NOT NULL DEFAULT true,
             "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
             "updatedAt" TIMESTAMP(3) NOT NULL,
