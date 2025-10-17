@@ -75,6 +75,18 @@ async function ensureDatabaseReady() {
         `;
         
         console.log('✅ Tabela users criada com sucesso');
+        
+        // Test the table by inserting a test user
+        try {
+          await prisma.$executeRaw`
+            INSERT INTO "users" ("id", "email", "password", "name", "role", "isActive", "createdAt", "updatedAt")
+            VALUES ('test-id', 'test@test.com', 'hashed-password', 'Test User', 'MEMBER', true, NOW(), NOW())
+            ON CONFLICT ("id") DO NOTHING;
+          `;
+          console.log('✅ Teste de inserção na tabela users funcionou');
+        } catch (insertError) {
+          console.log('⚠️ Erro ao testar inserção na tabela:', insertError);
+        }
       } else {
         throw error;
       }
