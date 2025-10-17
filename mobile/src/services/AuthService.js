@@ -49,7 +49,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      console.log('🔐 TENTANDO LOGIN v1.1.8:', { email, apiUrl: `${API_BASE_URL}/auth/login` });
+      // Limpar cache antigo
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('user');
+      
+      console.log('🔐 TENTANDO LOGIN v1.1.8 (CACHE LIMPO):', { email, apiUrl: `${API_BASE_URL}/auth/login` });
       
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
