@@ -397,4 +397,68 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// Listar todas as empresas (para admin) - BUSCAR DO BANCO
+router.get('/companies', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    
+    // Verificar se é admin
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+
+    if (!user || user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    // Buscar empresas do banco de dados
+    const partners = await prisma.partner.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    // Converter para formato esperado pelo admin
+    const companies = partners.map(partner => ({
+      id: partner.id,
+      name: partner.name,
+      category: partner.category,
+      status: partner.isActive ? 'active' : 'inactive',
+      discount: 15, // Valor padrão - pode ser implementado depois
+      location: `${partner.city}, ${partner.state}`,
+      phone: partner.phone || 'N/A',
+      email: partner.email || 'N/A',
+      address: partner.address,
+      createdAt: partner.createdAt
+    }));
+
+    console.log('✅ Empresas carregadas do banco:', companies.length);
+
+    res.json({
+      companies: companies,
+      total: companies.length
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar empresas:', error);
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
 export default router;

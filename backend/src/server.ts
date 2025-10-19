@@ -86,6 +86,57 @@ async function ensureDatabaseReady() {
         `;
         
         console.log('✅ Tabela users criada com sucesso');
+        
+        // Criar tabela partners se não existir
+        console.log('🔍 Verificando tabela partners...');
+        try {
+          await prisma.partner.findMany({ take: 1 });
+          console.log('✅ Tabela partners existe');
+        } catch (partnerError: any) {
+          if (partnerError.code === 'P2021') {
+            console.log('⚠️ Tabela partners não existe, criando...');
+            
+            await prisma.$executeRaw`
+              CREATE TABLE IF NOT EXISTS "partners" (
+                "id" TEXT NOT NULL,
+                "name" TEXT NOT NULL,
+                "description" TEXT,
+                "category" TEXT NOT NULL,
+                "email" TEXT,
+                "phone" TEXT,
+                "website" TEXT,
+                "logo" TEXT,
+                "address" TEXT NOT NULL,
+                "latitude" DOUBLE PRECISION,
+                "longitude" DOUBLE PRECISION,
+                "city" TEXT NOT NULL,
+                "state" TEXT NOT NULL,
+                "zipCode" TEXT NOT NULL,
+                "isActive" BOOLEAN NOT NULL DEFAULT true,
+                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP(3) NOT NULL,
+                CONSTRAINT "partners_pkey" PRIMARY KEY ("id")
+              );
+            `;
+            
+            console.log('✅ Tabela partners criada com sucesso');
+            
+            // Inserir dados de exemplo
+            await prisma.$executeRaw`
+              INSERT INTO "partners" ("id", "name", "description", "category", "email", "phone", "address", "city", "state", "zipCode", "latitude", "longitude", "isActive", "createdAt", "updatedAt")
+              VALUES 
+                ('partner-1', 'Pet Shop Amigo', 'Pet shop especializado em cuidados para animais', 'Pet Shop', 'contato@petshopamigo.com.br', '(14) 99876-5432', 'Rua das Flores, 123', 'Botucatu', 'SP', '18608-000', -22.8858, -48.4440, true, NOW(), NOW()),
+                ('partner-2', 'Clínica Veterinária Vida', 'Clínica veterinária 24h com emergência', 'Veterinário', 'contato@clinicavida.com.br', '(14) 99876-5433', 'Av. Principal, 456', 'Botucatu', 'SP', '18608-100', -22.8850, -48.4430, true, NOW(), NOW()),
+                ('partner-3', 'Farmácia Animal', 'Farmácia especializada em medicamentos veterinários', 'Farmácia', 'contato@farmaciaanimal.com.br', '(14) 99876-5434', 'Rua Central, 789', 'Botucatu', 'SP', '18608-200', -22.8840, -48.4420, true, NOW(), NOW())
+              ON CONFLICT ("id") DO NOTHING;
+            `;
+            
+            console.log('✅ Dados de exemplo inseridos na tabela partners');
+          } else {
+            throw partnerError;
+          }
+        }
+        
       } else {
         throw error;
       }
