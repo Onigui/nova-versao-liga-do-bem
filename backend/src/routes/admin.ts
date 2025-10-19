@@ -19,6 +19,8 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
+    console.log('🔐 Tentativa de login admin:', { email });
+
     if (!email || !password) {
       return res.status(400).json({ 
         message: 'Email e senha são obrigatórios' 
@@ -27,6 +29,8 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Para demo, aceitar credenciais específicas
     if (email === 'admin@ligadobem.com' && password === 'admin123') {
+      console.log('✅ Credenciais demo aceitas, buscando/criando usuário admin...');
+      
       // Criar ou buscar usuário admin demo
       let user = await prisma.user.findFirst({
         where: {
@@ -36,15 +40,26 @@ router.post('/login', async (req: Request, res: Response) => {
       });
 
       if (!user) {
+        console.log('⚠️ Usuário admin não existe, criando...');
+        
         // Criar usuário admin demo se não existir
-        user = await prisma.user.create({
-          data: {
-            email: email,
-            password: 'demo123', // Em produção, seria hash
-            name: 'Administrador',
-            role: 'ADMIN'
-          }
-        });
+        try {
+          user = await prisma.user.create({
+            data: {
+              email: email,
+              password: 'demo123', // Em produção, seria hash
+              name: 'Administrador',
+              role: 'ADMIN',
+              isActive: true
+            }
+          });
+          console.log('✅ Usuário admin criado:', user.id);
+        } catch (createError: any) {
+          console.error('❌ Erro ao criar usuário admin:', createError);
+          throw createError;
+        }
+      } else {
+        console.log('✅ Usuário admin encontrado:', user.id);
       }
 
       const token = generateToken({ 
@@ -52,6 +67,8 @@ router.post('/login', async (req: Request, res: Response) => {
         email: user.email, 
         role: user.role 
       });
+
+      console.log('✅ Token JWT gerado para admin');
 
       return res.json({
         token,
@@ -108,10 +125,13 @@ router.post('/login', async (req: Request, res: Response) => {
       user: userData
     });
 
-  } catch (error) {
-    console.error('Erro no login admin:', error);
+  } catch (error: any) {
+    console.error('❌ Erro no login admin:', error);
+    console.error('❌ Stack trace:', error.stack);
     res.status(500).json({ 
-      message: 'Erro interno do servidor' 
+      message: 'Erro interno do servidor',
+      error: error.message,
+      details: error.code || 'UNKNOWN_ERROR'
     });
   }
 });
