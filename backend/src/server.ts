@@ -91,6 +91,35 @@ async function ensureDatabaseReady() {
       }
     }
     
+    // Garantir que existe um usuário admin
+    console.log('🔍 Verificando usuário admin...');
+    const adminUser = await prisma.user.findFirst({
+      where: {
+        email: 'admin@ligadobem.com',
+        role: 'ADMIN'
+      }
+    });
+    
+    if (!adminUser) {
+      console.log('⚠️ Usuário admin não existe, criando...');
+      try {
+        const newAdmin = await prisma.user.create({
+          data: {
+            email: 'admin@ligadobem.com',
+            password: 'demo123', // Senha simples para demo
+            name: 'Administrador',
+            role: 'ADMIN',
+            isActive: true
+          }
+        });
+        console.log('✅ Usuário admin criado:', newAdmin.id);
+      } catch (adminError: any) {
+        console.error('⚠️ Erro ao criar admin (pode já existir):', adminError.message);
+      }
+    } else {
+      console.log('✅ Usuário admin já existe:', adminUser.id);
+    }
+    
   } catch (error) {
     console.error('❌ Erro ao verificar banco de dados:', error);
     process.exit(1);
