@@ -91,33 +91,38 @@ async function ensureDatabaseReady() {
       }
     }
     
-    // Garantir que existe um usuário admin
+    // Garantir que existe um usuário admin usando SQL direto
     console.log('🔍 Verificando usuário admin...');
-    const adminUser = await prisma.user.findFirst({
-      where: {
-        email: 'admin@ligadobem.com',
-        role: 'ADMIN'
+    try {
+      const adminCheck = await prisma.$queryRaw<any[]>`
+        SELECT * FROM users WHERE email = 'admin@ligadobem.com' LIMIT 1;
+      `;
+      
+      if (adminCheck.length === 0) {
+        console.log('⚠️ Usuário admin não existe, criando...');
+        
+        await prisma.$executeRaw`
+          INSERT INTO users (id, email, password, name, role, "isActive", "createdAt", "updatedAt")
+          VALUES (
+            gen_random_uuid()::text,
+            'admin@ligadobem.com',
+            'demo123',
+            'Administrador',
+            'ADMIN'::"UserRole",
+            true,
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (email) DO NOTHING;
+        `;
+        
+        console.log('✅ Usuário admin criado com sucesso');
+      } else {
+        console.log('✅ Usuário admin já existe:', adminCheck[0].id);
       }
-    });
-    
-    if (!adminUser) {
-      console.log('⚠️ Usuário admin não existe, criando...');
-      try {
-        const newAdmin = await prisma.user.create({
-          data: {
-            email: 'admin@ligadobem.com',
-            password: 'demo123', // Senha simples para demo
-            name: 'Administrador',
-            role: 'ADMIN',
-            isActive: true
-          }
-        });
-        console.log('✅ Usuário admin criado:', newAdmin.id);
-      } catch (adminError: any) {
-        console.error('⚠️ Erro ao criar admin (pode já existir):', adminError.message);
-      }
-    } else {
-      console.log('✅ Usuário admin já existe:', adminUser.id);
+    } catch (adminError: any) {
+      console.error('⚠️ Erro ao verificar/criar admin:', adminError.message);
+      // Não faz exit, apenas avisa
     }
     
   } catch (error) {
