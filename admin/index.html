@@ -2481,29 +2481,43 @@
             try {
                 const token = localStorage.getItem('admin_token');
                 if (!token) {
-                    console.error('Token não encontrado');
-                    companiesData = [...sampleCompanies];
-                } else {
-                    const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    console.error('❌ Token não encontrado - faça login novamente');
+                    companiesData = [];
+                    renderCompaniesTable();
+                    return;
+                }
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        companiesData = data.companies || [];
-                    } else {
-                        console.error('Erro ao carregar empresas:', response.status);
-                        companiesData = [...sampleCompanies];
+                console.log('🔄 Carregando empresas do banco...');
+                const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    companiesData = data.companies || [];
+                    console.log('✅ Empresas carregadas:', companiesData.length, companiesData);
+                } else {
+                    console.error('❌ Erro ao carregar empresas:', response.status);
+                    if (response.status === 401) {
+                        console.error('❌ Token inválido ou expirado - faça login novamente');
+                        // Redirecionar para login
+                        alert('Sessão expirada. Por favor, faça login novamente.');
+                        window.location.href = '/admin/login.html';
+                        return;
+                    }
+                    companiesData = [];
                 }
             } catch (error) {
-                console.error('Erro ao carregar empresas:', error);
-                companiesData = [...sampleCompanies];
+                console.error('❌ Erro ao carregar empresas:', error);
+                companiesData = [];
             }
+            
+            // Renderizar tabela
+            renderCompaniesTable();
             
             // Inicializar mapa se ainda não foi inicializado
             if (typeof google !== 'undefined' && google.maps) {
@@ -3503,7 +3517,7 @@
                 console.log('💾 Salvando empresa via API:', companyId, formData);
 
                 // Fazer chamada à API
-                const token = sessionStorage.getItem('adminToken');
+                const token = localStorage.getItem('admin_token');
                 const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}`, {
                     method: 'PUT',
                     headers: {
@@ -3545,7 +3559,7 @@
                 console.log('✅ Aprovando empresa:', companyId);
 
                 // Fazer chamada à API
-                const token = sessionStorage.getItem('adminToken');
+                const token = localStorage.getItem('admin_token');
                 const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}/approve`, {
                     method: 'PATCH',
                     headers: {
@@ -3582,7 +3596,7 @@
                 console.log('❌ Rejeitando empresa:', companyId);
 
                 // Fazer chamada à API
-                const token = sessionStorage.getItem('adminToken');
+                const token = localStorage.getItem('admin_token');
                 const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}/reject`, {
                     method: 'PATCH',
                     headers: {
@@ -3619,7 +3633,7 @@
                 console.log('🗑️ Excluindo empresa:', companyId);
 
                 // Fazer chamada à API
-                const token = sessionStorage.getItem('adminToken');
+                const token = localStorage.getItem('admin_token');
                 const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}`, {
                     method: 'DELETE',
                     headers: {
