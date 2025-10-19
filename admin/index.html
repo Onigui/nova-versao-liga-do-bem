@@ -2069,8 +2069,8 @@
                     <td>${company.location}</td>
                     <td>${company.hours}</td>
                     <td>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; margin-right: 8px;">Editar</button>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--success-green); color: white;">Aprovar</button>
+                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; margin-right: 8px;" onclick="editCompany('${company.id}')">Editar</button>
+                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--success-green); color: white;" onclick="approveCompany('${company.id}')">Aprovar</button>
                     </td>
                 </tr>
             `).join('');
@@ -3397,6 +3397,154 @@
             showSection('payments');
             loadPaymentStats();
             loadPayments(1);
+        }
+
+        // Funções para gerenciar empresas
+        async function editCompany(companyId) {
+            try {
+                console.log('🔧 Editando empresa:', companyId);
+                
+                // Encontrar empresa nos dados
+                const company = companiesData.find(c => c.id === companyId);
+                if (!company) {
+                    alert('Empresa não encontrada!');
+                    return;
+                }
+
+                // Criar modal de edição
+                const modalHtml = `
+                    <div id="edit-company-modal" class="modal active">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3>Editar Empresa</h3>
+                                <button class="modal-close" onclick="closeModal('edit-company-modal')">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="edit-company-form">
+                                    <div class="form-group">
+                                        <label>Nome da Empresa</label>
+                                        <input type="text" id="edit-name" value="${company.name}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Categoria</label>
+                                        <select id="edit-category" required>
+                                            <option value="Pet Shop" ${company.category === 'Pet Shop' ? 'selected' : ''}>Pet Shop</option>
+                                            <option value="Veterinário" ${company.category === 'Veterinário' ? 'selected' : ''}>Veterinário</option>
+                                            <option value="Farmácia" ${company.category === 'Farmácia' ? 'selected' : ''}>Farmácia</option>
+                                            <option value="Estética" ${company.category === 'Estética' ? 'selected' : ''}>Estética</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Desconto (%)</label>
+                                        <input type="number" id="edit-discount" value="${company.discount}" min="0" max="100" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Localização</label>
+                                        <input type="text" id="edit-location" value="${company.location}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Horário</label>
+                                        <input type="text" id="edit-hours" value="${company.hours}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Status</label>
+                                        <select id="edit-status" required>
+                                            <option value="active" ${company.status === 'active' ? 'selected' : ''}>Ativo</option>
+                                            <option value="pending" ${company.status === 'pending' ? 'selected' : ''}>Pendente</option>
+                                            <option value="inactive" ${company.status === 'inactive' ? 'selected' : ''}>Inativo</option>
+                                        </select>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-company-modal')">Cancelar</button>
+                                <button type="button" class="btn btn-primary" onclick="saveCompanyEdit('${companyId}')">Salvar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Adicionar modal ao DOM
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+            } catch (error) {
+                console.error('❌ Erro ao editar empresa:', error);
+                alert('Erro ao abrir edição da empresa!');
+            }
+        }
+
+        async function saveCompanyEdit(companyId) {
+            try {
+                const formData = {
+                    name: document.getElementById('edit-name').value,
+                    category: document.getElementById('edit-category').value,
+                    discount: parseInt(document.getElementById('edit-discount').value),
+                    location: document.getElementById('edit-location').value,
+                    hours: document.getElementById('edit-hours').value,
+                    status: document.getElementById('edit-status').value
+                };
+
+                console.log('💾 Salvando empresa:', companyId, formData);
+
+                // Atualizar nos dados locais
+                const companyIndex = companiesData.findIndex(c => c.id === companyId);
+                if (companyIndex !== -1) {
+                    companiesData[companyIndex] = { ...companiesData[companyIndex], ...formData };
+                }
+
+                // Atualizar na tabela
+                renderCompaniesTable();
+                
+                // Fechar modal
+                closeModal('edit-company-modal');
+                
+                // Mostrar sucesso
+                alert('✅ Empresa atualizada com sucesso!');
+                
+                // Aqui você pode adicionar chamada para API para salvar no backend
+                // await saveCompanyToBackend(companyId, formData);
+                
+            } catch (error) {
+                console.error('❌ Erro ao salvar empresa:', error);
+                alert('Erro ao salvar alterações!');
+            }
+        }
+
+        async function approveCompany(companyId) {
+            try {
+                if (!confirm('Deseja aprovar esta empresa?')) {
+                    return;
+                }
+
+                console.log('✅ Aprovando empresa:', companyId);
+
+                // Atualizar status para ativo
+                const companyIndex = companiesData.findIndex(c => c.id === companyId);
+                if (companyIndex !== -1) {
+                    companiesData[companyIndex].status = 'active';
+                }
+
+                // Atualizar na tabela
+                renderCompaniesTable();
+                
+                // Mostrar sucesso
+                alert('✅ Empresa aprovada com sucesso!');
+                
+                // Aqui você pode adicionar chamada para API para salvar no backend
+                // await approveCompanyInBackend(companyId);
+                
+            } catch (error) {
+                console.error('❌ Erro ao aprovar empresa:', error);
+                alert('Erro ao aprovar empresa!');
+            }
+        }
+
+        // Função para fechar modais
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.remove();
+            }
         }
 
         // Inicializar página - mostrar dashboard por padrão
