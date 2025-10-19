@@ -40,7 +40,7 @@ interface AdminUser {
   role: string;
 }
 
-// Login do administrador
+// Login do administrador - VERSÃO SIMPLIFICADA PARA DEMO
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -53,98 +53,94 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Para demo, aceitar credenciais específicas
+    // Para demo, aceitar credenciais específicas SEM verificar banco
     if (email === 'admin@ligadobem.com' && password === 'admin123') {
-      console.log('✅ Credenciais demo aceitas, buscando/criando usuário admin...');
+      console.log('✅ Credenciais demo aceitas - login direto sem banco');
       
-      // Criar ou buscar usuário admin demo
-      let user = await prisma.user.findFirst({
-        where: {
+      // Criar token direto sem verificar banco
+      const token = generateToken({ 
+        userId: 'admin-demo-id', 
+        email: email, 
+        role: 'ADMIN' 
+      });
+
+      console.log('✅ Token JWT gerado para admin demo');
+
+      return res.json({
+        message: 'Login realizado com sucesso (demo)',
+        token,
+        user: {
+          id: 'admin-demo-id',
+          name: 'Administrador Demo',
           email: email,
           role: 'ADMIN'
         }
       });
+    }
 
-      if (!user) {
-        console.log('⚠️ Usuário admin não existe, criando...');
-        
-        // Criar usuário admin demo se não existir
-        try {
-          user = await prisma.user.create({
-            data: {
-              email: email,
-              password: 'demo123', // Em produção, seria hash
-              name: 'Administrador',
-              role: 'ADMIN',
-              isActive: true
-            }
-          });
-          console.log('✅ Usuário admin criado:', user.id);
-        } catch (createError: any) {
-          console.error('❌ Erro ao criar usuário admin:', createError);
-          throw createError;
-        }
-      } else {
-        console.log('✅ Usuário admin encontrado:', user.id);
+    // Para outros usuários, tentar buscar no banco
+    try {
+      const users = await prisma.$queryRaw<any[]>`
+        SELECT id, name, email, role, "isActive"
+        FROM users 
+        WHERE email = ${email}
+        LIMIT 1;
+      `;
+
+      const user = users.length > 0 ? users[0] : null;
+
+      if (!user || !user.isActive || user.role !== 'ADMIN') {
+        return res.status(401).json({ 
+          message: 'Credenciais inválidas' 
+        });
       }
 
-      const token = generateToken({ 
-        userId: user.id, 
-        email: user.email, 
-        role: user.role 
+      const token = generateToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role
       });
 
-      console.log('✅ Token JWT gerado para admin');
+      const userData: AdminUser = {
+        id: user.id,
+        name: user.name || 'Administrador',
+        email: user.email,
+        role: user.role
+      };
 
-      return res.json({
+      res.json({
+        message: 'Login realizado com sucesso',
         token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role
-        }
+        user: userData
       });
+
+    } catch (dbError: any) {
+      console.error('❌ Erro no banco de dados:', dbError);
+      
+      // Se der erro no banco, permitir login demo como fallback
+      if (email === 'admin@ligadobem.com' && password === 'admin123') {
+        console.log('⚠️ Banco com erro, usando login demo como fallback');
+        
+        const token = generateToken({ 
+          userId: 'admin-demo-id', 
+          email: email, 
+          role: 'ADMIN' 
+        });
+
+        return res.json({
+          message: 'Login realizado com sucesso (modo demo)',
+          token,
+          user: {
+            id: 'admin-demo-id',
+            name: 'Administrador Demo',
+            email: email,
+            role: 'ADMIN'
+          }
+        });
+      }
+      
+      throw dbError;
     }
-
-    // Buscar usuário admin real (para produção) usando SQL direto
-    const users = await prisma.$queryRaw<any[]>`
-      SELECT id, name, email, role, "isActive"
-      FROM users 
-      WHERE email = ${email}
-      LIMIT 1;
-    `;
-
-    const user = users.length > 0 ? users[0] : null;
-
-    if (!user || !user.isActive || user.role !== 'ADMIN') {
-      return res.status(401).json({ 
-        message: 'Credenciais inválidas' 
-      });
-    }
-
-    // Gerar token JWT
-    const tokenPayload = {
-      userId: user.id,
-      email: user.email,
-      role: user.role
-    };
-
-    const token = generateToken(tokenPayload);
-
-    // Retornar dados do usuário (sem senha)
-    const userData: AdminUser = {
-      id: user.id,
-      name: user.name || 'Administrador',
-      email: user.email,
-      role: user.role
-    };
-
-    res.json({
-      message: 'Login realizado com sucesso',
-      token,
-      user: userData
-    });
 
   } catch (error: any) {
     console.error('❌ Erro no login admin:', error);
