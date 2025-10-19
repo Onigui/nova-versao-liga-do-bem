@@ -38,91 +38,27 @@ router.get('/', [
       ];
     }
 
-    let partners;
-    try {
-      partners = await prisma.partner.findMany({
-        where,
-        include: {
-          services: true,
-          discounts: {
-            where: {
-              isActive: true,
-              validFrom: { lte: new Date() },
-              OR: [
-                { validUntil: null },
-                { validUntil: { gte: new Date() } }
-              ]
-            }
+    // Buscar apenas parceiros ativos (aprovados)
+    const partners = await prisma.partner.findMany({
+      where: {
+        ...where,
+        isActive: true
+      },
+      include: {
+        services: true,
+        discounts: {
+          where: {
+            isActive: true,
+            validFrom: { lte: new Date() },
+            OR: [
+              { validUntil: null },
+              { validUntil: { gte: new Date() } }
+            ]
           }
-        },
-        orderBy: { name: 'asc' }
-      });
-    } catch (error: any) {
-      console.error('❌ Erro ao buscar partners do banco:', error);
-      
-      // Fallback: retornar dados estáticos se tabela não existir
-      partners = [
-        {
-          id: 'partner-1',
-          name: 'Pet Shop Amigo',
-          description: 'Pet shop especializado em cuidados para animais',
-          category: 'Pet Shop',
-          email: 'contato@petshopamigo.com.br',
-          phone: '(14) 99876-5432',
-          address: 'Rua das Flores, 123',
-          city: 'Botucatu',
-          state: 'SP',
-          zipCode: '18608-000',
-          latitude: -22.8858,
-          longitude: -48.4440,
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          services: [],
-          discounts: []
-        },
-        {
-          id: 'partner-2',
-          name: 'Clínica Veterinária Vida',
-          description: 'Clínica veterinária 24h com emergência',
-          category: 'Veterinário',
-          email: 'contato@clinicavida.com.br',
-          phone: '(14) 99876-5433',
-          address: 'Av. Principal, 456',
-          city: 'Botucatu',
-          state: 'SP',
-          zipCode: '18608-100',
-          latitude: -22.8850,
-          longitude: -48.4430,
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          services: [],
-          discounts: []
-        },
-        {
-          id: 'partner-3',
-          name: 'Farmácia Animal',
-          description: 'Farmácia especializada em medicamentos veterinários',
-          category: 'Farmácia',
-          email: 'contato@farmaciaanimal.com.br',
-          phone: '(14) 99876-5434',
-          address: 'Rua Central, 789',
-          city: 'Botucatu',
-          state: 'SP',
-          zipCode: '18608-200',
-          latitude: -22.8840,
-          longitude: -48.4420,
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          services: [],
-          discounts: []
         }
-      ];
-      
-      console.log('⚠️ Usando dados estáticos como fallback');
-    }
+      },
+      orderBy: { name: 'asc' }
+    });
 
     // If location is provided, calculate distances and filter by radius
     let partnersWithDistance = partners;

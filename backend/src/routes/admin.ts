@@ -414,73 +414,26 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
       });
     }
 
-    // Buscar empresas do banco de dados
-    let partners;
-    try {
-      partners = await prisma.partner.findMany({
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          category: true,
-          email: true,
-          phone: true,
-          address: true,
-          city: true,
-          state: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true
-        }
-      });
-    } catch (error: any) {
-      console.error('❌ Erro ao buscar partners do banco no admin:', error);
-      
-      // Fallback: dados estáticos se tabela não existir
-      partners = [
-        {
-          id: 'partner-1',
-          name: 'Pet Shop Amigo',
-          category: 'Pet Shop',
-          email: 'contato@petshopamigo.com.br',
-          phone: '(14) 99876-5432',
-          address: 'Rua das Flores, 123',
-          city: 'Botucatu',
-          state: 'SP',
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          id: 'partner-2',
-          name: 'Clínica Veterinária Vida',
-          category: 'Veterinário',
-          email: 'contato@clinicavida.com.br',
-          phone: '(14) 99876-5433',
-          address: 'Av. Principal, 456',
-          city: 'Botucatu',
-          state: 'SP',
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          id: 'partner-3',
-          name: 'Farmácia Animal',
-          category: 'Farmácia',
-          email: 'contato@farmaciaanimal.com.br',
-          phone: '(14) 99876-5434',
-          address: 'Rua Central, 789',
-          city: 'Botucatu',
-          state: 'SP',
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ];
-      
-      console.log('⚠️ Admin usando dados estáticos como fallback');
-    }
+    // Buscar todas as empresas do banco (incluindo pendentes e inativas)
+    const partners = await prisma.partner.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        description: true,
+        website: true,
+        logo: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
 
     // Converter para formato esperado pelo admin
     const companies = partners.map(partner => ({
@@ -505,6 +458,317 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Erro ao buscar empresas:', error);
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// PUT /api/admin/companies/:id - Editar empresa
+router.put('/companies/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    // Verificar se é admin
+    if (user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    const { id } = req.params;
+    const {
+      name,
+      category,
+      description,
+      email,
+      phone,
+      website,
+      logo,
+      address,
+      city,
+      state,
+      zipCode,
+      latitude,
+      longitude
+    } = req.body;
+
+    console.log('📝 Editando empresa:', id, req.body);
+
+    // Atualizar empresa
+    const updatedPartner = await prisma.partner.update({
+      where: { id },
+      data: {
+        name,
+        category,
+        description,
+        email,
+        phone,
+        website,
+        logo,
+        address,
+        city,
+        state,
+        zipCode,
+        latitude: latitude ? parseFloat(latitude) : undefined,
+        longitude: longitude ? parseFloat(longitude) : undefined,
+        updatedAt: new Date()
+      }
+    });
+
+    console.log('✅ Empresa editada com sucesso:', updatedPartner.id);
+
+    res.json({
+      message: 'Empresa atualizada com sucesso',
+      company: {
+        id: updatedPartner.id,
+        name: updatedPartner.name,
+        category: updatedPartner.category,
+        status: updatedPartner.isActive ? 'active' : 'inactive',
+        location: `${updatedPartner.city}, ${updatedPartner.state}`,
+        phone: updatedPartner.phone || 'N/A',
+        email: updatedPartner.email || 'N/A',
+        address: updatedPartner.address
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Erro ao editar empresa:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        message: 'Empresa não encontrada' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// PATCH /api/admin/companies/:id/approve - Aprovar empresa
+router.patch('/companies/:id/approve', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    // Verificar se é admin
+    if (user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    const { id } = req.params;
+
+    console.log('✅ Aprovando empresa:', id);
+
+    // Ativar empresa
+    const approvedPartner = await prisma.partner.update({
+      where: { id },
+      data: {
+        isActive: true,
+        updatedAt: new Date()
+      }
+    });
+
+    console.log('✅ Empresa aprovada com sucesso:', approvedPartner.id);
+
+    res.json({
+      message: 'Empresa aprovada com sucesso',
+      company: {
+        id: approvedPartner.id,
+        name: approvedPartner.name,
+        status: 'active'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Erro ao aprovar empresa:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        message: 'Empresa não encontrada' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// PATCH /api/admin/companies/:id/reject - Rejeitar empresa
+router.patch('/companies/:id/reject', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    // Verificar se é admin
+    if (user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    const { id } = req.params;
+
+    console.log('❌ Rejeitando empresa:', id);
+
+    // Desativar empresa
+    const rejectedPartner = await prisma.partner.update({
+      where: { id },
+      data: {
+        isActive: false,
+        updatedAt: new Date()
+      }
+    });
+
+    console.log('✅ Empresa rejeitada com sucesso:', rejectedPartner.id);
+
+    res.json({
+      message: 'Empresa rejeitada com sucesso',
+      company: {
+        id: rejectedPartner.id,
+        name: rejectedPartner.name,
+        status: 'inactive'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Erro ao rejeitar empresa:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        message: 'Empresa não encontrada' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// DELETE /api/admin/companies/:id - Excluir empresa
+router.delete('/companies/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    // Verificar se é admin
+    if (user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    const { id } = req.params;
+
+    console.log('🗑️ Excluindo empresa:', id);
+
+    // Excluir empresa
+    await prisma.partner.delete({
+      where: { id }
+    });
+
+    console.log('✅ Empresa excluída com sucesso:', id);
+
+    res.json({
+      message: 'Empresa excluída com sucesso',
+      id
+    });
+
+  } catch (error: any) {
+    console.error('Erro ao excluir empresa:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        message: 'Empresa não encontrada' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// POST /api/admin/companies - Criar empresa
+router.post('/companies', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    // Verificar se é admin
+    if (user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    const {
+      name,
+      category,
+      description,
+      email,
+      phone,
+      website,
+      logo,
+      address,
+      city,
+      state,
+      zipCode,
+      latitude,
+      longitude
+    } = req.body;
+
+    // Validação básica
+    if (!name || !category || !address || !city || !state || !zipCode) {
+      return res.status(400).json({ 
+        message: 'Campos obrigatórios: name, category, address, city, state, zipCode' 
+      });
+    }
+
+    console.log('➕ Criando nova empresa:', name);
+
+    // Criar empresa
+    const newPartner = await prisma.partner.create({
+      data: {
+        name,
+        category,
+        description,
+        email,
+        phone,
+        website,
+        logo,
+        address,
+        city,
+        state,
+        zipCode,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        isActive: false, // Criada como inativa, precisa ser aprovada
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+
+    console.log('✅ Empresa criada com sucesso:', newPartner.id);
+
+    res.status(201).json({
+      message: 'Empresa criada com sucesso (aguardando aprovação)',
+      company: {
+        id: newPartner.id,
+        name: newPartner.name,
+        category: newPartner.category,
+        status: 'inactive',
+        location: `${newPartner.city}, ${newPartner.state}`,
+        phone: newPartner.phone || 'N/A',
+        email: newPartner.email || 'N/A',
+        address: newPartner.address
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao criar empresa:', error);
     res.status(500).json({ 
       message: 'Erro interno do servidor' 
     });

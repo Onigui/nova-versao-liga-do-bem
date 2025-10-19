@@ -2065,12 +2065,16 @@
                     <td>${company.name}</td>
                     <td>${company.category}</td>
                     <td><span class="status-badge status-${company.status}">${company.status === 'active' ? 'Ativo' : company.status === 'pending' ? 'Pendente' : 'Inativo'}</span></td>
-                    <td>${company.discount}</td>
+                    <td>${company.discount || 'N/A'}</td>
                     <td>${company.location}</td>
-                    <td>${company.hours}</td>
+                    <td>${company.hours || 'N/A'}</td>
                     <td>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; margin-right: 8px;" onclick="editCompany('${company.id}')">Editar</button>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--success-green); color: white;" onclick="approveCompany('${company.id}')">Aprovar</button>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;" onclick="editCompany('${company.id}')">✏️ Editar</button>
+                            ${company.status !== 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--success-green); color: white;" onclick="approveCompany('${company.id}')">✅ Aprovar</button>` : ''}
+                            ${company.status === 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--warning-orange); color: white;" onclick="rejectCompany('${company.id}')">❌ Rejeitar</button>` : ''}
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--error-red); color: white;" onclick="deleteCompany('${company.id}')">🗑️ Excluir</button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
@@ -3413,52 +3417,54 @@
 
                 // Criar modal de edição
                 const modalHtml = `
-                    <div id="edit-company-modal" class="modal active">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h3>Editar Empresa</h3>
-                                <button class="modal-close" onclick="closeModal('edit-company-modal')">&times;</button>
+                    <div id="edit-company-modal" class="modal active" style="display: flex; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
+                        <div class="modal-content" style="background: white; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <h3 style="margin: 0;">Editar Empresa</h3>
+                                <button class="modal-close" onclick="closeModal('edit-company-modal')" style="border: none; background: none; font-size: 24px; cursor: pointer; padding: 0; width: 32px; height: 32px;">&times;</button>
                             </div>
                             <div class="modal-body">
                                 <form id="edit-company-form">
-                                    <div class="form-group">
-                                        <label>Nome da Empresa</label>
-                                        <input type="text" id="edit-name" value="${company.name}" required>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nome da Empresa</label>
+                                        <input type="text" id="edit-name" value="${company.name}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                     </div>
-                                    <div class="form-group">
-                                        <label>Categoria</label>
-                                        <select id="edit-category" required>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Categoria</label>
+                                        <select id="edit-category" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                             <option value="Pet Shop" ${company.category === 'Pet Shop' ? 'selected' : ''}>Pet Shop</option>
                                             <option value="Veterinário" ${company.category === 'Veterinário' ? 'selected' : ''}>Veterinário</option>
                                             <option value="Farmácia" ${company.category === 'Farmácia' ? 'selected' : ''}>Farmácia</option>
                                             <option value="Estética" ${company.category === 'Estética' ? 'selected' : ''}>Estética</option>
+                                            <option value="Alimentação" ${company.category === 'Alimentação' ? 'selected' : ''}>Alimentação</option>
+                                            <option value="Serviços" ${company.category === 'Serviços' ? 'selected' : ''}>Serviços</option>
                                         </select>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Desconto (%)</label>
-                                        <input type="number" id="edit-discount" value="${company.discount}" min="0" max="100" required>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Descrição</label>
+                                        <textarea id="edit-description" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">${company.description || ''}</textarea>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Localização</label>
-                                        <input type="text" id="edit-location" value="${company.location}" required>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Email</label>
+                                        <input type="email" id="edit-email" value="${company.email || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                     </div>
-                                    <div class="form-group">
-                                        <label>Horário</label>
-                                        <input type="text" id="edit-hours" value="${company.hours}" required>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Telefone</label>
+                                        <input type="tel" id="edit-phone" value="${company.phone || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                     </div>
-                                    <div class="form-group">
-                                        <label>Status</label>
-                                        <select id="edit-status" required>
-                                            <option value="active" ${company.status === 'active' ? 'selected' : ''}>Ativo</option>
-                                            <option value="pending" ${company.status === 'pending' ? 'selected' : ''}>Pendente</option>
-                                            <option value="inactive" ${company.status === 'inactive' ? 'selected' : ''}>Inativo</option>
-                                        </select>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Endereço</label>
+                                        <input type="text" id="edit-address" value="${company.address || ''}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Cidade, Estado (ex: Botucatu, SP)</label>
+                                        <input type="text" id="edit-location" value="${company.location}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                     </div>
                                 </form>
                             </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-company-modal')">Cancelar</button>
-                                <button type="button" class="btn btn-primary" onclick="saveCompanyEdit('${companyId}')">Salvar</button>
+                            <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-company-modal')" style="padding: 10px 20px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px;">Cancelar</button>
+                                <button type="button" class="btn btn-primary" onclick="saveCompanyEdit('${companyId}')" style="padding: 10px 20px; background: var(--primary-purple); color: white; border: none; cursor: pointer; border-radius: 4px;">Salvar</button>
                             </div>
                         </div>
                     </div>
@@ -3475,38 +3481,58 @@
 
         async function saveCompanyEdit(companyId) {
             try {
+                const name = document.getElementById('edit-name').value;
+                const category = document.getElementById('edit-category').value;
+                const location = document.getElementById('edit-location').value;
+                
+                // Parse location to get city and state
+                const [city, state] = location.split(',').map(s => s.trim());
+                
                 const formData = {
-                    name: document.getElementById('edit-name').value,
-                    category: document.getElementById('edit-category').value,
-                    discount: parseInt(document.getElementById('edit-discount').value),
-                    location: document.getElementById('edit-location').value,
-                    hours: document.getElementById('edit-hours').value,
-                    status: document.getElementById('edit-status').value
+                    name,
+                    category,
+                    city: city || 'Botucatu',
+                    state: state || 'SP',
+                    zipCode: '18608-000', // Valor padrão
+                    address: document.getElementById('edit-address')?.value || 'Não informado',
+                    email: document.getElementById('edit-email')?.value || '',
+                    phone: document.getElementById('edit-phone')?.value || '',
+                    description: document.getElementById('edit-description')?.value || ''
                 };
 
-                console.log('💾 Salvando empresa:', companyId, formData);
+                console.log('💾 Salvando empresa via API:', companyId, formData);
 
-                // Atualizar nos dados locais
-                const companyIndex = companiesData.findIndex(c => c.id === companyId);
-                if (companyIndex !== -1) {
-                    companiesData[companyIndex] = { ...companiesData[companyIndex], ...formData };
+                // Fazer chamada à API
+                const token = sessionStorage.getItem('adminToken');
+                const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erro ao atualizar empresa');
                 }
 
-                // Atualizar na tabela
-                renderCompaniesTable();
+                console.log('✅ Empresa atualizada:', data);
                 
                 // Fechar modal
                 closeModal('edit-company-modal');
                 
+                // Recarregar empresas do servidor
+                await loadCompanies();
+                
                 // Mostrar sucesso
                 alert('✅ Empresa atualizada com sucesso!');
                 
-                // Aqui você pode adicionar chamada para API para salvar no backend
-                // await saveCompanyToBackend(companyId, formData);
-                
             } catch (error) {
                 console.error('❌ Erro ao salvar empresa:', error);
-                alert('Erro ao salvar alterações!');
+                alert(`Erro ao salvar alterações: ${error.message}`);
             }
         }
 
@@ -3518,24 +3544,106 @@
 
                 console.log('✅ Aprovando empresa:', companyId);
 
-                // Atualizar status para ativo
-                const companyIndex = companiesData.findIndex(c => c.id === companyId);
-                if (companyIndex !== -1) {
-                    companiesData[companyIndex].status = 'active';
+                // Fazer chamada à API
+                const token = sessionStorage.getItem('adminToken');
+                const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}/approve`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erro ao aprovar empresa');
                 }
 
-                // Atualizar na tabela
-                renderCompaniesTable();
+                console.log('✅ Empresa aprovada:', data);
+                
+                // Recarregar empresas do servidor
+                await loadCompanies();
                 
                 // Mostrar sucesso
                 alert('✅ Empresa aprovada com sucesso!');
                 
-                // Aqui você pode adicionar chamada para API para salvar no backend
-                // await approveCompanyInBackend(companyId);
-                
             } catch (error) {
                 console.error('❌ Erro ao aprovar empresa:', error);
-                alert('Erro ao aprovar empresa!');
+                alert(`Erro ao aprovar empresa: ${error.message}`);
+            }
+        }
+
+        async function rejectCompany(companyId) {
+            try {
+                if (!confirm('Deseja rejeitar/desativar esta empresa?')) {
+                    return;
+                }
+
+                console.log('❌ Rejeitando empresa:', companyId);
+
+                // Fazer chamada à API
+                const token = sessionStorage.getItem('adminToken');
+                const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}/reject`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erro ao rejeitar empresa');
+                }
+
+                console.log('✅ Empresa rejeitada:', data);
+                
+                // Recarregar empresas do servidor
+                await loadCompanies();
+                
+                // Mostrar sucesso
+                alert('✅ Empresa rejeitada com sucesso!');
+                
+            } catch (error) {
+                console.error('❌ Erro ao rejeitar empresa:', error);
+                alert(`Erro ao rejeitar empresa: ${error.message}`);
+            }
+        }
+
+        async function deleteCompany(companyId) {
+            try {
+                if (!confirm('⚠️ ATENÇÃO: Esta ação é irreversível! Deseja realmente EXCLUIR esta empresa?')) {
+                    return;
+                }
+
+                console.log('🗑️ Excluindo empresa:', companyId);
+
+                // Fazer chamada à API
+                const token = sessionStorage.getItem('adminToken');
+                const response = await fetch(`${API_BASE_URL}/api/admin/companies/${companyId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erro ao excluir empresa');
+                }
+
+                console.log('✅ Empresa excluída:', data);
+                
+                // Recarregar empresas do servidor
+                await loadCompanies();
+                
+                // Mostrar sucesso
+                alert('✅ Empresa excluída com sucesso!');
+                
+            } catch (error) {
+                console.error('❌ Erro ao excluir empresa:', error);
+                alert(`Erro ao excluir empresa: ${error.message}`);
             }
         }
 
