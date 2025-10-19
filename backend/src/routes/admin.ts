@@ -81,22 +81,17 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Buscar usuário admin real (para produção)
-    const user = await prisma.user.findFirst({
-      where: {
-        email: email,
-        role: 'ADMIN'
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true
-      }
-    });
+    // Buscar usuário admin real (para produção) usando SQL direto
+    const users = await prisma.$queryRaw<any[]>`
+      SELECT id, name, email, role, "isActive"
+      FROM users 
+      WHERE email = ${email}
+      LIMIT 1;
+    `;
 
-    if (!user || !user.isActive) {
+    const user = users.length > 0 ? users[0] : null;
+
+    if (!user || !user.isActive || user.role !== 'ADMIN') {
       return res.status(401).json({ 
         message: 'Credenciais inválidas' 
       });
