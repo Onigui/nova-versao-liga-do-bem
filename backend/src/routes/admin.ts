@@ -6,6 +6,32 @@ import { authenticate } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Endpoint de teste para verificar se o admin está funcionando
+router.get('/test', async (req: Request, res: Response) => {
+  try {
+    console.log('🧪 Teste do endpoint admin iniciado...');
+    
+    // Teste básico de conexão
+    const testUsers = await prisma.$queryRaw<any[]>`
+      SELECT COUNT(*) as total FROM users;
+    `;
+    
+    console.log('✅ Query básica funcionou:', testUsers);
+    
+    res.json({
+      message: 'Admin endpoint funcionando',
+      usersCount: testUsers[0]?.total || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('❌ Erro no teste admin:', error);
+    res.status(500).json({
+      message: 'Erro no teste admin',
+      error: error.message
+    });
+  }
+});
+
 // Interface para dados de admin
 interface AdminUser {
   id: string;
