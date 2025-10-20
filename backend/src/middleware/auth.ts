@@ -24,7 +24,8 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
 
     // Check if it's a demo admin user
     if (decoded.userId === 'admin-demo-id' && decoded.role === 'ADMIN') {
@@ -87,7 +88,8 @@ export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFu
     const token = (req as Request).headers.authorization?.replace('Bearer ', '');
 
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
       
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
