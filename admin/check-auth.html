@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificação de Autenticação - Liga do Bem</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .status {
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .info strong {
+            color: #1976D2;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Verificação de Autenticação</h1>
+        
+        <div id="auth-status"></div>
+        
+        <div class="actions">
+            <button class="btn" onclick="window.location.href='login.html'">🔑 Fazer Login</button>
+            <button class="btn btn-secondary" onclick="clearAuth()">🗑️ Limpar Dados</button>
+            <button class="btn btn-secondary" onclick="window.location.href='index.html'">🏠 Ir para Admin</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://nova-versao-liga-do-bem.onrender.com';
+
+        function checkAuth() {
+            const statusDiv = document.getElementById('auth-status');
+            const token = localStorage.getItem('admin_token');
+            const user = localStorage.getItem('admin_user');
+
+            let html = '';
+
+            // Verificar token
+            if (!token) {
+                html += `
+                    <div class="status error">
+                        <strong>❌ Token não encontrado!</strong>
+                        <p>Você precisa fazer login primeiro.</p>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="status success">
+                        <strong>✅ Token encontrado!</strong>
+                        <p>Token salvo no localStorage.</p>
+                    </div>
+                    <div class="info">
+                        <strong>Token:</strong>
+                        <pre>${token.substring(0, 50)}...</pre>
+                    </div>
+                `;
+
+                // Decodificar token JWT
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1]));
+                        const now = Math.floor(Date.now() / 1000);
+                        const isExpired = payload.exp && payload.exp < now;
+
+                        if (isExpired) {
+                            html += `
+                                <div class="status error">
+                                    <strong>⏰ Token EXPIRADO!</strong>
+                                    <p>O token expirou em: ${new Date(payload.exp * 1000).toLocaleString('pt-BR')}</p>
+                                    <p>Você precisa fazer login novamente.</p>
+                                </div>
+                            `;
+                        } else {
+                            html += `
+                                <div class="status success">
+                                    <strong>✅ Token VÁLIDO!</strong>
+                                    <p>Expira em: ${new Date(payload.exp * 1000).toLocaleString('pt-BR')}</p>
+                                </div>
+                            `;
+                        }
+
+                        html += `
+                            <div class="info">
+                                <strong>Payload do Token:</strong>
+                                <pre>${JSON.stringify(payload, null, 2)}</pre>
+                            </div>
+                        `;
+                    }
+                } catch (e) {
+                    html += `
+                        <div class="status warning">
+                            <strong>⚠️ Token não é JWT válido</strong>
+                            <p>Pode ser um token demo ou formato inválido.</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Verificar usuário
+            if (!user) {
+                html += `
+                    <div class="status warning">
+                        <strong>⚠️ Dados do usuário não encontrados</strong>
+                    </div>
+                `;
+            } else {
+                try {
+                    const userData = JSON.parse(user);
+                    html += `
+                        <div class="status success">
+                            <strong>✅ Usuário encontrado!</strong>
+                        </div>
+                        <div class="info">
+                            <strong>Dados do Usuário:</strong>
+                            <pre>${JSON.stringify(userData, null, 2)}</pre>
+                        </div>
+                    `;
+                } catch (e) {
+                    html += `
+                        <div class="status error">
+                            <strong>❌ Erro ao ler dados do usuário</strong>
+                        </div>
+                    `;
+                }
+            }
+
+            // Testar API
+            if (token) {
+                html += `
+                    <div class="info">
+                        <strong>🔄 Testando conexão com API...</strong>
+                        <div id="api-test">Aguarde...</div>
+                    </div>
+                `;
+                
+                statusDiv.innerHTML = html;
+                testAPI(token);
+            } else {
+                statusDiv.innerHTML = html;
+            }
+        }
+
+        async function testAPI(token) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const testDiv = document.getElementById('api-test');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    testDiv.innerHTML = `
+                        <div class="status success">
+                            <strong>✅ API respondeu com sucesso!</strong>
+                            <p>Empresas encontradas: ${data.companies?.length || 0}</p>
+                        </div>
+                    `;
+                } else {
+                    testDiv.innerHTML = `
+                        <div class="status error">
+                            <strong>❌ API retornou erro ${response.status}</strong>
+                            <p>${response.status === 401 ? 'Token inválido ou expirado. Faça login novamente.' : 'Erro desconhecido.'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('api-test').innerHTML = `
+                    <div class="status error">
+                        <strong>❌ Erro ao conectar com API</strong>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function clearAuth() {
+            if (confirm('Deseja limpar todos os dados de autenticação?')) {
+                localStorage.removeItem('admin_token');
+                localStorage.removeItem('admin_user');
+                alert('Dados limpos com sucesso!');
+                location.reload();
+            }
+        }
+
+        // Executar verificação ao carregar
+        checkAuth();
+    </script>
+</body>
+</html>
+
