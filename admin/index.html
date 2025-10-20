@@ -2103,6 +2103,12 @@
                     renderMembersTable();
                 } else {
                     console.error('Erro ao carregar membros:', response.status);
+                    if (response.status === 401) {
+                        console.error('❌ Token inválido - redirecionando para login');
+                        alert('Sessão expirada. Por favor, faça login novamente.');
+                        window.location.href = 'login.html';
+                        return;
+                    }
                 }
             } catch (error) {
                 console.error('Erro ao carregar membros:', error);
@@ -2144,6 +2150,12 @@
                 });
 
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        console.error('❌ Token inválido - redirecionando para login');
+                        alert('Sessão expirada. Por favor, faça login novamente.');
+                        window.location.href = 'login.html';
+                        return;
+                    }
                     throw new Error(`Erro ao carregar dados: ${response.status}`);
                 }
 
@@ -3671,6 +3683,15 @@
 
         // Inicializar página - mostrar dashboard por padrão
         document.addEventListener('DOMContentLoaded', function() {
+            // Verificar se há token antes de carregar dados
+            const token = localStorage.getItem('admin_token');
+            if (!token) {
+                console.log('❌ Nenhum token encontrado - redirecionando para login');
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            console.log('✅ Token encontrado - carregando dashboard');
             // Garantir que apenas o dashboard esteja visível inicialmente
             showSection('dashboard');
         });
