@@ -26,7 +26,18 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
 
-    // Find user
+    // Check if it's a demo admin user
+    if (decoded.userId === 'admin-demo-id' && decoded.role === 'ADMIN') {
+      console.log('✅ Usuário demo admin autenticado');
+      req.user = {
+        id: 'admin-demo-id',
+        email: decoded.email,
+        role: 'ADMIN'
+      };
+      return next();
+    }
+
+    // Find user in database
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
