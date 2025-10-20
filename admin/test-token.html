@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Token - Liga do Bem</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .result { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 10px 0; white-space: pre-wrap; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Teste de Token - Liga do Bem</h1>
+        
+        <button class="btn" onclick="testLogin()">1. Fazer Login</button>
+        <button class="btn" onclick="testToken()">2. Testar Token</button>
+        <button class="btn" onclick="testCompanies()">3. Testar Empresas</button>
+        <button class="btn" onclick="clearAll()">4. Limpar Tudo</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://nova-versao-liga-do-bem.onrender.com';
+        
+        function log(message, type = 'info') {
+            const result = document.getElementById('result');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            result.appendChild(div);
+            result.scrollTop = result.scrollHeight;
+        }
+
+        async function testLogin() {
+            try {
+                log('🔄 Fazendo login...');
+                
+                const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'admin@ligadobem.com',
+                        password: 'admin123'
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('admin_token', data.token);
+                    localStorage.setItem('admin_user', JSON.stringify(data.user));
+                    
+                    log(`✅ Login OK! Token: ${data.token.substring(0, 50)}...`, 'success');
+                    log(`✅ User: ${JSON.stringify(data.user)}`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Login falhou: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Erro no login: ${error.message}`, 'error');
+            }
+        }
+
+        async function testToken() {
+            try {
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    log('❌ Nenhum token encontrado!', 'error');
+                    return;
+                }
+
+                log(`🔄 Testando token: ${token.substring(0, 50)}...`);
+                
+                // Decodificar token
+                try {
+                    const parts = token.split('.');
+                    const payload = JSON.parse(atob(parts[1]));
+                    log(`✅ Token válido! Payload: ${JSON.stringify(payload, null, 2)}`, 'success');
+                    
+                    // Verificar expiração
+                    const now = Math.floor(Date.now() / 1000);
+                    if (payload.exp && payload.exp < now) {
+                        log(`❌ Token EXPIRADO! Expira em: ${new Date(payload.exp * 1000).toLocaleString()}`, 'error');
+                    } else {
+                        log(`✅ Token NÃO expirado. Expira em: ${new Date(payload.exp * 1000).toLocaleString()}`, 'success');
+                    }
+                } catch (e) {
+                    log(`❌ Token inválido: ${e.message}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Erro ao testar token: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCompanies() {
+            try {
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    log('❌ Nenhum token encontrado!', 'error');
+                    return;
+                }
+
+                log('🔄 Testando endpoint de empresas...');
+                
+                const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                log(`📊 Status: ${response.status} ${response.statusText}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Empresas carregadas: ${data.companies?.length || 0}`, 'success');
+                    log(`✅ Dados: ${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Erro: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Erro ao testar empresas: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAll() {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_user');
+            document.getElementById('result').innerHTML = '';
+            log('🗑️ Dados limpos!', 'success');
+        }
+
+        // Auto-executar teste ao carregar
+        window.addEventListener('load', () => {
+            log('🚀 Página carregada. Clique nos botões para testar.');
+        });
+    </script>
+</body>
+</html>
