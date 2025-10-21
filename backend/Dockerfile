@@ -19,7 +19,10 @@ COPY . .
 # Generate Prisma client
 RUN npm run prisma:generate
 
-# Remove dev dependencies to reduce image size (keep TypeScript for runtime)
+# Build TypeScript
+RUN npm run build
+
+# Remove dev dependencies to reduce image size
 RUN npm prune --production --ignore-scripts
 
 # Expose port
@@ -30,4 +33,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
 # Start application
-CMD ["npx", "ts-node", "src/server.ts"]
+CMD ["npm", "start"]
