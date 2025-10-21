@@ -207,16 +207,21 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
-    // Verificar se é admin
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return res.status(401).json({ 
-        message: 'Acesso não autorizado' 
+    // Se for usuário demo admin, pular verificação no banco
+    if (userId === 'admin-demo-id') {
+      console.log('✅ Usuário demo admin autorizado');
+    } else {
+      // Verificar se é admin real no banco
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
       });
+
+      if (!user || user.role !== 'ADMIN') {
+        return res.status(401).json({ 
+          message: 'Acesso não autorizado' 
+        });
+      }
     }
 
     // Buscar estatísticas
@@ -290,16 +295,21 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
-    // Verificar se é admin
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return res.status(401).json({ 
-        message: 'Acesso não autorizado' 
+    // Se for usuário demo admin, pular verificação no banco
+    if (userId === 'admin-demo-id') {
+      console.log('✅ Usuário demo admin autorizado');
+    } else {
+      // Verificar se é admin real no banco
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
       });
+
+      if (!user || user.role !== 'ADMIN') {
+        return res.status(401).json({ 
+          message: 'Acesso não autorizado' 
+        });
+      }
     }
 
     const companies = await prisma.partner.findMany({
@@ -342,16 +352,21 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
-    // Verificar se é admin
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return res.status(401).json({ 
-        message: 'Acesso não autorizado' 
+    // Se for usuário demo admin, pular verificação no banco
+    if (userId === 'admin-demo-id') {
+      console.log('✅ Usuário demo admin autorizado');
+    } else {
+      // Verificar se é admin real no banco
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
       });
+
+      if (!user || user.role !== 'ADMIN') {
+        return res.status(401).json({ 
+          message: 'Acesso não autorizado' 
+        });
+      }
     }
 
     const members = await prisma.user.findMany({
@@ -402,16 +417,21 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
-    // Verificar se é admin
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return res.status(401).json({ 
-        message: 'Acesso não autorizado' 
+    // Se for usuário demo admin, pular verificação no banco
+    if (userId === 'admin-demo-id') {
+      console.log('✅ Usuário demo admin autorizado');
+    } else {
+      // Verificar se é admin real no banco
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
       });
+
+      if (!user || user.role !== 'ADMIN') {
+        return res.status(401).json({ 
+          message: 'Acesso não autorizado' 
+        });
+      }
     }
 
     // Buscar todas as empresas do banco (incluindo pendentes e inativas)
