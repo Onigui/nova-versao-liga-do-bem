@@ -224,19 +224,15 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
       }
     }
 
-    // Buscar estatísticas
+    // Buscar estatísticas (apenas tabelas que existem)
     const [
       totalUsers,
       totalPartners,
-      totalAnimals,
-      totalDonations,
       recentUsers,
       recentPartners
     ] = await Promise.all([
       prisma.user.count(),
       prisma.partner.count(),
-      prisma.animal.count(),
-      prisma.donation.count(),
       prisma.user.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
@@ -272,8 +268,8 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
       stats: {
         totalUsers,
         totalPartners,
-        totalAnimals,
-        totalDonations,
+        totalAnimals: 0, // Tabela não existe ainda
+        totalDonations: 0, // Tabela não existe ainda
         monthlyGrowth
       },
       recent: {
