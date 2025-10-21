@@ -11,15 +11,7 @@ import { Server } from 'socket.io';
 // Import routes
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
-import animalRoutes from './routes/animals';
-import adoptionRoutes from './routes/adoptions';
 import partnerRoutes from './routes/partners';
-import eventRoutes from './routes/events';
-import donationRoutes from './routes/donations';
-import volunteerRoutes from './routes/volunteers';
-import notificationRoutes from './routes/notifications';
-import paymentRoutes from './routes/payments';
-import transparencyRoutes from './routes/transparency';
 import adminRoutes from './routes/admin';
 
 // Import middleware
@@ -252,15 +244,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/animals', animalRoutes);
-app.use('/api/adoptions', adoptionRoutes);
 app.use('/api/partners', partnerRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/donations', donationRoutes);
-app.use('/api/volunteers', volunteerRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/transparency', transparencyRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Socket.io for real-time notifications
