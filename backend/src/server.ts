@@ -74,8 +74,25 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
+// Middleware para verificar token admin
+function verifyAdminToken(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-admin-token'];
+  
+  if (!token) {
+    return res.status(401).json({ message: 'Token não fornecido' });
+  }
+  
+  // Para o servidor simplificado, aceitar qualquer token que não seja vazio
+  if (token && token.length > 0) {
+    console.log('✅ Token admin válido:', token.substring(0, 10) + '...');
+    next();
+  } else {
+    return res.status(401).json({ message: 'Token inválido' });
+  }
+}
+
 // Admin dashboard (simplified)
-app.get('/api/admin/dashboard', (req, res) => {
+app.get('/api/admin/dashboard', verifyAdminToken, (req, res) => {
   res.json({
     stats: {
       totalMembers: 10,
@@ -101,7 +118,7 @@ app.get('/api/admin/dashboard', (req, res) => {
 });
 
 // Admin members (simplified)
-app.get('/api/admin/members', (req, res) => {
+app.get('/api/admin/members', verifyAdminToken, (req, res) => {
   res.json({
     members: [
       {
@@ -118,7 +135,7 @@ app.get('/api/admin/members', (req, res) => {
 });
 
 // Admin companies (simplified)
-app.get('/api/admin/companies', (req, res) => {
+app.get('/api/admin/companies', verifyAdminToken, (req, res) => {
   res.json({
     companies: [
       {
@@ -141,7 +158,7 @@ app.get('/api/admin/companies', (req, res) => {
 });
 
 // Update company
-app.put('/api/admin/companies/:id', (req, res) => {
+app.put('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
   
@@ -158,7 +175,7 @@ app.put('/api/admin/companies/:id', (req, res) => {
 });
 
 // Approve company
-app.patch('/api/admin/companies/:id/approve', (req, res) => {
+app.patch('/api/admin/companies/:id/approve', verifyAdminToken, (req, res) => {
   const { id } = req.params;
   
   console.log('✅ Aprovando empresa:', id);
@@ -175,7 +192,7 @@ app.patch('/api/admin/companies/:id/approve', (req, res) => {
 });
 
 // Reject company
-app.patch('/api/admin/companies/:id/reject', (req, res) => {
+app.patch('/api/admin/companies/:id/reject', verifyAdminToken, (req, res) => {
   const { id } = req.params;
   
   console.log('❌ Rejeitando empresa:', id);
@@ -192,7 +209,7 @@ app.patch('/api/admin/companies/:id/reject', (req, res) => {
 });
 
 // Delete company
-app.delete('/api/admin/companies/:id', (req, res) => {
+app.delete('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
   const { id } = req.params;
   
   console.log('🗑️ Excluindo empresa:', id);
@@ -204,7 +221,7 @@ app.delete('/api/admin/companies/:id', (req, res) => {
 });
 
 // Create company
-app.post('/api/admin/companies', (req, res) => {
+app.post('/api/admin/companies', verifyAdminToken, (req, res) => {
   const newCompany = req.body;
   
   console.log('➕ Criando nova empresa:', newCompany);
