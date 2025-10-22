@@ -136,6 +136,88 @@ app.get('/api/admin/companies', (req, res) => {
   });
 });
 
+// Update company
+app.put('/api/admin/companies/:id', (req, res) => {
+  const { id } = req.params;
+  const updateData = req.body;
+  
+  console.log('✏️ Atualizando empresa:', id, updateData);
+  
+  res.json({
+    message: 'Empresa atualizada com sucesso',
+    company: {
+      id,
+      ...updateData,
+      updatedAt: new Date().toISOString()
+    }
+  });
+});
+
+// Approve company
+app.patch('/api/admin/companies/:id/approve', (req, res) => {
+  const { id } = req.params;
+  
+  console.log('✅ Aprovando empresa:', id);
+  
+  res.json({
+    message: 'Empresa aprovada com sucesso',
+    company: {
+      id,
+      status: 'active',
+      isActive: true,
+      updatedAt: new Date().toISOString()
+    }
+  });
+});
+
+// Reject company
+app.patch('/api/admin/companies/:id/reject', (req, res) => {
+  const { id } = req.params;
+  
+  console.log('❌ Rejeitando empresa:', id);
+  
+  res.json({
+    message: 'Empresa rejeitada com sucesso',
+    company: {
+      id,
+      status: 'inactive',
+      isActive: false,
+      updatedAt: new Date().toISOString()
+    }
+  });
+});
+
+// Delete company
+app.delete('/api/admin/companies/:id', (req, res) => {
+  const { id } = req.params;
+  
+  console.log('🗑️ Excluindo empresa:', id);
+  
+  res.json({
+    message: 'Empresa excluída com sucesso',
+    id
+  });
+});
+
+// Create company
+app.post('/api/admin/companies', (req, res) => {
+  const newCompany = req.body;
+  
+  console.log('➕ Criando nova empresa:', newCompany);
+  
+  res.json({
+    message: 'Empresa criada com sucesso',
+    company: {
+      id: `partner-${Date.now()}`,
+      ...newCompany,
+      status: 'pending',
+      isActive: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
