@@ -78,6 +78,10 @@ app.post('/api/admin/login', (req, res) => {
 app.get('/api/admin/dashboard', (req, res) => {
   res.json({
     stats: {
+      totalMembers: 10,
+      activePartners: 3,
+      totalAdoptions: 5,
+      monthlyRevenue: 15680,
       totalUsers: 10,
       totalPartners: 3,
       totalAnimals: 0,
