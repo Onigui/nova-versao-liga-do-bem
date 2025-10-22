@@ -306,7 +306,7 @@
         <div class="demo-credentials">
             <h4>🔑 Credenciais de Demonstração</h4>
             <p><strong>Email:</strong> admin@ligadobem.com</p>
-            <p><strong>Senha:</strong> admin123</p>
+            <p><strong>Senha:</strong> demo123</p>
         </div>
 
         <form class="login-form" id="loginForm">
@@ -334,7 +334,7 @@
                     name="password" 
                     class="form-input" 
                     placeholder="Sua senha"
-                    value="admin123"
+                    value="demo123"
                     required
                 >
             </div>
@@ -440,7 +440,7 @@
             } catch (error) {
                 // Se a API não estiver disponível, usar login demo
                 console.warn('API não disponível, usando login demo');
-                if (email === 'admin@ligadobem.com' && password === 'admin123') {
+                if (email === 'admin@ligadobem.com' && password === 'demo123') {
                     // Criar token demo
                     const demoToken = btoa(JSON.stringify({
                         userId: 'demo-admin',
@@ -530,7 +530,7 @@
 
         console.log('🔐 Sistema de Login da Liga do Bem carregado!');
         console.log('📧 Email demo: admin@ligadobem.com');
-        console.log('🔑 Senha demo: admin123');
+        console.log('🔑 Senha demo: demo123');
     </script>
 </body>
 </html>
