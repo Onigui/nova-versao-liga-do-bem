@@ -1983,16 +1983,20 @@
         // Form submissions
         document.getElementById('companyForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const loading = submitBtn.querySelector('.loading');
+            const submitBtn = document.querySelector('button[form="companyForm"]');
+            const loading = submitBtn ? submitBtn.querySelector('.loading') : null;
             
-            loading.style.display = 'inline-block';
-            submitBtn.disabled = true;
+            if (loading) {
+                loading.style.display = 'inline-block';
+                submitBtn.disabled = true;
+            }
             
             // Simular envio
             setTimeout(() => {
-                loading.style.display = 'none';
-                submitBtn.disabled = false;
+                if (loading) {
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                }
                 closeModal('companyModal');
                 alert('Empresa cadastrada com sucesso!');
                 this.reset();
@@ -2001,16 +2005,20 @@
 
         document.getElementById('memberForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const loading = submitBtn.querySelector('.loading');
+            const submitBtn = document.querySelector('button[form="memberForm"]');
+            const loading = submitBtn ? submitBtn.querySelector('.loading') : null;
             
-            loading.style.display = 'inline-block';
-            submitBtn.disabled = true;
+            if (loading) {
+                loading.style.display = 'inline-block';
+                submitBtn.disabled = true;
+            }
             
             // Simular envio
             setTimeout(() => {
-                loading.style.display = 'none';
-                submitBtn.disabled = false;
+                if (loading) {
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                }
                 closeModal('memberModal');
                 alert('Membro cadastrado com sucesso!');
                 this.reset();
@@ -2216,30 +2224,7 @@
             }
         }
 
-        // Inicializar tabelas
-        document.addEventListener('DOMContentLoaded', function() {
-            // Verificar autenticação primeiro
-            if (!checkAuth()) {
-                return;
-            }
-            
-            // Mostrar informações do usuário
-            showUserInfo();
-            
-            // Carregar dados do dashboard
-            loadDashboardData();
-            
-            // Carregar dados do backend
-            loadMembers();
-            
-            // Inicializar tabelas
-            renderCompaniesTable();
-            
-            // Inicializar gráficos
-            setTimeout(() => {
-                initializeCharts();
-            }, 500);
-        });
+        // Inicializar tabelas (removido - consolidado no DOMContentLoaded principal)
 
         // Variáveis globais para gráficos
         let growthChart, usersChart, companiesChart;
@@ -3719,8 +3704,31 @@
             }
             
             console.log('✅ Token encontrado - carregando dashboard');
+            
+            // Verificar autenticação
+            if (!checkAuth()) {
+                return;
+            }
+            
+            // Mostrar informações do usuário
+            showUserInfo();
+            
             // Garantir que apenas o dashboard esteja visível inicialmente
             showSection('dashboard');
+            
+            // Carregar dados do dashboard
+            loadDashboardData();
+            
+            // Carregar dados do backend
+            loadMembers();
+            
+            // Inicializar tabelas
+            renderCompaniesTable();
+            
+            // Inicializar gráficos
+            setTimeout(() => {
+                initializeCharts();
+            }, 500);
         });
     </script>
 </body>
