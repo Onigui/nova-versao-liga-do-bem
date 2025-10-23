@@ -663,7 +663,7 @@
                             <div class="card-icon blue">🏢</div>
                             <h3 class="card-title">Empresas Parceiras</h3>
                         </div>
-                        <div class="card-value">24</div>
+                        <div class="card-value" id="activePartners">24</div>
                         <div class="card-change positive">
                             <span>↗️</span>
                             +12% este mês
@@ -675,7 +675,7 @@
                             <div class="card-icon green">👥</div>
                             <h3 class="card-title">Membros Ativos</h3>
                         </div>
-                        <div class="card-value">1,247</div>
+                        <div class="card-value" id="totalMembers">1,247</div>
                         <div class="card-change positive">
                             <span>↗️</span>
                             +8% este mês
@@ -687,7 +687,7 @@
                             <div class="card-icon orange">💰</div>
                             <h3 class="card-title">Descontos Utilizados</h3>
                         </div>
-                        <div class="card-value">3,891</div>
+                        <div class="card-value" id="totalAdoptions">3,891</div>
                         <div class="card-change positive">
                             <span>↗️</span>
                             +15% este mês
@@ -1936,7 +1936,12 @@
 
         // Modal functions
         function openModal(modalId) {
-            document.getElementById(modalId).classList.add('active');
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('active');
+            } else {
+                console.error('Modal não encontrado:', modalId);
+            }
         }
 
         function closeModal(modalId) {
@@ -3474,7 +3479,7 @@
                                     </div>
                                     <div class="form-group" style="margin-bottom: 16px;">
                                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Cidade, Estado (ex: Botucatu, SP)</label>
-                                        <input type="text" id="edit-location" value="${company.location}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                        <input type="text" id="edit-location" value="${company.city || ''}, ${company.state || ''}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                     </div>
                                 </form>
                             </div>
