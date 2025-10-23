@@ -310,6 +310,31 @@ app.post('/api/admin/companies', verifyAdminToken, (req, res) => {
   });
 });
 
+// Create member
+app.post('/api/admin/members', verifyAdminToken, (req, res) => {
+  const newMember = req.body;
+
+  console.log('➕ Criando novo membro:', newMember);
+
+  // Criar novo membro
+  const member = {
+    id: `user-${Date.now()}`,
+    ...newMember,
+    role: 'MEMBER',
+    isActive: newMember.status === 'active',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // Adicionar ao array
+  membersData.push(member);
+
+  res.json({
+    message: 'Membro criado com sucesso',
+    member
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {

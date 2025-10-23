@@ -1991,16 +1991,58 @@
                 submitBtn.disabled = true;
             }
             
-            // Simular envio
-            setTimeout(() => {
+            // Cadastrar empresa via API
+            const formData = new FormData(this);
+            const companyData = {
+                name: formData.get('name'),
+                category: formData.get('category'),
+                discount: parseInt(formData.get('discount')),
+                status: formData.get('status'),
+                address: formData.get('address'),
+                latitude: parseFloat(formData.get('latitude')) || null,
+                longitude: parseFloat(formData.get('longitude')) || null,
+                hours: formData.get('hours'),
+                phone: formData.get('phone'),
+                email: formData.get('email'),
+                description: formData.get('description')
+            };
+
+            // Fazer chamada à API
+            const token = localStorage.getItem('admin_token');
+            fetch(`${API_BASE_URL}/api/admin/companies`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(companyData)
+            })
+            .then(response => response.json())
+            .then(data => {
                 if (loading) {
                     loading.style.display = 'none';
                     submitBtn.disabled = false;
                 }
-                closeModal('companyModal');
-                alert('Empresa cadastrada com sucesso!');
-                this.reset();
-            }, 2000);
+                
+                if (data.message) {
+                    closeModal('companyModal');
+                    alert('✅ Empresa cadastrada com sucesso!');
+                    this.reset();
+                    
+                    // Recarregar lista de empresas
+                    loadCompanies();
+                } else {
+                    throw new Error(data.error || 'Erro ao cadastrar empresa');
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao cadastrar empresa:', error);
+                if (loading) {
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                }
+                alert(`❌ Erro ao cadastrar empresa: ${error.message}`);
+            });
         });
 
         document.getElementById('memberForm').addEventListener('submit', function(e) {
@@ -2013,16 +2055,55 @@
                 submitBtn.disabled = true;
             }
             
-            // Simular envio
-            setTimeout(() => {
+            // Cadastrar membro via API
+            const formData = new FormData(this);
+            const memberData = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                phone: formData.get('phone'),
+                cpf: formData.get('cpf'),
+                birthdate: formData.get('birthdate'),
+                address: formData.get('address'),
+                points: parseInt(formData.get('points')) || 0,
+                status: formData.get('status')
+            };
+
+            // Fazer chamada à API
+            const token = localStorage.getItem('admin_token');
+            fetch(`${API_BASE_URL}/api/admin/members`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(memberData)
+            })
+            .then(response => response.json())
+            .then(data => {
                 if (loading) {
                     loading.style.display = 'none';
                     submitBtn.disabled = false;
                 }
-                closeModal('memberModal');
-                alert('Membro cadastrado com sucesso!');
-                this.reset();
-            }, 2000);
+                
+                if (data.message) {
+                    closeModal('memberModal');
+                    alert('✅ Membro cadastrado com sucesso!');
+                    this.reset();
+                    
+                    // Recarregar lista de membros
+                    loadMembers();
+                } else {
+                    throw new Error(data.error || 'Erro ao cadastrar membro');
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao cadastrar membro:', error);
+                if (loading) {
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                }
+                alert(`❌ Erro ao cadastrar membro: ${error.message}`);
+            });
         });
 
         // Fechar modal clicando fora
@@ -2403,21 +2484,7 @@
         let map;
         let markers = [];
 
-        // Função de inicialização do Google Maps
-        function initMap() {
-            if (typeof google !== 'undefined' && google.maps) {
-                // Inicializar mapa se ainda não foi inicializado
-                if (!map) {
-                    map = new google.maps.Map(document.getElementById('map'), {
-                        center: { lat: -22.8859, lng: -48.4444 }, // Botucatu
-                        zoom: 13
-                    });
-                }
-                console.log('Google Maps inicializado');
-            } else {
-                console.log('Google Maps ainda não carregou');
-            }
-        }
+        // Função de inicialização do Google Maps (removida - duplicada)
 
         // Dados de exemplo das empresas
         const sampleCompanies = [
@@ -2477,7 +2544,7 @@
         ];
 
         // Funções do Mapa
-        function initMap() {
+        window.initMap = function() {
             // Centro do mapa (Botucatu)
             const botucatu = { lat: -22.8858, lng: -48.4449 };
             
