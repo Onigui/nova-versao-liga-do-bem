@@ -34,7 +34,8 @@ let companiesData = [
     longitude: -48.4440,
     status: 'active',
     isActive: true,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }
 ];
 
@@ -181,11 +182,12 @@ app.put('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
   }
 
   // Atualizar dados da empresa
-  companiesData[companyIndex] = {
+  const updatedCompany = {
     ...companiesData[companyIndex],
     ...updateData,
     updatedAt: new Date().toISOString()
   };
+  companiesData[companyIndex] = updatedCompany;
 
   res.json({
     message: 'Empresa atualizada com sucesso',
@@ -206,12 +208,13 @@ app.patch('/api/admin/companies/:id/approve', verifyAdminToken, (req, res) => {
   }
 
   // Aprovar empresa
-  companiesData[companyIndex] = {
+  const approvedCompany = {
     ...companiesData[companyIndex],
     status: 'active',
     isActive: true,
     updatedAt: new Date().toISOString()
   };
+  companiesData[companyIndex] = approvedCompany;
 
   res.json({
     message: 'Empresa aprovada com sucesso',
@@ -232,12 +235,13 @@ app.patch('/api/admin/companies/:id/reject', verifyAdminToken, (req, res) => {
   }
 
   // Rejeitar empresa
-  companiesData[companyIndex] = {
+  const rejectedCompany = {
     ...companiesData[companyIndex],
     status: 'inactive',
     isActive: false,
     updatedAt: new Date().toISOString()
   };
+  companiesData[companyIndex] = rejectedCompany;
 
   res.json({
     message: 'Empresa rejeitada com sucesso',
