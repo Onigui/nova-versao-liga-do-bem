@@ -17,6 +17,39 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Armazenamento em memória para simular persistência
+let companiesData = [
+  {
+    id: 'partner-1',
+    name: 'Pet Shop Amigo',
+    description: 'Pet shop especializado em cuidados para animais',
+    category: 'Pet Shop',
+    email: 'contato@petshopamigo.com.br',
+    phone: '(14) 99876-5432',
+    address: 'Rua das Flores, 123',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-000',
+    latitude: -22.8858,
+    longitude: -48.4440,
+    status: 'active',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
+let membersData = [
+  {
+    id: 'user-1',
+    name: 'João Silva',
+    email: 'joao@email.com',
+    phone: '(14) 99999-9999',
+    role: 'MEMBER',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
 // Test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Server is working!', timestamp: new Date().toISOString() });
@@ -93,14 +126,17 @@ function verifyAdminToken(req, res, next) {
 
 // Admin dashboard (simplified)
 app.get('/api/admin/dashboard', verifyAdminToken, (req, res) => {
+  const activePartners = companiesData.filter(c => c.isActive).length;
+  const totalMembers = membersData.length;
+  
   res.json({
     stats: {
-      totalMembers: 10,
-      activePartners: 3,
+      totalMembers,
+      activePartners,
       totalAdoptions: 5,
       monthlyRevenue: 15680,
-      totalUsers: 10,
-      totalPartners: 3,
+      totalUsers: totalMembers,
+      totalPartners: companiesData.length,
       totalAnimals: 0,
       totalDonations: 0,
       monthlyGrowth: {
@@ -111,8 +147,8 @@ app.get('/api/admin/dashboard', verifyAdminToken, (req, res) => {
       }
     },
     recent: {
-      users: [],
-      partners: []
+      users: membersData.slice(-5),
+      partners: companiesData.slice(-5)
     }
   });
 });
@@ -120,40 +156,14 @@ app.get('/api/admin/dashboard', verifyAdminToken, (req, res) => {
 // Admin members (simplified)
 app.get('/api/admin/members', verifyAdminToken, (req, res) => {
   res.json({
-    members: [
-      {
-        id: 'user-1',
-        name: 'João Silva',
-        email: 'joao@email.com',
-        phone: '(14) 99999-9999',
-        role: 'MEMBER',
-        isActive: true,
-        createdAt: new Date().toISOString()
-      }
-    ]
+    members: membersData
   });
 });
 
 // Admin companies (simplified)
 app.get('/api/admin/companies', verifyAdminToken, (req, res) => {
   res.json({
-    companies: [
-      {
-        id: 'partner-1',
-        name: 'Pet Shop Amigo',
-        description: 'Pet shop especializado em cuidados para animais',
-        category: 'Pet Shop',
-        email: 'contato@petshopamigo.com.br',
-        phone: '(14) 99876-5432',
-        address: 'Rua das Flores, 123',
-        city: 'Botucatu',
-        state: 'SP',
-        zipCode: '18608-000',
-        status: 'active',
-        isActive: true,
-        createdAt: new Date().toISOString()
-      }
-    ]
+    companies: companiesData
   });
 });
 
@@ -161,59 +171,95 @@ app.get('/api/admin/companies', verifyAdminToken, (req, res) => {
 app.put('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
-  
+
   console.log('✏️ Atualizando empresa:', id, updateData);
-  
+
+  // Encontrar e atualizar empresa no array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Atualizar dados da empresa
+  companiesData[companyIndex] = {
+    ...companiesData[companyIndex],
+    ...updateData,
+    updatedAt: new Date().toISOString()
+  };
+
   res.json({
     message: 'Empresa atualizada com sucesso',
-    company: {
-      id,
-      ...updateData,
-      updatedAt: new Date().toISOString()
-    }
+    company: companiesData[companyIndex]
   });
 });
 
 // Approve company
 app.patch('/api/admin/companies/:id/approve', verifyAdminToken, (req, res) => {
   const { id } = req.params;
-  
+
   console.log('✅ Aprovando empresa:', id);
-  
+
+  // Encontrar e aprovar empresa no array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Aprovar empresa
+  companiesData[companyIndex] = {
+    ...companiesData[companyIndex],
+    status: 'active',
+    isActive: true,
+    updatedAt: new Date().toISOString()
+  };
+
   res.json({
     message: 'Empresa aprovada com sucesso',
-    company: {
-      id,
-      status: 'active',
-      isActive: true,
-      updatedAt: new Date().toISOString()
-    }
+    company: companiesData[companyIndex]
   });
 });
 
 // Reject company
 app.patch('/api/admin/companies/:id/reject', verifyAdminToken, (req, res) => {
   const { id } = req.params;
-  
+
   console.log('❌ Rejeitando empresa:', id);
-  
+
+  // Encontrar e rejeitar empresa no array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Rejeitar empresa
+  companiesData[companyIndex] = {
+    ...companiesData[companyIndex],
+    status: 'inactive',
+    isActive: false,
+    updatedAt: new Date().toISOString()
+  };
+
   res.json({
     message: 'Empresa rejeitada com sucesso',
-    company: {
-      id,
-      status: 'inactive',
-      isActive: false,
-      updatedAt: new Date().toISOString()
-    }
+    company: companiesData[companyIndex]
   });
 });
 
 // Delete company
 app.delete('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
   const { id } = req.params;
-  
+
   console.log('🗑️ Excluindo empresa:', id);
-  
+
+  // Encontrar e remover empresa do array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Remover empresa
+  companiesData.splice(companyIndex, 1);
+
   res.json({
     message: 'Empresa excluída com sucesso',
     id
@@ -223,19 +269,25 @@ app.delete('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
 // Create company
 app.post('/api/admin/companies', verifyAdminToken, (req, res) => {
   const newCompany = req.body;
-  
+
   console.log('➕ Criando nova empresa:', newCompany);
-  
+
+  // Criar nova empresa
+  const company = {
+    id: `partner-${Date.now()}`,
+    ...newCompany,
+    status: 'pending',
+    isActive: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // Adicionar ao array
+  companiesData.push(company);
+
   res.json({
     message: 'Empresa criada com sucesso',
-    company: {
-      id: `partner-${Date.now()}`,
-      ...newCompany,
-      status: 'pending',
-      isActive: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+    company
   });
 });
 
