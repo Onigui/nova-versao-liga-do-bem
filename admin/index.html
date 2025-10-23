@@ -2242,7 +2242,10 @@
                     <td>${member.points || 0}</td>
                     <td>${new Date(member.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;">Editar</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="editMember('${member.id}')" style="padding: 6px 12px; font-size: 0.875rem;">Editar</button>
+                            <button class="btn btn-danger" onclick="deleteMember('${member.id}')" style="padding: 6px 12px; font-size: 0.875rem;">Excluir</button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
@@ -3749,6 +3752,160 @@
             } catch (error) {
                 console.error('❌ Erro ao excluir empresa:', error);
                 alert(`Erro ao excluir empresa: ${error.message}`);
+            }
+        }
+
+        // Funções para gerenciar membros
+        async function editMember(memberId) {
+            try {
+                console.log('🔧 Editando membro:', memberId);
+                
+                // Encontrar membro nos dados
+                const member = membersData.find(m => m.id === memberId);
+                if (!member) {
+                    alert('Membro não encontrado!');
+                    return;
+                }
+
+                // Criar modal de edição
+                const modalHtml = `
+                    <div id="edit-member-modal" class="modal active" style="display: flex; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
+                        <div class="modal-content" style="background: white; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <h3 style="margin: 0;">Editar Membro</h3>
+                                <button class="modal-close" onclick="closeEditMemberModal()" style="border: none; background: none; font-size: 24px; cursor: pointer; padding: 0; width: 32px; height: 32px;">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="edit-member-form">
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nome Completo</label>
+                                        <input type="text" id="edit-member-name" value="${member.name}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Email</label>
+                                        <input type="email" id="edit-member-email" value="${member.email}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Telefone</label>
+                                        <input type="tel" id="edit-member-phone" value="${member.phone || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Pontos</label>
+                                        <input type="number" id="edit-member-points" value="${member.points || 0}" min="0" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 16px;">
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Status</label>
+                                        <select id="edit-member-status" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                            <option value="active" ${member.isActive ? 'selected' : ''}>Ativo</option>
+                                            <option value="inactive" ${!member.isActive ? 'selected' : ''}>Inativo</option>
+                                        </select>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                                <button type="button" class="btn btn-secondary" onclick="closeEditMemberModal()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px;">Cancelar</button>
+                                <button type="button" class="btn btn-primary" onclick="saveMemberEdit('${memberId}')" style="padding: 10px 20px; background: #6366f1; color: white; border: none; cursor: pointer; border-radius: 4px;">Salvar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Adicionar modal ao DOM
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+            } catch (error) {
+                console.error('❌ Erro ao editar membro:', error);
+                alert(`Erro ao editar membro: ${error.message}`);
+            }
+        }
+
+        async function saveMemberEdit(memberId) {
+            try {
+                const updateData = {
+                    name: document.getElementById('edit-member-name').value,
+                    email: document.getElementById('edit-member-email').value,
+                    phone: document.getElementById('edit-member-phone').value,
+                    points: parseInt(document.getElementById('edit-member-points').value) || 0,
+                    status: document.getElementById('edit-member-status').value
+                };
+
+                console.log('💾 Salvando membro via API:', memberId, updateData);
+
+                // Fazer chamada à API
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/members/${memberId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erro ao atualizar membro');
+                }
+
+                console.log('✅ Membro atualizado:', data);
+                
+                // Fechar modal
+                closeEditMemberModal();
+                
+                // Recarregar membros do servidor
+                await loadMembers();
+                
+                // Mostrar sucesso
+                alert('✅ Membro atualizado com sucesso!');
+                
+            } catch (error) {
+                console.error('❌ Erro ao salvar membro:', error);
+                alert(`Erro ao salvar membro: ${error.message}`);
+            }
+        }
+
+        function closeEditMemberModal() {
+            const modal = document.getElementById('edit-member-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function deleteMember(memberId) {
+            try {
+                if (!confirm('⚠️ ATENÇÃO: Esta ação é irreversível! Deseja realmente EXCLUIR este membro?')) {
+                    return;
+                }
+
+                console.log('🗑️ Excluindo membro:', memberId);
+
+                // Fazer chamada à API
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/members/${memberId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erro ao excluir membro');
+                }
+
+                console.log('✅ Membro excluído:', data);
+                
+                // Recarregar membros do servidor
+                await loadMembers();
+                
+                // Mostrar sucesso
+                alert('✅ Membro excluído com sucesso!');
+                
+            } catch (error) {
+                console.error('❌ Erro ao excluir membro:', error);
+                alert(`Erro ao excluir membro: ${error.message}`);
             }
         }
 

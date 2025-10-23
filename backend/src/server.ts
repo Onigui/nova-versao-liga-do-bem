@@ -335,6 +335,55 @@ app.post('/api/admin/members', verifyAdminToken, (req, res) => {
   });
 });
 
+// Update member
+app.put('/api/admin/members/:id', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+  const updateData = req.body;
+
+  console.log('✏️ Atualizando membro:', id, updateData);
+
+  // Encontrar e atualizar membro no array
+  const memberIndex = membersData.findIndex(m => m.id === id);
+  if (memberIndex === -1) {
+    return res.status(404).json({ message: 'Membro não encontrado' });
+  }
+
+  // Atualizar dados do membro
+  const updatedMember = {
+    ...membersData[memberIndex],
+    ...updateData,
+    isActive: updateData.status === 'active',
+    updatedAt: new Date().toISOString()
+  };
+  membersData[memberIndex] = updatedMember;
+
+  res.json({
+    message: 'Membro atualizado com sucesso',
+    member: updatedMember
+  });
+});
+
+// Delete member
+app.delete('/api/admin/members/:id', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+
+  console.log('🗑️ Excluindo membro:', id);
+
+  // Encontrar e remover membro do array
+  const memberIndex = membersData.findIndex(m => m.id === id);
+  if (memberIndex === -1) {
+    return res.status(404).json({ message: 'Membro não encontrado' });
+  }
+
+  // Remover membro
+  membersData.splice(memberIndex, 1);
+
+  res.json({
+    message: 'Membro excluído com sucesso',
+    id
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
