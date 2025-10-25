@@ -14,7 +14,7 @@ import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
-const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
+const API_BASE_URL = 'https://nova-versao-liga-do-bem.onrender.com/api';
 
 export default function PartnersScreen({ navigation }) {
   const [partners, setPartners] = useState([]);
@@ -51,10 +51,43 @@ export default function PartnersScreen({ navigation }) {
 
   const loadPartners = async () => {
     try {
-      // Dados mockados com localização
-      const mockPartners = [
+      console.log('🔄 Carregando parceiros da API...');
+      
+      const response = await fetch(`${API_BASE_URL}/partners`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+      
+      const apiPartners = await response.json();
+      console.log('✅ Parceiros carregados:', apiPartners.length);
+      
+      // Converter dados da API para formato esperado pelo app
+      const formattedPartners = apiPartners.map(partner => ({
+        id: partner.id,
+        name: partner.name,
+        category: partner.category,
+        discount: '15%', // TODO: implementar sistema de descontos
+        description: partner.description || 'Parceiro da Liga do Bem',
+        address: partner.address,
+        phone: partner.phone,
+        whatsapp: partner.phone?.replace(/\D/g, ''), // Remove caracteres não numéricos
+        latitude: partner.latitude,
+        longitude: partner.longitude,
+        hours: 'Seg-Sex: 9h-18h | Sáb: 9h-13h', // TODO: implementar horários
+        logo: 'https://via.placeholder.com/100',
+      }));
+      
+      setPartners(formattedPartners);
+      setFilteredPartners(formattedPartners);
+      
+    } catch (error) {
+      console.error('❌ Erro ao carregar parceiros:', error);
+      
+      // Fallback para dados mockados em caso de erro
+      const fallbackPartners = [
         {
-          id: '1',
+          id: 'fallback-1',
           name: 'Pet Shop Central',
           category: 'Pet Shop',
           discount: '15%',
@@ -66,41 +99,11 @@ export default function PartnersScreen({ navigation }) {
           longitude: -48.4450,
           hours: 'Seg-Sex: 9h-18h | Sáb: 9h-13h',
           logo: 'https://via.placeholder.com/100',
-        },
-        {
-          id: '2',
-          name: 'Clínica Veterinária Vida Animal',
-          category: 'Veterinária',
-          discount: '20%',
-          description: 'Desconto em consultas, vacinas e exames',
-          address: 'Av. Dom Lúcio, 456 - Vila Assunção, Botucatu - SP',
-          phone: '(14) 3815-5678',
-          whatsapp: '14987654321',
-          latitude: -22.8950,
-          longitude: -48.4500,
-          hours: 'Seg-Sex: 8h-20h | Sáb: 8h-12h',
-          logo: 'https://via.placeholder.com/100',
-        },
-        {
-          id: '3',
-          name: 'Banho e Tosa Dog Style',
-          category: 'Estética',
-          discount: '10%',
-          description: 'Desconto em serviços de banho, tosa e hidratação',
-          address: 'Rua Professor Montenegro, 789 - Centro, Botucatu - SP',
-          phone: '(14) 3813-9012',
-          whatsapp: '14999887766',
-          latitude: -22.8900,
-          longitude: -48.4420,
-          hours: 'Seg-Sáb: 8h-18h',
-          logo: 'https://via.placeholder.com/100',
-        },
+        }
       ];
       
-      setPartners(mockPartners);
-      setFilteredPartners(mockPartners);
-    } catch (error) {
-      console.error('Erro ao carregar parceiros:', error);
+      setPartners(fallbackPartners);
+      setFilteredPartners(fallbackPartners);
     } finally {
       setLoading(false);
       setRefreshing(false);
