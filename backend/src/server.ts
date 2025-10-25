@@ -1,8 +1,21 @@
 import express from 'express';
 import cors from 'cors';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+
+// Importar rotas
+import adminRoutes from './routes/admin';
+import partnersRoutes from './routes/partners';
+import authRoutes from './routes/auth';
+import usersRoutes from './routes/users';
+import animalsRoutes from './routes/animals';
+import adoptionsRoutes from './routes/adoptions';
+import eventsRoutes from './routes/events';
+import donationsRoutes from './routes/donations';
+import volunteersRoutes from './routes/volunteers';
+import notificationsRoutes from './routes/notifications';
+import paymentsRoutes from './routes/payments';
+import transparencyRoutes from './routes/transparency';
 
 // Load environment variables
 dotenv.config();
@@ -10,38 +23,45 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
-// Configuração CORS
+// Middleware CORS mais permissivo
 app.use(cors({
   origin: [
     'https://nova-versao-liga-do-bem-admin.onrender.com',
-    'https://nova-versao-liga-do-bem.onrender.com',
     'http://localhost:3000',
+    'https://nova-versao-liga-do-bem.onrender.com',
     'http://localhost:3001',
     'http://localhost:8081',
     'http://localhost:19006'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-token']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'x-admin-token'],
+  optionsSuccessStatus: 200
 }));
-
-// Middleware para parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Middleware para lidar com preflight requests
 app.options('*', (req, res) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-token');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.sendStatus(200);
 });
 
-// Inicializar banco de dados
-async function initializeDatabase() {
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Função para inicializar o banco de dados
+async function ensureDatabaseReady() {
   try {
-    console.log('🔧 Inicializando banco de dados...');
+    console.log('🔧 Verificando banco de dados...');
+    
+    // Verificar se as tabelas existem
+    await prisma.$queryRaw`
+      SELECT 1 FROM users LIMIT 1;
+    `;
+    
+    console.log('✅ Tabela users existe');
     
     // Verificar se existe admin
     const adminExists = await prisma.user.findFirst({
@@ -59,6 +79,7 @@ async function initializeDatabase() {
           isActive: true
         }
       });
+      console.log('✅ Admin criado');
     }
 
     // Verificar se existem parceiros
@@ -181,6 +202,7 @@ async function initializeDatabase() {
           }
         ]
       });
+      console.log('✅ Parceiros criados');
     }
 
     // Verificar se existem membros
@@ -273,572 +295,45 @@ async function initializeDatabase() {
           }
         ]
       });
+      console.log('✅ Membros criados');
     }
 
-    console.log('✅ Banco de dados inicializado com sucesso!');
+    console.log('✅ Banco de dados pronto!');
   } catch (error) {
-    console.error('❌ Erro ao inicializar banco de dados:', error);
+    console.error('❌ Erro ao verificar banco de dados:', error);
   }
 }
 
-// Middleware de autenticação admin
-function verifyAdminToken(req: any, res: any, next: any) {
-  const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-admin-token'];
-  
-  if (!token) {
-    return res.status(401).json({ message: 'Token não fornecido' });
-  }
-
-  try {
-    const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    
-    // Para demo, aceitar qualquer token válido
-    if (decoded && decoded.userId) {
-      console.log('✅ Token admin válido:', decoded.userId);
-      req.userId = decoded.userId;
-      next();
-    } else {
-      return res.status(401).json({ message: 'Token inválido' });
-    }
-  } catch (error) {
-    console.error('❌ Erro ao verificar token:', error);
-    return res.status(401).json({ message: 'Token inválido' });
-  }
-}
-
-// Test endpoint
+// Endpoint de teste básico
 app.get('/api/test', (req, res) => {
-  res.json({ message: 'Server is working!', timestamp: new Date().toISOString() });
-});
-
-// Admin test endpoint
-app.get('/api/admin/test', verifyAdminToken, (req, res) => {
   res.json({ 
-    message: 'Admin endpoint working!', 
-    userId: req.userId,
-    timestamp: new Date().toISOString() 
+    message: 'Server is working!', 
+    timestamp: new Date().toISOString(),
+    database: 'PostgreSQL via Prisma'
   });
 });
 
-// Admin login
-app.post('/api/admin/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    console.log('🔐 Tentativa de login admin:', email);
-
-    // Demo admin
-    if (email === 'admin@ligadobem.com' && password === 'demo123') {
-      const token = jwt.sign(
-        { userId: 'admin-demo-id', email: 'admin@ligadobem.com', role: 'ADMIN' },
-        process.env.JWT_SECRET || 'liga-do-bem-secret-key',
-        { expiresIn: '24h' }
-      );
-
-      return res.json({
-        message: 'Login realizado com sucesso',
-        token,
-        user: {
-          id: 'admin-demo-id',
-          email: 'admin@ligadobem.com',
-          name: 'Administrador Demo',
-          role: 'ADMIN'
-        }
-      });
-    }
-
-    // Admin real do banco
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true, email: true, name: true, role: true, password: true }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return res.status(401).json({ message: 'Credenciais inválidas' });
-    }
-
-    // Verificar senha (em produção, usar hash)
-    if (user.password !== password) {
-      return res.status(401).json({ message: 'Credenciais inválidas' });
-    }
-
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'liga-do-bem-secret-key',
-      { expiresIn: '24h' }
-    );
-
-    res.json({
-      message: 'Login realizado com sucesso',
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro no login:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Dashboard
-app.get('/api/admin/dashboard', verifyAdminToken, async (req, res) => {
-  try {
-    const userId = req.userId;
-
-    // Se for demo admin, pular verificação do banco
-    if (userId === 'admin-demo-id') {
-      console.log('✅ Usuário demo admin autorizado');
-    } else {
-      // Verificar se é admin real no banco
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true }
-      });
-      if (!user || user.role !== 'ADMIN') {
-        return res.status(401).json({ message: 'Acesso não autorizado' });
-      }
-    }
-
-    // Buscar estatísticas do banco
-    const totalMembers = await prisma.user.count({
-      where: { role: 'MEMBER' }
-    });
-
-    const activePartners = await prisma.partner.count({
-      where: { isActive: true }
-    });
-
-    const totalPartners = await prisma.partner.count();
-
-    res.json({
-      stats: {
-        totalMembers,
-        activePartners,
-        totalAdoptions: 5,
-        monthlyRevenue: 15680,
-        totalUsers: totalMembers,
-        totalPartners,
-        totalAnimals: 0,
-        totalDonations: 0,
-        monthlyGrowth: {
-          users: 15,
-          companies: 25,
-          donations: 35,
-          qrScans: 45
-        }
-      },
-      recent: {
-        members: [],
-        companies: [],
-        donations: []
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro no dashboard:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Get all companies
-app.get('/api/admin/companies', verifyAdminToken, async (req, res) => {
-  try {
-    const companies = await prisma.partner.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // Converter para formato esperado pelo frontend
-    const formattedCompanies = companies.map(company => ({
-      id: company.id,
-      name: company.name,
-      description: company.description,
-      category: company.category,
-      email: company.email,
-      phone: company.phone,
-      address: company.address,
-      city: company.city,
-      state: company.state,
-      zipCode: company.zipCode,
-      latitude: company.latitude,
-      longitude: company.longitude,
-      status: company.isActive ? 'active' : 'inactive',
-      isActive: company.isActive,
-      createdAt: company.createdAt.toISOString(),
-      updatedAt: company.updatedAt.toISOString()
-    }));
-
-    res.json(formattedCompanies);
-
-  } catch (error) {
-    console.error('❌ Erro ao buscar empresas:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Update company
-app.put('/api/admin/companies/:id', verifyAdminToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    console.log('✏️ Atualizando empresa:', id, updateData);
-
-    const updatedCompany = await prisma.partner.update({
-      where: { id },
-      data: {
-        name: updateData.name,
-        description: updateData.description,
-        category: updateData.category,
-        email: updateData.email,
-        phone: updateData.phone,
-        address: updateData.address,
-        city: updateData.city,
-        state: updateData.state,
-        zipCode: updateData.zipCode,
-        latitude: updateData.latitude,
-        longitude: updateData.longitude
-      }
-    });
-
-    res.json({
-      message: 'Empresa atualizada com sucesso',
-      company: {
-        id: updatedCompany.id,
-        name: updatedCompany.name,
-        description: updatedCompany.description,
-        category: updatedCompany.category,
-        email: updatedCompany.email,
-        phone: updatedCompany.phone,
-        address: updatedCompany.address,
-        city: updatedCompany.city,
-        state: updatedCompany.state,
-        zipCode: updatedCompany.zipCode,
-        latitude: updatedCompany.latitude,
-        longitude: updatedCompany.longitude,
-        status: updatedCompany.isActive ? 'active' : 'inactive',
-        isActive: updatedCompany.isActive,
-        createdAt: updatedCompany.createdAt.toISOString(),
-        updatedAt: updatedCompany.updatedAt.toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao atualizar empresa:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Approve company
-app.patch('/api/admin/companies/:id/approve', verifyAdminToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    console.log('✅ Aprovando empresa:', id);
-
-    const approvedCompany = await prisma.partner.update({
-      where: { id },
-      data: { isActive: true }
-    });
-
-    res.json({
-      message: 'Empresa aprovada com sucesso',
-      company: {
-        id: approvedCompany.id,
-        name: approvedCompany.name,
-        description: approvedCompany.description,
-        category: approvedCompany.category,
-        email: approvedCompany.email,
-        phone: approvedCompany.phone,
-        address: approvedCompany.address,
-        city: approvedCompany.city,
-        state: approvedCompany.state,
-        zipCode: approvedCompany.zipCode,
-        latitude: approvedCompany.latitude,
-        longitude: approvedCompany.longitude,
-        status: 'active',
-        isActive: true,
-        createdAt: approvedCompany.createdAt.toISOString(),
-        updatedAt: approvedCompany.updatedAt.toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao aprovar empresa:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Reject company
-app.patch('/api/admin/companies/:id/reject', verifyAdminToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    console.log('❌ Rejeitando empresa:', id);
-
-    const rejectedCompany = await prisma.partner.update({
-      where: { id },
-      data: { isActive: false }
-    });
-
-    res.json({
-      message: 'Empresa rejeitada com sucesso',
-      company: {
-        id: rejectedCompany.id,
-        name: rejectedCompany.name,
-        description: rejectedCompany.description,
-        category: rejectedCompany.category,
-        email: rejectedCompany.email,
-        phone: rejectedCompany.phone,
-        address: rejectedCompany.address,
-        city: rejectedCompany.city,
-        state: rejectedCompany.state,
-        zipCode: rejectedCompany.zipCode,
-        latitude: rejectedCompany.latitude,
-        longitude: rejectedCompany.longitude,
-        status: 'inactive',
-        isActive: false,
-        createdAt: rejectedCompany.createdAt.toISOString(),
-        updatedAt: rejectedCompany.updatedAt.toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao rejeitar empresa:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Delete company
-app.delete('/api/admin/companies/:id', verifyAdminToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    console.log('🗑️ Excluindo empresa:', id);
-
-    await prisma.partner.delete({
-      where: { id }
-    });
-
-    res.json({
-      message: 'Empresa excluída com sucesso',
-      id
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao excluir empresa:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Create company
-app.post('/api/admin/companies', verifyAdminToken, async (req, res) => {
-  try {
-    const newCompany = req.body;
-
-    console.log('➕ Criando nova empresa:', newCompany);
-
-    const company = await prisma.partner.create({
-      data: {
-        name: newCompany.name,
-        description: newCompany.description,
-        category: newCompany.category,
-        email: newCompany.email,
-        phone: newCompany.phone,
-        address: newCompany.address,
-        city: newCompany.city,
-        state: newCompany.state,
-        zipCode: newCompany.zipCode,
-        latitude: newCompany.latitude,
-        longitude: newCompany.longitude,
-        isActive: newCompany.status === 'active'
-      }
-    });
-
-    res.json({
-      message: 'Empresa criada com sucesso',
-      company: {
-        id: company.id,
-        name: company.name,
-        description: company.description,
-        category: company.category,
-        email: company.email,
-        phone: company.phone,
-        address: company.address,
-        city: company.city,
-        state: company.state,
-        zipCode: company.zipCode,
-        latitude: company.latitude,
-        longitude: company.longitude,
-        status: company.isActive ? 'active' : 'inactive',
-        isActive: company.isActive,
-        createdAt: company.createdAt.toISOString(),
-        updatedAt: company.updatedAt.toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao criar empresa:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Get all members
-app.get('/api/admin/members', verifyAdminToken, async (req, res) => {
-  try {
-    const members = await prisma.user.findMany({
-      where: { role: 'MEMBER' },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // Converter para formato esperado pelo frontend
-    const formattedMembers = members.map(member => ({
-      id: member.id,
-      name: member.name,
-      email: member.email,
-      phone: member.phone,
-      role: member.role,
-      isActive: member.isActive,
-      points: 0, // TODO: implementar sistema de pontos
-      createdAt: member.createdAt.toISOString(),
-      updatedAt: member.updatedAt.toISOString()
-    }));
-
-    res.json(formattedMembers);
-
-  } catch (error) {
-    console.error('❌ Erro ao buscar membros:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Create member
-app.post('/api/admin/members', verifyAdminToken, async (req, res) => {
-  try {
-    const newMember = req.body;
-
-    console.log('➕ Criando novo membro:', newMember);
-
-    const member = await prisma.user.create({
-      data: {
-        name: newMember.name,
-        email: newMember.email,
-        phone: newMember.phone,
-        password: 'senha123', // TODO: gerar senha segura
-        role: 'MEMBER',
-        isActive: newMember.status === 'active'
-      }
-    });
-
-    res.json({
-      message: 'Membro criado com sucesso',
-      member: {
-        id: member.id,
-        name: member.name,
-        email: member.email,
-        phone: member.phone,
-        role: member.role,
-        isActive: member.isActive,
-        points: 0,
-        createdAt: member.createdAt.toISOString(),
-        updatedAt: member.updatedAt.toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao criar membro:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Update member
-app.put('/api/admin/members/:id', verifyAdminToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    console.log('✏️ Atualizando membro:', id, updateData);
-
-    const updatedMember = await prisma.user.update({
-      where: { id },
-      data: {
-        name: updateData.name,
-        email: updateData.email,
-        phone: updateData.phone,
-        isActive: updateData.status === 'active'
-      }
-    });
-
-    res.json({
-      message: 'Membro atualizado com sucesso',
-      member: {
-        id: updatedMember.id,
-        name: updatedMember.name,
-        email: updatedMember.email,
-        phone: updatedMember.phone,
-        role: updatedMember.role,
-        isActive: updatedMember.isActive,
-        points: 0,
-        createdAt: updatedMember.createdAt.toISOString(),
-        updatedAt: updatedMember.updatedAt.toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao atualizar membro:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Delete member
-app.delete('/api/admin/members/:id', verifyAdminToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    console.log('🗑️ Excluindo membro:', id);
-
-    await prisma.user.delete({
-      where: { id }
-    });
-
-    res.json({
-      message: 'Membro excluído com sucesso',
-      id
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao excluir membro:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// API para o app mobile - Get active partners
-app.get('/api/partners', async (req, res) => {
-  try {
-    const partners = await prisma.partner.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' }
-    });
-
-    res.json(partners);
-
-  } catch (error) {
-    console.error('❌ Erro ao buscar parceiros:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
-
-// Inicializar banco
-initializeDatabase();
+// Usar as rotas
+app.use('/api/admin', adminRoutes);
+app.use('/api/partners', partnersRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/animals', animalsRoutes);
+app.use('/api/adoptions', adoptionsRoutes);
+app.use('/api/events', eventsRoutes);
+app.use('/api/donations', donationsRoutes);
+app.use('/api/volunteers', volunteersRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/transparency', transparencyRoutes);
+
+// Inicializar banco de dados
+ensureDatabaseReady();
 
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor com banco de dados rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🗄️ Banco: PostgreSQL via Prisma`);
 });
