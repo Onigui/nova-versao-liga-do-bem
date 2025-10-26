@@ -1,307 +1,619 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import compression from 'compression';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-
-// Import routes
-import authRoutes from './routes/auth';
-import userRoutes from './routes/users';
-import partnerRoutes from './routes/partners';
-import adminRoutes from './routes/admin';
-
-// Import middleware
-import { errorHandler } from './middleware/errorHandler';
-import { notFound } from './middleware/notFound';
 
 // Load environment variables
 dotenv.config();
 
-// Import Prisma client
-import { PrismaClient } from '@prisma/client';
-
-// Initialize Prisma client
-const prisma = new PrismaClient();
-
-// Function to ensure database is ready
-async function ensureDatabaseReady() {
-  try {
-    console.log('🔍 Verificando banco de dados...');
-    
-    // Test database connection
-    await prisma.$connect();
-    console.log('✅ Conexão com banco de dados estabelecida');
-    
-    // Always ensure UserRole enum exists first
-    console.log('🔍 Verificando enum UserRole...');
-    await prisma.$executeRaw`
-      DO $$ BEGIN
-        CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'MEMBER', 'VOLUNTEER', 'PARTNER');
-      EXCEPTION
-        WHEN duplicate_object THEN null;
-      END $$;
-    `;
-    console.log('✅ Enum UserRole verificado/criado');
-    
-    // Check if users table exists by trying a simple query
-    try {
-      await prisma.user.findMany({ take: 1 });
-      console.log('✅ Tabela users existe');
-    } catch (error: any) {
-      if (error.code === 'P2021') {
-        console.log('⚠️ Tabela users não existe, criando...');
-        
-        // Create users table manually
-        await prisma.$executeRaw`
-          CREATE TABLE IF NOT EXISTS "users" (
-            "id" TEXT NOT NULL,
-            "email" TEXT NOT NULL,
-            "password" TEXT NOT NULL,
-            "name" TEXT NOT NULL,
-            "phone" TEXT,
-            "avatar" TEXT,
-            "role" "UserRole" NOT NULL DEFAULT 'MEMBER',
-            "isActive" BOOLEAN NOT NULL DEFAULT true,
-            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            "updatedAt" TIMESTAMP(3) NOT NULL,
-            CONSTRAINT "users_pkey" PRIMARY KEY ("id")
-          );
-        `;
-        
-        // Create unique index for email
-        await prisma.$executeRaw`
-          CREATE UNIQUE INDEX IF NOT EXISTS "users_email_key" ON "users"("email");
-        `;
-        
-        console.log('✅ Tabela users criada com sucesso');
-        
-        // Criar tabela partners se não existir
-        console.log('🔍 Verificando tabela partners...');
-        try {
-          await prisma.partner.findMany({ take: 1 });
-          console.log('✅ Tabela partners existe');
-        } catch (partnerError: any) {
-          if (partnerError.code === 'P2021') {
-            console.log('⚠️ Tabela partners não existe, criando...');
-            
-            await prisma.$executeRaw`
-              CREATE TABLE IF NOT EXISTS "partners" (
-                "id" TEXT NOT NULL,
-                "name" TEXT NOT NULL,
-                "description" TEXT,
-                "category" TEXT NOT NULL,
-                "email" TEXT,
-                "phone" TEXT,
-                "website" TEXT,
-                "logo" TEXT,
-                "address" TEXT NOT NULL,
-                "latitude" DOUBLE PRECISION,
-                "longitude" DOUBLE PRECISION,
-                "city" TEXT NOT NULL,
-                "state" TEXT NOT NULL,
-                "zipCode" TEXT NOT NULL,
-                "isActive" BOOLEAN NOT NULL DEFAULT true,
-                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                "updatedAt" TIMESTAMP(3) NOT NULL,
-                CONSTRAINT "partners_pkey" PRIMARY KEY ("id")
-              );
-            `;
-            
-            console.log('✅ Tabela partners criada com sucesso');
-            
-            // Inserir dados de exemplo
-            await prisma.$executeRaw`
-              INSERT INTO "partners" ("id", "name", "description", "category", "email", "phone", "address", "city", "state", "zipCode", "latitude", "longitude", "isActive", "createdAt", "updatedAt")
-              VALUES 
-                ('partner-1', 'Pet Shop Amigo', 'Pet shop especializado em cuidados para animais', 'Pet Shop', 'contato@petshopamigo.com.br', '(14) 99876-5432', 'Rua das Flores, 123', 'Botucatu', 'SP', '18608-000', -22.8858, -48.4440, true, NOW(), NOW()),
-                ('partner-2', 'Clínica Veterinária Vida', 'Clínica veterinária 24h com emergência', 'Veterinário', 'contato@clinicavida.com.br', '(14) 99876-5433', 'Av. Principal, 456', 'Botucatu', 'SP', '18608-100', -22.8850, -48.4430, true, NOW(), NOW()),
-                ('partner-3', 'Farmácia Animal', 'Farmácia especializada em medicamentos veterinários', 'Farmácia', 'contato@farmaciaanimal.com.br', '(14) 99876-5434', 'Rua Central, 789', 'Botucatu', 'SP', '18608-200', -22.8840, -48.4420, true, NOW(), NOW())
-              ON CONFLICT ("id") DO NOTHING;
-            `;
-            
-            console.log('✅ Dados de exemplo inseridos na tabela partners');
-          } else {
-            throw partnerError;
-          }
-        }
-        
-      } else {
-        throw error;
-      }
-    }
-    
-    // Garantir que existe um usuário admin usando SQL direto
-    console.log('🔍 Verificando usuário admin...');
-    try {
-      const adminCheck = await prisma.$queryRaw<any[]>`
-        SELECT * FROM users WHERE email = 'admin@ligadobem.com' LIMIT 1;
-      `;
-      
-      if (adminCheck.length === 0) {
-        console.log('⚠️ Usuário admin não existe, criando...');
-        
-        await prisma.$executeRaw`
-          INSERT INTO users (id, email, password, name, role, "isActive", "createdAt", "updatedAt")
-          VALUES (
-            gen_random_uuid()::text,
-            'admin@ligadobem.com',
-            'demo123',
-            'Administrador',
-            'ADMIN'::"UserRole",
-            true,
-            NOW(),
-            NOW()
-          )
-          ON CONFLICT (email) DO NOTHING;
-        `;
-        
-        console.log('✅ Usuário admin criado com sucesso');
-      } else {
-        console.log('✅ Usuário admin já existe:', adminCheck[0].id);
-      }
-    } catch (adminError: any) {
-      console.error('⚠️ Erro ao verificar/criar admin:', adminError.message);
-      // Não faz exit, apenas avisa
-    }
-    
-  } catch (error) {
-    console.error('❌ Erro ao verificar banco de dados:', error);
-    process.exit(1);
-  }
-}
-
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      process.env.MOBILE_URL || 'exp://localhost:19000'
-    ],
-    methods: ['GET', 'POST']
-  }
-});
 
-const PORT = process.env.PORT || 3001;
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
-  message: {
-    error: 'Muitas tentativas. Tente novamente em alguns minutos.'
-  }
-});
-
-// Middleware
-app.use(helmet());
-app.use(compression());
-app.use(morgan('combined'));
-app.use(limiter);
+// Middleware CORS mais permissivo
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      process.env.MOBILE_URL || 'exp://localhost:19000',
-      'http://localhost:19000',
-      'http://localhost:19001',
-      'http://localhost:19002',
-      'exp://localhost:19000',
-      'exp://localhost:19001',
-      'exp://localhost:19002'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all origins for now
-    }
-  },
+  origin: [
+    'https://nova-versao-liga-do-bem-admin.onrender.com',
+    'http://localhost:3000',
+    'https://nova-versao-liga-do-bem.onrender.com'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token'],
+  optionsSuccessStatus: 200
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
+// Middleware para lidar com preflight requests
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Armazenamento em memória para simular persistência
+let companiesData = [
+  {
+    id: 'partner-1',
+    name: 'Pet Shop Amigo',
+    description: 'Pet shop especializado em cuidados para animais',
+    category: 'Pet Shop',
+    email: 'contato@petshopamigo.com.br',
+    phone: '(14) 99876-5432',
+    address: 'Rua das Flores, 123',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-000',
+    latitude: -22.8858,
+    longitude: -48.4440,
+    status: 'active',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'partner-2',
+    name: 'Clínica Veterinária São Francisco',
+    description: 'Clínica veterinária completa com emergência 24h',
+    category: 'Veterinária',
+    email: 'contato@vetsaofrancisco.com.br',
+    phone: '(14) 3812-3456',
+    address: 'Av. São Francisco, 456',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-100',
+    latitude: -22.8758,
+    longitude: -48.4340,
+    status: 'active',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'partner-3',
+    name: 'Hotel para Cães e Gatos',
+    description: 'Hotel e creche para pets com atividades recreativas',
+    category: 'Hotel Pet',
+    email: 'reservas@hotelpet.com.br',
+    phone: '(14) 3812-7890',
+    address: 'Rua dos Animais, 789',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-200',
+    latitude: -22.8658,
+    longitude: -48.4240,
+    status: 'active',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'partner-4',
+    name: 'Adoção Responsável Botucatu',
+    description: 'ONG especializada em adoção de animais abandonados',
+    category: 'ONG',
+    email: 'adocao@botucatu.com.br',
+    phone: '(14) 3812-1111',
+    address: 'Rua da Solidariedade, 321',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-300',
+    latitude: -22.8558,
+    longitude: -48.4140,
+    status: 'active',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'partner-5',
+    name: 'Farmácia Veterinária Central',
+    description: 'Farmácia especializada em medicamentos veterinários',
+    category: 'Farmácia',
+    email: 'farmacia@veterinaria.com.br',
+    phone: '(14) 3812-2222',
+    address: 'Rua Central, 654',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-400',
+    latitude: -22.8458,
+    longitude: -48.4040,
+    status: 'pending',
+    isActive: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'partner-6',
+    name: 'Pet Grooming Elegance',
+    description: 'Salão de beleza e tosa para pets',
+    category: 'Tosa',
+    email: 'contato@petgrooming.com.br',
+    phone: '(14) 3812-3333',
+    address: 'Rua da Beleza, 987',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-500',
+    latitude: -22.8358,
+    longitude: -48.3940,
+    status: 'active',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'partner-7',
+    name: 'Loja de Ração Premium',
+    description: 'Especializada em rações premium e acessórios',
+    category: 'Pet Shop',
+    email: 'vendas@racao.com.br',
+    phone: '(14) 3812-4444',
+    address: 'Rua das Rações, 147',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-600',
+    latitude: -22.8258,
+    longitude: -48.3840,
+    status: 'inactive',
+    isActive: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'partner-8',
+    name: 'Centro de Adestramento Canino',
+    description: 'Adestramento profissional e comportamento animal',
+    category: 'Adestramento',
+    email: 'adestramento@canino.com.br',
+    phone: '(14) 3812-5555',
+    address: 'Rua do Adestramento, 258',
+    city: 'Botucatu',
+    state: 'SP',
+    zipCode: '18608-700',
+    latitude: -22.8158,
+    longitude: -48.3740,
+    status: 'active',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+let membersData = [
+  {
+    id: 'user-1',
+    name: 'João Silva',
+    email: 'joao@email.com',
+    phone: '(14) 99999-9999',
+    role: 'MEMBER',
+    isActive: true,
+    points: 150,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-2',
+    name: 'Maria Santos',
+    email: 'maria@email.com',
+    phone: '(14) 98888-8888',
+    role: 'MEMBER',
+    isActive: true,
+    points: 320,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-3',
+    name: 'Pedro Oliveira',
+    email: 'pedro@email.com',
+    phone: '(14) 97777-7777',
+    role: 'MEMBER',
+    isActive: true,
+    points: 85,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-4',
+    name: 'Ana Costa',
+    email: 'ana@email.com',
+    phone: '(14) 96666-6666',
+    role: 'MEMBER',
+    isActive: true,
+    points: 450,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-5',
+    name: 'Carlos Ferreira',
+    email: 'carlos@email.com',
+    phone: '(14) 95555-5555',
+    role: 'MEMBER',
+    isActive: false,
+    points: 25,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-6',
+    name: 'Lucia Rodrigues',
+    email: 'lucia@email.com',
+    phone: '(14) 94444-4444',
+    role: 'MEMBER',
+    isActive: true,
+    points: 280,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-7',
+    name: 'Roberto Alves',
+    email: 'roberto@email.com',
+    phone: '(14) 93333-3333',
+    role: 'MEMBER',
+    isActive: true,
+    points: 195,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-8',
+    name: 'Fernanda Lima',
+    email: 'fernanda@email.com',
+    phone: '(14) 92222-2222',
+    role: 'MEMBER',
+    isActive: true,
+    points: 520,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-9',
+    name: 'Marcos Pereira',
+    email: 'marcos@email.com',
+    phone: '(14) 91111-1111',
+    role: 'MEMBER',
+    isActive: true,
+    points: 75,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'user-10',
+    name: 'Juliana Martins',
+    email: 'juliana@email.com',
+    phone: '(14) 90000-0000',
+    role: 'MEMBER',
+    isActive: false,
+    points: 10,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Server is working!', timestamp: new Date().toISOString() });
+});
+
+// Admin test endpoint
+app.get('/api/admin/test', (req, res) => {
+  res.json({ 
+    message: 'Admin endpoint working!', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/partners', partnerRoutes);
-app.use('/api/admin', adminRoutes);
-
-// Socket.io for real-time notifications
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('join-user-room', (userId: string) => {
-    socket.join(`user-${userId}`);
-    console.log(`User ${userId} joined their room`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+// Partners endpoint (simplified)
+app.get('/api/partners', (req, res) => {
+  res.json({
+    partners: [
+      {
+        id: 'partner-1',
+        name: 'Pet Shop Amigo',
+        description: 'Pet shop especializado em cuidados para animais',
+        category: 'Pet Shop',
+        email: 'contato@petshopamigo.com.br',
+        phone: '(14) 99876-5432',
+        address: 'Rua das Flores, 123',
+        city: 'Botucatu',
+        state: 'SP',
+        zipCode: '18608-000',
+        latitude: -22.8858,
+        longitude: -48.4440,
+        isActive: true
+      }
+    ]
   });
 });
 
-// Make io available to routes
-app.set('io', io);
-
-// Error handling
-app.use(notFound);
-app.use(errorHandler);
-
-// Start server
-async function startServer() {
-  try {
-    // Ensure database is ready before starting server
-    await ensureDatabaseReady();
-    
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+// Admin login (simplified)
+app.post('/api/admin/login', (req, res) => {
+  const { email, password } = req.body;
+  
+  if (email === 'admin@ligadobem.com' && password === 'demo123') {
+    res.json({
+      message: 'Login realizado com sucesso',
+      token: 'demo-admin-token',
+      user: {
+        id: 'admin-demo-id',
+        email: 'admin@ligadobem.com',
+        name: 'Administrador',
+        role: 'ADMIN'
+      }
     });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
+  } else {
+    res.status(401).json({ message: 'Credenciais inválidas' });
+  }
+});
+
+// Middleware para verificar token admin
+function verifyAdminToken(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-admin-token'];
+  
+  if (!token) {
+    return res.status(401).json({ message: 'Token não fornecido' });
+  }
+  
+  // Para o servidor simplificado, aceitar qualquer token que não seja vazio
+  if (token && token.length > 0) {
+    console.log('✅ Token admin válido:', token.substring(0, 10) + '...');
+    next();
+  } else {
+    return res.status(401).json({ message: 'Token inválido' });
   }
 }
 
-startServer();
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
+// Admin dashboard (simplified)
+app.get('/api/admin/dashboard', verifyAdminToken, (req, res) => {
+  const activePartners = companiesData.filter(c => c.isActive).length;
+  const totalMembers = membersData.length;
+  
+  res.json({
+    stats: {
+      totalMembers,
+      activePartners,
+      totalAdoptions: 5,
+      monthlyRevenue: 15680,
+      totalUsers: totalMembers,
+      totalPartners: companiesData.length,
+      totalAnimals: 0,
+      totalDonations: 0,
+      monthlyGrowth: {
+        users: 15,
+        companies: 25,
+        donations: 35,
+        qrScans: 45
+      }
+    },
+    recent: {
+      users: membersData.slice(-5),
+      partners: companiesData.slice(-5)
+    }
   });
 });
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
+// Admin members (simplified)
+app.get('/api/admin/members', verifyAdminToken, (req, res) => {
+  res.json({
+    members: membersData
   });
 });
 
-export default app;
+// Admin companies (simplified)
+app.get('/api/admin/companies', verifyAdminToken, (req, res) => {
+  res.json({
+    companies: companiesData
+  });
+});
+
+// Update company
+app.put('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+  const updateData = req.body;
+
+  console.log('✏️ Atualizando empresa:', id, updateData);
+
+  // Encontrar e atualizar empresa no array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Atualizar dados da empresa
+  const updatedCompany = {
+    ...companiesData[companyIndex],
+    ...updateData,
+    updatedAt: new Date().toISOString()
+  };
+  companiesData[companyIndex] = updatedCompany;
+
+  res.json({
+    message: 'Empresa atualizada com sucesso',
+    company: companiesData[companyIndex]
+  });
+});
+
+// Approve company
+app.patch('/api/admin/companies/:id/approve', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+
+  console.log('✅ Aprovando empresa:', id);
+
+  // Encontrar e aprovar empresa no array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Aprovar empresa
+  const approvedCompany = {
+    ...companiesData[companyIndex],
+    status: 'active',
+    isActive: true,
+    updatedAt: new Date().toISOString()
+  };
+  companiesData[companyIndex] = approvedCompany;
+
+  res.json({
+    message: 'Empresa aprovada com sucesso',
+    company: companiesData[companyIndex]
+  });
+});
+
+// Reject company
+app.patch('/api/admin/companies/:id/reject', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+
+  console.log('❌ Rejeitando empresa:', id);
+
+  // Encontrar e rejeitar empresa no array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Rejeitar empresa
+  const rejectedCompany = {
+    ...companiesData[companyIndex],
+    status: 'inactive',
+    isActive: false,
+    updatedAt: new Date().toISOString()
+  };
+  companiesData[companyIndex] = rejectedCompany;
+
+  res.json({
+    message: 'Empresa rejeitada com sucesso',
+    company: companiesData[companyIndex]
+  });
+});
+
+// Delete company
+app.delete('/api/admin/companies/:id', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+
+  console.log('🗑️ Excluindo empresa:', id);
+
+  // Encontrar e remover empresa do array
+  const companyIndex = companiesData.findIndex(c => c.id === id);
+  if (companyIndex === -1) {
+    return res.status(404).json({ message: 'Empresa não encontrada' });
+  }
+
+  // Remover empresa
+  companiesData.splice(companyIndex, 1);
+
+  res.json({
+    message: 'Empresa excluída com sucesso',
+    id
+  });
+});
+
+// Create company
+app.post('/api/admin/companies', verifyAdminToken, (req, res) => {
+  const newCompany = req.body;
+
+  console.log('➕ Criando nova empresa:', newCompany);
+
+  // Criar nova empresa
+  const company = {
+    id: `partner-${Date.now()}`,
+    ...newCompany,
+    status: 'pending',
+    isActive: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // Adicionar ao array
+  companiesData.push(company);
+
+  res.json({
+    message: 'Empresa criada com sucesso',
+    company
+  });
+});
+
+// Create member
+app.post('/api/admin/members', verifyAdminToken, (req, res) => {
+  const newMember = req.body;
+
+  console.log('➕ Criando novo membro:', newMember);
+
+  // Criar novo membro
+  const member = {
+    id: `user-${Date.now()}`,
+    ...newMember,
+    role: 'MEMBER',
+    isActive: newMember.status === 'active',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // Adicionar ao array
+  membersData.push(member);
+
+  res.json({
+    message: 'Membro criado com sucesso',
+    member
+  });
+});
+
+// Update member
+app.put('/api/admin/members/:id', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+  const updateData = req.body;
+
+  console.log('✏️ Atualizando membro:', id, updateData);
+
+  // Encontrar e atualizar membro no array
+  const memberIndex = membersData.findIndex(m => m.id === id);
+  if (memberIndex === -1) {
+    return res.status(404).json({ message: 'Membro não encontrado' });
+  }
+
+  // Atualizar dados do membro
+  const updatedMember = {
+    ...membersData[memberIndex],
+    ...updateData,
+    isActive: updateData.status === 'active',
+    updatedAt: new Date().toISOString()
+  };
+  membersData[memberIndex] = updatedMember;
+
+  res.json({
+    message: 'Membro atualizado com sucesso',
+    member: updatedMember
+  });
+});
+
+// Delete member
+app.delete('/api/admin/members/:id', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+
+  console.log('🗑️ Excluindo membro:', id);
+
+  // Encontrar e remover membro do array
+  const memberIndex = membersData.findIndex(m => m.id === id);
+  if (memberIndex === -1) {
+    return res.status(404).json({ message: 'Membro não encontrado' });
+  }
+
+  // Remover membro
+  membersData.splice(memberIndex, 1);
+
+  res.json({
+    message: 'Membro excluído com sucesso',
+    id
+  });
+});
+
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor simplificado rodando na porta ${PORT}`);
+  console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+});

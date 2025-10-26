@@ -435,3 +435,4 @@ ALTER TABLE "device_tokens" ADD CONSTRAINT "device_tokens_userId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "financial_expenses" ADD CONSTRAINT "financial_expenses_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "financial_reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
