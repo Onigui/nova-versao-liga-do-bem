@@ -3,7 +3,7 @@ services:
     name: nova-versao-liga-do-bem-api
     env: node
     plan: free
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+    buildCommand: npm install && npx prisma generate && npx prisma db push --accept-data-loss && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
