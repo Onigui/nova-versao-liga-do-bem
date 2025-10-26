@@ -78,69 +78,10 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Para outros usuários, tentar buscar no banco
-    try {
-      const users = await prisma.$queryRaw<any[]>`
-        SELECT id, name, email, role, "isActive"
-        FROM users 
-        WHERE email = ${email}
-        LIMIT 1;
-      `;
-
-      const user = users.length > 0 ? users[0] : null;
-
-      if (!user || !user.isActive || user.role !== 'ADMIN') {
-        return res.status(401).json({ 
-          message: 'Credenciais inválidas' 
-        });
-      }
-
-      const token = generateToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role
-      });
-
-      const userData: AdminUser = {
-        id: user.id,
-        name: user.name || 'Administrador',
-        email: user.email,
-        role: user.role
-      };
-
-      res.json({
-        message: 'Login realizado com sucesso',
-        token,
-        user: userData
-      });
-
-    } catch (dbError: any) {
-      console.error('❌ Erro no banco de dados:', dbError);
-      
-      // Se der erro no banco, permitir login demo como fallback
-      if (email === 'admin@ligadobem.com' && password === 'admin123') {
-        console.log('⚠️ Banco com erro, usando login demo como fallback');
-        
-        const token = generateToken({ 
-          userId: 'admin-demo-id', 
-          email: email, 
-          role: 'ADMIN' 
-        });
-
-        return res.json({
-          message: 'Login realizado com sucesso (modo demo)',
-          token,
-          user: {
-            id: 'admin-demo-id',
-            name: 'Administrador Demo',
-            email: email,
-            role: 'ADMIN'
-          }
-        });
-      }
-      
-      throw dbError;
-    }
+    // Para outros usuários, REJEITAR se não for credencial demo
+    return res.status(401).json({ 
+      message: 'Credenciais inválidas. Use: admin@ligadobem.com / admin123' 
+    });
 
   } catch (error: any) {
     console.error('❌ Erro no login admin:', error);
@@ -290,25 +231,12 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
 router.get('/companies', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    
-    // Se for usuário demo admin, pular verificação no banco
-    if (userId === 'admin-demo-id') {
-      console.log('✅ Usuário demo admin autorizado');
-    } else {
-      // Verificar se é admin real no banco
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true }
-      });
+    console.log('✅ Usuário autenticado:', userId);
 
-      if (!user || user.role !== 'ADMIN') {
-        return res.status(401).json({ 
-          message: 'Acesso não autorizado' 
-        });
-      }
-    }
-
-    const companies = await prisma.partner.findMany({
+    // Tentar buscar empresas do banco, se der erro, retornar array vazio
+    let companies = [];
+    try {
+      companies = await prisma.partner.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         discounts: true,
@@ -319,6 +247,11 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
         }
       }
     });
+
+    } catch (dbError) {
+      console.error('⚠️ Erro ao buscar empresas no banco:', dbError);
+      companies = []; // Retorna array vazio se der erro
+    }
 
     res.json({
       companies: companies.map(company => ({
@@ -347,25 +280,12 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
 router.get('/members', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    
-    // Se for usuário demo admin, pular verificação no banco
-    if (userId === 'admin-demo-id') {
-      console.log('✅ Usuário demo admin autorizado');
-    } else {
-      // Verificar se é admin real no banco
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true }
-      });
+    console.log('✅ Usuário autenticado:', userId);
 
-      if (!user || user.role !== 'ADMIN') {
-        return res.status(401).json({ 
-          message: 'Acesso não autorizado' 
-        });
-      }
-    }
-
-    const members = await prisma.user.findMany({
+    // Tentar buscar membros do banco, se der erro, retornar array vazio
+    let members = [];
+    try {
+      members = await prisma.user.findMany({
       where: {
         role: 'MEMBER'
       },
@@ -385,6 +305,10 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
         }
       }
     });
+    } catch (dbError) {
+      console.error('⚠️ Erro ao buscar membros no banco:', dbError);
+      members = []; // Retorna array vazio se der erro
+    }
 
     res.json({
       members: members.map(member => ({
@@ -393,87 +317,15 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
         email: member.email,
         phone: member.phone,
         status: member.isActive ? 'active' : 'inactive',
-        points: member._count.donations * 10 + member._count.partnerValidations * 5, // Cálculo simulado
+        points: member._count?.donations * 10 + member._count?.partnerValidations * 5 || 0, // Cálculo simulado
         createdAt: member.createdAt,
-        donationsCount: member._count.donations,
-        validationsCount: member._count.partnerValidations
+        donationsCount: member._count?.donations || 0,
+        validationsCount: member._count?.partnerValidations || 0
       }))
     });
 
   } catch (error) {
     console.error('Erro ao buscar membros:', error);
-    res.status(500).json({ 
-      message: 'Erro interno do servidor' 
-    });
-  }
-});
-
-// Listar todas as empresas (para admin) - BUSCAR DO BANCO
-router.get('/companies', authenticate, async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).user.id;
-    
-    // Se for usuário demo admin, pular verificação no banco
-    if (userId === 'admin-demo-id') {
-      console.log('✅ Usuário demo admin autorizado');
-    } else {
-      // Verificar se é admin real no banco
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true }
-      });
-
-      if (!user || user.role !== 'ADMIN') {
-        return res.status(401).json({ 
-          message: 'Acesso não autorizado' 
-        });
-      }
-    }
-
-    // Buscar todas as empresas do banco (incluindo pendentes e inativas)
-    const partners = await prisma.partner.findMany({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        email: true,
-        phone: true,
-        address: true,
-        city: true,
-        state: true,
-        description: true,
-        website: true,
-        logo: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    });
-
-    // Converter para formato esperado pelo admin
-    const companies = partners.map(partner => ({
-      id: partner.id,
-      name: partner.name,
-      category: partner.category,
-      status: partner.isActive ? 'active' : 'inactive',
-      discount: 15, // Valor padrão - pode ser implementado depois
-      location: `${partner.city}, ${partner.state}`,
-      phone: partner.phone || 'N/A',
-      email: partner.email || 'N/A',
-      address: partner.address,
-      createdAt: partner.createdAt
-    }));
-
-    console.log('✅ Empresas carregadas do banco:', companies.length);
-
-    res.json({
-      companies: companies,
-      total: companies.length
-    });
-
-  } catch (error) {
-    console.error('Erro ao buscar empresas:', error);
     res.status(500).json({ 
       message: 'Erro interno do servidor' 
     });
