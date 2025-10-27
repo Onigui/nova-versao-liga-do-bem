@@ -256,17 +256,8 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
     let companies = [];
     try {
       companies = await prisma.partner.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        discounts: true,
-        _count: {
-          select: {
-            discounts: true
-          }
-        }
-      }
-    });
-
+        orderBy: { createdAt: 'desc' }
+      });
     } catch (dbError) {
       console.error('⚠️ Erro ao buscar empresas no banco:', dbError);
       companies = []; // Retorna array vazio se der erro
@@ -278,12 +269,12 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
         name: company.name,
         category: company.category,
         status: company.isActive ? 'active' : 'inactive',
-        discount: company.discounts[0]?.percentage || 0,
+        discount: 0, // Valor padrão
         location: company.address,
         phone: company.phone,
         email: company.email,
         createdAt: company.createdAt,
-        discountCount: company._count.discounts
+        discountCount: 0
       }))
     });
 
@@ -305,27 +296,19 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
     let members = [];
     try {
       members = await prisma.user.findMany({
-      where: {
-        role: {
-          equals: 'MEMBER'
+        where: {
+          role: 'MEMBER'
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          isActive: true,
+          createdAt: true
         }
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        isActive: true,
-        createdAt: true,
-        _count: {
-          select: {
-            donations: true,
-            partnerValidations: true
-          }
-        }
-      }
-    });
+      });
     } catch (dbError) {
       console.error('⚠️ Erro ao buscar membros no banco:', dbError);
       members = []; // Retorna array vazio se der erro
@@ -338,10 +321,10 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
         email: member.email,
         phone: member.phone,
         status: member.isActive ? 'active' : 'inactive',
-        points: member._count?.donations * 10 + member._count?.partnerValidations * 5 || 0, // Cálculo simulado
+        points: 0,
         createdAt: member.createdAt,
-        donationsCount: member._count?.donations || 0,
-        validationsCount: member._count?.partnerValidations || 0
+        donationsCount: 0,
+        validationsCount: 0
       }))
     });
 
