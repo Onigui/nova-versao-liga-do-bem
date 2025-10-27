@@ -73,17 +73,8 @@ async function ensureDatabaseReady() {
     });
 
     if (!adminExists) {
-      console.log('👤 Criando usuário admin...');
-      await prisma.user.create({
-        data: {
-          email: 'admin@ligadobem.com',
-          password: 'admin123',
-          name: 'Administrador',
-          role: 'ADMIN',
-          isActive: true
-        }
-      });
-      console.log('✅ Admin criado');
+      console.log('⚠️ Admin não existe ainda - use o script create-admin.js para criar');
+      // Não criar aqui - já existe o script dedicado
     }
 
     // Verificar se existem parceiros
