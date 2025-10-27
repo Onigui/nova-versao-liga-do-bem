@@ -223,9 +223,13 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
     res.json({
       stats: {
         totalUsers,
+        totalMembers: totalUsers, // Alias para compatibilidade com frontend
         totalPartners,
-        totalAnimals: 0, // Tabela não existe ainda
-        totalDonations: 0, // Tabela não existe ainda
+        activePartners: totalPartners, // Alias para compatibilidade
+        totalAdoptions: 0,
+        totalAnimals: 0,
+        totalDonations: 0,
+        monthlyRevenue: 0,
         monthlyGrowth
       },
       recent: {
