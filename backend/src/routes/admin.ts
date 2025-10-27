@@ -268,23 +268,29 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
     }
 
     console.log(`📊 Enviando ${companies.length} empresas para o frontend`);
-    res.json({
-      companies: companies.map(company => ({
+    const mappedCompanies = companies.map(company => {
+      const mapped = {
         id: company.id,
         name: company.name,
-        category: company.category,
+        category: company.category || 'N/A',
         status: company.isActive ? 'active' : 'inactive',
-        discount: 0, // Valor padrão
+        discount: 0,
         location: company.city && company.state ? `${company.city}, ${company.state}` : company.address || 'N/A',
         address: company.address,
         city: company.city,
         state: company.state,
-        hours: 'Seg-Sex: 9h-18h', // Valor padrão
+        hours: 'Seg-Sex: 9h-18h',
         phone: company.phone,
         email: company.email,
         createdAt: company.createdAt,
         discountCount: 0
-      }))
+      };
+      console.log('📌 Empresa mapeada:', mapped.name, mapped.location);
+      return mapped;
+    });
+    
+    res.json({
+      companies: mappedCompanies
     });
 
   } catch (error) {
