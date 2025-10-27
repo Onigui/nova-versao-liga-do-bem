@@ -7,10 +7,11 @@ async function main() {
 
   // Criar usuário admin
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@ligadobembotucatu.org.br' },
+    where: { email: 'admin@ligadobem.com' },
     update: {},
     create: {
-      email: 'admin@ligadobembotucatu.org.br',
+      email: 'admin@ligadobem.com',
+      password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5.B5J8a5gQjOy', // admin123
       name: 'Administrador Liga do Bem',
       role: 'ADMIN',
       isActive: true
