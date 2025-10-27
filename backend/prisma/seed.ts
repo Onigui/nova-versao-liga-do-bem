@@ -193,8 +193,10 @@ async function main() {
 
   console.log('✅ Evento criado:', event.title);
 
-  // Criar relatório financeiro de exemplo
-  const financialReport = await prisma.financialReport.create({
+  // Criar relatório financeiro de exemplo (evitar erro se já existir)
+  let financialReport;
+  try {
+    financialReport = await prisma.financialReport.create({
     data: {
       year: 2024,
       month: 1,
@@ -206,9 +208,13 @@ async function main() {
       isPublished: true
     }
   });
-
-  // Criar itens de despesa
-  await Promise.all([
+  } catch (error) {
+    console.log('⚠️ Relatório financeiro já existe ou erro ao criar');
+  }
+  
+  if (financialReport) {
+    // Criar itens de despesa
+    await Promise.all([
     prisma.financialExpense.create({
       data: {
         reportId: financialReport.id,
@@ -234,8 +240,8 @@ async function main() {
       }
     })
   ]);
-
-  console.log('✅ Relatório financeiro criado');
+    console.log('✅ Relatório financeiro criado');
+  }
 
   console.log('🎉 Seed concluído com sucesso!');
 }

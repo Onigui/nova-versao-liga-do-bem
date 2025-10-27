@@ -2592,6 +2592,8 @@
 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('📦 Dados recebidos da API:', data);
+                    console.log('📋 Campo companies:', data.companies);
                     companiesData = data.companies || [];
                     console.log('✅ Empresas carregadas:', companiesData.length, companiesData);
                 } else {
