@@ -270,7 +270,11 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
         category: company.category,
         status: company.isActive ? 'active' : 'inactive',
         discount: 0, // Valor padrão
-        location: company.address,
+        location: company.city && company.state ? `${company.city}, ${company.state}` : company.address || 'N/A',
+        address: company.address,
+        city: company.city,
+        state: company.state,
+        hours: 'Seg-Sex: 9h-18h', // Valor padrão
         phone: company.phone,
         email: company.email,
         createdAt: company.createdAt,
