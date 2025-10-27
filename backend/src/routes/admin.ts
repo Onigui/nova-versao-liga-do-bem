@@ -297,7 +297,9 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
     try {
       members = await prisma.user.findMany({
         where: {
-          role: 'MEMBER'
+          role: {
+            equals: 'MEMBER'
+          }
         },
         orderBy: { createdAt: 'desc' },
         select: {
