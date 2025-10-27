@@ -11,7 +11,9 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        value: postgresql://postgres:Onigui1973!@db.ushdgkfnxrxwqrnicdns.supabase.co:5432/postgres
+        value: postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+      - key: DIRECT_URL
+        value: postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
       - key: JWT_SECRET
         value: liga-do-bem-jwt-secret-key-2024-production
       - key: FRONTEND_URL
