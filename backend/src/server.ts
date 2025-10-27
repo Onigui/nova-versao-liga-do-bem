@@ -63,9 +63,13 @@ async function ensureDatabaseReady() {
     
     console.log('✅ Tabela users existe');
     
-    // Verificar se existe admin
+    // Verificar se existe admin - usar ANY para evitar erro de tipo
     const adminExists = await prisma.user.findFirst({
-      where: { role: 'ADMIN' }
+      where: { 
+        role: {
+          equals: 'ADMIN'
+        }
+      }
     });
 
     if (!adminExists) {
@@ -207,7 +211,11 @@ async function ensureDatabaseReady() {
 
     // Verificar se existem membros
     const membersCount = await prisma.user.count({
-      where: { role: 'MEMBER' }
+      where: { 
+        role: {
+          equals: 'MEMBER'
+        }
+      }
     });
     if (membersCount === 0) {
       console.log('👥 Criando membros de exemplo...');
