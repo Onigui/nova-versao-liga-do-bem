@@ -59,7 +59,8 @@ export default function PartnersScreen({ navigation }) {
         throw new Error(`Erro HTTP: ${response.status}`);
       }
       
-      const apiPartners = await response.json();
+      const apiData = await response.json();
+      const apiPartners = apiData.partners || [];
       console.log('✅ Parceiros carregados:', apiPartners.length);
       
       // Converter dados da API para formato esperado pelo app

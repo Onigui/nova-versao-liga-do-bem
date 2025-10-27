@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '../services/AuthService';
 
 export default function MembershipCardScreen() {
@@ -96,12 +95,7 @@ export default function MembershipCardScreen() {
           {/* QR Code */}
           <View style={styles.qrContainer}>
             <View style={styles.qrBackground}>
-              <QRCode
-                value={membership?.qrCode || 'demo_qr_code'}
-                size={120}
-                color="#1F2937"
-                backgroundColor="white"
-              />
+              <Text style={styles.qrPlaceholder}>QR Code</Text>
             </View>
             <Text style={styles.qrLabel}>Apresente este QR Code nos estabelecimentos parceiros</Text>
           </View>
@@ -330,6 +324,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 120,
+    height: 120,
+  },
+  qrPlaceholder: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    fontWeight: '600',
   },
   qrLabel: {
     color: 'rgba(255, 255, 255, 0.8)',
