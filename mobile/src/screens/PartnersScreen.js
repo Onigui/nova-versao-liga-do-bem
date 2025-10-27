@@ -14,7 +14,7 @@ import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
-const API_BASE_URL = 'https://nova-versao-liga-do-bem.onrender.com/api';
+const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
 export default function PartnersScreen({ navigation }) {
   const [partners, setPartners] = useState([]);
