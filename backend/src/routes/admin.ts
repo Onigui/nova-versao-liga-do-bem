@@ -664,4 +664,104 @@ router.post('/companies', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// PUT /api/admin/members/:id - Editar membro
+router.put('/members/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    // Verificar se é admin
+    if (user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    const { id } = req.params;
+    const { name, email, phone, status } = req.body;
+
+    console.log('📝 Editando membro:', id, req.body);
+
+    // Atualizar membro
+    const updatedMember = await prisma.user.update({
+      where: { id },
+      data: {
+        name,
+        email,
+        phone,
+        isActive: status === 'active',
+        updatedAt: new Date()
+      }
+    });
+
+    console.log('✅ Membro editado com sucesso:', updatedMember.id);
+
+    res.json({
+      message: 'Membro atualizado com sucesso',
+      member: {
+        id: updatedMember.id,
+        name: updatedMember.name,
+        email: updatedMember.email,
+        phone: updatedMember.phone,
+        status: updatedMember.isActive ? 'active' : 'inactive'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Erro ao editar membro:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        message: 'Membro não encontrado' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// DELETE /api/admin/members/:id - Excluir membro
+router.delete('/members/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    
+    // Verificar se é admin
+    if (user.role !== 'ADMIN') {
+      return res.status(401).json({ 
+        message: 'Acesso não autorizado' 
+      });
+    }
+
+    const { id } = req.params;
+
+    console.log('🗑️ Excluindo membro:', id);
+
+    // Excluir membro
+    await prisma.user.delete({
+      where: { id }
+    });
+
+    console.log('✅ Membro excluído com sucesso:', id);
+
+    res.json({
+      message: 'Membro excluído com sucesso',
+      id
+    });
+
+  } catch (error: any) {
+    console.error('Erro ao excluir membro:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        message: 'Membro não encontrado' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
 export default router;
