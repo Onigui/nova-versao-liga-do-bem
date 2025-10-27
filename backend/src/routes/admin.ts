@@ -258,11 +258,16 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
       companies = await prisma.partner.findMany({
         orderBy: { createdAt: 'desc' }
       });
+      console.log(`✅ Total de empresas encontradas no banco: ${companies.length}`);
+      if (companies.length > 0) {
+        console.log('📋 Primeira empresa:', companies[0]);
+      }
     } catch (dbError) {
       console.error('⚠️ Erro ao buscar empresas no banco:', dbError);
       companies = []; // Retorna array vazio se der erro
     }
 
+    console.log(`📊 Enviando ${companies.length} empresas para o frontend`);
     res.json({
       companies: companies.map(company => ({
         id: company.id,
