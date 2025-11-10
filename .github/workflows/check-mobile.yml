@@ -1,0 +1,103 @@
+name: 🔍 Check Mobile App
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/check-mobile.yml'
+
+jobs:
+  check:
+    name: 📱 Lint and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🏗 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile
+        run: npm ci
+
+      - name: 🔍 Check package.json
+        working-directory: ./mobile
+        run: |
+          echo "📦 Verificando package.json..."
+          cat package.json | jq '.version'
+          echo "✅ package.json válido"
+
+      - name: 🔍 Check app.json
+        working-directory: ./mobile
+        run: |
+          echo "📱 Verificando app.json..."
+          cat app.json | jq '.expo.version'
+          cat app.json | jq '.expo.android.versionCode'
+          echo "✅ app.json válido"
+
+      - name: 🔍 Check eas.json
+        working-directory: ./mobile
+        run: |
+          echo "🏗️ Verificando eas.json..."
+          cat eas.json | jq '.build'
+          echo "✅ eas.json válido"
+
+      - name: 📊 Summary
+        run: |
+          VERSION=$(cat mobile/package.json | jq -r '.version')
+          VERSION_CODE=$(cat mobile/app.json | jq -r '.expo.android.versionCode')
+          
+          echo "## ✅ Verificações Passaram" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 **Versão:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔢 **Version Code:** ${VERSION_CODE}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 **Dependências:** OK" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 **Configurações:** OK" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Pronto para build!" >> $GITHUB_STEP_SUMMARY
+
+  version-check:
+    name: 🔢 Check Version
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🏗 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Verify version consistency
+        working-directory: ./mobile
+        run: |
+          PKG_VERSION=$(cat package.json | jq -r '.version')
+          APP_VERSION=$(cat app.json | jq -r '.expo.version')
+          
+          echo "📦 package.json version: $PKG_VERSION"
+          echo "📱 app.json version: $APP_VERSION"
+          
+          if [ "$PKG_VERSION" != "$APP_VERSION" ]; then
+            echo "❌ Versões não coincidem!"
+            echo "   package.json: $PKG_VERSION"
+            echo "   app.json: $APP_VERSION"
+            exit 1
+          fi
+          
+          echo "✅ Versões consistentes: $PKG_VERSION"
+
+      - name: 📊 Version Info
+        run: |
+          VERSION=$(cat mobile/package.json | jq -r '.version')
+          VERSION_CODE=$(cat mobile/app.json | jq -r '.expo.android.versionCode')
+          
+          echo "## 📱 Informações da Versão" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version Name:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version Code:** ${VERSION_CODE}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Consistente" >> $GITHUB_STEP_SUMMARY

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Liga do Bem Botucatu",
     "slug": "liga-do-bem-botucatu",
-    "version": "1.2.0",
+    "version": "1.2.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "splash": {
@@ -21,7 +21,7 @@
         "backgroundColor": "#8B5CF6"
       },
       "package": "com.ligadobem.botucatu",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "CAMERA",
         "LOCATION",

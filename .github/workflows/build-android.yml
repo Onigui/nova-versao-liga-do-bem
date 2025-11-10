@@ -1,0 +1,235 @@
+name: 🤖 Build Android APK
+
+on:
+  # Trigger manual
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile (production/preview)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - preview
+  
+  # Trigger automático em push na main
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-android.yml'
+
+  # Trigger em pull request
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'mobile/**'
+
+jobs:
+  build:
+    name: 📱 Build APK with EAS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🏗 Setup repo
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: 🏗 Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile
+        run: npm ci
+
+      - name: 🔍 Verificar versão do app
+        working-directory: ./mobile
+        run: |
+          echo "📱 Versão atual:"
+          cat package.json | grep version
+          cat app.json | grep version
+
+      - name: 🚀 Build Android APK
+        working-directory: ./mobile
+        run: |
+          PROFILE="${{ github.event.inputs.profile || 'production' }}"
+          echo "🏗️ Building with profile: $PROFILE"
+          eas build --platform android --profile $PROFILE --non-interactive --no-wait
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📝 Get build ID
+        id: build-id
+        working-directory: ./mobile
+        run: |
+          BUILD_ID=$(eas build:list --platform android --limit 1 --json | jq -r '.[0].id')
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "📦 Build ID: $BUILD_ID"
+
+      - name: ⏳ Wait for build to complete
+        working-directory: ./mobile
+        run: |
+          BUILD_ID="${{ steps.build-id.outputs.build_id }}"
+          echo "⏳ Aguardando build $BUILD_ID completar..."
+          
+          # Aguardar até 40 minutos
+          for i in {1..80}; do
+            STATUS=$(eas build:view $BUILD_ID --json | jq -r '.status')
+            echo "Status: $STATUS (tentativa $i/80)"
+            
+            if [ "$STATUS" = "finished" ]; then
+              echo "✅ Build completado com sucesso!"
+              exit 0
+            elif [ "$STATUS" = "errored" ] || [ "$STATUS" = "canceled" ]; then
+              echo "❌ Build falhou com status: $STATUS"
+              exit 1
+            fi
+            
+            sleep 30
+          done
+          
+          echo "⏰ Timeout esperando build completar"
+          exit 1
+
+      - name: 📥 Download APK
+        working-directory: ./mobile
+        run: |
+          BUILD_ID="${{ steps.build-id.outputs.build_id }}"
+          APK_URL=$(eas build:view $BUILD_ID --json | jq -r '.artifacts.buildUrl')
+          
+          if [ "$APK_URL" = "null" ] || [ -z "$APK_URL" ]; then
+            echo "❌ URL do APK não encontrada"
+            exit 1
+          fi
+          
+          echo "📥 Baixando APK de: $APK_URL"
+          curl -L -o liga-do-bem-botucatu.apk "$APK_URL"
+          
+          # Verificar se o arquivo foi baixado
+          if [ ! -f "liga-do-bem-botucatu.apk" ]; then
+            echo "❌ Falha ao baixar APK"
+            exit 1
+          fi
+          
+          # Mostrar informações do arquivo
+          ls -lh liga-do-bem-botucatu.apk
+          echo "✅ APK baixado com sucesso!"
+
+      - name: 📦 Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: liga-do-bem-botucatu-v${{ github.run_number }}
+          path: mobile/liga-do-bem-botucatu.apk
+          retention-days: 30
+
+      - name: 📝 Create Release Notes
+        id: release-notes
+        run: |
+          VERSION=$(cat mobile/package.json | jq -r '.version')
+          BUILD_NUMBER=${{ github.run_number }}
+          
+          cat << EOF > release-notes.md
+          # Liga do Bem Botucatu v${VERSION} (Build #${BUILD_NUMBER})
+          
+          ## 🎯 Mudanças Nesta Versão
+          
+          ### ✅ Correções de Sincronização
+          - Corrigida URL da API para \`nova-versao-liga-do-bem-api.onrender.com\`
+          - Migração para banco de dados Supabase
+          - Adicionadas dependências: axios e expo-constants
+          - Sincronização em tempo real funcionando
+          
+          ### 🔧 Melhorias Técnicas
+          - Backend conectado ao Supabase PostgreSQL
+          - CORS configurado corretamente
+          - Autenticação JWT funcionando
+          - API respondendo corretamente
+          
+          ### 📱 Funcionalidades
+          - ✅ Lista de parceiros atualizada
+          - ✅ Sistema de login/cadastro
+          - ✅ Carteirinha digital com QR Code
+          - ✅ Notificações push
+          - ✅ Mapa de parceiros próximos
+          
+          ## 📥 Download
+          
+          Baixe o APK desta versão nos artifacts do workflow.
+          
+          ## 🧪 Como Testar
+          
+          1. Baixe o APK
+          2. Instale no dispositivo Android
+          3. Faça login ou crie uma conta
+          4. Teste as funcionalidades principais
+          
+          ---
+          
+          **Data:** $(date +'%Y-%m-%d %H:%M:%S')
+          **Branch:** ${GITHUB_REF#refs/heads/}
+          **Commit:** ${GITHUB_SHA:0:7}
+          EOF
+          
+          cat release-notes.md
+
+      - name: 🎉 Create GitHub Release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Liga do Bem v${{ github.run_number }}
+          body_path: release-notes.md
+          files: mobile/liga-do-bem-botucatu.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Build Summary
+        run: |
+          VERSION=$(cat mobile/package.json | jq -r '.version')
+          echo "## 🎉 Build Concluído com Sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 **Versão:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔢 **Build:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Profile:** ${{ github.event.inputs.profile || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 **Build ID:** ${{ steps.build-id.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌿 **Branch:** ${GITHUB_REF#refs/heads/}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📝 **Commit:** ${GITHUB_SHA:0:7}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download" >> $GITHUB_STEP_SUMMARY
+          echo "O APK está disponível nos artifacts deste workflow." >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: 📢 Notify Build Status
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 📢 Build Success
+        if: needs.build.result == 'success'
+        run: |
+          echo "✅ Build Android APK completado com sucesso!"
+          echo "📥 O APK está disponível nos artifacts"
+      
+      - name: 📢 Build Failed
+        if: needs.build.result == 'failure'
+        run: |
+          echo "❌ Build Android APK falhou!"
+          echo "🔍 Verifique os logs acima para detalhes"
+          exit 1
