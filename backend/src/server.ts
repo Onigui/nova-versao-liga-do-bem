@@ -28,7 +28,7 @@ app.use(cors({
   origin: [
     'https://nova-versao-liga-do-bem-admin.onrender.com',
     'http://localhost:3000',
-    'https://nova-versao-liga-do-bem.onrender.com',
+    'https://nova-versao-liga-do-bem-web.onrender.com',
     'http://localhost:3001',
     'http://localhost:8081',
     'http://localhost:19006'

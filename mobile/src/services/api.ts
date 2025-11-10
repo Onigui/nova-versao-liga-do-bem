@@ -1,9 +1,10 @@
 import axios from 'axios';
+import Constants from 'expo-constants';
 
 // Configuração base da API
 const API_BASE_URL = __DEV__ 
   ? 'http://localhost:3001' 
-  : 'https://nova-versao-liga-do-bem.onrender.com';
+  : Constants.expoConfig?.extra?.apiUrl || 'https://nova-versao-liga-do-bem-api.onrender.com';
 
 // Criar instância do axios
 const api = axios.create({

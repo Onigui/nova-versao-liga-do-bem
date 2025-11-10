@@ -60,7 +60,8 @@
     "extra": {
       "eas": {
         "projectId": "73886b96-ebaa-4d18-b125-c8b3d53cc8ec"
-      }
+      },
+      "apiUrl": "https://nova-versao-liga-do-bem-api.onrender.com"
     },
     "owner": "onigui"
   }

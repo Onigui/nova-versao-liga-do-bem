@@ -12,7 +12,7 @@ app.use(cors({
   origin: [
     'https://nova-versao-liga-do-bem-admin.onrender.com',
     'http://localhost:3000',
-    'https://nova-versao-liga-do-bem.onrender.com'
+    'https://nova-versao-liga-do-bem-web.onrender.com'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
