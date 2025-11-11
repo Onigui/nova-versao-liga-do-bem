@@ -7,7 +7,8 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "build:android": "cd android && ./gradlew assembleRelease",
-    "build:android:bundle": "cd android && ./gradlew bundleRelease"
+    "build:android:bundle": "cd android && ./gradlew bundleRelease",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.21.0",
@@ -42,6 +43,7 @@
     "@types/react-native": "^0.73.0",
     "babel-plugin-module-resolver": "^5.0.0",
     "metro-react-native-babel-preset": "^0.77.0",
+    "patch-package": "^8.0.1",
     "typescript": "^5.3.0"
   },
   "private": true
