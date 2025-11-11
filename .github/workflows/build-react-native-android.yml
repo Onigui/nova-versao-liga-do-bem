@@ -1,0 +1,179 @@
+name: 🚀 Build React Native Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Tipo de build'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+  push:
+    branches:
+      - master
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-react-native-android.yml'
+
+jobs:
+  build:
+    name: 📱 Build React Native APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile
+        run: |
+          echo "📦 Instalando dependências do projeto..."
+          npm ci
+
+      - name: 🔑 Setup Release Keystore
+        if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
+        working-directory: ./mobile/android/app
+        run: |
+          echo "🔑 Criando keystore para release..."
+          
+          # Criar keystore de release (substitua com suas credenciais reais)
+          keytool -genkeypair \
+            -v \
+            -storetype PKCS12 \
+            -keystore release.keystore \
+            -alias ligadobem \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Liga do Bem, OU=Mobile, O=Liga do Bem Botucatu, L=Botucatu, ST=SP, C=BR"
+          
+          echo "✅ Keystore criado com sucesso"
+
+      - name: 🔧 Configure Gradle Properties
+        working-directory: ./mobile/android
+        run: |
+          echo "🔧 Configurando gradle.properties..."
+          
+          cat >> gradle.properties << EOF
+          
+          # Configurações de assinatura do APK
+          MYAPP_UPLOAD_STORE_FILE=release.keystore
+          MYAPP_UPLOAD_KEY_ALIAS=ligadobem
+          MYAPP_UPLOAD_STORE_PASSWORD=android
+          MYAPP_UPLOAD_KEY_PASSWORD=android
+          EOF
+          
+          echo "✅ Gradle configurado"
+
+      - name: 🏗️ Build APK
+        working-directory: ./mobile/android
+        run: |
+          echo "🏗️ Iniciando build do APK..."
+          
+          chmod +x gradlew
+          
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          if [ "$BUILD_TYPE" = "release" ]; then
+            echo "📦 Building RELEASE APK..."
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            
+            # Copiar APK para root
+            cp app/build/outputs/apk/release/app-release.apk ../../liga-do-bem-botucatu.apk
+            APK_PATH="../../liga-do-bem-botucatu.apk"
+            
+            echo "✅ Release APK built successfully!"
+          else
+            echo "🐛 Building DEBUG APK..."
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            
+            # Copiar APK para root
+            cp app/build/outputs/apk/debug/app-debug.apk ../../liga-do-bem-botucatu-debug.apk
+            APK_PATH="../../liga-do-bem-botucatu-debug.apk"
+            
+            echo "✅ Debug APK built successfully!"
+          fi
+          
+          # Info do APK
+          echo "📦 APK Info:"
+          ls -lh $APK_PATH
+
+      - name: 📦 Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: liga-do-bem-apk-${{ github.event.inputs.build_type || 'release' }}
+          path: mobile/liga-do-bem-botucatu*.apk
+          retention-days: 30
+
+      - name: 🎉 Create GitHub Release
+        if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.2.2-build-${{ github.run_number }}
+          name: Liga do Bem Botucatu v1.2.2 Build ${{ github.run_number }}
+          body: |
+            ## 📱 Liga do Bem Botucatu - Build ${{ github.run_number }}
+            
+            ### ✨ Build Info
+            - **Versão**: 1.2.2
+            - **Build**: ${{ github.run_number }}
+            - **Branch**: ${{ github.ref_name }}
+            - **Commit**: ${{ github.sha }}
+            - **Data**: ${{ github.event.head_commit.timestamp }}
+            
+            ### 📥 Download
+            Baixe o APK abaixo e instale no seu dispositivo Android.
+            
+            ### 🔧 Requisitos
+            - Android 5.0 (API 21) ou superior
+            - Permitir instalação de apps de fontes desconhecidas
+          files: mobile/liga-do-bem-botucatu.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Build Summary
+        if: always()
+        run: |
+          echo "## 🎯 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: ${{ github.event.inputs.build_type || 'release' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "mobile/liga-do-bem-botucatu.apk" ]; then
+            APK_SIZE=$(du -h mobile/liga-do-bem-botucatu.apk | cut -f1)
+            echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **APK gerado com sucesso!**" >> $GITHUB_STEP_SUMMARY
+          elif [ -f "mobile/liga-do-bem-botucatu-debug.apk" ]; then
+            APK_SIZE=$(du -h mobile/liga-do-bem-botucatu-debug.apk | cut -f1)
+            echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Debug APK gerado com sucesso!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build falhou - APK não gerado**" >> $GITHUB_STEP_SUMMARY
+          fi
