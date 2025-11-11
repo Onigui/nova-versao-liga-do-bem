@@ -1,0 +1,299 @@
+name: 🤖 Build Android APK (Capacitor)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug/release)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+  
+  push:
+    branches:
+      - master
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-capacitor-android.yml'
+
+jobs:
+  build:
+    name: 📱 Build APK with Capacitor + Gradle
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🏗 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile
+        run: npm ci
+
+      - name: 🔍 Verificar versão do app
+        working-directory: ./mobile
+        run: |
+          echo "📱 Versão atual:"
+          cat package.json | grep version
+          echo "🤖 Android:"
+          cat android/app/build.gradle | grep versionName || echo "Usando versão do package.json"
+
+      - name: 🔧 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 🔑 Create keystore (Debug)
+        if: github.event.inputs.build_type == 'debug' || github.event_name == 'pull_request'
+        working-directory: ./mobile/android/app
+        run: |
+          # Usar keystore de debug existente ou criar um novo
+          if [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android \
+              -alias androiddebugkey -keypass android -keyalg RSA \
+              -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          echo "✅ Debug keystore pronto"
+
+      - name: 🔑 Create/Download Release Keystore
+        if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
+        working-directory: ./mobile/android/app
+        run: |
+          # Se você tem um keystore, adicione como secret KEYSTORE_FILE (base64)
+          # e descomente as linhas abaixo:
+          
+          # if [ -n "${{ secrets.KEYSTORE_FILE }}" ]; then
+          #   echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > release.keystore
+          #   echo "✅ Release keystore restaurado dos secrets"
+          # else
+          
+          # Por enquanto, criar um keystore temporário para demonstração
+          keytool -genkey -v -keystore release.keystore \
+            -alias ligadobem -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass ligadobem2024 -keypass ligadobem2024 \
+            -dname "CN=Liga do Bem, OU=Mobile, O=Liga do Bem Botucatu, L=Botucatu, ST=SP, C=BR"
+          echo "✅ Release keystore criado"
+          # fi
+
+      - name: 🔧 Configure Gradle properties
+        working-directory: ./mobile/android
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          # Criar gradle.properties se não existir
+          cat > gradle.properties << EOF
+          org.gradle.jvmargs=-Xmx2048m -XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+          org.gradle.parallel=true
+          org.gradle.configureondemand=true
+          android.useAndroidX=true
+          android.enableJetifier=true
+          
+          # Signing config para release
+          RELEASE_STORE_FILE=release.keystore
+          RELEASE_STORE_PASSWORD=ligadobem2024
+          RELEASE_KEY_ALIAS=ligadobem
+          RELEASE_KEY_PASSWORD=ligadobem2024
+          EOF
+          
+          echo "✅ Gradle properties configurado"
+
+      - name: 🏗️ Build APK
+        working-directory: ./mobile/android
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          # Dar permissão de execução ao gradlew
+          chmod +x gradlew
+          
+          # Build
+          if [ "$BUILD_TYPE" = "release" ]; then
+            echo "🏗️ Building RELEASE APK..."
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            
+            # Copiar APK para nome consistente
+            cp app/build/outputs/apk/release/app-release.apk \
+               app/build/outputs/apk/release/liga-do-bem-botucatu.apk
+          else
+            echo "🏗️ Building DEBUG APK..."
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            
+            # Copiar APK para nome consistente
+            cp app/build/outputs/apk/debug/app-debug.apk \
+               app/build/outputs/apk/debug/liga-do-bem-botucatu-debug.apk
+          fi
+
+      - name: 📊 APK Info
+        working-directory: ./mobile/android
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          if [ "$BUILD_TYPE" = "release" ]; then
+            APK_PATH="app/build/outputs/apk/release/liga-do-bem-botucatu.apk"
+          else
+            APK_PATH="app/build/outputs/apk/debug/liga-do-bem-botucatu-debug.apk"
+          fi
+          
+          if [ -f "$APK_PATH" ]; then
+            echo "✅ APK gerado com sucesso!"
+            echo "📦 Tamanho: $(du -h $APK_PATH | cut -f1)"
+            echo "📍 Localização: $APK_PATH"
+            ls -lh "$APK_PATH"
+          else
+            echo "❌ APK não encontrado em $APK_PATH"
+            echo "📂 Conteúdo do diretório de saída:"
+            find app/build/outputs/apk -type f
+            exit 1
+          fi
+
+      - name: 📦 Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: liga-do-bem-botucatu-${{ github.event.inputs.build_type || 'release' }}-v${{ github.run_number }}
+          path: |
+            mobile/android/app/build/outputs/apk/release/liga-do-bem-botucatu.apk
+            mobile/android/app/build/outputs/apk/debug/liga-do-bem-botucatu-debug.apk
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: 📝 Create Release Notes
+        id: release-notes
+        run: |
+          VERSION=$(cat mobile/package.json | jq -r '.version')
+          BUILD_NUMBER=${{ github.run_number }}
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          cat << EOF > release-notes.md
+          # Liga do Bem Botucatu v${VERSION} (Build #${BUILD_NUMBER})
+          
+          ## 🎯 Informações do Build
+          
+          - **Versão:** ${VERSION}
+          - **Build Number:** ${BUILD_NUMBER}
+          - **Tipo:** ${BUILD_TYPE}
+          - **Platform:** Android
+          - **Build Tool:** Capacitor + Gradle
+          - **Data:** $(date +'%Y-%m-%d %H:%M:%S UTC')
+          
+          ## ✅ Mudanças Nesta Versão
+          
+          ### 🔄 Migração para Capacitor
+          - Removida dependência do Expo (agora 100% gratuito!)
+          - Build direto com Gradle (sem limites)
+          - GitHub Actions totalmente gratuito
+          - Maior controle sobre o processo de build
+          
+          ### 🔧 Correções de Sincronização
+          - URLs da API corrigidas
+          - Integração com Supabase PostgreSQL
+          - Sincronização em tempo real funcionando
+          - CORS configurado corretamente
+          
+          ### 📱 Funcionalidades
+          - ✅ Lista de parceiros atualizada
+          - ✅ Sistema de login/cadastro
+          - ✅ Carteirinha digital com QR Code
+          - ✅ Notificações push
+          - ✅ Mapa de parceiros próximos
+          - ✅ Geolocalização
+          - ✅ Câmera para QR Code
+          
+          ## 📥 Download
+          
+          Baixe o APK nos artifacts deste workflow.
+          
+          ## 🧪 Como Testar
+          
+          1. Baixe o APK
+          2. Transfira para o celular Android
+          3. Habilite "Fontes desconhecidas" nas configurações
+          4. Instale o APK
+          5. Teste todas as funcionalidades
+          
+          ## 🔧 Build Info
+          
+          - **Commit:** ${GITHUB_SHA:0:7}
+          - **Branch:** ${GITHUB_REF#refs/heads/}
+          - **Workflow:** Capacitor + Gradle (100% gratuito)
+          - **Runner:** ubuntu-latest
+          - **Node:** 18.x
+          - **JDK:** 17
+          
+          ---
+          
+          🎉 Build realizado com sucesso!
+          EOF
+          
+          cat release-notes.md
+
+      - name: 🎉 Create GitHub Release
+        if: (github.event.inputs.build_type == 'release' || github.event_name == 'push') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}-capacitor
+          name: Liga do Bem v${{ github.run_number }} (Capacitor)
+          body_path: release-notes.md
+          files: mobile/android/app/build/outputs/apk/release/liga-do-bem-botucatu.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Build Summary
+        run: |
+          VERSION=$(cat mobile/package.json | jq -r '.version')
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          echo "## 🎉 Build Concluído com Sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 **Versão:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔢 **Build:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Tipo:** ${BUILD_TYPE}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🛠️ **Tool:** Capacitor + Gradle" >> $GITHUB_STEP_SUMMARY
+          echo "- 💰 **Custo:** R$ 0,00 (100% gratuito!)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌿 **Branch:** ${GITHUB_REF#refs/heads/}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📝 **Commit:** ${GITHUB_SHA:0:7}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download" >> $GITHUB_STEP_SUMMARY
+          echo "O APK está disponível nos artifacts deste workflow." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✨ Vantagens do Capacitor" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 100% gratuito (sem limites!)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build em ~5-10 minutos (mais rápido que EAS)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Controle total do processo" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Sem dependência de serviços externos" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: 📢 Notify Build Status
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 📢 Build Success
+        if: needs.build.result == 'success'
+        run: |
+          echo "✅ Build Android APK completado com sucesso!"
+          echo "📥 O APK está disponível nos artifacts"
+          echo "💰 Custo: R$ 0,00 (Totalmente gratuito com Capacitor!)"
+      
+      - name: 📢 Build Failed
+        if: needs.build.result == 'failure'
+        run: |
+          echo "❌ Build Android APK falhou!"
+          echo "🔍 Verifique os logs acima para detalhes"
+          exit 1
