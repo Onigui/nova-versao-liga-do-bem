@@ -23,29 +23,56 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
-// Middleware CORS mais permissivo
+// Middleware CORS mais permissivo - CORRIGIDO
 app.use(cors({
-  origin: [
-    'https://nova-versao-liga-do-bem-admin.onrender.com',
-    'http://localhost:3000',
-    'https://nova-versao-liga-do-bem-web.onrender.com',
-    'http://localhost:3001',
-    'http://localhost:8081',
-    'http://localhost:19006'
-  ],
+  origin: function(origin, callback) {
+    // Permitir requisições sem origin (como apps mobile, Postman, etc)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://nova-versao-liga-do-bem-admin.onrender.com',
+      'https://nova-versao-liga-do-bem-web.onrender.com',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:8081',
+      'http://localhost:19006'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Para desenvolvimento, permitir qualquer origin
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(null, true); // Temporariamente permitir tudo para debug
+      }
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'x-admin-token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'x-admin-token', 'Accept'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+  maxAge: 86400, // 24 hours
   optionsSuccessStatus: 200
 }));
 
-// Middleware para lidar com preflight requests
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
+// Middleware adicional para garantir headers CORS em todas as respostas
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
 });
 
 app.use(express.json());
