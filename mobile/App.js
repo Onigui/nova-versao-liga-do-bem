@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import NotificationService from './src/services/NotificationService';
 
 // Navigation
@@ -44,13 +45,15 @@ export default function App() {
   }, []);
 
   return (
-    <PaperProvider>
-      <AuthProvider>
-        <NavigationContainer>
-          <StatusBar style="dark" backgroundColor="#ffffff" />
-          <RootNavigator />
-        </NavigationContainer>
-      </AuthProvider>
-    </PaperProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <PaperProvider>
+        <AuthProvider>
+          <NavigationContainer>
+            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+            <RootNavigator />
+          </NavigationContainer>
+        </AuthProvider>
+      </PaperProvider>
+    </GestureHandlerRootView>
   );
 }

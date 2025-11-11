@@ -1,188 +1,79 @@
-# Liga do Bem Botucatu - App Móvel
+This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-Aplicativo móvel para Android e iOS da Liga do Bem Botucatu, desenvolvido com React Native e Expo.
+# Getting Started
 
-## 📱 Funcionalidades
+>**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
 
-- **Dashboard**: Visão geral da plataforma e estatísticas
-- **Cartão Digital**: QR Code para validação em estabelecimentos parceiros
-- **Parceiros**: Lista de estabelecimentos com descontos exclusivos
-- **Adoções**: Galeria de animais disponíveis para adoção
-- **Doações**: Sistema de doações integrado
-- **Sobre Nós**: Informações da organização
+## Step 1: Start the Metro Server
 
-## 🛠️ Tecnologias
+First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
 
-- **React Native**: Framework para desenvolvimento móvel
-- **Expo**: Plataforma de desenvolvimento e build
-- **React Navigation**: Navegação entre telas
-- **Expo Linear Gradient**: Gradientes personalizados
-- **React Native QR Code SVG**: Geração de QR codes
-- **Expo Location**: Acesso à localização GPS
-- **Expo Camera**: Scanner de QR codes
-- **Expo Notifications**: Notificações push
+To start Metro, run the following command from the _root_ of your React Native project:
 
-## 🚀 Como executar
-
-### Pré-requisitos
-
-1. **Node.js** (versão 16 ou superior)
-2. **Expo CLI**: `npm install -g @expo/cli`
-3. **Conta Expo**: Crie em [expo.dev](https://expo.dev)
-
-### Instalação
-
-1. **Clone o repositório e navegue para a pasta mobile:**
-   ```bash
-   cd mobile
-   ```
-
-2. **Instale as dependências:**
-   ```bash
-   npm install
-   ```
-
-3. **Execute o projeto:**
-   ```bash
-   npx expo start
-   ```
-
-4. **Instale o Expo Go no seu dispositivo:**
-   - [Android](https://play.google.com/store/apps/details?id=host.exp.exponent)
-   - [iOS](https://apps.apple.com/app/expo-go/id982107779)
-
-5. **Escaneie o QR code** que aparece no terminal ou navegador
-
-## 📦 Gerar APK
-
-### Método 1: Script Automatizado
 ```bash
-node scripts/build-apk.js
+# using npm
+npm start
+
+# OR using Yarn
+yarn start
 ```
 
-### Método 2: Manual
+## Step 2: Start your Application
+
+Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+
+### For Android
+
 ```bash
-# 1. Fazer login no Expo
-npx expo login
+# using npm
+npm run android
 
-# 2. Configurar o projeto
-npx expo build:configure
-
-# 3. Gerar APK
-npx expo build:android --type apk
+# OR using Yarn
+yarn android
 ```
 
-## 🔧 Configurações
+### For iOS
 
-### Firebase (Notificações Push)
+```bash
+# using npm
+npm run ios
 
-1. Crie um projeto no [Firebase Console](https://console.firebase.google.com)
-2. Adicione um app Android com package name: `com.ligadobem.botucatu`
-3. Baixe o arquivo `google-services.json`
-4. Coloque na pasta `mobile/`
-5. Configure as credenciais no `app.json`
-
-### Google Maps
-
-1. Obtenha uma API key no [Google Cloud Console](https://console.cloud.google.com)
-2. Configure a chave no `app.json`
-3. Adicione as restrições necessárias
-
-## 📁 Estrutura do Projeto
-
-```
-mobile/
-├── App.js                    # Componente principal
-├── app.json                  # Configuração Expo
-├── package.json              # Dependências
-├── src/
-│   ├── screens/             # Telas do app
-│   │   ├── HomeScreen.js
-│   │   ├── MembershipCardScreen.js
-│   │   ├── PartnersScreen.js
-│   │   ├── AdoptionsScreen.js
-│   │   ├── DonationScreen.js
-│   │   └── AboutScreen.js
-│   ├── services/            # Serviços (API, auth)
-│   ├── components/          # Componentes reutilizáveis
-│   ├── navigation/          # Configuração de navegação
-│   └── utils/               # Utilitários
-├── assets/                  # Imagens, ícones, fontes
-└── scripts/                 # Scripts de build
+# OR using Yarn
+yarn ios
 ```
 
-## 🎨 Design
+If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
 
-O app segue um design clean e moderno inspirado em bancos digitais:
+This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
 
-- **Cores principais**: Roxo (#8B5CF6), Verde (#10B981), Branco (#FFFFFF)
-- **Tipografia**: Roboto (Android), SF Pro (iOS)
-- **Layout**: Cards com sombras suaves, gradientes, ícones Material Design
+## Step 3: Modifying your App
 
-## 📱 Funcionalidades por Tela
+Now that you have successfully run the app, let's modify it.
 
-### HomeScreen
-- Dashboard com estatísticas
-- Ações rápidas
-- Informações da missão
+1. Open `App.tsx` in your text editor of choice and edit some lines.
+2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
 
-### MembershipCardScreen
-- Cartão digital com QR Code
-- Informações do membro
-- Status da mensalidade
+   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
 
-### PartnersScreen
-- Lista de estabelecimentos parceiros
-- Filtros por categoria
-- Navegação GPS
+## Congratulations! :tada:
 
-### AdoptionsScreen
-- Galeria de animais (em desenvolvimento)
-- Filtros e busca
-- Formulário de interesse
+You've successfully run and modified your React Native App. :partying_face:
 
-### DonationScreen
-- Valores pré-definidos
-- Valor personalizado
-- Informações sobre transparência
+### Now what?
 
-### AboutScreen
-- Missão e valores
-- Informações de contato
-- Redes sociais
+- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
+- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
 
-## 🔗 Integração com Backend
+# Troubleshooting
 
-O app se conecta com a API backend através de:
+If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
 
-- **Base URL**: `https://liga-do-bem-backend.onrender.com/api`
-- **Autenticação**: JWT + OAuth (Google, Facebook)
-- **Endpoints**: Usuários, parceiros, adoções, doações, notificações
+# Learn More
 
-## 📋 TODO
+To learn more about React Native, take a look at the following resources:
 
-- [ ] Implementar autenticação completa
-- [ ] Adicionar scanner de QR code
-- [ ] Integrar GPS para localização
-- [ ] Implementar notificações push
-- [ ] Adicionar galeria de animais
-- [ ] Sistema de doações integrado
-- [ ] Testes automatizados
-
-## 🐛 Problemas Conhecidos
-
-- Scanner de QR code ainda não implementado
-- Autenticação em desenvolvimento
-- Algumas telas mostram "Em Breve"
-
-## 📞 Suporte
-
-Para dúvidas ou problemas:
-
-- **Email**: contato@ligadobem.com
-- **Telefone**: (14) 99999-9999
-- **Website**: https://ligadobem.com
-
-## 📄 Licença
-
-© 2025 Liga do Bem Botucatu. Todos os direitos reservados.
+- [React Native Website](https://reactnative.dev) - learn more about React Native.
+- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
+- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
+- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
+- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.

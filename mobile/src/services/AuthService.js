@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
 import NotificationService from './NotificationService';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const AuthContext = createContext({});
 
@@ -134,47 +130,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const loginWithGoogle = async () => {
-    try {
-      const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
-      
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=YOUR_GOOGLE_CLIENT_ID&` +
-        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-        `response_type=code&` +
-        `scope=openid%20profile%20email`;
-
-      const result = await AuthSession.startAsync({ authUrl });
-      
-      if (result.type === 'success') {
-        // Processar o código de autorização
-        const response = await fetch(`${API_BASE_URL}/auth/google`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ code: result.params.code }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          const { token: authToken, user: userData } = data;
-          
-          await AsyncStorage.setItem('auth_token', authToken);
-          await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-          
-          setToken(authToken);
-          setUser(userData);
-          
-          return { success: true };
-        }
-      }
-      
-      return { success: false, error: 'Erro na autenticação Google' };
-    } catch (error) {
-      console.error('Erro no login Google:', error);
-      return { success: false, error: 'Erro de conexão' };
-    }
+    // Google OAuth será implementado futuramente com @react-native-google-signin/google-signin
+    return { success: false, error: 'Login com Google em desenvolvimento' };
   };
 
   const continueAsGuest = async () => {

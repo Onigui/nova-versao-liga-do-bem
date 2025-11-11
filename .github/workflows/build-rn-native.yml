@@ -1,0 +1,197 @@
+name: 🚀 Build APK React Native 0.76.5 Nativo (100% Gratuito)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Tipo de build'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+  push:
+    branches:
+      - master
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-rn-native.yml'
+
+jobs:
+  build:
+    name: 📱 Build React Native Nativo
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🔧 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile
+        run: |
+          echo "📦 Instalando dependências React Native 0.76.5..."
+          npm ci
+          
+          echo "✅ Dependências instaladas com sucesso!"
+
+      - name: 🔑 Setup Release Keystore
+        if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
+        working-directory: ./mobile/android/app
+        run: |
+          echo "🔑 Criando keystore para assinatura..."
+          
+          keytool -genkeypair \
+            -v \
+            -storetype PKCS12 \
+            -keystore release.keystore \
+            -alias ligadobem \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Liga do Bem, OU=Mobile, O=Liga do Bem Botucatu, L=Botucatu, ST=SP, C=BR"
+          
+          echo "✅ Keystore criado!"
+
+      - name: 📝 Configure local.properties
+        working-directory: ./mobile/android
+        run: |
+          echo "📝 Criando local.properties com SDK location..."
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "✅ local.properties criado!"
+          
+      - name: 🏗️ Build APK
+        working-directory: ./mobile
+        run: |
+          echo "🏗️ Iniciando build React Native 0.76.5 nativo..."
+          
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          if [ "$BUILD_TYPE" = "release" ]; then
+            echo "📦 Building RELEASE APK..."
+            
+            # Build release com Gradle
+            cd android
+            chmod +x gradlew
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            
+            # Copiar APK
+            cp app/build/outputs/apk/release/app-release.apk ../../liga-do-bem-botucatu-v1.2.3.apk
+            echo "✅ Release APK built successfully!"
+          else
+            echo "🐛 Building DEBUG APK..."
+            
+            # Build debug
+            cd android
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            
+            # Copiar APK
+            cp app/build/outputs/apk/debug/app-debug.apk ../../liga-do-bem-botucatu-v1.2.3-debug.apk
+            echo "✅ Debug APK built successfully!"
+          fi
+          
+          echo "📦 APK gerado!"
+          ls -lh ../../liga-do-bem-botucatu*.apk
+
+      - name: 📦 Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: liga-do-bem-apk-v1.2.3-build-${{ github.run_number }}
+          path: |
+            liga-do-bem-botucatu*.apk
+          retention-days: 30
+
+      - name: 🎉 Create GitHub Release
+        if: github.event_name == 'push' || github.event.inputs.build_type == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.2.3-build-${{ github.run_number }}
+          name: Liga do Bem v1.2.3 Build ${{ github.run_number }}
+          body: |
+            ## 📱 Liga do Bem Botucatu - v1.2.3
+            
+            ### ✨ Build Info
+            - **Versão**: 1.2.3
+            - **Build**: ${{ github.run_number }}
+            - **Método**: React Native 0.76.5 Nativo (100% GRATUITO!)
+            - **Branch**: ${{ github.ref_name }}
+            - **Commit**: ${{ github.sha }}
+            
+            ### 🎯 Novidades desta versão:
+            - ✅ **Projeto completamente reconstruído** com RN 0.76.5
+            - ✅ **TODAS as dependências compatíveis** (sem erros de compilação!)
+            - ✅ Firebase integrado (notificações push)
+            - ✅ React Navigation 7.x
+            - ✅ Gesture Handler 2.20.2
+            - ✅ Reanimated 3.16.4
+            - ✅ Screens 4.3.0
+            - ✅ Vector Icons, Linear Gradient, QR Code
+            - ✅ Vision Camera 4.6.1
+            - ✅ Geolocation, AsyncStorage
+            
+            ### 📱 Features:
+            - 🔐 Login/Registro
+            - 🎫 Carteirinha Digital (QR Code)
+            - 🏪 Parceiros com descontos
+            - 🐾 Adoções de animais
+            - 📅 Eventos
+            - 💰 Doações
+            - 🤝 Voluntariado
+            - 📊 Transparência
+            - 🔔 Notificações Push (Firebase)
+            - 📍 Geolocalização (parceiros próximos)
+            
+            ### ⬇️ Download:
+            Baixe o APK abaixo e instale no seu dispositivo Android.
+            
+            **Tamanho:** ~50-60MB
+            **Android mínimo:** 6.0 (API 23)
+            **Sincronização com Admin:** ✅ Funcionando
+          draft: false
+          prerelease: false
+          files: |
+            liga-do-bem-botucatu*.apk
+
+      - name: 📊 Build Summary
+        if: always()
+        run: |
+          echo "## 🎯 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: React Native 0.76.5 Nativo" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "liga-do-bem-botucatu-v1.2.3.apk" ]; then
+            APK_SIZE=$(du -h liga-do-bem-botucatu-v1.2.3.apk | cut -f1)
+            echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **APK gerado com React Native 0.76.5 Nativo!**" >> $GITHUB_STEP_SUMMARY
+          elif [ -f "liga-do-bem-botucatu-v1.2.3-debug.apk" ]; then
+            APK_SIZE=$(du -h liga-do-bem-botucatu-v1.2.3-debug.apk | cut -f1)
+            echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Debug APK gerado!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build falhou**" >> $GITHUB_STEP_SUMMARY
+          fi
