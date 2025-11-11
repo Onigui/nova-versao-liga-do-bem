@@ -44,7 +44,33 @@ jobs:
 
       - name: 📦 Install dependencies
         working-directory: ./mobile
-        run: npm ci
+        run: |
+          npm ci
+          
+          # Verificar se Capacitor CLI está instalado
+          if ! command -v cap &> /dev/null; then
+            npm install -g @capacitor/cli
+          fi
+
+      - name: 🔧 Initialize Capacitor Android (if needed)
+        working-directory: ./mobile
+        run: |
+          echo "🔍 Verificando se Android está inicializado..."
+          
+          if [ ! -d "android" ]; then
+            echo "📱 Android não existe, inicializando Capacitor..."
+            
+            # Adicionar plataforma Android
+            npx cap add android
+            
+            echo "✅ Android inicializado com Capacitor"
+          else
+            echo "✅ Android já existe, sincronizando..."
+            npx cap sync android
+          fi
+          
+          echo "📱 Estrutura do projeto:"
+          ls -la android/ || echo "Erro ao listar android/"
 
       - name: 🔍 Verificar versão do app
         working-directory: ./mobile
@@ -52,7 +78,11 @@ jobs:
           echo "📱 Versão atual:"
           cat package.json | grep version
           echo "🤖 Android:"
-          cat android/app/build.gradle | grep versionName || echo "Usando versão do package.json"
+          if [ -f "android/app/build.gradle" ]; then
+            cat android/app/build.gradle | grep versionName || echo "Usando versão do package.json"
+          else
+            echo "build.gradle ainda não existe, será criado pelo Capacitor"
+          fi
 
       - name: 🔧 Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -117,24 +147,57 @@ jobs:
         run: |
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
           
+          echo "🔍 Verificando ambiente de build..."
+          echo "Java version:"
+          java -version
+          echo ""
+          echo "Gradle version:"
+          ./gradlew --version || echo "Gradle não encontrado"
+          echo ""
+          echo "Android SDK:"
+          echo $ANDROID_HOME
+          echo ""
+          
           # Dar permissão de execução ao gradlew
           chmod +x gradlew
+          
+          # Limpar build anterior
+          echo "🧹 Limpando builds anteriores..."
+          ./gradlew clean --no-daemon || echo "Clean falhou, continuando..."
           
           # Build
           if [ "$BUILD_TYPE" = "release" ]; then
             echo "🏗️ Building RELEASE APK..."
-            ./gradlew assembleRelease --no-daemon --stacktrace
+            ./gradlew assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build.log
+            BUILD_EXIT_CODE=${PIPESTATUS[0]}
+            
+            if [ $BUILD_EXIT_CODE -ne 0 ]; then
+              echo "❌ Build falhou! Mostrando últimas 100 linhas do log:"
+              tail -100 build.log
+              exit $BUILD_EXIT_CODE
+            fi
             
             # Copiar APK para nome consistente
-            cp app/build/outputs/apk/release/app-release.apk \
-               app/build/outputs/apk/release/liga-do-bem-botucatu.apk
+            if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+              cp app/build/outputs/apk/release/app-release.apk \
+                 app/build/outputs/apk/release/liga-do-bem-botucatu.apk
+            fi
           else
             echo "🏗️ Building DEBUG APK..."
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
+            BUILD_EXIT_CODE=${PIPESTATUS[0]}
+            
+            if [ $BUILD_EXIT_CODE -ne 0 ]; then
+              echo "❌ Build falhou! Mostrando últimas 100 linhas do log:"
+              tail -100 build.log
+              exit $BUILD_EXIT_CODE
+            fi
             
             # Copiar APK para nome consistente
-            cp app/build/outputs/apk/debug/app-debug.apk \
-               app/build/outputs/apk/debug/liga-do-bem-botucatu-debug.apk
+            if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+              cp app/build/outputs/apk/debug/app-debug.apk \
+                 app/build/outputs/apk/debug/liga-do-bem-botucatu-debug.apk
+            fi
           fi
 
       - name: 📊 APK Info
