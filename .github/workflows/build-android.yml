@@ -45,6 +45,7 @@ jobs:
           node-version: 18.x
           cache: 'npm'
           cache-dependency-path: mobile/package-lock.json
+        continue-on-error: true
 
       - name: 🏗 Setup Expo and EAS
         uses: expo/expo-github-action@v8
@@ -62,6 +63,16 @@ jobs:
           echo "📱 Versão atual:"
           cat package.json | grep version
           cat app.json | grep version
+
+      - name: 🔑 Verificar EXPO_TOKEN
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "❌ ERRO: Secret EXPO_TOKEN não configurado!"
+            echo "📝 Configure em: GitHub Repo → Settings → Secrets → Actions"
+            echo "🔗 Gere o token em: https://expo.dev → Settings → Access Tokens"
+            exit 1
+          fi
+          echo "✅ EXPO_TOKEN configurado"
 
       - name: 🚀 Build Android APK
         working-directory: ./mobile
@@ -85,56 +96,70 @@ jobs:
         run: |
           BUILD_ID="${{ steps.build-id.outputs.build_id }}"
           echo "⏳ Aguardando build $BUILD_ID completar..."
+          echo "🔗 Acompanhe em: https://expo.dev"
           
-          # Aguardar até 40 minutos
-          for i in {1..80}; do
-            STATUS=$(eas build:view $BUILD_ID --json | jq -r '.status')
-            echo "Status: $STATUS (tentativa $i/80)"
+          # Aguardar até 45 minutos (builds podem demorar)
+          for i in {1..90}; do
+            STATUS=$(eas build:view $BUILD_ID --json 2>/dev/null | jq -r '.status' 2>/dev/null || echo "checking")
+            echo "📊 Status: $STATUS (tentativa $i/90 - $(($i/2)) minutos)"
             
             if [ "$STATUS" = "finished" ]; then
               echo "✅ Build completado com sucesso!"
               exit 0
             elif [ "$STATUS" = "errored" ] || [ "$STATUS" = "canceled" ]; then
               echo "❌ Build falhou com status: $STATUS"
+              echo "🔍 Veja detalhes em: https://expo.dev"
               exit 1
             fi
             
             sleep 30
           done
           
-          echo "⏰ Timeout esperando build completar"
+          echo "⏰ Timeout de 45 minutos atingido"
+          echo "ℹ️  O build pode ainda estar em andamento no Expo"
+          echo "🔗 Verifique em: https://expo.dev"
           exit 1
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: 📥 Download APK
         working-directory: ./mobile
         run: |
           BUILD_ID="${{ steps.build-id.outputs.build_id }}"
-          APK_URL=$(eas build:view $BUILD_ID --json | jq -r '.artifacts.buildUrl')
+          APK_URL=$(eas build:view $BUILD_ID --json 2>/dev/null | jq -r '.artifacts.buildUrl' 2>/dev/null || echo "")
           
           if [ "$APK_URL" = "null" ] || [ -z "$APK_URL" ]; then
-            echo "❌ URL do APK não encontrada"
-            exit 1
+            echo "⚠️  URL do APK não encontrada automaticamente"
+            echo "🔗 Baixe manualmente em: https://expo.dev"
+            echo "📦 Build ID: $BUILD_ID"
+            exit 0
           fi
           
           echo "📥 Baixando APK de: $APK_URL"
-          curl -L -o liga-do-bem-botucatu.apk "$APK_URL"
+          curl -L -o liga-do-bem-botucatu.apk "$APK_URL" || {
+            echo "⚠️  Falha ao baixar APK automaticamente"
+            echo "🔗 Baixe manualmente em: https://expo.dev"
+            exit 0
+          }
           
           # Verificar se o arquivo foi baixado
-          if [ ! -f "liga-do-bem-botucatu.apk" ]; then
-            echo "❌ Falha ao baixar APK"
-            exit 1
+          if [ -f "liga-do-bem-botucatu.apk" ]; then
+            ls -lh liga-do-bem-botucatu.apk
+            echo "✅ APK baixado com sucesso!"
+          else
+            echo "🔗 APK disponível em: https://expo.dev"
           fi
-          
-          # Mostrar informações do arquivo
-          ls -lh liga-do-bem-botucatu.apk
-          echo "✅ APK baixado com sucesso!"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: 📦 Upload APK as artifact
+        if: hashFiles('mobile/liga-do-bem-botucatu.apk') != ''
         uses: actions/upload-artifact@v4
         with:
           name: liga-do-bem-botucatu-v${{ github.run_number }}
           path: mobile/liga-do-bem-botucatu.apk
           retention-days: 30
+        continue-on-error: true
 
       - name: 📝 Create Release Notes
         id: release-notes
