@@ -108,13 +108,13 @@ Para atualizar:
 ## 🐛 Troubleshooting
 
 ### Erro: "Reanimated version incompatible"
-**Solução**: Use `react-native-reanimated` **3.0.2** (última versão 100% compatível com RN 0.73.6)
+**Solução**: Use `react-native-reanimated` **2.17.0** (série 2.x compatível com RN 0.73.6)
 
 Versões testadas:
-- ❌ 3.6.0 → Requer RN 0.78+
-- ❌ 3.5.4 → Erro `isIdle()` compilação Java
-- ❌ 3.3.0 → Erro `R.id.action_bar_root` compilação Java
-- ✅ **3.0.2** → Funciona perfeitamente!
+- ❌ **Série 3.x** (3.0.2, 3.3.0, 3.5.4, 3.6.0) → TODAS tem erros compilação com RN 0.73
+  - Erro: `R.id.action_bar_root` não encontrado
+  - Erro: `isIdle()` não implementado
+- ✅ **Série 2.x (2.17.0)** → Compatível e estável com RN 0.73!
 
 ### Erro: "Build failed"
 ```bash
