@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,12 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../services/AuthService';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useAuth} from '../services/AuthService';
 
-export default function VolunteerScreen({ navigation }) {
-  const { user, isAuthenticated } = useAuth();
+export default function VolunteerScreen({navigation}) {
+  const {user, isAuthenticated} = useAuth();
   const [stats, setStats] = useState({
     totalHours: 0,
     eventsAttended: 0,
@@ -72,12 +72,13 @@ export default function VolunteerScreen({ navigation }) {
       'Seja Voluntário',
       'Preencha o formulário para se tornar um voluntário da Liga do Bem!',
       [
-        { text: 'Cancelar', style: 'cancel' },
+        {text: 'Cancelar', style: 'cancel'},
         {
           text: 'Preencher Formulário',
-          onPress: () => Alert.alert('Em desenvolvimento', 'Formulário em breve!'),
+          onPress: () =>
+            Alert.alert('Em desenvolvimento', 'Formulário em breve!'),
         },
-      ]
+      ],
     );
   };
 
@@ -86,8 +87,7 @@ export default function VolunteerScreen({ navigation }) {
       <View style={styles.container}>
         <LinearGradient
           colors={['#8B5CF6', '#EC4899']}
-          style={styles.loginPromptContainer}
-        >
+          style={styles.loginPromptContainer}>
           <Ionicons name="people" size={64} color="#FFFFFF" />
           <Text style={styles.loginPromptTitle}>Seja Voluntário!</Text>
           <Text style={styles.loginPromptText}>
@@ -95,8 +95,7 @@ export default function VolunteerScreen({ navigation }) {
           </Text>
           <TouchableOpacity
             style={styles.loginPromptButton}
-            onPress={() => navigation.navigate('Auth')}
-          >
+            onPress={() => navigation.navigate('Auth')}>
             <Text style={styles.loginPromptButtonText}>Fazer Login</Text>
           </TouchableOpacity>
         </LinearGradient>
@@ -110,13 +109,9 @@ export default function VolunteerScreen({ navigation }) {
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+      }>
       {/* Header Stats */}
-      <LinearGradient
-        colors={['#8B5CF6', '#EC4899']}
-        style={styles.header}
-      >
+      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <Text style={styles.headerTitle}>Meu Voluntariado</Text>
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
@@ -147,11 +142,13 @@ export default function VolunteerScreen({ navigation }) {
             </View>
             <View style={styles.levelInfo}>
               <Text style={styles.levelTitle}>Voluntário Bronze</Text>
-              <Text style={styles.levelSubtitle}>60 pontos para o próximo nível</Text>
+              <Text style={styles.levelSubtitle}>
+                60 pontos para o próximo nível
+              </Text>
             </View>
           </View>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: '80%' }]} />
+            <View style={[styles.progressFill, {width: '80%'}]} />
           </View>
         </View>
       </View>
@@ -162,12 +159,10 @@ export default function VolunteerScreen({ navigation }) {
         <View style={styles.actionsGrid}>
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => navigation.navigate('EventDetail')}
-          >
+            onPress={() => navigation.navigate('EventDetail')}>
             <LinearGradient
               colors={['#8B5CF6', '#7C3AED']}
-              style={styles.actionGradient}
-            >
+              style={styles.actionGradient}>
               <Ionicons name="calendar" size={28} color="#FFFFFF" />
             </LinearGradient>
             <Text style={styles.actionText}>Próximos Eventos</Text>
@@ -175,12 +170,10 @@ export default function VolunteerScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={handleBecomeVolunteer}
-          >
+            onPress={handleBecomeVolunteer}>
             <LinearGradient
               colors={['#EC4899', '#DB2777']}
-              style={styles.actionGradient}
-            >
+              style={styles.actionGradient}>
               <Ionicons name="person-add" size={28} color="#FFFFFF" />
             </LinearGradient>
             <Text style={styles.actionText}>Cadastrar-se</Text>
@@ -188,12 +181,10 @@ export default function VolunteerScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => Alert.alert('Em desenvolvimento', 'Em breve!')}
-          >
+            onPress={() => Alert.alert('Em desenvolvimento', 'Em breve!')}>
             <LinearGradient
               colors={['#10B981', '#059669']}
-              style={styles.actionGradient}
-            >
+              style={styles.actionGradient}>
               <Ionicons name="trophy" size={28} color="#FFFFFF" />
             </LinearGradient>
             <Text style={styles.actionText}>Ranking</Text>
@@ -201,12 +192,10 @@ export default function VolunteerScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => Alert.alert('Em desenvolvimento', 'Em breve!')}
-          >
+            onPress={() => Alert.alert('Em desenvolvimento', 'Em breve!')}>
             <LinearGradient
               colors={['#F59E0B', '#D97706']}
-              style={styles.actionGradient}
-            >
+              style={styles.actionGradient}>
               <Ionicons name="gift" size={28} color="#FFFFFF" />
             </LinearGradient>
             <Text style={styles.actionText}>Recompensas</Text>
@@ -217,23 +206,25 @@ export default function VolunteerScreen({ navigation }) {
       {/* My Events */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Meus Eventos</Text>
-        {events.map((event) => (
+        {events.map(event => (
           <TouchableOpacity
             key={event.id}
             style={styles.eventCard}
-            onPress={() => navigation.navigate('EventDetail', { event })}
-          >
+            onPress={() => navigation.navigate('EventDetail', {event})}>
             <View style={styles.eventLeft}>
               <View
                 style={[
                   styles.eventIconContainer,
                   event.status === 'completed'
-                    ? { backgroundColor: '#D1FAE5' }
-                    : { backgroundColor: '#DBEAFE' },
-                ]}
-              >
+                    ? {backgroundColor: '#D1FAE5'}
+                    : {backgroundColor: '#DBEAFE'},
+                ]}>
                 <Ionicons
-                  name={event.status === 'completed' ? 'checkmark-circle' : 'calendar'}
+                  name={
+                    event.status === 'completed'
+                      ? 'checkmark-circle'
+                      : 'calendar'
+                  }
                   size={24}
                   color={event.status === 'completed' ? '#10B981' : '#3B82F6'}
                 />
@@ -258,7 +249,7 @@ export default function VolunteerScreen({ navigation }) {
       {/* Benefits */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Benefícios do Voluntário</Text>
-        
+
         <View style={styles.benefitCard}>
           <Ionicons name="star" size={20} color="#F59E0B" />
           <Text style={styles.benefitText}>
@@ -374,7 +365,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -449,7 +440,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -500,4 +491,3 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
 });
-

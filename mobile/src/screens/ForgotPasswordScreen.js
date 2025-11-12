@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
-export default function ForgotPasswordScreen({ navigation }) {
+export default function ForgotPasswordScreen({navigation}) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -40,7 +40,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({email}),
       });
 
       if (response.ok) {
@@ -57,10 +57,7 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   if (emailSent) {
     return (
-      <LinearGradient
-        colors={['#8B5CF6', '#EC4899']}
-        style={styles.container}
-      >
+      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Success Icon */}
           <View style={styles.successContainer}>
@@ -73,18 +70,17 @@ export default function ForgotPasswordScreen({ navigation }) {
               <Text style={styles.successEmail}>{email}</Text>
             </Text>
             <Text style={styles.successSubtext}>
-              Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.
+              Verifique sua caixa de entrada e siga as instruções para redefinir
+              sua senha.
             </Text>
 
             {/* Back to Login Button */}
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.navigate('Login')}
-            >
+              onPress={() => navigation.navigate('Login')}>
               <LinearGradient
                 colors={['#FFFFFF', '#FFFFFF']}
-                style={styles.backButtonGradient}
-              >
+                style={styles.backButtonGradient}>
                 <Text style={styles.backButtonText}>Voltar para Login</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -92,10 +88,10 @@ export default function ForgotPasswordScreen({ navigation }) {
             {/* Resend Link */}
             <TouchableOpacity
               onPress={() => setEmailSent(false)}
-              style={styles.resendLink}
-            >
+              style={styles.resendLink}>
               <Text style={styles.resendLinkText}>
-                Não recebeu? <Text style={styles.resendLinkBold}>Reenviar e-mail</Text>
+                Não recebeu?{' '}
+                <Text style={styles.resendLinkBold}>Reenviar e-mail</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -105,28 +101,22 @@ export default function ForgotPasswordScreen({ navigation }) {
   }
 
   return (
-    <LinearGradient
-      colors={['#8B5CF6', '#EC4899']}
-      style={styles.container}
-    >
+    <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
+        style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
-              style={styles.headerBackButton}
-            >
+              style={styles.headerBackButton}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Recuperar Senha</Text>
-            <View style={{ width: 40 }} />
+            <View style={{width: 40}} />
           </View>
 
           {/* Icon */}
@@ -140,12 +130,18 @@ export default function ForgotPasswordScreen({ navigation }) {
           <View style={styles.card}>
             <Text style={styles.title}>Esqueceu sua senha?</Text>
             <Text style={styles.subtitle}>
-              Não se preocupe! Digite seu e-mail e enviaremos um link para você redefinir sua senha.
+              Não se preocupe! Digite seu e-mail e enviaremos um link para você
+              redefinir sua senha.
             </Text>
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Seu e-mail"
@@ -160,22 +156,30 @@ export default function ForgotPasswordScreen({ navigation }) {
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                loading && styles.submitButtonDisabled,
+              ]}
               onPress={handleResetPassword}
-              disabled={loading}
-            >
+              disabled={loading}>
               <LinearGradient
                 colors={['#8B5CF6', '#7C3AED']}
                 style={styles.submitButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 0}}>
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons name="mail" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.submitButtonText}>Enviar Link de Recuperação</Text>
+                    <Ionicons
+                      name="mail"
+                      size={20}
+                      color="#FFFFFF"
+                      style={{marginRight: 8}}
+                    />
+                    <Text style={styles.submitButtonText}>
+                      Enviar Link de Recuperação
+                    </Text>
                   </>
                 )}
               </LinearGradient>
@@ -184,9 +188,13 @@ export default function ForgotPasswordScreen({ navigation }) {
             {/* Back to Login Link */}
             <TouchableOpacity
               onPress={() => navigation.navigate('Login')}
-              style={styles.loginLink}
-            >
-              <Ionicons name="arrow-back" size={16} color="#8B5CF6" style={{ marginRight: 4 }} />
+              style={styles.loginLink}>
+              <Ionicons
+                name="arrow-back"
+                size={16}
+                color="#8B5CF6"
+                style={{marginRight: 4}}
+              />
               <Text style={styles.loginLinkText}>Voltar para login</Text>
             </TouchableOpacity>
           </View>
@@ -244,7 +252,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: {width: 0, height: 10},
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 10,
@@ -375,4 +383,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../services/AuthService';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useAuth} from '../services/AuthService';
 
-export default function LoginScreen({ navigation }) {
-  const { login, continueAsGuest } = useAuth();
+export default function LoginScreen({navigation}) {
+  const {login, continueAsGuest} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,7 +38,10 @@ export default function LoginScreen({ navigation }) {
       // Se success = true, o AuthProvider já atualiza o estado e o usuário será redirecionado automaticamente
     } catch (error) {
       console.error('Erro no login:', error);
-      Alert.alert('Erro', 'Não foi possível fazer login. Verifique sua conexão e tente novamente.');
+      Alert.alert(
+        'Erro',
+        'Não foi possível fazer login. Verifique sua conexão e tente novamente.',
+      );
     } finally {
       setLoading(false);
     }
@@ -61,18 +64,13 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <LinearGradient
-      colors={['#8B5CF6', '#EC4899']}
-      style={styles.container}
-    >
+    <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
+        style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           {/* Logo */}
           <View style={styles.logoContainer}>
             <View style={styles.logoCircle}>
@@ -91,7 +89,12 @@ export default function LoginScreen({ navigation }) {
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Seu e-mail"
@@ -106,7 +109,12 @@ export default function LoginScreen({ navigation }) {
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Sua senha"
@@ -118,8 +126,7 @@ export default function LoginScreen({ navigation }) {
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-              >
+                style={styles.eyeIcon}>
                 <Ionicons
                   name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                   size={20}
@@ -131,23 +138,23 @@ export default function LoginScreen({ navigation }) {
             {/* Forgot Password */}
             <TouchableOpacity
               onPress={() => navigation.navigate('ForgotPassword')}
-              style={styles.forgotPassword}
-            >
+              style={styles.forgotPassword}>
               <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
             </TouchableOpacity>
 
             {/* Login Button */}
             <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+              style={[
+                styles.loginButton,
+                loading && styles.loginButtonDisabled,
+              ]}
               onPress={handleLogin}
-              disabled={loading}
-            >
+              disabled={loading}>
               <LinearGradient
                 colors={['#8B5CF6', '#7C3AED']}
                 style={styles.loginButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 0}}>
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
@@ -166,8 +173,7 @@ export default function LoginScreen({ navigation }) {
             {/* Register Link */}
             <TouchableOpacity
               onPress={() => navigation.navigate('Register')}
-              style={styles.registerLink}
-            >
+              style={styles.registerLink}>
               <Text style={styles.registerLinkText}>
                 Não tem uma conta?{' '}
                 <Text style={styles.registerLinkTextBold}>Cadastre-se</Text>
@@ -178,9 +184,11 @@ export default function LoginScreen({ navigation }) {
           {/* Guest Access */}
           <TouchableOpacity
             onPress={handleGuestAccess}
-            style={[styles.guestAccess, guestLoading && styles.guestAccessDisabled]}
-            disabled={guestLoading}
-          >
+            style={[
+              styles.guestAccess,
+              guestLoading && styles.guestAccessDisabled,
+            ]}
+            disabled={guestLoading}>
             {guestLoading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
@@ -242,7 +250,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: {width: 0, height: 10},
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 10,
@@ -349,4 +357,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

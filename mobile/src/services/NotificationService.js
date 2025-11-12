@@ -1,56 +1,51 @@
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import {Platform, PermissionsAndroid} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
 
 const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
-// Configurar como as notificações são tratadas quando recebidas
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
 export class NotificationService {
   static async requestPermissions() {
-    const isDevice = !Constants.isDevice || Platform.OS !== 'web';
-    if (isDevice) {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Permissão para notificações negada');
+    if (
+      Platform.OS === 'android' &&
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    ) {
+      const notificationPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      );
+
+      if (notificationPermission !== PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('Permissão de notificação do Android negada');
         return false;
       }
-      
+    }
+
+    try {
+      const authorizationStatus = await messaging().requestPermission();
+      const granted =
+        authorizationStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authorizationStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (!granted) {
+        console.log('Permissão do Firebase Messaging negada');
+        return false;
+      }
+
+      await messaging().registerDeviceForRemoteMessages();
       return true;
-    } else {
-      console.log('Deve usar um dispositivo físico para notificações');
+    } catch (error) {
+      console.error('Erro ao solicitar permissões de notificação:', error);
       return false;
     }
   }
 
-  static async getExpoPushToken() {
-    if (Device.isDevice) {
-      try {
-        const token = await Notifications.getExpoPushTokenAsync({
-          projectId: 'liga-do-bem-botucatu', // Seu project ID do Expo
-        });
-        return token.data;
-      } catch (error) {
-        console.error('Erro ao obter token push:', error);
-        return null;
-      }
-    } else {
-      console.log('Deve usar um dispositivo físico para obter token push');
+  static async getDeviceToken() {
+    try {
+      await messaging().registerDeviceForRemoteMessages();
+      const token = await messaging().getToken();
+      return token;
+    } catch (error) {
+      console.error('Erro ao obter token do Firebase Messaging:', error);
       return null;
     }
   }
@@ -63,9 +58,9 @@ export class NotificationService {
         return false;
       }
 
-      // Obter token do Expo
-      const expoPushToken = await this.getExpoPushToken();
-      if (!expoPushToken) {
+      // Obter token do Firebase Cloud Messaging
+      const messagingToken = await this.getDeviceToken();
+      if (!messagingToken) {
         return false;
       }
 
@@ -74,21 +69,22 @@ export class NotificationService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`,
+          Authorization: `Bearer ${userToken}`,
         },
         body: JSON.stringify({
-          token: expoPushToken,
+          token: messagingToken,
+          provider: 'fcm',
           platform: Platform.OS,
           deviceInfo: {
-            model: Device.modelName,
-            osVersion: Device.osVersion,
+            model: Platform.constants?.Model || Platform.OS,
+            osVersion: String(Platform.Version),
           },
         }),
       });
 
       if (response.ok) {
         // Salvar token localmente
-        await AsyncStorage.setItem('expo_push_token', expoPushToken);
+        await AsyncStorage.setItem('push_notification_token', messagingToken);
         console.log('Token push registrado com sucesso');
         return true;
       } else {
@@ -102,48 +98,42 @@ export class NotificationService {
   }
 
   static async scheduleLocalNotification(title, body, data = {}) {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data,
-        },
-        trigger: null, // Enviar imediatamente
-      });
-    } catch (error) {
-      console.error('Erro ao agendar notificação local:', error);
-    }
+    console.warn('Agendamento local de notificações não é suportado sem Expo.');
   }
 
-  static setupNotificationListeners() {
-    // Listener para notificações recebidas quando o app está em primeiro plano
-    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notificação recebida:', notification);
-    });
+  static setupNotificationListeners({onMessage, onOpened} = {}) {
+    const foregroundSubscription = messaging().onMessage(
+      async remoteMessage => {
+        console.log('Notificação recebida em primeiro plano:', remoteMessage);
+        if (onMessage) {
+          onMessage(remoteMessage);
+        }
+      },
+    );
 
-    // Listener para quando o usuário toca na notificação
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Usuário tocou na notificação:', response);
-      
-      // Navegar para a tela apropriada baseada no tipo de notificação
-      const { type, data } = response.notification.request.content.data;
-      
-      if (type === 'adoption') {
-        // Navegar para adoções
-        console.log('Navegar para adoções');
-      } else if (type === 'donation') {
-        // Navegar para doações
-        console.log('Navegar para doações');
-      } else if (type === 'partner') {
-        // Navegar para parceiros
-        console.log('Navegar para parceiros');
-      }
-    });
+    const backgroundSubscription = messaging().onNotificationOpenedApp(
+      remoteMessage => {
+        console.log('Notificação aberta pelo usuário:', remoteMessage);
+        if (onOpened) {
+          onOpened(remoteMessage);
+        }
+      },
+    );
+
+    messaging()
+      .getInitialNotification()
+      .then(remoteMessage => {
+        if (remoteMessage && onOpened) {
+          onOpened(remoteMessage);
+        }
+      })
+      .catch(error =>
+        console.error('Erro ao obter notificação inicial:', error),
+      );
 
     return () => {
-      foregroundSubscription.remove();
-      responseSubscription.remove();
+      foregroundSubscription();
+      backgroundSubscription();
     };
   }
 
@@ -153,7 +143,7 @@ export class NotificationService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`,
+          Authorization: `Bearer ${userToken}`,
         },
         body: JSON.stringify({
           title: 'Teste Liga do Bem',
@@ -179,7 +169,7 @@ export class NotificationService {
       const response = await fetch(`${API_BASE_URL}/notifications/history`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${userToken}`,
+          Authorization: `Bearer ${userToken}`,
         },
       });
 

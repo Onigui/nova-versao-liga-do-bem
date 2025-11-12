@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 export default function SearchPartnerScreen() {
   const [cnpj, setCnpj] = useState('');
@@ -18,7 +18,7 @@ export default function SearchPartnerScreen() {
   const [partnerData, setPartnerData] = useState(null);
 
   // Função para formatar CNPJ
-  const formatCNPJ = (value) => {
+  const formatCNPJ = value => {
     const numbers = value.replace(/\D/g, '');
     return numbers
       .replace(/(\d{2})(\d)/, '$1.$2')
@@ -29,7 +29,7 @@ export default function SearchPartnerScreen() {
   };
 
   // Função para validar CNPJ
-  const validateCNPJ = (cnpj) => {
+  const validateCNPJ = cnpj => {
     const numbers = cnpj.replace(/\D/g, '');
     return numbers.length === 14;
   };
@@ -37,7 +37,7 @@ export default function SearchPartnerScreen() {
   // Função para buscar dados do parceiro por CNPJ
   const searchPartner = async () => {
     const cleanCNPJ = cnpj.replace(/\D/g, '');
-    
+
     if (!validateCNPJ(cnpj)) {
       Alert.alert('CNPJ Inválido', 'Por favor, digite um CNPJ válido.');
       return;
@@ -52,24 +52,30 @@ export default function SearchPartnerScreen() {
       // Dados simulados baseados no CNPJ
       const mockPartnerData = {
         cnpj: cnpj,
-        name: "Pet Shop Central",
-        fantasyName: "Petshop Central",
-        category: "Pet Shop",
-        address: "Rua das Flores, 123, Botucatu - SP",
-        phone: "(14) 3882-1234",
-        email: "contato@petshopcentral.com",
-        website: "https://petshopcentral.com",
-        hours: "Seg-Sex: 08:00-18:00\nSáb: 08:00-12:00",
-        discount: "15% de desconto",
-        description: "Pet shop completo com produtos de qualidade e serviços de banho e tosa.",
-        services: ["Produtos para pets", "Banho e tosa", "Veterinário", "Hotel para pets"],
+        name: 'Pet Shop Central',
+        fantasyName: 'Petshop Central',
+        category: 'Pet Shop',
+        address: 'Rua das Flores, 123, Botucatu - SP',
+        phone: '(14) 3882-1234',
+        email: 'contato@petshopcentral.com',
+        website: 'https://petshopcentral.com',
+        hours: 'Seg-Sex: 08:00-18:00\nSáb: 08:00-12:00',
+        discount: '15% de desconto',
+        description:
+          'Pet shop completo com produtos de qualidade e serviços de banho e tosa.',
+        services: [
+          'Produtos para pets',
+          'Banho e tosa',
+          'Veterinário',
+          'Hotel para pets',
+        ],
         latitude: -22.8858,
         longitude: -48.4449,
         isOpen: true,
         rating: 4.8,
         reviews: 127,
-        memberSince: "2023-01-15",
-        totalSavings: "R$ 2.450,00"
+        memberSince: '2023-01-15',
+        totalSavings: 'R$ 2.450,00',
       };
 
       setPartnerData(mockPartnerData);
@@ -83,9 +89,9 @@ export default function SearchPartnerScreen() {
 
   const openInMaps = () => {
     if (!partnerData) return;
-    
+
     const url = `https://www.google.com/maps/dir/?api=1&destination=${partnerData.latitude},${partnerData.longitude}`;
-    
+
     Linking.canOpenURL(url).then(supported => {
       if (supported) {
         Linking.openURL(url);
@@ -97,14 +103,14 @@ export default function SearchPartnerScreen() {
 
   const callPartner = () => {
     if (!partnerData) return;
-    
+
     const url = `tel:${partnerData.phone}`;
     Linking.openURL(url);
   };
 
   const openWebsite = () => {
     if (!partnerData?.website) return;
-    
+
     Linking.canOpenURL(partnerData.website).then(supported => {
       if (supported) {
         Linking.openURL(partnerData.website);
@@ -128,9 +134,14 @@ export default function SearchPartnerScreen() {
               <Text style={styles.partnerCategory}>{partnerData.category}</Text>
             </View>
           </View>
-          
+
           <View style={styles.partnerStatus}>
-            <View style={[styles.statusDot, { backgroundColor: partnerData.isOpen ? '#10B981' : '#EF4444' }]} />
+            <View
+              style={[
+                styles.statusDot,
+                {backgroundColor: partnerData.isOpen ? '#10B981' : '#EF4444'},
+              ]}
+            />
             <Text style={styles.statusText}>
               {partnerData.isOpen ? 'Aberto' : 'Fechado'}
             </Text>
@@ -141,27 +152,27 @@ export default function SearchPartnerScreen() {
           <View style={styles.discountContainer}>
             <Text style={styles.discountText}>{partnerData.discount}</Text>
           </View>
-          
+
           <Text style={styles.description}>{partnerData.description}</Text>
-          
+
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>Informações de Contato</Text>
-            
+
             <View style={styles.infoRow}>
               <Ionicons name="location" size={20} color="#6B7280" />
               <Text style={styles.infoText}>{partnerData.address}</Text>
             </View>
-            
+
             <View style={styles.infoRow}>
               <Ionicons name="call" size={20} color="#6B7280" />
               <Text style={styles.infoText}>{partnerData.phone}</Text>
             </View>
-            
+
             <View style={styles.infoRow}>
               <Ionicons name="mail" size={20} color="#6B7280" />
               <Text style={styles.infoText}>{partnerData.email}</Text>
             </View>
-            
+
             {partnerData.website && (
               <TouchableOpacity style={styles.infoRow} onPress={openWebsite}>
                 <Ionicons name="globe" size={20} color="#8B5CF6" />
@@ -194,7 +205,9 @@ export default function SearchPartnerScreen() {
               <View style={styles.ratingStars}>
                 <Ionicons name="star" size={20} color="#F59E0B" />
                 <Text style={styles.ratingText}>{partnerData.rating}</Text>
-                <Text style={styles.reviewsText}>({partnerData.reviews} avaliações)</Text>
+                <Text style={styles.reviewsText}>
+                  ({partnerData.reviews} avaliações)
+                </Text>
               </View>
             </View>
           </View>
@@ -203,7 +216,8 @@ export default function SearchPartnerScreen() {
             <Text style={styles.sectionTitle}>Parceiro da Liga do Bem</Text>
             <View style={styles.memberInfo}>
               <Text style={styles.memberText}>
-                Membro desde: {new Date(partnerData.memberSince).toLocaleDateString('pt-BR')}
+                Membro desde:{' '}
+                {new Date(partnerData.memberSince).toLocaleDateString('pt-BR')}
               </Text>
               <Text style={styles.memberText}>
                 Total economizado pelos membros: {partnerData.totalSavings}
@@ -213,18 +227,16 @@ export default function SearchPartnerScreen() {
         </View>
 
         <View style={styles.cardActions}>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.mapButton]} 
-            onPress={openInMaps}
-          >
+          <TouchableOpacity
+            style={[styles.actionButton, styles.mapButton]}
+            onPress={openInMaps}>
             <Ionicons name="map" size={20} color="white" />
             <Text style={styles.actionButtonText}>Como chegar</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.callButton]} 
-            onPress={callPartner}
-          >
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.callButton]}
+            onPress={callPartner}>
             <Ionicons name="call" size={20} color="white" />
             <Text style={styles.actionButtonText}>Ligar</Text>
           </TouchableOpacity>
@@ -250,18 +262,17 @@ export default function SearchPartnerScreen() {
               style={styles.input}
               placeholder="Digite o CNPJ (ex: 12.345.678/0001-90)"
               value={cnpj}
-              onChangeText={(value) => setCnpj(formatCNPJ(value))}
+              onChangeText={value => setCnpj(formatCNPJ(value))}
               placeholderTextColor="#9CA3AF"
               keyboardType="numeric"
               maxLength={18}
             />
           </View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.searchButton}
             onPress={searchPartner}
-            disabled={searching || !cnpj.trim()}
-          >
+            disabled={searching || !cnpj.trim()}>
             {searching ? (
               <ActivityIndicator color="white" />
             ) : (
@@ -276,7 +287,7 @@ export default function SearchPartnerScreen() {
         <View style={styles.helpContainer}>
           <Ionicons name="information-circle" size={20} color="#6B7280" />
           <Text style={styles.helpText}>
-            Digite o CNPJ completo do parceiro para ver informações detalhadas, 
+            Digite o CNPJ completo do parceiro para ver informações detalhadas,
             localização e como chegar até o estabelecimento.
           </Text>
         </View>
