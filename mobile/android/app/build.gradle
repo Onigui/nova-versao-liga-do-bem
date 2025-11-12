@@ -52,7 +52,7 @@ react {
     // hermesFlags = ["-O", "-output-source-map"]
 
     /* Autolinking */
-    autolinkLibrariesWithApp()
+    // Autolinking is enabled by default via the React Native Gradle Plugin.
 }
 
 /**
@@ -133,3 +133,5 @@ dependencies {
     // Multidex
     implementation("androidx.multidex:multidex:2.0.1")
 }
+
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"

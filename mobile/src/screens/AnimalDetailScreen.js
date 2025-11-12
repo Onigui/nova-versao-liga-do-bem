@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,13 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const { width } = Dimensions.get('window');
+const {width} = Dimensions.get('window');
 
-export default function AnimalDetailScreen({ route, navigation }) {
-  const { animal } = route.params || {};
+export default function AnimalDetailScreen({route, navigation}) {
+  const {animal} = route.params || {};
   const [isFavorite, setIsFavorite] = useState(false);
 
   const handleAdopt = () => {
@@ -23,15 +23,18 @@ export default function AnimalDetailScreen({ route, navigation }) {
       'Solicitar Adoção',
       `Deseja solicitar a adoção de ${animal?.name || 'este animal'}?`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        {text: 'Cancelar', style: 'cancel'},
         {
           text: 'Sim, solicitar',
           onPress: () => {
-            Alert.alert('Sucesso!', 'Solicitação enviada! Entraremos em contato em breve.');
+            Alert.alert(
+              'Sucesso!',
+              'Solicitação enviada! Entraremos em contato em breve.',
+            );
             navigation.goBack();
           },
         },
-      ]
+      ],
     );
   };
 
@@ -46,7 +49,8 @@ export default function AnimalDetailScreen({ route, navigation }) {
     color: 'Caramelo',
     vaccinated: true,
     neutered: true,
-    description: 'Rex é um cachorro muito carinhoso e brincalhão. Adora crianças e se dá bem com outros animais. Está procurando um lar cheio de amor!',
+    description:
+      'Rex é um cachorro muito carinhoso e brincalhão. Adora crianças e se dá bem com outros animais. Está procurando um lar cheio de amor!',
     photos: [
       'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
       'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400',
@@ -61,14 +65,13 @@ export default function AnimalDetailScreen({ route, navigation }) {
         {/* Image Gallery */}
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: animalData.photos[0] }}
+            source={{uri: animalData.photos[0]}}
             style={styles.mainImage}
             resizeMode="cover"
           />
           <TouchableOpacity
             style={styles.favoriteButton}
-            onPress={() => setIsFavorite(!isFavorite)}
-          >
+            onPress={() => setIsFavorite(!isFavorite)}>
             <Ionicons
               name={isFavorite ? 'heart' : 'heart-outline'}
               size={24}
@@ -83,7 +86,9 @@ export default function AnimalDetailScreen({ route, navigation }) {
           <View style={styles.titleSection}>
             <View>
               <Text style={styles.name}>{animalData.name}</Text>
-              <Text style={styles.breed}>{animalData.breed} • {animalData.age}</Text>
+              <Text style={styles.breed}>
+                {animalData.breed} • {animalData.age}
+              </Text>
             </View>
             <View style={styles.genderBadge}>
               <Ionicons
@@ -101,19 +106,27 @@ export default function AnimalDetailScreen({ route, navigation }) {
               <Text style={styles.quickInfoText}>{animalData.size}</Text>
             </View>
             <View style={styles.quickInfoItem}>
-              <Ionicons name="color-palette-outline" size={18} color="#6B7280" />
+              <Ionicons
+                name="color-palette-outline"
+                size={18}
+                color="#6B7280"
+              />
               <Text style={styles.quickInfoText}>{animalData.color}</Text>
             </View>
             {animalData.vaccinated && (
               <View style={styles.quickInfoItem}>
                 <Ionicons name="shield-checkmark" size={18} color="#10B981" />
-                <Text style={[styles.quickInfoText, { color: '#10B981' }]}>Vacinado</Text>
+                <Text style={[styles.quickInfoText, {color: '#10B981'}]}>
+                  Vacinado
+                </Text>
               </View>
             )}
             {animalData.neutered && (
               <View style={styles.quickInfoItem}>
                 <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                <Text style={[styles.quickInfoText, { color: '#10B981' }]}>Castrado</Text>
+                <Text style={[styles.quickInfoText, {color: '#10B981'}]}>
+                  Castrado
+                </Text>
               </View>
             )}
           </View>
@@ -151,7 +164,8 @@ export default function AnimalDetailScreen({ route, navigation }) {
           <View style={styles.rescueInfo}>
             <Ionicons name="information-circle" size={20} color="#8B5CF6" />
             <Text style={styles.rescueInfoText}>
-              Resgatado em {new Date(animalData.rescueDate).toLocaleDateString('pt-BR')}
+              Resgatado em{' '}
+              {new Date(animalData.rescueDate).toLocaleDateString('pt-BR')}
             </Text>
           </View>
         </View>
@@ -159,17 +173,18 @@ export default function AnimalDetailScreen({ route, navigation }) {
 
       {/* Adopt Button (Fixed) */}
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.adoptButton}
-          onPress={handleAdopt}
-        >
+        <TouchableOpacity style={styles.adoptButton} onPress={handleAdopt}>
           <LinearGradient
             colors={['#8B5CF6', '#7C3AED']}
             style={styles.adoptButtonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Ionicons name="heart" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 0}}>
+            <Ionicons
+              name="heart"
+              size={20}
+              color="#FFFFFF"
+              style={{marginRight: 8}}
+            />
             <Text style={styles.adoptButtonText}>Quero Adotar!</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -324,4 +339,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

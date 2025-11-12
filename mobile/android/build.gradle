@@ -1,3 +1,13 @@
+import groovy.json.JsonSlurper
+
+def reactNativeVersion = new JsonSlurper()
+        .parse(new File(rootDir, "../package.json"))
+        .dependencies["react-native"]
+
+if (reactNativeVersion?.startsWith("^") || reactNativeVersion?.startsWith("~")) {
+    reactNativeVersion = reactNativeVersion.substring(1)
+}
+
 buildscript {
     ext {
         buildToolsVersion = "34.0.0"
@@ -22,3 +32,21 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+subprojects { subproject ->
+    configurations.all {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("com.facebook.react:react-native"))
+                .using(module("com.facebook.react:react-android:$reactNativeVersion"))
+            substitute(module("com.facebook.react:hermes-engine"))
+                .using(module("com.facebook.react:hermes-android:$reactNativeVersion"))
+        }
+    }
+
+    if (subproject.name == "react-native-svg") {
+        subproject.dependencies.add(
+            "implementation",
+            "com.google.code.findbugs:jsr305:3.0.2",
+        )
+    }
+}
