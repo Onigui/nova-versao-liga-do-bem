@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Linking,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 export default function AboutScreen() {
   const handleContact = (type, value) => {
@@ -40,10 +40,10 @@ export default function AboutScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Nossa Missão</Text>
         <Text style={styles.sectionText}>
-          Promover o bem-estar animal através de adoções responsáveis, 
-          cuidados veterinários e conscientização da comunidade de Botucatu. 
-          Trabalhamos para garantir que todos os animais tenham uma vida digna 
-          e um lar cheio de amor.
+          Promover o bem-estar animal através de adoções responsáveis, cuidados
+          veterinários e conscientização da comunidade de Botucatu. Trabalhamos
+          para garantir que todos os animais tenham uma vida digna e um lar
+          cheio de amor.
         </Text>
       </View>
 
@@ -74,10 +74,9 @@ export default function AboutScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Contato</Text>
         <View style={styles.contactList}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.contactItem}
-            onPress={() => handleContact('phone', '+5514999999999')}
-          >
+            onPress={() => handleContact('phone', '+5514999999999')}>
             <Ionicons name="call" size={24} color="#8B5CF6" />
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>Telefone</Text>
@@ -85,10 +84,9 @@ export default function AboutScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.contactItem}
-            onPress={() => handleContact('email', 'contato@ligadobem.com')}
-          >
+            onPress={() => handleContact('email', 'contato@ligadobem.com')}>
             <Ionicons name="mail" size={24} color="#8B5CF6" />
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>Email</Text>
@@ -96,10 +94,9 @@ export default function AboutScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.contactItem}
-            onPress={() => handleContact('website', 'https://ligadobem.com')}
-          >
+            onPress={() => handleContact('website', 'https://ligadobem.com')}>
             <Ionicons name="globe" size={24} color="#8B5CF6" />
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>Website</Text>
@@ -195,7 +192,7 @@ const styles = StyleSheet.create({
     width: '48%',
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -212,7 +209,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -248,7 +245,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
