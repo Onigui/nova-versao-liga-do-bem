@@ -44,9 +44,11 @@ subprojects { subproject ->
     }
 
     if (subproject.name == "react-native-svg") {
-        subproject.dependencies.add(
-            "implementation",
-            "com.google.code.findbugs:jsr305:3.0.2",
-        )
+        subproject.plugins.withId("com.android.library") {
+            subproject.dependencies.add(
+                "implementation",
+                "com.google.code.findbugs:jsr305:3.0.2",
+            )
+        }
     }
 }
