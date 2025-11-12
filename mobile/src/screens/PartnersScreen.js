@@ -10,6 +10,7 @@ import {
   Platform,
   PermissionsAndroid,
   RefreshControl,
+  PermissionsAndroid,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import LinearGradient from 'react-native-linear-gradient';
