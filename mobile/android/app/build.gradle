@@ -52,7 +52,7 @@ react {
     // hermesFlags = ["-O", "-output-source-map"]
 
     /* Autolinking */
-    autolinkLibrariesWithApp()
+    // Autolinking is enabled by default via the React Native Gradle Plugin.
 }
 
 /**
