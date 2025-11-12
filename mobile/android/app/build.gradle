@@ -52,7 +52,9 @@ react {
     // hermesFlags = ["-O", "-output-source-map"]
 
     /* Autolinking */
-    autolinkLibrariesWithApp()
+    // React Native handles autolinking automatically with the Gradle plugin.
+    // The autolinkLibrariesWithApp helper is not available in RN 0.74, so we
+    // avoid calling it to prevent build failures during evaluation.
 }
 
 /**
