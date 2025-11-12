@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -9,43 +9,43 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../services/AuthService';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useAuth} from '../services/AuthService';
 
-export default function DonationScreen({ navigation }) {
-  const { user } = useAuth();
+export default function DonationScreen({navigation}) {
+  const {user} = useAuth();
   const [donationType, setDonationType] = useState('single'); // 'single' or 'recurring'
   const [amount, setAmount] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState(null); // 'pix', 'card', 'boleto'
 
   const predefinedAmounts = [
-    { value: 10, label: 'R$ 10' },
-    { value: 25, label: 'R$ 25' },
-    { value: 50, label: 'R$ 50' },
-    { value: 100, label: 'R$ 100' },
+    {value: 10, label: 'R$ 10'},
+    {value: 25, label: 'R$ 25'},
+    {value: 50, label: 'R$ 50'},
+    {value: 100, label: 'R$ 100'},
   ];
 
-  const handleDonationTypeChange = (type) => {
+  const handleDonationTypeChange = type => {
     setDonationType(type);
     setAmount('');
     setCustomAmount('');
     setPaymentMethod(null);
   };
 
-  const handleAmountSelect = (value) => {
+  const handleAmountSelect = value => {
     setAmount(value.toString());
     setCustomAmount('');
   };
 
-  const handleCustomAmountChange = (text) => {
+  const handleCustomAmountChange = text => {
     const numericValue = text.replace(/[^0-9]/g, '');
     setCustomAmount(numericValue);
     setAmount(numericValue);
   };
 
-  const handlePaymentMethod = (method) => {
+  const handlePaymentMethod = method => {
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert('Atenção', 'Selecione um valor para doar');
       return;
@@ -70,20 +70,20 @@ export default function DonationScreen({ navigation }) {
       Alert.alert(
         'Pagamento com Cartão',
         'Você será redirecionado para a página de pagamento seguro.',
-        [{ text: 'OK' }]
+        [{text: 'OK'}],
       );
     } else if (paymentMethod === 'boleto') {
       Alert.alert(
         'Boleto Bancário',
         'O boleto será enviado para seu e-mail em instantes.',
-        [{ text: 'OK' }]
+        [{text: 'OK'}],
       );
     }
   };
 
   const showPixPayment = () => {
     const pixKey = 'ligadobem@exemplo.com';
-    
+
     Alert.alert(
       'Pagamento via PIX',
       `Chave PIX: ${pixKey}\n\nValor: R$ ${parseFloat(amount).toFixed(2)}`,
@@ -92,21 +92,21 @@ export default function DonationScreen({ navigation }) {
           text: 'Copiar Chave',
           onPress: () => {
             Clipboard.setString(pixKey);
-            Alert.alert('Sucesso!', 'Chave PIX copiada para a área de transferência!');
+            Alert.alert(
+              'Sucesso!',
+              'Chave PIX copiada para a área de transferência!',
+            );
           },
         },
-        { text: 'OK' },
-      ]
+        {text: 'OK'},
+      ],
     );
   };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <LinearGradient
-        colors={['#8B5CF6', '#EC4899']}
-        style={styles.header}
-      >
+      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <Ionicons name="heart" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Fazer Doação</Text>
         <Text style={styles.headerSubtitle}>
@@ -123,8 +123,7 @@ export default function DonationScreen({ navigation }) {
               styles.typeButton,
               donationType === 'single' && styles.typeButtonActive,
             ]}
-            onPress={() => handleDonationTypeChange('single')}
-          >
+            onPress={() => handleDonationTypeChange('single')}>
             <Ionicons
               name="cash-outline"
               size={24}
@@ -134,8 +133,7 @@ export default function DonationScreen({ navigation }) {
               style={[
                 styles.typeButtonText,
                 donationType === 'single' && styles.typeButtonTextActive,
-              ]}
-            >
+              ]}>
               Doação Única
             </Text>
           </TouchableOpacity>
@@ -145,8 +143,7 @@ export default function DonationScreen({ navigation }) {
               styles.typeButton,
               donationType === 'recurring' && styles.typeButtonActive,
             ]}
-            onPress={() => handleDonationTypeChange('recurring')}
-          >
+            onPress={() => handleDonationTypeChange('recurring')}>
             <Ionicons
               name="repeat-outline"
               size={24}
@@ -156,8 +153,7 @@ export default function DonationScreen({ navigation }) {
               style={[
                 styles.typeButtonText,
                 donationType === 'recurring' && styles.typeButtonTextActive,
-              ]}
-            >
+              ]}>
               Mensal
             </Text>
           </TouchableOpacity>
@@ -168,21 +164,20 @@ export default function DonationScreen({ navigation }) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Valor da Doação</Text>
         <View style={styles.amountGrid}>
-          {predefinedAmounts.map((item) => (
+          {predefinedAmounts.map(item => (
             <TouchableOpacity
               key={item.value}
               style={[
                 styles.amountButton,
                 amount === item.value.toString() && styles.amountButtonActive,
               ]}
-              onPress={() => handleAmountSelect(item.value)}
-            >
+              onPress={() => handleAmountSelect(item.value)}>
               <Text
                 style={[
                   styles.amountButtonText,
-                  amount === item.value.toString() && styles.amountButtonTextActive,
-                ]}
-              >
+                  amount === item.value.toString() &&
+                    styles.amountButtonTextActive,
+                ]}>
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -210,21 +205,22 @@ export default function DonationScreen({ navigation }) {
       {amount && parseFloat(amount) > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Forma de Pagamento</Text>
-          
+
           <TouchableOpacity
             style={[
               styles.paymentMethod,
               paymentMethod === 'pix' && styles.paymentMethodActive,
             ]}
-            onPress={() => handlePaymentMethod('pix')}
-          >
+            onPress={() => handlePaymentMethod('pix')}>
             <View style={styles.paymentMethodLeft}>
-              <View style={[styles.paymentIcon, { backgroundColor: '#D1FAE5' }]}>
+              <View style={[styles.paymentIcon, {backgroundColor: '#D1FAE5'}]}>
                 <Ionicons name="qr-code" size={24} color="#10B981" />
               </View>
               <View>
                 <Text style={styles.paymentMethodTitle}>PIX</Text>
-                <Text style={styles.paymentMethodSubtitle}>Aprovação instantânea</Text>
+                <Text style={styles.paymentMethodSubtitle}>
+                  Aprovação instantânea
+                </Text>
               </View>
             </View>
             {paymentMethod === 'pix' && (
@@ -237,15 +233,16 @@ export default function DonationScreen({ navigation }) {
               styles.paymentMethod,
               paymentMethod === 'card' && styles.paymentMethodActive,
             ]}
-            onPress={() => handlePaymentMethod('card')}
-          >
+            onPress={() => handlePaymentMethod('card')}>
             <View style={styles.paymentMethodLeft}>
-              <View style={[styles.paymentIcon, { backgroundColor: '#DBEAFE' }]}>
+              <View style={[styles.paymentIcon, {backgroundColor: '#DBEAFE'}]}>
                 <Ionicons name="card" size={24} color="#3B82F6" />
               </View>
               <View>
                 <Text style={styles.paymentMethodTitle}>Cartão de Crédito</Text>
-                <Text style={styles.paymentMethodSubtitle}>Parcelamento disponível</Text>
+                <Text style={styles.paymentMethodSubtitle}>
+                  Parcelamento disponível
+                </Text>
               </View>
             </View>
             {paymentMethod === 'card' && (
@@ -258,15 +255,16 @@ export default function DonationScreen({ navigation }) {
               styles.paymentMethod,
               paymentMethod === 'boleto' && styles.paymentMethodActive,
             ]}
-            onPress={() => handlePaymentMethod('boleto')}
-          >
+            onPress={() => handlePaymentMethod('boleto')}>
             <View style={styles.paymentMethodLeft}>
-              <View style={[styles.paymentIcon, { backgroundColor: '#FEF3C7' }]}>
+              <View style={[styles.paymentIcon, {backgroundColor: '#FEF3C7'}]}>
                 <Ionicons name="barcode" size={24} color="#F59E0B" />
               </View>
               <View>
                 <Text style={styles.paymentMethodTitle}>Boleto Bancário</Text>
-                <Text style={styles.paymentMethodSubtitle}>Vencimento em 3 dias</Text>
+                <Text style={styles.paymentMethodSubtitle}>
+                  Vencimento em 3 dias
+                </Text>
               </View>
             </View>
             {paymentMethod === 'boleto' && (
@@ -281,8 +279,7 @@ export default function DonationScreen({ navigation }) {
         <View style={styles.summary}>
           <LinearGradient
             colors={['#F5F3FF', '#EDE9FE']}
-            style={styles.summaryCard}
-          >
+            style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tipo:</Text>
               <Text style={styles.summaryValue}>
@@ -311,10 +308,14 @@ export default function DonationScreen({ navigation }) {
             <LinearGradient
               colors={['#8B5CF6', '#7C3AED']}
               style={styles.donateButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <Ionicons name="heart" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 0}}>
+              <Ionicons
+                name="heart"
+                size={20}
+                color="#FFFFFF"
+                style={{marginRight: 8}}
+              />
               <Text style={styles.donateButtonText}>
                 Doar R$ {parseFloat(amount).toFixed(2)}
               </Text>
@@ -327,12 +328,14 @@ export default function DonationScreen({ navigation }) {
       <View style={styles.impactSection}>
         <Text style={styles.impactTitle}>Seu Impacto</Text>
         <Text style={styles.impactSubtitle}>Veja como sua doação ajuda:</Text>
-        
+
         <View style={styles.impactCard}>
           <Ionicons name="medical" size={24} color="#10B981" />
           <View style={styles.impactText}>
             <Text style={styles.impactCardTitle}>R$ 25 = Vacinas</Text>
-            <Text style={styles.impactCardText}>Vacina completa para um pet</Text>
+            <Text style={styles.impactCardText}>
+              Vacina completa para um pet
+            </Text>
           </View>
         </View>
 
@@ -340,7 +343,9 @@ export default function DonationScreen({ navigation }) {
           <Ionicons name="nutrition" size={24} color="#F59E0B" />
           <View style={styles.impactText}>
             <Text style={styles.impactCardTitle}>R$ 50 = Alimentação</Text>
-            <Text style={styles.impactCardText}>1 semana de ração para 5 pets</Text>
+            <Text style={styles.impactCardText}>
+              1 semana de ração para 5 pets
+            </Text>
           </View>
         </View>
 
@@ -348,7 +353,9 @@ export default function DonationScreen({ navigation }) {
           <Ionicons name="home" size={24} color="#3B82F6" />
           <View style={styles.impactText}>
             <Text style={styles.impactCardTitle}>R$ 100 = Abrigo</Text>
-            <Text style={styles.impactCardText}>Manutenção do abrigo por 1 mês</Text>
+            <Text style={styles.impactCardText}>
+              Manutenção do abrigo por 1 mês
+            </Text>
           </View>
         </View>
       </View>

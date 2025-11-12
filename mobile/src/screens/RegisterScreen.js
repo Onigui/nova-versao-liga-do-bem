@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../services/AuthService';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useAuth} from '../services/AuthService';
 
-export default function RegisterScreen({ navigation }) {
-  const { register } = useAuth();
+export default function RegisterScreen({navigation}) {
+  const {register} = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -31,7 +31,12 @@ export default function RegisterScreen({ navigation }) {
 
   const handleRegister = async () => {
     // Validações
-    if (!formData.name || !formData.email || !formData.phone || !formData.password) {
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.phone ||
+      !formData.password
+    ) {
       Alert.alert('Atenção', 'Preencha todos os campos obrigatórios');
       return;
     }
@@ -70,10 +75,13 @@ export default function RegisterScreen({ navigation }) {
         Alert.alert(
           'Sucesso!',
           'Conta criada com sucesso! Faça login para continuar.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          [{text: 'OK', onPress: () => navigation.navigate('Login')}],
         );
       } else {
-        Alert.alert('Erro', 'Não foi possível criar sua conta. Tente novamente.');
+        Alert.alert(
+          'Erro',
+          'Não foi possível criar sua conta. Tente novamente.',
+        );
       }
     } catch (error) {
       Alert.alert('Erro', 'Este e-mail já está em uso ou ocorreu um erro.');
@@ -83,32 +91,26 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const updateFormData = (field, value) => {
-    setFormData({ ...formData, [field]: value });
+    setFormData({...formData, [field]: value});
   };
 
   return (
-    <LinearGradient
-      colors={['#8B5CF6', '#EC4899']}
-      style={styles.container}
-    >
+    <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
+        style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
-              style={styles.backButton}
-            >
+              style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Criar Conta</Text>
-            <View style={{ width: 40 }} />
+            <View style={{width: 40}} />
           </View>
 
           {/* Form Card */}
@@ -120,26 +122,36 @@ export default function RegisterScreen({ navigation }) {
 
             {/* Name Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="person-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Nome completo"
                 placeholderTextColor="#9CA3AF"
                 value={formData.name}
-                onChangeText={(text) => updateFormData('name', text)}
+                onChangeText={text => updateFormData('name', text)}
                 autoCapitalize="words"
               />
             </View>
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="E-mail"
                 placeholderTextColor="#9CA3AF"
                 value={formData.email}
-                onChangeText={(text) => updateFormData('email', text)}
+                onChangeText={text => updateFormData('email', text)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -148,33 +160,42 @@ export default function RegisterScreen({ navigation }) {
 
             {/* Phone Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="call-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="call-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Telefone (opcional)"
                 placeholderTextColor="#9CA3AF"
                 value={formData.phone}
-                onChangeText={(text) => updateFormData('phone', text)}
+                onChangeText={text => updateFormData('phone', text)}
                 keyboardType="phone-pad"
               />
             </View>
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Senha (mínimo 6 caracteres)"
                 placeholderTextColor="#9CA3AF"
                 value={formData.password}
-                onChangeText={(text) => updateFormData('password', text)}
+                onChangeText={text => updateFormData('password', text)}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-              >
+                style={styles.eyeIcon}>
                 <Ionicons
                   name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                   size={20}
@@ -185,20 +206,24 @@ export default function RegisterScreen({ navigation }) {
 
             {/* Confirm Password Input */}
             <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Confirmar senha"
                 placeholderTextColor="#9CA3AF"
                 value={formData.confirmPassword}
-                onChangeText={(text) => updateFormData('confirmPassword', text)}
+                onChangeText={text => updateFormData('confirmPassword', text)}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={styles.eyeIcon}
-              >
+                style={styles.eyeIcon}>
                 <Ionicons
                   name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
                   size={20}
@@ -210,33 +235,36 @@ export default function RegisterScreen({ navigation }) {
             {/* Terms Checkbox */}
             <TouchableOpacity
               style={styles.checkboxContainer}
-              onPress={() => setAcceptedTerms(!acceptedTerms)}
-            >
-              <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+              onPress={() => setAcceptedTerms(!acceptedTerms)}>
+              <View
+                style={[
+                  styles.checkbox,
+                  acceptedTerms && styles.checkboxChecked,
+                ]}>
                 {acceptedTerms && (
                   <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 )}
               </View>
               <Text style={styles.checkboxText}>
-                Aceito os{' '}
-                <Text style={styles.checkboxLink}>termos de uso</Text>
-                {' '}e a{' '}
+                Aceito os <Text style={styles.checkboxLink}>termos de uso</Text>{' '}
+                e a{' '}
                 <Text style={styles.checkboxLink}>política de privacidade</Text>
               </Text>
             </TouchableOpacity>
 
             {/* Register Button */}
             <TouchableOpacity
-              style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+              style={[
+                styles.registerButton,
+                loading && styles.registerButtonDisabled,
+              ]}
               onPress={handleRegister}
-              disabled={loading}
-            >
+              disabled={loading}>
               <LinearGradient
                 colors={['#8B5CF6', '#7C3AED']}
                 style={styles.registerButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 0}}>
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
@@ -248,8 +276,7 @@ export default function RegisterScreen({ navigation }) {
             {/* Login Link */}
             <TouchableOpacity
               onPress={() => navigation.navigate('Login')}
-              style={styles.loginLink}
-            >
+              style={styles.loginLink}>
               <Text style={styles.loginLinkText}>
                 Já tem uma conta?{' '}
                 <Text style={styles.loginLinkTextBold}>Fazer login</Text>
@@ -298,7 +325,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: {width: 0, height: 10},
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 10,
@@ -395,4 +422,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
