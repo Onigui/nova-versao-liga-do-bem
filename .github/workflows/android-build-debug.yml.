@@ -1,0 +1,63 @@
+name: Android Build Debug
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Make gradlew executable
+        run: chmod +x ./mobile/android/gradlew
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install JS dependencies
+        working-directory: mobile
+        run: |
+          if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; else npm install; fi
+
+      - name: Build Release APK
+        working-directory: mobile/android
+        run: |
+          ./gradlew clean assembleRelease --no-daemon --stacktrace || true
+
+      - name: List Android build outputs
+        run: |
+          echo "=== listing mobile/android/app/build/outputs ==="
+          ls -la mobile/android/app/build/outputs || true
+          echo "=== searching for .apk and .aab recursively ==="
+          find mobile -type f \( -name '*.apk' -o -name '*.aab' \) -maxdepth 6 -print || true
+
+      - name: Copy found artifact to a standard name
+        run: |
+          ARTIFACT=$(find mobile -type f \( -name '*release*.apk' -o -name '*debug*.apk' -o -name '*.aab' \) | head -n 1 || true)
+          echo "found artifact: $ARTIFACT"
+          if [ -n "$ARTIFACT" ]; then
+            cp "$ARTIFACT" "$GITHUB_WORKSPACE/liga-do-bem-botucatu-v1.2.3.apk" || cp "$ARTIFACT" "$GITHUB_WORKSPACE/liga-do-bem-botucatu-v1.2.3.aab"
+            ls -la $GITHUB_WORKSPACE | sed -n '1,200p'
+          else
+            echo "No artifact found to copy"
+          fi
+
+      - name: Upload artifact for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: |
+            liga-do-bem-botucatu-v1.2.3.apk
+            liga-do-bem-botucatu-v1.2.3.aab
