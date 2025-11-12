@@ -6,10 +6,9 @@ plugins {
     id("com.facebook.react.settings")
 }
 
-// Autolink native modules
-extensions.configure(com.facebook.react.ReactSettingsExtension.class) { ext ->
-    ext.autolinkLibrariesFromCommand()
-}
+// Autolink native modules  
+apply from: file("../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+applyNativeModulesSettingsGradle(settings)
 
 rootProject.name = 'LigaDoBemBotucatu'
 include ':app'
