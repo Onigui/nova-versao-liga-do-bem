@@ -8,8 +8,8 @@ import {
   Image,
   RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useAuth } from '../services/AuthService';
 
 const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
