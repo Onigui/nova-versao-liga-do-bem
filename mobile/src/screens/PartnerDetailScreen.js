@@ -12,17 +12,18 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const { width } = Dimensions.get('window');
+const {width} = Dimensions.get('window');
 
-export default function PartnerDetailScreen({ route, navigation }) {
-  const { partner } = route.params || {};
+export default function PartnerDetailScreen({route, navigation}) {
+  const {partner} = route.params || {};
 
   const partnerData = partner || {
     id: '1',
     name: 'Pet Shop Exemplo',
     category: 'Pet Shop',
     discount: '20%',
-    description: 'Desconto de 20% em todos os produtos para membros da Liga do Bem.',
+    description:
+      'Desconto de 20% em todos os produtos para membros da Liga do Bem.',
     address: 'Rua Exemplo, 123 - Centro',
     phone: '(14) 3811-1234',
     whatsapp: '14981234567',
@@ -40,20 +41,19 @@ export default function PartnerDetailScreen({ route, navigation }) {
 
   const openMaps = () => {
     const address = encodeURIComponent(partnerData.address);
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${address}`);
+    Linking.openURL(
+      `https://www.google.com/maps/search/?api=1&query=${address}`,
+    );
   };
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header com Gradient */}
-        <LinearGradient
-          colors={['#8B5CF6', '#EC4899']}
-          style={styles.header}
-        >
+        <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
           <View style={styles.logoContainer}>
             <Image
-              source={{ uri: partnerData.logo }}
+              source={{uri: partnerData.logo}}
               style={styles.logo}
               resizeMode="cover"
             />
@@ -81,10 +81,10 @@ export default function PartnerDetailScreen({ route, navigation }) {
           {/* Contact Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Contato</Text>
-            
+
             {/* Phone */}
             <TouchableOpacity style={styles.contactItem} onPress={openPhone}>
-              <View style={[styles.contactIcon, { backgroundColor: '#DBEAFE' }]}>
+              <View style={[styles.contactIcon, {backgroundColor: '#DBEAFE'}]}>
                 <Ionicons name="call" size={20} color="#3B82F6" />
               </View>
               <View style={styles.contactText}>
@@ -96,7 +96,7 @@ export default function PartnerDetailScreen({ route, navigation }) {
 
             {/* WhatsApp */}
             <TouchableOpacity style={styles.contactItem} onPress={openWhatsApp}>
-              <View style={[styles.contactIcon, { backgroundColor: '#D1FAE5' }]}>
+              <View style={[styles.contactIcon, {backgroundColor: '#D1FAE5'}]}>
                 <Ionicons name="logo-whatsapp" size={20} color="#10B981" />
               </View>
               <View style={styles.contactText}>
@@ -110,13 +110,15 @@ export default function PartnerDetailScreen({ route, navigation }) {
           {/* Location */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Localização</Text>
-            
+
             <TouchableOpacity style={styles.locationCard} onPress={openMaps}>
               <View style={styles.locationIcon}>
                 <Ionicons name="location" size={24} color="#8B5CF6" />
               </View>
               <View style={styles.locationText}>
-                <Text style={styles.locationAddress}>{partnerData.address}</Text>
+                <Text style={styles.locationAddress}>
+                  {partnerData.address}
+                </Text>
                 <Text style={styles.locationAction}>Abrir no Google Maps</Text>
               </View>
               <Ionicons name="navigate" size={24} color="#8B5CF6" />
@@ -140,19 +142,25 @@ export default function PartnerDetailScreen({ route, navigation }) {
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumberText}>1</Text>
                 </View>
-                <Text style={styles.stepText}>Apresente seu cartão de membro</Text>
+                <Text style={styles.stepText}>
+                  Apresente seu cartão de membro
+                </Text>
               </View>
               <View style={styles.stepItem}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumberText}>2</Text>
                 </View>
-                <Text style={styles.stepText}>Informe o desconto da Liga do Bem</Text>
+                <Text style={styles.stepText}>
+                  Informe o desconto da Liga do Bem
+                </Text>
               </View>
               <View style={styles.stepItem}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumberText}>3</Text>
                 </View>
-                <Text style={styles.stepText}>Aproveite o desconto exclusivo!</Text>
+                <Text style={styles.stepText}>
+                  Aproveite o desconto exclusivo!
+                </Text>
               </View>
             </View>
           </View>
@@ -180,7 +188,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 5,
@@ -336,4 +344,3 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
 });
-

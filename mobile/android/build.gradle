@@ -22,3 +22,14 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+subprojects { subproject ->
+    configurations.all {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("com.facebook.react:react-native"))
+                .using(module("com.facebook.react:react-android"))
+            substitute(module("com.facebook.react:hermes-engine"))
+                .using(module("com.facebook.react:hermes-android"))
+        }
+    }
+}

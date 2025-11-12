@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const { width } = Dimensions.get('window');
+const {width} = Dimensions.get('window');
 
 export default function TransparencyScreen() {
   const [period, setPeriod] = useState('month'); // 'month', 'quarter', 'year'
@@ -32,10 +32,20 @@ export default function TransparencyScreen() {
         donations: 35000,
         memberships: 10000,
         categories: [
-          { name: 'Alimentação', value: 15000, percentage: 39.5, color: '#10B981' },
-          { name: 'Veterinário', value: 12000, percentage: 31.6, color: '#3B82F6' },
-          { name: 'Abrigo', value: 8000, percentage: 21.1, color: '#F59E0B' },
-          { name: 'Outros', value: 3000, percentage: 7.9, color: '#EC4899' },
+          {
+            name: 'Alimentação',
+            value: 15000,
+            percentage: 39.5,
+            color: '#10B981',
+          },
+          {
+            name: 'Veterinário',
+            value: 12000,
+            percentage: 31.6,
+            color: '#3B82F6',
+          },
+          {name: 'Abrigo', value: 8000, percentage: 21.1, color: '#F59E0B'},
+          {name: 'Outros', value: 3000, percentage: 7.9, color: '#EC4899'},
         ],
       });
     } catch (error) {
@@ -51,9 +61,9 @@ export default function TransparencyScreen() {
   };
 
   const periods = [
-    { id: 'month', label: 'Mês' },
-    { id: 'quarter', label: 'Trimestre' },
-    { id: 'year', label: 'Ano' },
+    {id: 'month', label: 'Mês'},
+    {id: 'quarter', label: 'Trimestre'},
+    {id: 'year', label: 'Ano'},
   ];
 
   return (
@@ -62,13 +72,9 @@ export default function TransparencyScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+      }>
       {/* Header */}
-      <LinearGradient
-        colors={['#8B5CF6', '#EC4899']}
-        style={styles.header}
-      >
+      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <Ionicons name="pie-chart" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Transparência Financeira</Text>
         <Text style={styles.headerSubtitle}>
@@ -78,21 +84,19 @@ export default function TransparencyScreen() {
 
       {/* Period Selector */}
       <View style={styles.periodSelector}>
-        {periods.map((p) => (
+        {periods.map(p => (
           <TouchableOpacity
             key={p.id}
             style={[
               styles.periodButton,
               period === p.id && styles.periodButtonActive,
             ]}
-            onPress={() => setPeriod(p.id)}
-          >
+            onPress={() => setPeriod(p.id)}>
             <Text
               style={[
                 styles.periodText,
                 period === p.id && styles.periodTextActive,
-              ]}
-            >
+              ]}>
               {p.label}
             </Text>
           </TouchableOpacity>
@@ -101,7 +105,7 @@ export default function TransparencyScreen() {
 
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
-        <View style={[styles.summaryCard, { backgroundColor: '#D1FAE5' }]}>
+        <View style={[styles.summaryCard, {backgroundColor: '#D1FAE5'}]}>
           <Ionicons name="trending-up" size={24} color="#10B981" />
           <Text style={styles.summaryValue}>
             R$ {financialData?.income.toLocaleString('pt-BR')}
@@ -109,7 +113,7 @@ export default function TransparencyScreen() {
           <Text style={styles.summaryLabel}>Receitas</Text>
         </View>
 
-        <View style={[styles.summaryCard, { backgroundColor: '#FEE2E2' }]}>
+        <View style={[styles.summaryCard, {backgroundColor: '#FEE2E2'}]}>
           <Ionicons name="trending-down" size={24} color="#EF4444" />
           <Text style={styles.summaryValue}>
             R$ {financialData?.expenses.toLocaleString('pt-BR')}
@@ -117,7 +121,7 @@ export default function TransparencyScreen() {
           <Text style={styles.summaryLabel}>Despesas</Text>
         </View>
 
-        <View style={[styles.summaryCard, { backgroundColor: '#DBEAFE' }]}>
+        <View style={[styles.summaryCard, {backgroundColor: '#DBEAFE'}]}>
           <Ionicons name="wallet" size={24} color="#3B82F6" />
           <Text style={styles.summaryValue}>
             R$ {financialData?.balance.toLocaleString('pt-BR')}
@@ -129,11 +133,11 @@ export default function TransparencyScreen() {
       {/* Income Sources */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Origem das Receitas</Text>
-        
+
         <View style={styles.incomeCard}>
           <View style={styles.incomeRow}>
             <View style={styles.incomeLeft}>
-              <View style={[styles.incomeIcon, { backgroundColor: '#FEF3C7' }]}>
+              <View style={[styles.incomeIcon, {backgroundColor: '#FEF3C7'}]}>
                 <Ionicons name="heart" size={20} color="#F59E0B" />
               </View>
               <Text style={styles.incomeLabel}>Doações</Text>
@@ -145,7 +149,7 @@ export default function TransparencyScreen() {
 
           <View style={styles.incomeRow}>
             <View style={styles.incomeLeft}>
-              <View style={[styles.incomeIcon, { backgroundColor: '#DBEAFE' }]}>
+              <View style={[styles.incomeIcon, {backgroundColor: '#DBEAFE'}]}>
                 <Ionicons name="card" size={20} color="#3B82F6" />
               </View>
               <Text style={styles.incomeLabel}>Mensalidades</Text>
@@ -160,7 +164,7 @@ export default function TransparencyScreen() {
       {/* Expenses Breakdown */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Distribuição das Despesas</Text>
-        
+
         {financialData?.categories.map((category, index) => (
           <View key={index} style={styles.categoryCard}>
             <View style={styles.categoryHeader}>
@@ -169,12 +173,15 @@ export default function TransparencyScreen() {
                 R$ {category.value.toLocaleString('pt-BR')}
               </Text>
             </View>
-            
+
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
                 <LinearGradient
                   colors={[category.color, category.color]}
-                  style={[styles.progressFill, { width: `${category.percentage}%` }]}
+                  style={[
+                    styles.progressFill,
+                    {width: `${category.percentage}%`},
+                  ]}
                 />
               </View>
               <Text style={styles.progressPercentage}>
@@ -188,10 +195,11 @@ export default function TransparencyScreen() {
       {/* Recent Transactions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Transações Recentes</Text>
-        
+
         <View style={styles.transactionCard}>
           <View style={styles.transactionLeft}>
-            <View style={[styles.transactionIcon, { backgroundColor: '#D1FAE5' }]}>
+            <View
+              style={[styles.transactionIcon, {backgroundColor: '#D1FAE5'}]}>
               <Ionicons name="add" size={20} color="#10B981" />
             </View>
             <View style={styles.transactionInfo}>
@@ -204,7 +212,8 @@ export default function TransparencyScreen() {
 
         <View style={styles.transactionCard}>
           <View style={styles.transactionLeft}>
-            <View style={[styles.transactionIcon, { backgroundColor: '#FEE2E2' }]}>
+            <View
+              style={[styles.transactionIcon, {backgroundColor: '#FEE2E2'}]}>
               <Ionicons name="remove" size={20} color="#EF4444" />
             </View>
             <View style={styles.transactionInfo}>
@@ -217,11 +226,14 @@ export default function TransparencyScreen() {
 
         <View style={styles.transactionCard}>
           <View style={styles.transactionLeft}>
-            <View style={[styles.transactionIcon, { backgroundColor: '#D1FAE5' }]}>
+            <View
+              style={[styles.transactionIcon, {backgroundColor: '#D1FAE5'}]}>
               <Ionicons name="add" size={20} color="#10B981" />
             </View>
             <View style={styles.transactionInfo}>
-              <Text style={styles.transactionTitle}>Mensalidade - Maria Santos</Text>
+              <Text style={styles.transactionTitle}>
+                Mensalidade - Maria Santos
+              </Text>
               <Text style={styles.transactionDate}>02/10/2025</Text>
             </View>
           </View>
@@ -271,7 +283,7 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
@@ -331,7 +343,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -370,7 +382,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -423,7 +435,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -488,4 +500,3 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
-

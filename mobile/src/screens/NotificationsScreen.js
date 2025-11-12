@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useMemo} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -11,90 +11,85 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import NotificationService from '../services/NotificationService';
 
+const SAMPLE_NOTIFICATIONS = [
+  {
+    id: '1',
+    title: 'Nova Promoção no Pet Shop Central!',
+    body: '15% de desconto em todos os produtos para membros da Liga do Bem. Válido até domingo!',
+    type: 'PROMOTION',
+    data: {
+      partnerId: '1',
+      discount: '15%',
+      partnerName: 'Pet Shop Central',
+    },
+    isRead: false,
+    sentAt: '2024-01-05T14:30:00Z',
+    imageUrl: 'https://via.placeholder.com/300x200/4CAF50/ffffff?text=Promoção',
+  },
+  {
+    id: '2',
+    title: 'Evento de Adoção - Sábado',
+    body: 'Não perca nosso evento de adoção neste sábado das 9h às 17h na Praça da Matriz!',
+    type: 'EVENT',
+    data: {
+      eventId: '1',
+      location: 'Praça da Matriz',
+      date: '2024-01-06',
+    },
+    isRead: true,
+    sentAt: '2024-01-04T10:15:00Z',
+    imageUrl: 'https://via.placeholder.com/300x200/2196F3/ffffff?text=Evento',
+  },
+  {
+    id: '3',
+    title: 'Lembrete de Pagamento',
+    body: 'Sua mensalidade da Liga do Bem vence em 5 dias. Mantenha-se em dia!',
+    type: 'PAYMENT_REMINDER',
+    data: {
+      dueDate: '2024-01-10',
+      amount: 'R$ 25,00',
+    },
+    isRead: false,
+    sentAt: '2024-01-03T09:00:00Z',
+  },
+  {
+    id: '4',
+    title: 'Bem-vindo à Liga do Bem!',
+    body: 'Obrigado por se tornar um membro da nossa comunidade. Aproveite todos os benefícios!',
+    type: 'WELCOME',
+    data: {},
+    isRead: true,
+    sentAt: '2024-01-01T08:00:00Z',
+    imageUrl:
+      'https://via.placeholder.com/300x200/8B5CF6/ffffff?text=Bem-vindo',
+  },
+  {
+    id: '5',
+    title: 'Nova Parceira: Clínica Veterinária Amigo',
+    body: 'Conheça nossa nova parceira que oferece 10% de desconto para membros!',
+    type: 'NEW_PARTNER',
+    data: {
+      partnerId: '2',
+      partnerName: 'Clínica Veterinária Amigo',
+      discount: '10%',
+    },
+    isRead: false,
+    sentAt: '2024-01-02T16:45:00Z',
+    imageUrl:
+      'https://via.placeholder.com/300x200/FF9800/ffffff?text=Nova+Parceira',
+  },
+];
+
 export default function NotificationsScreen({navigation}) {
   const [notifications, setNotifications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Dados simulados de notificações
-  const sampleNotifications = useMemo(
-    () => [
-      {
-        id: '1',
-        title: 'Nova Promoção no Pet Shop Central!',
-        body: '15% de desconto em todos os produtos para membros da Liga do Bem. Válido até domingo!',
-        type: 'PROMOTION',
-        data: {
-          partnerId: '1',
-          discount: '15%',
-          partnerName: 'Pet Shop Central',
-        },
-        isRead: false,
-        sentAt: '2024-01-05T14:30:00Z',
-        imageUrl:
-          'https://via.placeholder.com/300x200/4CAF50/ffffff?text=Promoção',
-      },
-      {
-        id: '2',
-        title: 'Evento de Adoção - Sábado',
-        body: 'Não perca nosso evento de adoção neste sábado das 9h às 17h na Praça da Matriz!',
-        type: 'EVENT',
-        data: {
-          eventId: '1',
-          location: 'Praça da Matriz',
-          date: '2024-01-06',
-        },
-        isRead: true,
-        sentAt: '2024-01-04T10:15:00Z',
-        imageUrl:
-          'https://via.placeholder.com/300x200/2196F3/ffffff?text=Evento',
-      },
-      {
-        id: '3',
-        title: 'Lembrete de Pagamento',
-        body: 'Sua mensalidade da Liga do Bem vence em 5 dias. Mantenha-se em dia!',
-        type: 'PAYMENT_REMINDER',
-        data: {
-          dueDate: '2024-01-10',
-          amount: 'R$ 25,00',
-        },
-        isRead: false,
-        sentAt: '2024-01-03T09:00:00Z',
-      },
-      {
-        id: '4',
-        title: 'Bem-vindo à Liga do Bem!',
-        body: 'Obrigado por se tornar um membro da nossa comunidade. Aproveite todos os benefícios!',
-        type: 'WELCOME',
-        data: {},
-        isRead: true,
-        sentAt: '2024-01-01T08:00:00Z',
-        imageUrl:
-          'https://via.placeholder.com/300x200/8B5CF6/ffffff?text=Bem-vindo',
-      },
-      {
-        id: '5',
-        title: 'Nova Parceira: Clínica Veterinária Amigo',
-        body: 'Conheça nossa nova parceira que oferece 10% de desconto para membros!',
-        type: 'NEW_PARTNER',
-        data: {
-          partnerId: '2',
-          partnerName: 'Clínica Veterinária Amigo',
-          discount: '10%',
-        },
-        isRead: false,
-        sentAt: '2024-01-02T16:45:00Z',
-        imageUrl:
-          'https://via.placeholder.com/300x200/FF9800/ffffff?text=Nova+Parceira',
-      },
-    ],
-    [],
-  );
-
   const registerForPushNotifications = useCallback(async () => {
     try {
-      const hasPermission = await NotificationService.requestPermissions();
-      if (!hasPermission) {
+      const granted = await NotificationService.requestPermissions();
+
+      if (!granted) {
         Alert.alert(
           'Permissão Negada',
           'Notificações push não foram permitidas.',
@@ -102,30 +97,26 @@ export default function NotificationsScreen({navigation}) {
         return;
       }
 
-      const token = await NotificationService.getFcmToken();
-      if (!token) {
-        Alert.alert('Erro', 'Não foi possível obter o token de notificações.');
-        return;
+      const token = await NotificationService.getDeviceToken();
+      if (token) {
+        console.log('Token de notificação:', token);
       }
-
-      // Registrar token no backend (simulado)
-      console.log('Token de notificação FCM:', token);
     } catch (error) {
       console.error('Erro ao registrar notificações:', error);
     }
   }, []);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(() => {
     setRefreshing(true);
 
     // Simular carregamento de notificações
     setTimeout(() => {
-      setNotifications(sampleNotifications);
-      const unread = sampleNotifications.filter(n => !n.isRead).length;
+      setNotifications(SAMPLE_NOTIFICATIONS);
+      const unread = SAMPLE_NOTIFICATIONS.filter(n => !n.isRead).length;
       setUnreadCount(unread);
       setRefreshing(false);
     }, 1000);
-  }, [sampleNotifications]);
+  }, []);
 
   useEffect(() => {
     loadNotifications();

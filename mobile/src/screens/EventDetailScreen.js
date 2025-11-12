@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -8,20 +8,22 @@ import {
   Image,
   Alert,
   Dimensions,
+  Linking,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const { width } = Dimensions.get('window');
+const {width} = Dimensions.get('window');
 
-export default function EventDetailScreen({ route, navigation }) {
-  const { event } = route.params || {};
+export default function EventDetailScreen({route, navigation}) {
+  const {event} = route.params || {};
   const [isRegistered, setIsRegistered] = useState(false);
 
   const eventData = event || {
     id: '1',
     title: 'Feira de Adoção - Shopping Botucatu',
-    description: 'Venha conhecer nossos pets disponíveis para adoção! Teremos veterinários, atividades para crianças e muito mais.',
+    description:
+      'Venha conhecer nossos pets disponíveis para adoção! Teremos veterinários, atividades para crianças e muito mais.',
     date: '2025-10-15',
     time: '10:00 - 17:00',
     location: 'Shopping Botucatu - Praça de Alimentação',
@@ -38,7 +40,7 @@ export default function EventDetailScreen({ route, navigation }) {
         'Cancelar Inscrição',
         'Deseja cancelar sua inscrição neste evento?',
         [
-          { text: 'Não', style: 'cancel' },
+          {text: 'Não', style: 'cancel'},
           {
             text: 'Sim, cancelar',
             style: 'destructive',
@@ -47,14 +49,14 @@ export default function EventDetailScreen({ route, navigation }) {
               Alert.alert('Cancelado', 'Sua inscrição foi cancelada.');
             },
           },
-        ]
+        ],
       );
     } else {
       Alert.alert(
         'Confirmar Inscrição',
         `Deseja se inscrever no evento "${eventData.title}"?`,
         [
-          { text: 'Cancelar', style: 'cancel' },
+          {text: 'Cancelar', style: 'cancel'},
           {
             text: 'Confirmar',
             onPress: () => {
@@ -62,25 +64,28 @@ export default function EventDetailScreen({ route, navigation }) {
               Alert.alert('Sucesso!', 'Você está inscrito! Nos vemos lá! 🎉');
             },
           },
-        ]
+        ],
       );
     }
   };
 
   const openMaps = () => {
     const address = encodeURIComponent(eventData.address);
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${address}`);
+    Linking.openURL(
+      `https://www.google.com/maps/search/?api=1&query=${address}`,
+    );
   };
 
   const vacanciesLeft = eventData.vacancies - eventData.registered;
-  const vacanciesPercentage = (eventData.registered / eventData.vacancies) * 100;
+  const vacanciesPercentage =
+    (eventData.registered / eventData.vacancies) * 100;
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Event Image */}
         <Image
-          source={{ uri: eventData.image }}
+          source={{uri: eventData.image}}
           style={styles.image}
           resizeMode="cover"
         />
@@ -136,8 +141,8 @@ export default function EventDetailScreen({ route, navigation }) {
               <Text style={styles.locationName}>{eventData.location}</Text>
               <Text style={styles.locationAddress}>{eventData.address}</Text>
               <Text style={styles.locationAction}>
-                <Ionicons name="navigate" size={12} color="#8B5CF6" />
-                {' '}Como chegar
+                <Ionicons name="navigate" size={12} color="#8B5CF6" /> Como
+                chegar
               </Text>
             </View>
           </TouchableOpacity>
@@ -150,16 +155,16 @@ export default function EventDetailScreen({ route, navigation }) {
                 {vacanciesLeft} de {eventData.vacancies}
               </Text>
             </View>
-            
+
             <View style={styles.progressBar}>
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${vacanciesPercentage}%` },
+                  {width: `${vacanciesPercentage}%`},
                 ]}
               />
             </View>
-            
+
             <Text style={styles.vacanciesText}>
               {eventData.registered} pessoas já se inscreveram
             </Text>
@@ -196,19 +201,19 @@ export default function EventDetailScreen({ route, navigation }) {
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.registerButton}
-          onPress={handleRegister}
-        >
+          onPress={handleRegister}>
           <LinearGradient
-            colors={isRegistered ? ['#EF4444', '#DC2626'] : ['#8B5CF6', '#7C3AED']}
+            colors={
+              isRegistered ? ['#EF4444', '#DC2626'] : ['#8B5CF6', '#7C3AED']
+            }
             style={styles.registerButtonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 0}}>
             <Ionicons
               name={isRegistered ? 'close-circle' : 'checkmark-circle'}
               size={20}
               color="#FFFFFF"
-              style={{ marginRight: 8 }}
+              style={{marginRight: 8}}
             />
             <Text style={styles.registerButtonText}>
               {isRegistered ? 'Cancelar Inscrição' : 'Confirmar Presença'}
@@ -411,4 +416,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -8,6 +8,7 @@ import {
   TextInput,
   Linking,
   Platform,
+  PermissionsAndroid,
   RefreshControl,
   PermissionsAndroid,
 } from 'react-native';
@@ -17,11 +18,10 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
-const EARTH_RADIUS_KM = 6371;
-
 const deg2rad = deg => deg * (Math.PI / 180);
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Raio da Terra em km
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -31,7 +31,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return EARTH_RADIUS_KM * c;
+  return R * c;
 };
 
 export default function PartnersScreen({navigation}) {
@@ -45,13 +45,13 @@ export default function PartnersScreen({navigation}) {
   useEffect(() => {
     requestLocationPermission();
     loadPartners();
-  }, []);
+  }, [requestLocationPermission, loadPartners]);
 
   useEffect(() => {
     filterPartners();
   }, [filterPartners]);
 
-  const requestLocationPermission = async () => {
+  const requestLocationPermission = useCallback(async () => {
     try {
       if (Platform.OS === 'android') {
         const granted = await PermissionsAndroid.request(
@@ -59,10 +59,9 @@ export default function PartnersScreen({navigation}) {
           {
             title: 'Permissão de Localização',
             message:
-              'Precisamos da sua localização para ordenar parceiros próximos a você.',
-            buttonNeutral: 'Perguntar depois',
-            buttonNegative: 'Cancelar',
+              'A Liga do Bem utiliza sua localização para mostrar parceiros próximos.',
             buttonPositive: 'Permitir',
+            buttonNegative: 'Negar',
           },
         );
 
@@ -88,14 +87,18 @@ export default function PartnersScreen({navigation}) {
         error => {
           console.error('Erro ao obter localização:', error);
         },
-        {enableHighAccuracy: true, timeout: 15000, maximumAge: 10000},
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 10000,
+        },
       );
     } catch (error) {
       console.error('Erro ao solicitar permissão de localização:', error);
     }
-  };
+  }, [setUserLocation]);
 
-  const loadPartners = async () => {
+  const loadPartners = useCallback(async () => {
     try {
       console.log('🔄 Carregando parceiros da API...');
 
@@ -153,7 +156,7 @@ export default function PartnersScreen({navigation}) {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, []);
 
   const filterPartners = useCallback(() => {
     let filtered = partners;

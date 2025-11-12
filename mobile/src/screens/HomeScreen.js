@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,12 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useAuth } from '../services/AuthService';
+import {useAuth} from '../services/AuthService';
 
 const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
-export default function HomeScreen({ navigation }) {
-  const { user, isAuthenticated } = useAuth();
+export default function HomeScreen({navigation}) {
+  const {user, isAuthenticated} = useAuth();
   const [stats, setStats] = useState({
     totalAnimals: 0,
     totalAdoptions: 0,
@@ -56,10 +56,12 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const StatCard = ({ icon, title, value, color, onPress }) => (
-    <TouchableOpacity style={[styles.statCard, { borderLeftColor: color }]} onPress={onPress}>
+  const StatCard = ({icon, title, value, color, onPress}) => (
+    <TouchableOpacity
+      style={[styles.statCard, {borderLeftColor: color}]}
+      onPress={onPress}>
       <View style={styles.statContent}>
-        <View style={[styles.statIcon, { backgroundColor: color }]}>
+        <View style={[styles.statIcon, {backgroundColor: color}]}>
           <Ionicons name={icon} size={24} color="white" />
         </View>
         <View style={styles.statInfo}>
@@ -70,9 +72,9 @@ export default function HomeScreen({ navigation }) {
     </TouchableOpacity>
   );
 
-  const QuickAction = ({ icon, title, subtitle, color, onPress }) => (
+  const QuickAction = ({icon, title, subtitle, color, onPress}) => (
     <TouchableOpacity style={styles.quickAction} onPress={onPress}>
-      <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
+      <View style={[styles.quickActionIcon, {backgroundColor: color}]}>
         <Ionicons name={icon} size={28} color="white" />
       </View>
       <View style={styles.quickActionInfo}>
@@ -84,19 +86,17 @@ export default function HomeScreen({ navigation }) {
   );
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+      }>
       {/* Header */}
       <LinearGradient
         colors={['#8B5CF6', '#A855F7']}
         style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
+        start={{x: 0, y: 0}}
+        end={{x: 1, y: 1}}>
         <View style={styles.headerContent}>
           <View>
             <Text style={styles.headerTitle}>Liga do Bem</Text>
@@ -214,7 +214,7 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.sectionTitle}>Nossa Missão</Text>
         <View style={styles.missionCard}>
           <Text style={styles.missionText}>
-            Promover o bem-estar animal através de adoções responsáveis, 
+            Promover o bem-estar animal através de adoções responsáveis,
             cuidados veterinários e conscientização da comunidade de Botucatu.
           </Text>
         </View>
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     width: '48%',
     borderLeftWidth: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,

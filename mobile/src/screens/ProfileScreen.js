@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -11,22 +11,18 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useAuth } from '../services/AuthService';
+import {useAuth} from '../services/AuthService';
 
-export default function ProfileScreen({ navigation }) {
-  const { user, logout } = useAuth();
+export default function ProfileScreen({navigation}) {
+  const {user, logout} = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sair',
-      'Tem certeza que deseja sair da sua conta?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: logout },
-      ]
-    );
+    Alert.alert('Sair', 'Tem certeza que deseja sair da sua conta?', [
+      {text: 'Cancelar', style: 'cancel'},
+      {text: 'Sair', style: 'destructive', onPress: logout},
+    ]);
   };
 
   const menuItems = [
@@ -34,7 +30,8 @@ export default function ProfileScreen({ navigation }) {
       icon: 'person-outline',
       title: 'Editar Perfil',
       subtitle: 'Altere seus dados pessoais',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () =>
+        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
     },
     {
       icon: 'card-outline',
@@ -46,19 +43,22 @@ export default function ProfileScreen({ navigation }) {
       icon: 'heart-outline',
       title: 'Minhas Doações',
       subtitle: 'Histórico de contribuições',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () =>
+        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
     },
     {
       icon: 'paw-outline',
       title: 'Minhas Adoções',
       subtitle: 'Acompanhe suas solicitações',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () =>
+        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
     },
     {
       icon: 'calendar-outline',
       title: 'Meus Eventos',
       subtitle: 'Eventos que você participou',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () =>
+        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
     },
     {
       icon: 'notifications-outline',
@@ -70,23 +70,22 @@ export default function ProfileScreen({ navigation }) {
       icon: 'help-circle-outline',
       title: 'Ajuda & Suporte',
       subtitle: 'Tire suas dúvidas',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () =>
+        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
     },
     {
       icon: 'shield-checkmark-outline',
       title: 'Privacidade',
       subtitle: 'Termos de uso e privacidade',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () =>
+        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
     },
   ];
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header com Gradient */}
-      <LinearGradient
-        colors={['#8B5CF6', '#EC4899']}
-        style={styles.header}
-      >
+      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <View style={styles.profileInfo}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
@@ -97,7 +96,9 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <Text style={styles.userName}>{user?.name || 'Visitante'}</Text>
-          <Text style={styles.userEmail}>{user?.email || 'Entre para acessar todos os recursos'}</Text>
+          <Text style={styles.userEmail}>
+            {user?.email || 'Entre para acessar todos os recursos'}
+          </Text>
           {user?.role === 'MEMBER' && (
             <View style={styles.memberBadge}>
               <Ionicons name="star" size={12} color="#FFFFFF" />
@@ -135,7 +136,7 @@ export default function ProfileScreen({ navigation }) {
         {/* Notifications Toggle */}
         <View style={styles.settingItem}>
           <View style={styles.settingItemLeft}>
-            <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
+            <View style={[styles.settingIcon, {backgroundColor: '#FEF3C7'}]}>
               <Ionicons name="notifications" size={20} color="#F59E0B" />
             </View>
             <View style={styles.settingText}>
@@ -146,7 +147,7 @@ export default function ProfileScreen({ navigation }) {
           <Switch
             value={notificationsEnabled}
             onValueChange={setNotificationsEnabled}
-            trackColor={{ false: '#E5E7EB', true: '#C4B5FD' }}
+            trackColor={{false: '#E5E7EB', true: '#C4B5FD'}}
             thumbColor={notificationsEnabled ? '#8B5CF6' : '#F3F4F6'}
           />
         </View>
@@ -154,7 +155,7 @@ export default function ProfileScreen({ navigation }) {
         {/* Location Toggle */}
         <View style={styles.settingItem}>
           <View style={styles.settingItemLeft}>
-            <View style={[styles.settingIcon, { backgroundColor: '#DBEAFE' }]}>
+            <View style={[styles.settingIcon, {backgroundColor: '#DBEAFE'}]}>
               <Ionicons name="location" size={20} color="#3B82F6" />
             </View>
             <View style={styles.settingText}>
@@ -165,7 +166,7 @@ export default function ProfileScreen({ navigation }) {
           <Switch
             value={locationEnabled}
             onValueChange={setLocationEnabled}
-            trackColor={{ false: '#E5E7EB', true: '#C4B5FD' }}
+            trackColor={{false: '#E5E7EB', true: '#C4B5FD'}}
             thumbColor={locationEnabled ? '#8B5CF6' : '#F3F4F6'}
           />
         </View>
@@ -174,13 +175,12 @@ export default function ProfileScreen({ navigation }) {
       {/* Menu Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Minha Conta</Text>
-        
+
         {menuItems.map((item, index) => (
           <TouchableOpacity
             key={index}
             style={styles.menuItem}
-            onPress={item.onPress}
-          >
+            onPress={item.onPress}>
             <View style={styles.menuItemLeft}>
               <View style={styles.menuIcon}>
                 <Ionicons name={item.icon} size={22} color="#8B5CF6" />
@@ -197,10 +197,7 @@ export default function ProfileScreen({ navigation }) {
 
       {/* Logout Button */}
       {user && (
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#EF4444" />
           <Text style={styles.logoutButtonText}>Sair da Conta</Text>
         </TouchableOpacity>
@@ -210,12 +207,10 @@ export default function ProfileScreen({ navigation }) {
       {!user && (
         <TouchableOpacity
           style={styles.loginPrompt}
-          onPress={() => navigation.navigate('Auth')}
-        >
+          onPress={() => navigation.navigate('Auth')}>
           <LinearGradient
             colors={['#8B5CF6', '#7C3AED']}
-            style={styles.loginPromptGradient}
-          >
+            style={styles.loginPromptGradient}>
             <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
             <Text style={styles.loginPromptText}>Fazer Login / Cadastrar</Text>
           </LinearGradient>
@@ -308,7 +303,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -448,4 +443,3 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
 });
-

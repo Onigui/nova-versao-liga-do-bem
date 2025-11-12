@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
-export default function AdoptionsScreen({ navigation }) {
+export default function AdoptionsScreen({navigation}) {
   const [animals, setAnimals] = useState([]);
   const [filteredAnimals, setFilteredAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,8 @@ export default function AdoptionsScreen({ navigation }) {
           age: '2 anos',
           gender: 'Macho',
           size: 'Médio',
-          photo: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
+          photo:
+            'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
           vaccinated: true,
           neutered: true,
         },
@@ -54,7 +55,8 @@ export default function AdoptionsScreen({ navigation }) {
           age: '1 ano',
           gender: 'Fêmea',
           size: 'Pequeno',
-          photo: 'https://images.unsplash.com/photo-1513360371669-4adf3dd7dff8?w=400',
+          photo:
+            'https://images.unsplash.com/photo-1513360371669-4adf3dd7dff8?w=400',
           vaccinated: true,
           neutered: true,
         },
@@ -66,12 +68,13 @@ export default function AdoptionsScreen({ navigation }) {
           age: '3 anos',
           gender: 'Macho',
           size: 'Grande',
-          photo: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400',
+          photo:
+            'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400',
           vaccinated: true,
           neutered: true,
         },
       ];
-      
+
       setAnimals(mockAnimals);
       setFilteredAnimals(mockAnimals);
     } catch (error) {
@@ -86,15 +89,16 @@ export default function AdoptionsScreen({ navigation }) {
     let filtered = animals;
 
     if (searchQuery) {
-      filtered = filtered.filter(animal =>
-        animal.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        animal.breed.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter(
+        animal =>
+          animal.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          animal.breed.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
 
     if (selectedFilter !== 'all') {
-      filtered = filtered.filter(animal => 
-        animal.species.toLowerCase() === selectedFilter.toLowerCase()
+      filtered = filtered.filter(
+        animal => animal.species.toLowerCase() === selectedFilter.toLowerCase(),
       );
     }
 
@@ -107,9 +111,9 @@ export default function AdoptionsScreen({ navigation }) {
   };
 
   const filters = [
-    { id: 'all', label: 'Todos', icon: 'apps' },
-    { id: 'cachorro', label: 'Cachorros', icon: 'paw' },
-    { id: 'gato', label: 'Gatos', icon: 'paw' },
+    {id: 'all', label: 'Todos', icon: 'apps'},
+    {id: 'cachorro', label: 'Cachorros', icon: 'paw'},
+    {id: 'gato', label: 'Gatos', icon: 'paw'},
   ];
 
   return (
@@ -138,32 +142,29 @@ export default function AdoptionsScreen({ navigation }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}
-        >
-        {filters.map((filter) => (
-          <TouchableOpacity
-            key={filter.id}
-            style={[
-              styles.filterButton,
-              selectedFilter === filter.id && styles.filterButtonActive,
-            ]}
-            onPress={() => setSelectedFilter(filter.id)}
-          >
-            <Ionicons
-              name={filter.icon}
-              size={18}
-              color={selectedFilter === filter.id ? '#FFFFFF' : '#6B7280'}
-            />
-            <Text
+          contentContainerStyle={styles.filtersContent}>
+          {filters.map(filter => (
+            <TouchableOpacity
+              key={filter.id}
               style={[
-                styles.filterText,
-                selectedFilter === filter.id && styles.filterTextActive,
+                styles.filterButton,
+                selectedFilter === filter.id && styles.filterButtonActive,
               ]}
-            >
-              {filter.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              onPress={() => setSelectedFilter(filter.id)}>
+              <Ionicons
+                name={filter.icon}
+                size={18}
+                color={selectedFilter === filter.id ? '#FFFFFF' : '#6B7280'}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  selectedFilter === filter.id && styles.filterTextActive,
+                ]}>
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
 
@@ -173,31 +174,37 @@ export default function AdoptionsScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+        }>
         <View style={styles.grid}>
-          {filteredAnimals.map((animal) => (
+          {filteredAnimals.map(animal => (
             <TouchableOpacity
               key={animal.id}
               style={styles.animalCard}
-              onPress={() => navigation.navigate('AnimalDetail', { animal })}
-            >
+              onPress={() => navigation.navigate('AnimalDetail', {animal})}>
               <Image
-                source={{ uri: animal.photo }}
+                source={{uri: animal.photo}}
                 style={styles.animalPhoto}
                 resizeMode="cover"
               />
-              
+
               {/* Badges */}
               <View style={styles.badges}>
                 {animal.vaccinated && (
-                  <View style={[styles.badge, { backgroundColor: '#10B981' }]}>
-                    <Ionicons name="shield-checkmark" size={12} color="#FFFFFF" />
+                  <View style={[styles.badge, {backgroundColor: '#10B981'}]}>
+                    <Ionicons
+                      name="shield-checkmark"
+                      size={12}
+                      color="#FFFFFF"
+                    />
                   </View>
                 )}
                 {animal.neutered && (
-                  <View style={[styles.badge, { backgroundColor: '#3B82F6' }]}>
-                    <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
+                  <View style={[styles.badge, {backgroundColor: '#3B82F6'}]}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={12}
+                      color="#FFFFFF"
+                    />
                   </View>
                 )}
               </View>
@@ -219,7 +226,7 @@ export default function AdoptionsScreen({ navigation }) {
                     <Text style={styles.metaText}>{animal.gender}</Text>
                   </View>
                 </View>
-                
+
                 <TouchableOpacity style={styles.adoptButton}>
                   <Text style={styles.adoptButtonText}>Conhecer</Text>
                   <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
@@ -317,7 +324,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,

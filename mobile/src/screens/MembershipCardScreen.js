@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,10 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useAuth } from '../services/AuthService';
+import {useAuth} from '../services/AuthService';
 
 export default function MembershipCardScreen() {
-  const { user, isAuthenticated, login } = useAuth();
+  const {user, isAuthenticated, login} = useAuth();
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,12 +45,19 @@ export default function MembershipCardScreen() {
   const LoginPrompt = () => (
     <View style={styles.loginContainer}>
       <View style={styles.loginCard}>
-        <Ionicons name="card" size={64} color="#8B5CF6" style={styles.loginIcon} />
+        <Ionicons
+          name="card"
+          size={64}
+          color="#8B5CF6"
+          style={styles.loginIcon}
+        />
         <Text style={styles.loginTitle}>Acesse seu Cartão de Membro</Text>
         <Text style={styles.loginSubtitle}>
           Faça login para visualizar e usar seu cartão digital da Liga do Bem
         </Text>
-        <TouchableOpacity style={styles.loginButton} onPress={() => handleLogin()}>
+        <TouchableOpacity
+          style={styles.loginButton}
+          onPress={() => handleLogin()}>
           <Text style={styles.loginButtonText}>Fazer Login</Text>
         </TouchableOpacity>
       </View>
@@ -61,7 +68,7 @@ export default function MembershipCardScreen() {
     Alert.alert(
       'Login',
       'Para acessar seu cartão, você precisa fazer login. Esta funcionalidade será implementada em breve.',
-      [{ text: 'OK' }]
+      [{text: 'OK'}],
     );
   };
 
@@ -71,24 +78,27 @@ export default function MembershipCardScreen() {
         <LinearGradient
           colors={['#8B5CF6', '#A855F7']}
           style={styles.card}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+          start={{x: 0, y: 0}}
+          end={{x: 1, y: 1}}>
           {/* Header do Cartão */}
           <View style={styles.cardHeader}>
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>🐾</Text>
             </View>
             <View style={styles.statusContainer}>
-              <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+              <View style={[styles.statusDot, {backgroundColor: '#10B981'}]} />
               <Text style={styles.statusText}>ATIVO</Text>
             </View>
           </View>
 
           {/* Informações do Membro */}
           <View style={styles.memberInfo}>
-            <Text style={styles.memberName}>{user?.name || 'Membro Liga do Bem'}</Text>
-            <Text style={styles.memberEmail}>{user?.email || 'membro@ligadobem.com'}</Text>
+            <Text style={styles.memberName}>
+              {user?.name || 'Membro Liga do Bem'}
+            </Text>
+            <Text style={styles.memberEmail}>
+              {user?.email || 'membro@ligadobem.com'}
+            </Text>
             <Text style={styles.memberId}>ID: {membership?.memberId}</Text>
           </View>
 
@@ -97,14 +107,18 @@ export default function MembershipCardScreen() {
             <View style={styles.qrBackground}>
               <Text style={styles.qrPlaceholder}>QR Code</Text>
             </View>
-            <Text style={styles.qrLabel}>Apresente este QR Code nos estabelecimentos parceiros</Text>
+            <Text style={styles.qrLabel}>
+              Apresente este QR Code nos estabelecimentos parceiros
+            </Text>
           </View>
 
           {/* Validade */}
           <View style={styles.validityContainer}>
             <Text style={styles.validityLabel}>Válido até:</Text>
             <Text style={styles.validityDate}>
-              {membership?.endDate ? membership.endDate.toLocaleDateString('pt-BR') : '31/12/2025'}
+              {membership?.endDate
+                ? membership.endDate.toLocaleDateString('pt-BR')
+                : '31/12/2025'}
             </Text>
           </View>
         </LinearGradient>
@@ -117,7 +131,8 @@ export default function MembershipCardScreen() {
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>Como usar seu cartão</Text>
             <Text style={styles.infoText}>
-              Apresente o QR Code nos estabelecimentos parceiros para obter descontos exclusivos.
+              Apresente o QR Code nos estabelecimentos parceiros para obter
+              descontos exclusivos.
             </Text>
           </View>
         </View>
@@ -127,7 +142,8 @@ export default function MembershipCardScreen() {
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>Estabelecimentos parceiros</Text>
             <Text style={styles.infoText}>
-              Acesse a aba "Parceiros" para ver todos os estabelecimentos que oferecem descontos.
+              Acesse a aba "Parceiros" para ver todos os estabelecimentos que
+              oferecem descontos.
             </Text>
           </View>
         </View>
@@ -137,7 +153,8 @@ export default function MembershipCardScreen() {
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>Renovação automática</Text>
             <Text style={styles.infoText}>
-              Sua mensalidade é renovada automaticamente. Você receberá lembretes antes do vencimento.
+              Sua mensalidade é renovada automaticamente. Você receberá
+              lembretes antes do vencimento.
             </Text>
           </View>
         </View>
@@ -149,10 +166,14 @@ export default function MembershipCardScreen() {
           <Ionicons name="share-outline" size={20} color="#8B5CF6" />
           <Text style={styles.actionButtonText}>Compartilhar Cartão</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={handleRenewMembership}>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.secondaryButton]}
+          onPress={handleRenewMembership}>
           <Ionicons name="refresh-outline" size={20} color="#6B7280" />
-          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Renovar Mensalidade</Text>
+          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+            Renovar Mensalidade
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -162,7 +183,7 @@ export default function MembershipCardScreen() {
     Alert.alert(
       'Compartilhar Cartão',
       'Funcionalidade de compartilhamento será implementada em breve.',
-      [{ text: 'OK' }]
+      [{text: 'OK'}],
     );
   };
 
@@ -171,9 +192,9 @@ export default function MembershipCardScreen() {
       'Renovar Mensalidade',
       'Você será redirecionado para a página de pagamento.',
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Continuar', onPress: () => console.log('Ir para pagamento') }
-      ]
+        {text: 'Cancelar', style: 'cancel'},
+        {text: 'Continuar', onPress: () => console.log('Ir para pagamento')},
+      ],
     );
   };
 
@@ -220,7 +241,7 @@ const styles = StyleSheet.create({
     padding: 32,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
@@ -363,7 +384,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -397,7 +418,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
