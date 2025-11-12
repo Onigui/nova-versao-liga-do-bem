@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -7,150 +7,135 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  Linking,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import NotificationService from '../services/NotificationService';
 
-// Configurar como as notificações são tratadas quando o app está em primeiro plano
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+const SAMPLE_NOTIFICATIONS = [
+  {
+    id: '1',
+    title: 'Nova Promoção no Pet Shop Central!',
+    body: '15% de desconto em todos os produtos para membros da Liga do Bem. Válido até domingo!',
+    type: 'PROMOTION',
+    data: {
+      partnerId: '1',
+      discount: '15%',
+      partnerName: 'Pet Shop Central',
+    },
+    isRead: false,
+    sentAt: '2024-01-05T14:30:00Z',
+    imageUrl: 'https://via.placeholder.com/300x200/4CAF50/ffffff?text=Promoção',
+  },
+  {
+    id: '2',
+    title: 'Evento de Adoção - Sábado',
+    body: 'Não perca nosso evento de adoção neste sábado das 9h às 17h na Praça da Matriz!',
+    type: 'EVENT',
+    data: {
+      eventId: '1',
+      location: 'Praça da Matriz',
+      date: '2024-01-06',
+    },
+    isRead: true,
+    sentAt: '2024-01-04T10:15:00Z',
+    imageUrl: 'https://via.placeholder.com/300x200/2196F3/ffffff?text=Evento',
+  },
+  {
+    id: '3',
+    title: 'Lembrete de Pagamento',
+    body: 'Sua mensalidade da Liga do Bem vence em 5 dias. Mantenha-se em dia!',
+    type: 'PAYMENT_REMINDER',
+    data: {
+      dueDate: '2024-01-10',
+      amount: 'R$ 25,00',
+    },
+    isRead: false,
+    sentAt: '2024-01-03T09:00:00Z',
+  },
+  {
+    id: '4',
+    title: 'Bem-vindo à Liga do Bem!',
+    body: 'Obrigado por se tornar um membro da nossa comunidade. Aproveite todos os benefícios!',
+    type: 'WELCOME',
+    data: {},
+    isRead: true,
+    sentAt: '2024-01-01T08:00:00Z',
+    imageUrl:
+      'https://via.placeholder.com/300x200/8B5CF6/ffffff?text=Bem-vindo',
+  },
+  {
+    id: '5',
+    title: 'Nova Parceira: Clínica Veterinária Amigo',
+    body: 'Conheça nossa nova parceira que oferece 10% de desconto para membros!',
+    type: 'NEW_PARTNER',
+    data: {
+      partnerId: '2',
+      partnerName: 'Clínica Veterinária Amigo',
+      discount: '10%',
+    },
+    isRead: false,
+    sentAt: '2024-01-02T16:45:00Z',
+    imageUrl:
+      'https://via.placeholder.com/300x200/FF9800/ffffff?text=Nova+Parceira',
+  },
+];
 
-export default function NotificationsScreen({ navigation }) {
+export default function NotificationsScreen({navigation}) {
   const [notifications, setNotifications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [expoPushToken, setExpoPushToken] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Dados simulados de notificações
-  const sampleNotifications = [
-    {
-      id: '1',
-      title: 'Nova Promoção no Pet Shop Central!',
-      body: '15% de desconto em todos os produtos para membros da Liga do Bem. Válido até domingo!',
-      type: 'PROMOTION',
-      data: {
-        partnerId: '1',
-        discount: '15%',
-        partnerName: 'Pet Shop Central'
-      },
-      isRead: false,
-      sentAt: '2024-01-05T14:30:00Z',
-      imageUrl: 'https://via.placeholder.com/300x200/4CAF50/ffffff?text=Promoção'
-    },
-    {
-      id: '2',
-      title: 'Evento de Adoção - Sábado',
-      body: 'Não perca nosso evento de adoção neste sábado das 9h às 17h na Praça da Matriz!',
-      type: 'EVENT',
-      data: {
-        eventId: '1',
-        location: 'Praça da Matriz',
-        date: '2024-01-06'
-      },
-      isRead: true,
-      sentAt: '2024-01-04T10:15:00Z',
-      imageUrl: 'https://via.placeholder.com/300x200/2196F3/ffffff?text=Evento'
-    },
-    {
-      id: '3',
-      title: 'Lembrete de Pagamento',
-      body: 'Sua mensalidade da Liga do Bem vence em 5 dias. Mantenha-se em dia!',
-      type: 'PAYMENT_REMINDER',
-      data: {
-        dueDate: '2024-01-10',
-        amount: 'R$ 25,00'
-      },
-      isRead: false,
-      sentAt: '2024-01-03T09:00:00Z'
-    },
-    {
-      id: '4',
-      title: 'Bem-vindo à Liga do Bem!',
-      body: 'Obrigado por se tornar um membro da nossa comunidade. Aproveite todos os benefícios!',
-      type: 'WELCOME',
-      data: {},
-      isRead: true,
-      sentAt: '2024-01-01T08:00:00Z',
-      imageUrl: 'https://via.placeholder.com/300x200/8B5CF6/ffffff?text=Bem-vindo'
-    },
-    {
-      id: '5',
-      title: 'Nova Parceira: Clínica Veterinária Amigo',
-      body: 'Conheça nossa nova parceira que oferece 10% de desconto para membros!',
-      type: 'NEW_PARTNER',
-      data: {
-        partnerId: '2',
-        partnerName: 'Clínica Veterinária Amigo',
-        discount: '10%'
-      },
-      isRead: false,
-      sentAt: '2024-01-02T16:45:00Z',
-      imageUrl: 'https://via.placeholder.com/300x200/FF9800/ffffff?text=Nova+Parceira'
+  const registerForPushNotifications = useCallback(async () => {
+    try {
+      const granted = await NotificationService.requestPermissions();
+
+      if (!granted) {
+        Alert.alert(
+          'Permissão Negada',
+          'Notificações push não foram permitidas.',
+        );
+        return;
+      }
+
+      const token = await NotificationService.getDeviceToken();
+      if (token) {
+        console.log('Token de notificação:', token);
+      }
+    } catch (error) {
+      console.error('Erro ao registrar notificações:', error);
     }
-  ];
+  }, []);
+
+  const loadNotifications = useCallback(() => {
+    setRefreshing(true);
+
+    // Simular carregamento de notificações
+    setTimeout(() => {
+      setNotifications(SAMPLE_NOTIFICATIONS);
+      const unread = SAMPLE_NOTIFICATIONS.filter(n => !n.isRead).length;
+      setUnreadCount(unread);
+      setRefreshing(false);
+    }, 1000);
+  }, []);
 
   useEffect(() => {
     loadNotifications();
     registerForPushNotifications();
-  }, []);
+  }, [loadNotifications, registerForPushNotifications]);
 
-  const registerForPushNotifications = async () => {
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        Alert.alert('Permissão Negada', 'Notificações push não foram permitidas.');
-        return;
-      }
-      
-      const token = await Notifications.getExpoPushTokenAsync();
-      setExpoPushToken(token.data);
-      
-      // Registrar token no backend (simulado)
-      console.log('Token de notificação:', token.data);
-      
-    } catch (error) {
-      console.error('Erro ao registrar notificações:', error);
-    }
-  };
-
-  const loadNotifications = async () => {
-    setRefreshing(true);
-    
-    // Simular carregamento de notificações
-    setTimeout(() => {
-      setNotifications(sampleNotifications);
-      const unread = sampleNotifications.filter(n => !n.isRead).length;
-      setUnreadCount(unread);
-      setRefreshing(false);
-    }, 1000);
-  };
-
-  const markAsRead = async (notificationId) => {
+  const markAsRead = async notificationId => {
     const updatedNotifications = notifications.map(notification =>
       notification.id === notificationId
-        ? { ...notification, isRead: true }
-        : notification
+        ? {...notification, isRead: true}
+        : notification,
     );
-    
+
     setNotifications(updatedNotifications);
-    
+
     // Atualizar contador
     const unread = updatedNotifications.filter(n => !n.isRead).length;
     setUnreadCount(unread);
-    
+
     // Em produção, fazer chamada para API
     console.log(`Notificação ${notificationId} marcada como lida`);
   };
@@ -158,17 +143,17 @@ export default function NotificationsScreen({ navigation }) {
   const markAllAsRead = async () => {
     const updatedNotifications = notifications.map(notification => ({
       ...notification,
-      isRead: true
+      isRead: true,
     }));
-    
+
     setNotifications(updatedNotifications);
     setUnreadCount(0);
-    
+
     // Em produção, fazer chamada para API
     console.log('Todas as notificações marcadas como lidas');
   };
 
-  const handleNotificationPress = (notification) => {
+  const handleNotificationPress = notification => {
     // Marcar como lida
     if (!notification.isRead) {
       markAsRead(notification.id);
@@ -180,7 +165,9 @@ export default function NotificationsScreen({ navigation }) {
       case 'NEW_PARTNER':
         if (notification.data.partnerId) {
           // Navegar para detalhes do parceiro
-          navigation.navigate('PartnerDetail', { partnerId: notification.data.partnerId });
+          navigation.navigate('PartnerDetail', {
+            partnerId: notification.data.partnerId,
+          });
         }
         break;
       case 'EVENT':
@@ -199,7 +186,7 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
-  const getNotificationIcon = (type) => {
+  const getNotificationIcon = type => {
     switch (type) {
       case 'PROMOTION':
         return 'pricetag';
@@ -216,7 +203,7 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
-  const getNotificationColor = (type) => {
+  const getNotificationColor = type => {
     switch (type) {
       case 'PROMOTION':
         return '#10B981';
@@ -233,7 +220,7 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = dateString => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = (now - date) / (1000 * 60 * 60);
@@ -248,49 +235,48 @@ export default function NotificationsScreen({ navigation }) {
       return date.toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
-        year: '2-digit'
+        year: '2-digit',
       });
     }
   };
 
-  const renderNotificationItem = ({ item }) => (
+  const renderNotificationItem = ({item}) => (
     <TouchableOpacity
       style={[
         styles.notificationCard,
-        !item.isRead && styles.unreadNotification
+        !item.isRead && styles.unreadNotification,
       ]}
-      onPress={() => handleNotificationPress(item)}
-    >
+      onPress={() => handleNotificationPress(item)}>
       <View style={styles.notificationHeader}>
-        <View style={[
-          styles.notificationIcon,
-          { backgroundColor: getNotificationColor(item.type) }
-        ]}>
-          <Ionicons 
-            name={getNotificationIcon(item.type)} 
-            size={20} 
-            color="white" 
+        <View
+          style={[
+            styles.notificationIcon,
+            {backgroundColor: getNotificationColor(item.type)},
+          ]}>
+          <Ionicons
+            name={getNotificationIcon(item.type)}
+            size={20}
+            color="white"
           />
         </View>
-        
+
         <View style={styles.notificationContent}>
           <View style={styles.notificationTitleRow}>
-            <Text style={[
-              styles.notificationTitle,
-              !item.isRead && styles.unreadTitle
-            ]}>
+            <Text
+              style={[
+                styles.notificationTitle,
+                !item.isRead && styles.unreadTitle,
+              ]}>
               {item.title}
             </Text>
             {!item.isRead && <View style={styles.unreadDot} />}
           </View>
-          
+
           <Text style={styles.notificationBody} numberOfLines={2}>
             {item.body}
           </Text>
-          
-          <Text style={styles.notificationTime}>
-            {formatDate(item.sentAt)}
-          </Text>
+
+          <Text style={styles.notificationTime}>{formatDate(item.sentAt)}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -317,12 +303,11 @@ export default function NotificationsScreen({ navigation }) {
             </View>
           )}
         </View>
-        
+
         {unreadCount > 0 && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.markAllButton}
-            onPress={markAllAsRead}
-          >
+            onPress={markAllAsRead}>
             <Text style={styles.markAllText}>Marcar todas como lidas</Text>
           </TouchableOpacity>
         )}
@@ -331,7 +316,7 @@ export default function NotificationsScreen({ navigation }) {
       <FlatList
         data={notifications}
         renderItem={renderNotificationItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={

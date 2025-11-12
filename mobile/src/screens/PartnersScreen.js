@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -8,61 +8,100 @@ import {
   TextInput,
   Linking,
   Platform,
+  PermissionsAndroid,
   RefreshControl,
 } from 'react-native';
-import * as Location from 'expo-location';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Geolocation from '@react-native-community/geolocation';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
-export default function PartnersScreen({ navigation }) {
+const deg2rad = deg => deg * (Math.PI / 180);
+
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Raio da Terra em km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+export default function PartnersScreen({navigation}) {
   const [partners, setPartners] = useState([]);
   const [filteredPartners, setFilteredPartners] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [userLocation, setUserLocation] = useState(null);
 
-  useEffect(() => {
-    requestLocationPermission();
-    loadPartners();
+  const requestLocationPermission = useCallback(async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Permissão de Localização',
+            message:
+              'A Liga do Bem utiliza sua localização para mostrar parceiros próximos.',
+            buttonPositive: 'Permitir',
+            buttonNegative: 'Negar',
+          },
+        );
+
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('Permissão de localização negada');
+          return;
+        }
+      } else {
+        const status = await Geolocation.requestAuthorization('whenInUse');
+        if (status !== 'granted') {
+          console.log('Permissão de localização negada');
+          return;
+        }
+      }
+
+      Geolocation.getCurrentPosition(
+        position => {
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        error => {
+          console.error('Erro ao obter localização:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 10000,
+        },
+      );
+    } catch (error) {
+      console.error('Erro ao solicitar permissão de localização:', error);
+    }
   }, []);
 
-  useEffect(() => {
-    filterPartners();
-  }, [searchQuery, selectedCategory, partners, userLocation]);
-
-  const requestLocationPermission = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const location = await Location.getCurrentPositionAsync({});
-        setUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao obter localização:', error);
-    }
-  };
-
-  const loadPartners = async () => {
+  const loadPartners = useCallback(async () => {
     try {
       console.log('🔄 Carregando parceiros da API...');
-      
+
       const response = await fetch(`${API_BASE_URL}/partners`);
-      
+
       if (!response.ok) {
         throw new Error(`Erro HTTP: ${response.status}`);
       }
-      
+
       const apiData = await response.json();
       const apiPartners = apiData.partners || [];
       console.log('✅ Parceiros carregados:', apiPartners.length);
-      
+
       // Converter dados da API para formato esperado pelo app
       const formattedPartners = apiPartners.map(partner => ({
         id: partner.id,
@@ -78,13 +117,12 @@ export default function PartnersScreen({ navigation }) {
         hours: 'Seg-Sex: 9h-18h | Sáb: 9h-13h', // TODO: implementar horários
         logo: 'https://via.placeholder.com/100',
       }));
-      
+
       setPartners(formattedPartners);
       setFilteredPartners(formattedPartners);
-      
     } catch (error) {
       console.error('❌ Erro ao carregar parceiros:', error);
-      
+
       // Fallback para dados mockados em caso de erro
       const fallbackPartners = [
         {
@@ -97,70 +135,66 @@ export default function PartnersScreen({ navigation }) {
           phone: '(14) 3811-1234',
           whatsapp: '14981234567',
           latitude: -22.8858,
-          longitude: -48.4450,
+          longitude: -48.445,
           hours: 'Seg-Sex: 9h-18h | Sáb: 9h-13h',
           logo: 'https://via.placeholder.com/100',
-        }
+        },
       ];
-      
+
       setPartners(fallbackPartners);
       setFilteredPartners(fallbackPartners);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  const filterPartners = () => {
+  const filterPartners = useCallback(() => {
     let filtered = partners;
 
     if (searchQuery) {
-      filtered = filtered.filter(partner =>
-        partner.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        partner.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        partner.address.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter(
+        partner =>
+          partner.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          partner.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          partner.address.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
 
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(partner =>
-        partner.category.toLowerCase() === selectedCategory.toLowerCase()
+      filtered = filtered.filter(
+        partner =>
+          partner.category.toLowerCase() === selectedCategory.toLowerCase(),
       );
     }
 
     // Ordenar por distância se tivermos a localização do usuário
     if (userLocation) {
-      filtered = filtered.map(partner => ({
-        ...partner,
-        distance: calculateDistance(
-          userLocation.latitude,
-          userLocation.longitude,
-          partner.latitude,
-          partner.longitude
-        ),
-      })).sort((a, b) => a.distance - b.distance);
+      filtered = filtered
+        .map(partner => ({
+          ...partner,
+          distance: calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            partner.latitude,
+            partner.longitude,
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance);
     }
 
     setFilteredPartners(filtered);
-  };
+  }, [partners, searchQuery, selectedCategory, userLocation]);
 
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Raio da Terra em km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+  useEffect(() => {
+    requestLocationPermission();
+    loadPartners();
+  }, [requestLocationPermission, loadPartners]);
 
-  const deg2rad = (deg) => {
-    return deg * (Math.PI / 180);
-  };
+  useEffect(() => {
+    filterPartners();
+  }, [filterPartners]);
 
-  const openMaps = (partner) => {
+  const openMaps = partner => {
     const address = encodeURIComponent(partner.address);
     const url = Platform.select({
       ios: `maps:0,0?q=${address}`,
@@ -175,10 +209,10 @@ export default function PartnersScreen({ navigation }) {
   };
 
   const categories = [
-    { id: 'all', label: 'Todos', icon: 'apps' },
-    { id: 'pet shop', label: 'Pet Shop', icon: 'basket' },
-    { id: 'veterinária', label: 'Veterinária', icon: 'medical' },
-    { id: 'estética', label: 'Estética', icon: 'cut' },
+    {id: 'all', label: 'Todos', icon: 'apps'},
+    {id: 'pet shop', label: 'Pet Shop', icon: 'basket'},
+    {id: 'veterinária', label: 'Veterinária', icon: 'medical'},
+    {id: 'estética', label: 'Estética', icon: 'cut'},
   ];
 
   return (
@@ -207,32 +241,29 @@ export default function PartnersScreen({ navigation }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}
-        >
-        {categories.map((category) => (
-          <TouchableOpacity
-            key={category.id}
-            style={[
-              styles.filterButton,
-              selectedCategory === category.id && styles.filterButtonActive,
-            ]}
-            onPress={() => setSelectedCategory(category.id)}
-          >
-            <Ionicons
-              name={category.icon}
-              size={18}
-              color={selectedCategory === category.id ? '#FFFFFF' : '#6B7280'}
-            />
-            <Text
+          contentContainerStyle={styles.filtersContent}>
+          {categories.map(category => (
+            <TouchableOpacity
+              key={category.id}
               style={[
-                styles.filterText,
-                selectedCategory === category.id && styles.filterTextActive,
+                styles.filterButton,
+                selectedCategory === category.id && styles.filterButtonActive,
               ]}
-            >
-              {category.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              onPress={() => setSelectedCategory(category.id)}>
+              <Ionicons
+                name={category.icon}
+                size={18}
+                color={selectedCategory === category.id ? '#FFFFFF' : '#6B7280'}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  selectedCategory === category.id && styles.filterTextActive,
+                ]}>
+                {category.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
 
@@ -242,20 +273,17 @@ export default function PartnersScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {filteredPartners.map((partner) => (
+        }>
+        {filteredPartners.map(partner => (
           <TouchableOpacity
             key={partner.id}
             style={styles.partnerCard}
-            onPress={() => navigation.navigate('PartnerDetail', { partner })}
-          >
+            onPress={() => navigation.navigate('PartnerDetail', {partner})}>
             <LinearGradient
               colors={['#8B5CF6', '#7C3AED']}
               style={styles.discountBadge}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 0}}>
               <Text style={styles.discountText}>{partner.discount}</Text>
             </LinearGradient>
 
@@ -283,11 +311,10 @@ export default function PartnersScreen({ navigation }) {
             <View style={styles.partnerActions}>
               <TouchableOpacity
                 style={styles.actionIcon}
-                onPress={(e) => {
+                onPress={e => {
                   e.stopPropagation();
                   openMaps(partner);
-                }}
-              >
+                }}>
                 <Ionicons name="navigate" size={20} color="#8B5CF6" />
               </TouchableOpacity>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
@@ -383,7 +410,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -397,7 +424,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,

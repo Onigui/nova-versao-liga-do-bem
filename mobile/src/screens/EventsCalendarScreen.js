@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../services/AuthService';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useAuth} from '../services/AuthService';
 
-export default function EventsCalendarScreen({ navigation }) {
-  const { isAuthenticated } = useAuth();
+export default function EventsCalendarScreen({navigation}) {
+  const {isAuthenticated} = useAuth();
   const [events, setEvents] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [refreshing, setRefreshing] = useState(false);
@@ -34,7 +34,8 @@ export default function EventsCalendarScreen({ navigation }) {
           category: 'Adoção',
           vacancies: 50,
           registered: 23,
-          image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
+          image:
+            'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
         },
         {
           id: '2',
@@ -45,7 +46,8 @@ export default function EventsCalendarScreen({ navigation }) {
           category: 'Saúde',
           vacancies: 30,
           registered: 30,
-          image: 'https://images.unsplash.com/photo-1576201836106-db1758fd1c97?w=400',
+          image:
+            'https://images.unsplash.com/photo-1576201836106-db1758fd1c97?w=400',
         },
         {
           id: '3',
@@ -56,10 +58,11 @@ export default function EventsCalendarScreen({ navigation }) {
           category: 'Educação',
           vacancies: 20,
           registered: 12,
-          image: 'https://images.unsplash.com/photo-1561037404-61cd46aa615b?w=400',
+          image:
+            'https://images.unsplash.com/photo-1561037404-61cd46aa615b?w=400',
         },
       ];
-      
+
       setEvents(mockEvents);
     } catch (error) {
       console.error('Erro ao carregar eventos:', error);
@@ -74,16 +77,26 @@ export default function EventsCalendarScreen({ navigation }) {
   };
 
   const months = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
   ];
 
-  const getCategoryColor = (category) => {
+  const getCategoryColor = category => {
     const colors = {
-      'Adoção': '#8B5CF6',
-      'Saúde': '#10B981',
-      'Educação': '#F59E0B',
-      'Voluntariado': '#3B82F6',
+      Adoção: '#8B5CF6',
+      Saúde: '#10B981',
+      Educação: '#F59E0B',
+      Voluntariado: '#3B82F6',
     };
     return colors[category] || '#6B7280';
   };
@@ -91,15 +104,10 @@ export default function EventsCalendarScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={['#8B5CF6', '#EC4899']}
-        style={styles.header}
-      >
+      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <Ionicons name="calendar" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Calendário de Eventos</Text>
-        <Text style={styles.headerSubtitle}>
-          Participe e faça a diferença!
-        </Text>
+        <Text style={styles.headerSubtitle}>Participe e faça a diferença!</Text>
       </LinearGradient>
 
       {/* Month Selector */}
@@ -107,8 +115,7 @@ export default function EventsCalendarScreen({ navigation }) {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.monthSelector}
-        contentContainerStyle={styles.monthSelectorContent}
-      >
+        contentContainerStyle={styles.monthSelectorContent}>
         {months.map((month, index) => (
           <TouchableOpacity
             key={index}
@@ -116,14 +123,12 @@ export default function EventsCalendarScreen({ navigation }) {
               styles.monthButton,
               selectedMonth === index && styles.monthButtonActive,
             ]}
-            onPress={() => setSelectedMonth(index)}
-          >
+            onPress={() => setSelectedMonth(index)}>
             <Text
               style={[
                 styles.monthText,
                 selectedMonth === index && styles.monthTextActive,
-              ]}
-            >
+              ]}>
               {month}
             </Text>
           </TouchableOpacity>
@@ -136,22 +141,20 @@ export default function EventsCalendarScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+        }>
         <Text style={styles.listTitle}>
           {months[selectedMonth]} {new Date().getFullYear()}
         </Text>
 
-        {events.map((event) => {
+        {events.map(event => {
           const vacanciesLeft = event.vacancies - event.registered;
           const isFull = vacanciesLeft === 0;
-          
+
           return (
             <TouchableOpacity
               key={event.id}
               style={styles.eventCard}
-              onPress={() => navigation.navigate('EventDetail', { event })}
-            >
+              onPress={() => navigation.navigate('EventDetail', {event})}>
               <View style={styles.eventDate}>
                 <Text style={styles.eventDay}>
                   {new Date(event.date).getDate()}
@@ -169,15 +172,16 @@ export default function EventsCalendarScreen({ navigation }) {
                   <View
                     style={[
                       styles.categoryBadge,
-                      { backgroundColor: getCategoryColor(event.category) + '20' },
-                    ]}
-                  >
+                      {
+                        backgroundColor:
+                          getCategoryColor(event.category) + '20',
+                      },
+                    ]}>
                     <Text
                       style={[
                         styles.categoryBadgeText,
-                        { color: getCategoryColor(event.category) },
-                      ]}
-                    >
+                        {color: getCategoryColor(event.category)},
+                      ]}>
                       {event.category}
                     </Text>
                   </View>
@@ -189,7 +193,11 @@ export default function EventsCalendarScreen({ navigation }) {
                     <Text style={styles.metaText}>{event.time}</Text>
                   </View>
                   <View style={styles.metaItem}>
-                    <Ionicons name="location-outline" size={14} color="#6B7280" />
+                    <Ionicons
+                      name="location-outline"
+                      size={14}
+                      color="#6B7280"
+                    />
                     <Text style={styles.metaText} numberOfLines={1}>
                       {event.location}
                     </Text>
@@ -206,9 +214,8 @@ export default function EventsCalendarScreen({ navigation }) {
                     <Text
                       style={[
                         styles.vacanciesText,
-                        { color: isFull ? '#EF4444' : '#10B981' },
-                      ]}
-                    >
+                        {color: isFull ? '#EF4444' : '#10B981'},
+                      ]}>
                       {isFull ? 'Esgotado' : `${vacanciesLeft} vagas`}
                     </Text>
                   </View>
@@ -298,7 +305,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
@@ -396,4 +403,3 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
 });
-
