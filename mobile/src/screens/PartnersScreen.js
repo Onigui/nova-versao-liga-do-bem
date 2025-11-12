@@ -1,3 +1,4 @@
+import React, {useCallback, useEffect, useState} from 'react';
 import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
@@ -96,6 +97,7 @@ export default function PartnersScreen({navigation}) {
     } catch (error) {
       console.error('Erro ao solicitar permissão de localização:', error);
     }
+  }, []);
   }, [setUserLocation]);
 
   const loadPartners = useCallback(async () => {
@@ -194,6 +196,15 @@ export default function PartnersScreen({navigation}) {
 
     setFilteredPartners(filtered);
   }, [partners, searchQuery, selectedCategory, userLocation]);
+
+  useEffect(() => {
+    requestLocationPermission();
+    loadPartners();
+  }, [requestLocationPermission, loadPartners]);
+
+  useEffect(() => {
+    filterPartners();
+  }, [filterPartners]);
 
   const openMaps = partner => {
     const address = encodeURIComponent(partner.address);
