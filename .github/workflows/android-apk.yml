@@ -44,6 +44,15 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
+      - name: Install Android SDK components
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "cmake;3.22.1" \
+            "ndk;25.1.8937393"
+
       - name: Prepare Android SDK path
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > mobile/android/local.properties
 
@@ -52,6 +61,8 @@ jobs:
 
       - name: Build Android release APK
         working-directory: mobile/android
+        env:
+          ORG_GRADLE_PROJECT_orgGradleJavaHome: ${{ env.JAVA_HOME }}
         run: ./gradlew assembleRelease
 
       - name: Upload APK artifact

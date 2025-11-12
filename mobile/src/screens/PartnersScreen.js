@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   RefreshControl,
+  PermissionsAndroid,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -36,6 +37,24 @@ export default function PartnersScreen({ navigation }) {
 
   const requestLocationPermission = async () => {
     try {
+      if (Platform.OS === 'android') {
+        const hasPermission = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        );
+
+        if (!hasPermission) {
+          const result = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          );
+
+          if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+            console.warn('Permissão de localização negada');
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         const location = await Location.getCurrentPositionAsync({});
