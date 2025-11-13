@@ -54,7 +54,8 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     // Para demo, aceitar credenciais específicas SEM verificar banco
-    if (email === 'admin@ligadobem.com' && password === 'admin123') {
+    const demoPasswords = ['admin123', 'demo123'];
+    if (email === 'admin@ligadobem.com' && demoPasswords.includes(password)) {
       console.log('✅ Credenciais demo aceitas - login direto sem banco');
       
       // Criar token direto sem verificar banco
