@@ -2,8 +2,9 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_PATH } from '../config/apiConfig';
 
-const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
+const API_BASE_URL = API_BASE_PATH;
 
 // Configurar como as notificações são tratadas quando recebidas
 Notifications.setNotificationHandler({

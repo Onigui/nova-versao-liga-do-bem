@@ -1,13 +1,9 @@
 import axios from 'axios';
-
-// Configuração base da API
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001' 
-  : 'https://nova-versao-liga-do-bem.onrender.com';
+import { API_BASE_PATH } from '../config/apiConfig';
 
 // Criar instância do axios
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_BASE_PATH,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -67,109 +63,109 @@ const clearStoredToken = (): void => {
 // Auth
 export const authService = {
   login: (email: string, password: string) =>
-    api.post('/api/auth/login', { email, password }),
+    api.post('/auth/login', { email, password }),
   
   register: (userData: any) =>
-    api.post('/api/auth/register', userData),
+    api.post('/auth/register', userData),
   
   googleAuth: (idToken: string) =>
-    api.post('/api/auth/oauth/google', { idToken }),
+    api.post('/auth/oauth/google', { idToken }),
   
   refreshToken: (token: string) =>
-    api.post('/api/auth/refresh', { token }),
+    api.post('/auth/refresh', { token }),
 };
 
 // Users
 export const userService = {
   getProfile: () =>
-    api.get('/api/users/profile'),
+    api.get('/users/profile'),
   
   updateProfile: (userData: any) =>
-    api.put('/api/users/profile', userData),
+    api.put('/users/profile', userData),
   
   getMembership: () =>
-    api.get('/api/users/membership'),
+    api.get('/users/membership'),
 };
 
 // Animals
 export const animalService = {
   getAll: (filters?: any) =>
-    api.get('/api/animals', { params: filters }),
+    api.get('/animals', { params: filters }),
   
   getById: (id: string) =>
-    api.get(`/api/animals/${id}`),
+    api.get(`/animals/${id}`),
   
   createAdoption: (animalId: string, data: any) =>
-    api.post(`/api/animals/${animalId}/adopt`, data),
+    api.post(`/animals/${animalId}/adopt`, data),
 };
 
 // Partners
 export const partnerService = {
   getAll: (filters?: any) =>
-    api.get('/api/partners', { params: filters }),
+    api.get('/partners', { params: filters }),
   
   getById: (id: string) =>
-    api.get(`/api/partners/${id}`),
+    api.get(`/partners/${id}`),
   
   validateDiscount: (partnerId: string, memberId: string, discountId?: string) =>
-    api.post(`/api/partners/${partnerId}/validate`, { memberId, discountId }),
+    api.post(`/partners/${partnerId}/validate`, { memberId, discountId }),
   
   getCategories: () =>
-    api.get('/api/partners/meta/categories'),
+    api.get('/partners/meta/categories'),
 };
 
 // Events
 export const eventService = {
   getAll: (filters?: any) =>
-    api.get('/api/events', { params: filters }),
+    api.get('/events', { params: filters }),
   
   getById: (id: string) =>
-    api.get(`/api/events/${id}`),
+    api.get(`/events/${id}`),
   
   register: (eventId: string, data: any) =>
-    api.post(`/api/events/${eventId}/register`, data),
+    api.post(`/events/${eventId}/register`, data),
 };
 
 // Donations
 export const donationService = {
   create: (donationData: any) =>
-    api.post('/api/donations', donationData),
+    api.post('/donations', donationData),
   
   getAll: (filters?: any) =>
-    api.get('/api/donations', { params: filters }),
+    api.get('/donations', { params: filters }),
   
   getById: (id: string) =>
-    api.get(`/api/donations/${id}`),
+    api.get(`/donations/${id}`),
 };
 
 // Volunteers
 export const volunteerService = {
   getAll: () =>
-    api.get('/api/volunteers'),
+    api.get('/volunteers'),
   
   register: (data: any) =>
-    api.post('/api/volunteers/register', data),
+    api.post('/volunteers/register', data),
 };
 
 // Notifications
 export const notificationService = {
   getAll: () =>
-    api.get('/api/notifications'),
+    api.get('/notifications'),
   
   markAsRead: (id: string) =>
-    api.put(`/api/notifications/${id}/read`),
+    api.put(`/notifications/${id}/read`),
   
   registerDeviceToken: (token: string, platform: string) =>
-    api.post('/api/notifications/device-token', { token, platform }),
+    api.post('/notifications/device-token', { token, platform }),
 };
 
 // Transparency
 export const transparencyService = {
   getReports: (year?: number) =>
-    api.get('/api/transparency/reports', { params: { year } }),
+    api.get('/transparency/reports', { params: { year } }),
   
   getStats: () =>
-    api.get('/api/transparency/stats'),
+    api.get('/transparency/stats'),
 };
 
 export default api;

@@ -13,8 +13,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { API_BASE_PATH } from '../config/apiConfig';
 
-const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
+const API_BASE_URL = API_BASE_PATH;
 
 export default function ForgotPasswordScreen({ navigation }) {
   const [email, setEmail] = useState('');

@@ -3,12 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import NotificationService from './NotificationService';
+import { API_BASE_PATH } from '../config/apiConfig';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const AuthContext = createContext({});
-
-const API_BASE_URL = 'https://nova-versao-liga-do-bem.onrender.com/api';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -53,9 +52,9 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('user');
       
-      console.log('🔐 TENTANDO LOGIN v1.1.8 (CACHE LIMPO):', { email, apiUrl: `${API_BASE_URL}/auth/login` });
+      console.log('🔐 TENTANDO LOGIN v1.1.8 (CACHE LIMPO):', { email, apiUrl: `${API_BASE_PATH}/auth/login` });
       
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${API_BASE_PATH}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +111,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await fetch(`${API_BASE_PATH}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +146,7 @@ export const AuthProvider = ({ children }) => {
       
       if (result.type === 'success') {
         // Processar o código de autorização
-        const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        const response = await fetch(`${API_BASE_PATH}/auth/google`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
