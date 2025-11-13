@@ -1,8 +1,7 @@
 import {Platform, PermissionsAndroid} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
-
-const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
+import { API_BASE_PATH } from '../config/apiConfig';
 
 export class NotificationService {
   static async requestPermissions() {
@@ -65,7 +64,7 @@ export class NotificationService {
       }
 
       // Registrar token no backend
-      const response = await fetch(`${API_BASE_URL}/notifications/register`, {
+      const response = await fetch(`${API_BASE_PATH}/notifications/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -139,7 +138,7 @@ export class NotificationService {
 
   static async sendTestNotification(userToken) {
     try {
-      const response = await fetch(`${API_BASE_URL}/notifications/test`, {
+      const response = await fetch(`${API_BASE_PATH}/notifications/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -166,7 +165,7 @@ export class NotificationService {
 
   static async getNotificationHistory(userToken) {
     try {
-      const response = await fetch(`${API_BASE_URL}/notifications/history`, {
+      const response = await fetch(`${API_BASE_PATH}/notifications/history`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${userToken}`,
