@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationService from './NotificationService';
+import { API_BASE_PATH } from '../config/apiConfig';
 
 const AuthContext = createContext({});
-
-const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com/api';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -49,9 +48,9 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('user');
       
-      console.log('🔐 TENTANDO LOGIN v1.1.8 (CACHE LIMPO):', { email, apiUrl: `${API_BASE_URL}/auth/login` });
+      console.log('🔐 TENTANDO LOGIN v1.1.8 (CACHE LIMPO):', { email, apiUrl: `${API_BASE_PATH}/auth/login` });
       
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${API_BASE_PATH}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,7 +107,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await fetch(`${API_BASE_PATH}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
