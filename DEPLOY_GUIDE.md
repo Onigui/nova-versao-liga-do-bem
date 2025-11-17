@@ -252,18 +252,20 @@ Vercel já faz auto-deploy do branch `master`/`main` por padrão quando você fa
 - Para serverless functions, o Vercel NÃO precisa de Output Directory!
 - O Vercel executa `npm run build` automaticamente se detectar o script no `package.json`
 - O script `build` no `package.json` foi modificado para não fazer nada (apenas imprime mensagem)
+- O script `vercel-build` foi REMOVIDO do `package.json` (não é necessário)
 - O Vercel compila TypeScript automaticamente usando `@vercel/node` quando detecta a pasta `api/`
 - O `vercel.json` já configura tudo corretamente
 - **Deixe todos os campos vazios no dashboard!**
 
 **Por que funciona agora:**
 - O script `build` no `package.json` não executa `tsc`, apenas imprime uma mensagem
+- O script `vercel-build` foi removido (não é necessário para serverless functions)
 - O Vercel executa `npm run build` mas não cria arquivos, então não procura Output Directory
 - O Vercel compila TypeScript automaticamente na pasta `api/` usando `@vercel/node`
 - Para builds locais, use `npm run build:local` (que executa `tsc`)
 
 **Se o erro persistir:**
-1. Certifique-se de que o `package.json` está commitado no GitHub (com o script `build` modificado)
+1. Certifique-se de que o `package.json` está commitado no GitHub (sem o script `vercel-build`)
 2. Certifique-se de que o `vercel.json` está commitado no GitHub (com `buildCommand: null`)
 3. Faça um **push** das alterações para o GitHub
 4. O Vercel vai fazer deploy automaticamente
