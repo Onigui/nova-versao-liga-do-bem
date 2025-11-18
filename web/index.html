@@ -1410,7 +1410,8 @@
         // Payment System JavaScript
         let selectedAmount = 0;
         let currentPayment = null;
-        const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com';
+        // TODO: Atualizar para URL do Fly.io após deploy
+        const API_BASE_URL = window.API_BASE_URL || 'https://nova-versao-liga-do-bem-api.vercel.app';
 
         // Amount selection
         document.addEventListener('DOMContentLoaded', function() {
