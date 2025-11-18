@@ -219,7 +219,7 @@ Os arquivos já foram atualizados com fallback para Vercel, mas você pode atual
 
 2. **Site**: `https://nova-versao-liga-do-bem-web.vercel.app`
 
-3. **API**: `https://nova-versao-liga-do-bem-api.vercel.app/api/test`
+3. **API**: `https://nova-versao-liga-do-bem.vercel.app/api/test`
 
 ### 4. Configurar auto-deploy
 
