@@ -25,28 +25,16 @@ dotenv.config();
 
 const app = express();
 
-// Handler explícito para requisições OPTIONS (preflight) - DEVE vir ANTES do CORS
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  
-  // Permitir qualquer origem do Vercel ou localhost
-  if (!origin || origin.includes('.vercel.app') || origin.includes('localhost')) {
-    res.header('Access-Control-Allow-Origin', origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '86400'); // 24 horas
-    return res.sendStatus(204);
-  }
-  
-  res.sendStatus(204);
-});
-
-// Middleware CORS
+// Middleware CORS - Configuração mais permissiva para Vercel
 app.use(cors({
   origin: function(origin, callback) {
     // Permitir requisições sem origin (mobile apps, Postman, etc)
     if (!origin) return callback(null, true);
+    
+    // Permitir qualquer URL do Vercel (incluindo preview deployments)
+    if (origin.includes('.vercel.app') || origin.includes('localhost')) {
+      return callback(null, true);
+    }
     
     const allowedOrigins = [
       process.env.ADMIN_URL,
@@ -59,20 +47,37 @@ app.use(cors({
       'http://localhost:19006'
     ].filter(Boolean);
     
-    // Permitir qualquer URL do Vercel (incluindo preview deployments como -pufx)
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('.vercel.app')) {
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      // Em produção, permitir tudo para facilitar (pode restringir depois)
+      // Permitir tudo para facilitar (pode restringir depois)
       callback(null, true);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'x-admin-token', 'Accept'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
   preflightContinue: false,
   optionsSuccessStatus: 204
 }));
+
+// Handler explícito para requisições OPTIONS (preflight) - APÓS o CORS
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  // Permitir qualquer origem do Vercel ou localhost
+  if (!origin || origin.includes('.vercel.app') || origin.includes('localhost')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 horas
+    return res.status(204).end();
+  }
+  
+  res.status(204).end();
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
