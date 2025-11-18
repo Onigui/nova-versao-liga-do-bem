@@ -25,6 +25,23 @@ dotenv.config();
 
 const app = express();
 
+// Handler explícito para requisições OPTIONS (preflight) - DEVE vir ANTES do CORS
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  // Permitir qualquer origem do Vercel ou localhost
+  if (!origin || origin.includes('.vercel.app') || origin.includes('localhost')) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400'); // 24 horas
+    return res.sendStatus(204);
+  }
+  
+  res.sendStatus(204);
+});
+
 // Middleware CORS
 app.use(cors({
   origin: function(origin, callback) {
@@ -42,7 +59,7 @@ app.use(cors({
       'http://localhost:19006'
     ].filter(Boolean);
     
-    // Permitir qualquer URL do Vercel (incluindo preview deployments)
+    // Permitir qualquer URL do Vercel (incluindo preview deployments como -pufx)
     if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('.vercel.app')) {
       callback(null, true);
     } else {
