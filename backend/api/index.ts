@@ -28,6 +28,7 @@ const app = express();
 // Middleware CORS
 app.use(cors({
   origin: function(origin, callback) {
+    // Permitir requisições sem origin (mobile apps, Postman, etc)
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
@@ -41,15 +42,19 @@ app.use(cors({
       'http://localhost:19006'
     ].filter(Boolean);
     
+    // Permitir qualquer URL do Vercel (incluindo preview deployments)
     if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('.vercel.app')) {
       callback(null, true);
     } else {
-      callback(null, true); // Permitir tudo
+      // Em produção, permitir tudo para facilitar (pode restringir depois)
+      callback(null, true);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'x-admin-token', 'Accept'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 app.use(express.json());

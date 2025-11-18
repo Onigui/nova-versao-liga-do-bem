@@ -123,8 +123,9 @@
     </div>
 
     <script>
-        // TODO: Atualizar para URL do Vercel após deploy
-        const API_BASE_URL = window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app/';
+        // Normalizar URL (remover barra final se existir)
+        const baseUrl = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
+        const API_BASE_URL = baseUrl;
 
         function checkAuth() {
             const statusDiv = document.getElementById('auth-status');
