@@ -413,7 +413,9 @@
         async function login(email, password) {
             try {
                 // Simular chamada para API
-                const response = await fetch('https://nova-versao-liga-do-bem-api.onrender.com/api/admin/login', {
+                // TODO: Atualizar para URL do Vercel após deploy
+                const API_BASE_URL = window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app/';
+                const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

@@ -13,7 +13,8 @@ const resolveApiBaseUrl = () => {
     return 'http://localhost:3001';
   }
 
-  return 'https://nova-versao-liga-do-bem-api.onrender.com';
+  // URL do Vercel em produção
+  return 'https://nova-versao-liga-do-bem.vercel.app/';
 };
 
 export const API_BASE_URL = resolveApiBaseUrl();

@@ -27,7 +27,8 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com';
+        // TODO: Atualizar para URL do Vercel após deploy
+        const API_BASE_URL = window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app/';
         
         function log(message, type = 'info') {
             const result = document.getElementById('result');

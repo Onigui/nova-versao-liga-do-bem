@@ -1861,7 +1861,9 @@
 
     <script>
         // Configuração da API
-        const API_BASE_URL = 'https://nova-versao-liga-do-bem-api.onrender.com';
+        // TODO: Atualizar para URL do Vercel após deploy
+        // Esta URL será substituída automaticamente pelo Vercel durante o build
+        const API_BASE_URL = window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app/';
         
         // Verificar autenticação
         function checkAuth() {
