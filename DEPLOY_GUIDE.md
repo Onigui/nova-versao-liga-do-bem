@@ -250,25 +250,28 @@ Vercel já faz auto-deploy do branch `master`/`main` por padrão quando você fa
 
 ⚠️ **IMPORTANTE**: 
 - Para serverless functions, o Vercel NÃO precisa de Output Directory!
-- O Vercel executa `npm run vercel-build` automaticamente se detectar o script no `package.json`
-- O script `vercel-build` no `package.json` foi configurado para não fazer nada (apenas imprime mensagem)
-- O script `build` no `package.json` também foi modificado para não fazer nada (apenas imprime mensagem)
+- O `vercel.json` usa a configuração `builds` e `routes` (formato antigo mas mais confiável)
+- O script `vercel-build` foi REMOVIDO do `package.json` (não é necessário)
+- O script `build` no `package.json` foi modificado para não fazer nada (apenas imprime mensagem)
 - O Vercel compila TypeScript automaticamente usando `@vercel/node` quando detecta a pasta `api/`
-- O `vercel.json` já configura tudo corretamente
-- **Deixe todos os campos vazios no dashboard!**
+- **Deixe todos os campos vazios no dashboard do Vercel!**
 
 **Por que funciona agora:**
-- O script `vercel-build` no `package.json` não executa nada, apenas imprime uma mensagem e retorna sucesso
-- O script `build` no `package.json` não executa `tsc`, apenas imprime uma mensagem
-- O Vercel executa `npm run vercel-build` mas não cria arquivos, então não procura Output Directory
+- O `vercel.json` usa `builds` e `routes` (formato mais direto para serverless functions)
+- Não há script `vercel-build` no `package.json`, então o Vercel não tenta executá-lo
 - O Vercel compila TypeScript automaticamente na pasta `api/` usando `@vercel/node`
 - Para builds locais, use `npm run build:local` (que executa `tsc`)
 
 **Se o erro persistir:**
-1. Certifique-se de que o `package.json` está commitado no GitHub (com o script `vercel-build` que apenas imprime mensagem)
-2. Certifique-se de que o `vercel.json` está commitado no GitHub (com `buildCommand: null`)
-3. Faça um **push** das alterações para o GitHub
-4. O Vercel vai fazer deploy automaticamente
+1. **VERIFIQUE NO DASHBOARD DO VERCEL:**
+   - Vá em **Settings** > **General**
+   - DELETE tudo dos campos **Install Command**, **Build Command** e **Output Directory**
+   - Deixe todos os campos **completamente VAZIOS**
+   - Clique em **Save**
+2. Certifique-se de que o `package.json` está commitado no GitHub (SEM o script `vercel-build`)
+3. Certifique-se de que o `vercel.json` está commitado no GitHub (com `builds` e `routes`)
+4. Faça um **push** das alterações para o GitHub
+5. O Vercel vai fazer deploy automaticamente
 
 ### Erro: "up: command not found" ou "added: command not found" ou "Command exited with 127"
 

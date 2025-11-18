@@ -1,18 +1,15 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "outputDirectory": null,
-  "installCommand": null,
-  "framework": null,
-  "functions": {
-    "api/index.ts": {
-      "runtime": "@vercel/node@3.0.7"
-    }
-  },
-  "rewrites": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index.ts"
+      "src": "api/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.ts"
     }
   ]
 }
