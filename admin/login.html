@@ -409,23 +409,36 @@
             return password.length >= 6;
         }
 
-        // Função de login
+        // Função de login com timeout
         async function login(email, password) {
+            // Normalizar URL (remover barra final se existir)
+            const baseUrl = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
+            const API_BASE_URL = baseUrl;
+            
+            // Criar um AbortController para timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos
+            
             try {
-                // Simular chamada para API
-                // Normalizar URL (remover barra final se existir)
-                const baseUrl = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
-                const API_BASE_URL = baseUrl;
+                console.log('🔄 Tentando fazer login na API...', `${API_BASE_URL}/api/admin/login`);
+                
                 const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ email, password }),
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
+
+                console.log('📡 Resposta recebida:', response.status, response.statusText);
 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('✅ Login bem-sucedido!');
+                    
                     // Salvar token no localStorage
                     localStorage.setItem('admin_token', data.token);
                     localStorage.setItem('admin_user', JSON.stringify(data.user));
@@ -436,14 +449,34 @@
                     setTimeout(() => {
                         window.location.href = 'index.html';
                     }, 1000);
+                    return;
                 } else {
-                    const error = await response.json();
-                    showMessage(error.message || 'Erro ao fazer login');
+                    let errorMessage = 'Erro ao fazer login';
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.message || errorMessage;
+                    } catch (e) {
+                        errorMessage = `Erro ${response.status}: ${response.statusText}`;
+                    }
+                    console.error('❌ Erro na resposta:', errorMessage);
+                    showMessage(errorMessage);
+                    return;
                 }
             } catch (error) {
+                clearTimeout(timeoutId);
+                
+                // Verificar se foi timeout ou erro de rede
+                if (error.name === 'AbortError') {
+                    console.warn('⏱️ Timeout na requisição, usando login demo');
+                } else {
+                    console.warn('⚠️ Erro na requisição:', error.message);
+                }
+                
                 // Se a API não estiver disponível, usar login demo
-                console.warn('API não disponível, usando login demo');
-                if (email === 'admin@ligadobem.com' && password === 'demo123') {
+                // Aceitar tanto admin123 quanto demo123
+                if (email === 'admin@ligadobem.com' && (password === 'admin123' || password === 'demo123')) {
+                    console.log('🔑 Usando login demo...');
+                    
                     // Criar token demo
                     const demoToken = btoa(JSON.stringify({
                         userId: 'demo-admin',
@@ -506,12 +539,17 @@
             try {
                 await login(email, password);
             } catch (error) {
+                console.error('❌ Erro no login:', error);
                 showMessage('Erro interno. Tente novamente.');
             } finally {
-                // Restaurar botão
-                loginBtn.disabled = false;
-                loadingSpinner.style.display = 'none';
-                loginText.textContent = 'Entrar no Painel';
+                // Restaurar botão apenas se não houver redirecionamento
+                setTimeout(() => {
+                    if (window.location.pathname.includes('login.html')) {
+                        loginBtn.disabled = false;
+                        loadingSpinner.style.display = 'none';
+                        loginText.textContent = 'Entrar no Painel';
+                    }
+                }, 2000);
             }
         });
 
@@ -533,7 +571,8 @@
 
         console.log('🔐 Sistema de Login da Liga do Bem carregado!');
         console.log('📧 Email demo: admin@ligadobem.com');
-        console.log('🔑 Senha demo: demo123');
+        console.log('🔑 Senha demo: admin123 ou demo123');
+        console.log('🌐 API URL:', (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, ''));
     </script>
 </body>
 </html>
