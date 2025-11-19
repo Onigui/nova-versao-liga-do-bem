@@ -2117,36 +2117,8 @@
             });
         });
 
-        // Dados de exemplo para as tabelas
-        let companiesData = [
-            {
-                name: 'Pet Shop Amigo',
-                category: 'Pet Shop',
-                status: 'active',
-                discount: '15%',
-                location: 'Centro',
-                hours: '08:00 - 18:00',
-                date: '02/10/2025'
-            },
-            {
-                name: 'Clínica Veterinária Vida',
-                category: 'Veterinário',
-                status: 'pending',
-                discount: '20%',
-                location: 'Vila dos Pássaros',
-                hours: '24h',
-                date: '01/10/2025'
-            },
-            {
-                name: 'Farmácia Animal',
-                category: 'Farmácia',
-                status: 'active',
-                discount: '10%',
-                location: 'Jardim América',
-                hours: '08:00 - 20:00',
-                date: '30/09/2025'
-            }
-        ];
+        // Dados de empresas - inicializar vazio, será preenchido pela API
+        let companiesData = [];
 
         let membersData = [
             {
@@ -2685,7 +2657,7 @@
                 console.error('❌ Mensagem de erro:', errorMessage);
             }
             
-            // Renderizar tabela
+            // Renderizar tabela APÓS tentar carregar (mesmo se der erro, mostra estado vazio)
             renderCompaniesTable();
             
             // Inicializar mapa se ainda não foi inicializado
@@ -4036,8 +4008,8 @@
             // Carregar dados do backend
             loadMembers();
             
-            // Inicializar tabelas
-            renderCompaniesTable();
+            // Não renderizar tabelas aqui - elas serão renderizadas quando os dados forem carregados
+            // renderCompaniesTable(); // Removido - será chamado após loadCompanies()
             
             // Inicializar gráficos
             setTimeout(() => {
