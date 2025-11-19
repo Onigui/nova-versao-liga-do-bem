@@ -2178,24 +2178,39 @@
         // Renderizar tabelas
         function renderCompaniesTable() {
             const tbody = document.getElementById('companies-table-body');
-            tbody.innerHTML = companiesData.map(company => `
+            
+            if (!companiesData || companiesData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">Nenhuma empresa encontrada</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = companiesData.map((company, index) => {
+                // Verificar se o ID existe, se não, usar índice como fallback temporário
+                const companyId = company.id || `temp-${index}`;
+                
+                if (!company.id) {
+                    console.warn(`⚠️ Empresa sem ID (índice ${index}):`, company);
+                }
+                
+                return `
                 <tr>
-                    <td>${company.name}</td>
-                    <td>${company.category}</td>
-                    <td><span class="status-badge status-${company.status}">${company.status === 'active' ? 'Ativo' : company.status === 'pending' ? 'Pendente' : 'Inativo'}</span></td>
+                    <td>${company.name || 'N/A'}</td>
+                    <td>${company.category || 'N/A'}</td>
+                    <td><span class="status-badge status-${company.status || 'inactive'}">${company.status === 'active' ? 'Ativo' : company.status === 'pending' ? 'Pendente' : 'Inativo'}</span></td>
                     <td>${company.discount || 'N/A'}</td>
-                    <td>${company.location}</td>
+                    <td>${company.location || 'N/A'}</td>
                     <td>${company.hours || 'N/A'}</td>
                     <td>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;" onclick="editCompany('${company.id}')">✏️ Editar</button>
-                            ${company.status !== 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--success-green); color: white;" onclick="approveCompany('${company.id}')">✅ Aprovar</button>` : ''}
-                            ${company.status === 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--warning-orange); color: white;" onclick="rejectCompany('${company.id}')">❌ Rejeitar</button>` : ''}
-                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--error-red); color: white;" onclick="deleteCompany('${company.id}')">🗑️ Excluir</button>
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;" onclick="editCompany('${companyId}')" ${!company.id ? 'disabled title="ID não disponível"' : ''}>✏️ Editar</button>
+                            ${company.status !== 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--success-green); color: white;" onclick="approveCompany('${companyId}')" ${!company.id ? 'disabled title="ID não disponível"' : ''}>✅ Aprovar</button>` : ''}
+                            ${company.status === 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--warning-orange); color: white;" onclick="rejectCompany('${companyId}')" ${!company.id ? 'disabled title="ID não disponível"' : ''}>❌ Rejeitar</button>` : ''}
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--error-red); color: white;" onclick="deleteCompany('${companyId}')" ${!company.id ? 'disabled title="ID não disponível"' : ''}>🗑️ Excluir</button>
                         </div>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // Função para carregar membros do backend
@@ -2597,9 +2612,21 @@
                     console.log('📦 Dados recebidos da API:', data);
                     console.log('📋 Campo companies:', data.companies);
                     companiesData = data.companies || [];
-                    console.log('✅ Empresas carregadas:', companiesData.length, companiesData);
+                    console.log('✅ Empresas carregadas:', companiesData.length);
+                    
+                    // Verificar se as empresas têm ID
+                    if (companiesData.length > 0) {
+                        console.log('📋 Primeira empresa:', companiesData[0]);
+                        console.log('📋 ID da primeira empresa:', companiesData[0].id);
+                        if (!companiesData[0].id) {
+                            console.error('⚠️ ATENÇÃO: Empresas sem ID!', companiesData[0]);
+                        }
+                    }
                 } else {
-                    console.error('❌ Erro ao carregar empresas:', response.status);
+                    const errorText = await response.text();
+                    console.error('❌ Erro ao carregar empresas:', response.status, response.statusText);
+                    console.error('❌ Resposta da API:', errorText);
+                    
                     if (response.status === 401) {
                         console.error('❌ Token inválido ou expirado - faça login novamente');
                         // Redirecionar para login
@@ -2611,7 +2638,12 @@
                 }
             } catch (error) {
                 console.error('❌ Erro ao carregar empresas:', error);
+                console.error('❌ Detalhes do erro:', error.message, error.stack);
                 companiesData = [];
+                
+                // Mostrar erro mais detalhado
+                const errorMessage = error.message || 'Erro desconhecido';
+                console.error('❌ Mensagem de erro:', errorMessage);
             }
             
             // Renderizar tabela
@@ -3519,11 +3551,20 @@
         async function editCompany(companyId) {
             try {
                 console.log('🔧 Editando empresa:', companyId);
+                console.log('📋 Dados das empresas disponíveis:', companiesData);
+                
+                if (!companyId || companyId === 'undefined' || companyId.startsWith('temp-')) {
+                    alert('Erro: ID da empresa não disponível. Por favor, recarregue a página.');
+                    console.error('❌ ID inválido:', companyId);
+                    return;
+                }
                 
                 // Encontrar empresa nos dados
                 const company = companiesData.find(c => c.id === companyId);
                 if (!company) {
-                    alert('Empresa não encontrada!');
+                    console.error('❌ Empresa não encontrada com ID:', companyId);
+                    console.error('📋 IDs disponíveis:', companiesData.map(c => c.id));
+                    alert('Empresa não encontrada! Por favor, recarregue a página.');
                     return;
                 }
 
@@ -3650,6 +3691,12 @@
 
         async function approveCompany(companyId) {
             try {
+                if (!companyId || companyId === 'undefined' || companyId.startsWith('temp-')) {
+                    alert('Erro: ID da empresa não disponível. Por favor, recarregue a página.');
+                    console.error('❌ ID inválido:', companyId);
+                    return;
+                }
+                
                 if (!confirm('Deseja aprovar esta empresa?')) {
                     return;
                 }
