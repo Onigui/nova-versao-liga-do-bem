@@ -82,14 +82,57 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// Health check - SEM dependências
 app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'Server is working!', 
-    timestamp: new Date().toISOString(),
-    platform: 'Vercel Serverless',
-    database: 'PostgreSQL via Prisma'
-  });
+  try {
+    res.json({ 
+      message: 'Server is working!', 
+      timestamp: new Date().toISOString(),
+      platform: 'Vercel Serverless',
+      database: 'PostgreSQL via Prisma',
+      env: {
+        nodeEnv: process.env.NODE_ENV,
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        hasDirectUrl: !!process.env.DIRECT_URL
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Health check failed',
+      message: error.message
+    });
+  }
+});
+
+// Health check com Prisma
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    try {
+      await prisma.$connect();
+      const result = await prisma.$queryRaw`SELECT 1 as test`;
+      await prisma.$disconnect();
+      
+      res.json({
+        message: 'Database connection successful!',
+        timestamp: new Date().toISOString(),
+        test: result
+      });
+    } catch (dbError: any) {
+      await prisma.$disconnect();
+      res.status(500).json({
+        error: 'Database connection failed',
+        message: dbError.message
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to initialize Prisma',
+      message: error.message
+    });
+  }
 });
 
 // Routes
@@ -113,7 +156,23 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Error:', err);
+  console.error('❌ Error:', err);
+  console.error('❌ Error name:', err.name);
+  console.error('❌ Error message:', err.message);
+  console.error('❌ Error stack:', err.stack);
+  
+  // Se for erro de conexão do Prisma, retornar erro mais amigável
+  if (err.name === 'PrismaClientInitializationError' || err.message?.includes('Can\'t reach database server')) {
+    return res.status(503).json({
+      error: 'Database connection error',
+      message: 'Unable to connect to database. Please check environment variables.',
+      ...(process.env.NODE_ENV !== 'production' && { 
+        details: err.message,
+        stack: err.stack 
+      })
+    });
+  }
+  
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
