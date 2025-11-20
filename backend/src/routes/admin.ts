@@ -253,18 +253,26 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     console.log('✅ Usuário autenticado:', userId);
 
-    // Tentar buscar empresas do banco, se der erro, retornar array vazio
+    // Tentar buscar empresas do banco com timeout
     let companies = [];
     try {
-      companies = await prisma.partner.findMany({
+      // Criar uma Promise com timeout de 10 segundos
+      const queryPromise = prisma.partner.findMany({
         orderBy: { createdAt: 'desc' }
       });
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database query timeout')), 10000);
+      });
+      
+      companies = await Promise.race([queryPromise, timeoutPromise]) as any[];
       console.log(`✅ Total de empresas encontradas no banco: ${companies.length}`);
       if (companies.length > 0) {
         console.log('📋 Primeira empresa:', companies[0]);
       }
-    } catch (dbError) {
-      console.error('⚠️ Erro ao buscar empresas no banco:', dbError);
+    } catch (dbError: any) {
+      console.error('⚠️ Erro ao buscar empresas no banco:', dbError?.message || dbError);
+      console.error('⚠️ Tipo do erro:', dbError?.name || typeof dbError);
       companies = []; // Retorna array vazio se der erro
     }
 
@@ -290,14 +298,16 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
       return mapped;
     });
     
+    // Sempre retornar resposta, mesmo se não houver empresas
     res.json({
       companies: mappedCompanies
     });
 
-  } catch (error) {
-    console.error('Erro ao buscar empresas:', error);
-    res.status(500).json({ 
-      message: 'Erro interno do servidor' 
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar empresas:', error?.message || error);
+    // Retornar array vazio em caso de erro, não erro 500
+    res.json({
+      companies: []
     });
   }
 });
