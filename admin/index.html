@@ -2601,13 +2601,29 @@
                 }
 
                 console.log('🔄 Carregando empresas do banco...');
-                const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                console.log('🔗 URL:', `${API_BASE_URL}/api/admin/companies`);
+                console.log('🔑 Token (primeiros 20 chars):', token.substring(0, 20) + '...');
+                
+                // Criar AbortController para timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    console.warn('⏱️ Timeout na requisição (15s) - cancelando...');
+                    controller.abort();
+                }, 15000); // 15 segundos
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    console.log('📡 Resposta recebida:', response.status, response.statusText);
 
                 if (response.ok) {
                     const data = await response.json();
@@ -2644,6 +2660,17 @@
                         alert('Sessão expirada. Por favor, faça login novamente.');
                         window.location.href = '/admin/login.html';
                         return;
+                    }
+                    companiesData = [];
+                }
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    
+                    if (fetchError.name === 'AbortError') {
+                        console.error('⏱️ Requisição cancelada por timeout (15s)');
+                        console.error('💡 Isso pode indicar que o backend não está respondendo ou está muito lento');
+                    } else {
+                        console.error('❌ Erro na requisição fetch:', fetchError);
                     }
                     companiesData = [];
                 }

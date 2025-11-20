@@ -31,10 +31,12 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     const decoded = jwt.verify(token, JWT_SECRET) as any;
 
     // Check if it's a demo admin user - SKIP DATABASE
-    if (decoded.userId === 'admin-demo-id' && decoded.role === 'ADMIN') {
+    // Aceitar tanto 'demo-admin' quanto 'admin-demo-id' para compatibilidade
+    if ((decoded.userId === 'admin-demo-id' || decoded.userId === 'demo-admin') && decoded.role === 'admin') {
       console.log('✅ Usuário demo admin autenticado - SEM CONSULTA BANCO');
+      console.log('📋 Token info:', { userId: decoded.userId, email: decoded.email, role: decoded.role });
       req.user = {
-        id: 'admin-demo-id',
+        id: decoded.userId,
         email: decoded.email,
         role: 'ADMIN'
       };
