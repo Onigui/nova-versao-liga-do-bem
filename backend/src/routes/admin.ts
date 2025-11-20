@@ -253,16 +253,29 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     console.log('✅ Usuário autenticado:', userId);
 
+    // Verificar se DATABASE_URL está configurada
+    if (!process.env.DATABASE_URL) {
+      console.error('❌ DATABASE_URL não configurada!');
+      return res.status(503).json({
+        companies: [],
+        error: 'Database not configured',
+        message: 'DATABASE_URL environment variable is not set. Please configure it in Vercel settings.'
+      });
+    }
+
     // Tentar buscar empresas do banco com timeout
     let companies = [];
     try {
-      // Criar uma Promise com timeout de 10 segundos
+      console.log('🔄 Tentando conectar ao banco...');
+      console.log('📋 DATABASE_URL configurada?', !!process.env.DATABASE_URL);
+      
+      // Criar uma Promise com timeout de 8 segundos
       const queryPromise = prisma.partner.findMany({
         orderBy: { createdAt: 'desc' }
       });
       
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Database query timeout')), 10000);
+        setTimeout(() => reject(new Error('Database query timeout after 8s')), 8000);
       });
       
       companies = await Promise.race([queryPromise, timeoutPromise]) as any[];
@@ -273,7 +286,18 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
     } catch (dbError: any) {
       console.error('⚠️ Erro ao buscar empresas no banco:', dbError?.message || dbError);
       console.error('⚠️ Tipo do erro:', dbError?.name || typeof dbError);
-      companies = []; // Retorna array vazio se der erro
+      console.error('⚠️ Stack:', dbError?.stack);
+      
+      // Se for timeout ou erro de conexão, retornar erro específico
+      if (dbError?.message?.includes('timeout') || dbError?.message?.includes('Can\'t reach database')) {
+        return res.status(503).json({
+          companies: [],
+          error: 'Database connection timeout',
+          message: 'Unable to connect to database. Please check DATABASE_URL in Vercel settings.'
+        });
+      }
+      
+      companies = []; // Retorna array vazio se der outro erro
     }
 
     console.log(`📊 Enviando ${companies.length} empresas para o frontend`);

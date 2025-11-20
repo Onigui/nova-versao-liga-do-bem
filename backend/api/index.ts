@@ -125,32 +125,118 @@ app.get('/api/ping', (req, res) => {
 // Health check com Prisma
 app.get('/api/test-db', async (req, res) => {
   try {
+    console.log('🔍 Testando conexão com banco...');
+    console.log('📋 DATABASE_URL existe?', !!process.env.DATABASE_URL);
+    console.log('📋 DIRECT_URL existe?', !!process.env.DIRECT_URL);
+    
+    if (!process.env.DATABASE_URL) {
+      return res.status(500).json({
+        error: 'DATABASE_URL não configurada',
+        message: 'A variável de ambiente DATABASE_URL não está definida no Vercel'
+      });
+    }
+    
     const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
+    const prisma = new PrismaClient({
+      log: ['error', 'warn'],
+    });
     
     try {
-      await prisma.$connect();
+      // Timeout de 5 segundos para conexão
+      const connectPromise = prisma.$connect();
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Connection timeout after 5s')), 5000);
+      });
+      
+      await Promise.race([connectPromise, timeoutPromise]);
+      console.log('✅ Conectado ao banco');
+      
       const result = await prisma.$queryRaw`SELECT 1 as test`;
       await prisma.$disconnect();
       
       res.json({
         message: 'Database connection successful!',
         timestamp: new Date().toISOString(),
-        test: result
+        test: result,
+        databaseUrl: process.env.DATABASE_URL ? 'Configurada (oculta)' : 'Não configurada'
       });
     } catch (dbError: any) {
-      await prisma.$disconnect();
+      console.error('❌ Erro na conexão:', dbError.message);
+      try {
+        await prisma.$disconnect();
+      } catch (e) {
+        // Ignorar erro ao desconectar
+      }
       res.status(500).json({
         error: 'Database connection failed',
-        message: dbError.message
+        message: dbError.message,
+        hint: 'Verifique se DATABASE_URL está configurada no Vercel'
       });
     }
   } catch (error: any) {
+    console.error('❌ Erro ao inicializar Prisma:', error.message);
     res.status(500).json({
       error: 'Failed to initialize Prisma',
       message: error.message
     });
   }
+});
+
+// Endpoint de diagnóstico completo
+app.get('/api/diagnostic', async (req, res) => {
+  const diagnostic: any = {
+    timestamp: new Date().toISOString(),
+    environment: {
+      nodeEnv: process.env.NODE_ENV || 'not set',
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      hasDirectUrl: !!process.env.DIRECT_URL,
+      hasJwtSecret: !!process.env.JWT_SECRET,
+      databaseUrlLength: process.env.DATABASE_URL?.length || 0
+    },
+    prisma: {
+      status: 'unknown'
+    }
+  };
+  
+  // Testar Prisma
+  try {
+    if (!process.env.DATABASE_URL) {
+      diagnostic.prisma.status = 'DATABASE_URL not configured';
+      diagnostic.prisma.error = 'DATABASE_URL environment variable is missing';
+    } else {
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      try {
+        const connectPromise = prisma.$connect();
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout')), 3000);
+        });
+        
+        await Promise.race([connectPromise, timeoutPromise]);
+        diagnostic.prisma.status = 'connected';
+        
+        // Tentar uma query simples
+        const result = await prisma.$queryRaw`SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'`;
+        diagnostic.prisma.tables = result;
+        
+        await prisma.$disconnect();
+      } catch (dbError: any) {
+        diagnostic.prisma.status = 'connection failed';
+        diagnostic.prisma.error = dbError.message;
+        try {
+          await prisma.$disconnect();
+        } catch (e) {
+          // Ignorar
+        }
+      }
+    }
+  } catch (error: any) {
+    diagnostic.prisma.status = 'initialization failed';
+    diagnostic.prisma.error = error.message;
+  }
+  
+  res.json(diagnostic);
 });
 
 // Routes
