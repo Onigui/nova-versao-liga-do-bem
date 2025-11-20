@@ -25,6 +25,24 @@ dotenv.config();
 
 const app = express();
 
+// Handler explícito para OPTIONS (preflight) - DEVE vir ANTES de tudo
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  console.log('🔍 OPTIONS request recebida de:', origin);
+  
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  return res.status(204).end();
+});
+
 // Middleware CORS - Configuração permissiva para Vercel (incluindo preview deployments)
 app.use(cors({
   origin: function(origin, callback) {
@@ -70,9 +88,10 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check - SEM dependências
+// Health check - SEM dependências (sem autenticação)
 app.get('/api/test', (req, res) => {
   try {
+    console.log('✅ Health check chamado');
     res.json({ 
       message: 'Server is working!', 
       timestamp: new Date().toISOString(),
@@ -85,11 +104,22 @@ app.get('/api/test', (req, res) => {
       }
     });
   } catch (error: any) {
+    console.error('❌ Erro no health check:', error);
     res.status(500).json({
       error: 'Health check failed',
       message: error.message
     });
   }
+});
+
+// Test endpoint para verificar se o backend está respondendo (sem autenticação)
+app.get('/api/ping', (req, res) => {
+  console.log('🏓 Ping recebido');
+  res.json({ 
+    status: 'ok',
+    message: 'Backend is alive!',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Health check com Prisma
