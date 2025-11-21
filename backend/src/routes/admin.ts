@@ -371,6 +371,14 @@ router.get('/members', authenticate, async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     console.log('✅ Usuário autenticado:', userId);
 
+    const prisma = getPrisma();
+    if (!prisma) {
+      return res.json({
+        members: [],
+        warning: 'Database not configured'
+      });
+    }
+
     // Tentar buscar membros do banco, se der erro, retornar array vazio
     let members = [];
     try {
