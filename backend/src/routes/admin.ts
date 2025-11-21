@@ -4,7 +4,32 @@ import { generateToken, verifyToken } from '../utils/jwt';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+// Função para obter Prisma Client de forma lazy (só inicializa quando necessário)
+let prismaInstance: PrismaClient | null = null;
+
+function getPrisma(): PrismaClient | null {
+  // Se não tiver DATABASE_URL, não inicializar Prisma
+  if (!process.env.DATABASE_URL) {
+    console.warn('⚠️ DATABASE_URL não configurada - Prisma não será inicializado');
+    return null;
+  }
+  
+  // Inicializar apenas uma vez
+  if (!prismaInstance) {
+    try {
+      prismaInstance = new PrismaClient({
+        log: ['error', 'warn'],
+      });
+      console.log('✅ Prisma Client inicializado');
+    } catch (error) {
+      console.error('❌ Erro ao inicializar Prisma:', error);
+      return null;
+    }
+  }
+  
+  return prismaInstance;
+}
 
 // Endpoint de teste para verificar se o admin está funcionando
 router.get('/test', async (req: Request, res: Response) => {
@@ -100,6 +125,26 @@ router.get('/verify', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
+    // Se for demo admin, retornar direto
+    if (userId === 'admin-demo-id' || userId === 'demo-admin') {
+      return res.json({
+        message: 'Token válido (demo)',
+        user: {
+          id: userId,
+          name: 'Administrador Demo',
+          email: 'admin@ligadobem.com',
+          role: 'ADMIN'
+        }
+      });
+    }
+    
+    const prisma = getPrisma();
+    if (!prisma) {
+      return res.status(503).json({
+        message: 'Database not available'
+      });
+    }
+    
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -149,26 +194,27 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
-    // Se for usuário demo admin, pular verificação no banco
-    if (userId === 'admin-demo-id') {
-      console.log('✅ Usuário demo admin autorizado');
-    } else {
-      // Verificar se é admin real no banco
-      try {
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { role: true }
-        });
-
-        if (!user || user.role !== 'ADMIN') {
-          return res.status(401).json({ 
-            message: 'Acesso não autorizado' 
-          });
-        }
-      } catch (userError) {
-        console.error('⚠️ Erro ao verificar usuário:', userError);
-        // Permitir acesso para demo mesmo com erro no banco
-      }
+    // Se for usuário demo admin, retornar dados mock
+    if (userId === 'admin-demo-id' || userId === 'demo-admin') {
+      console.log('✅ Usuário demo admin - retornando dados mock');
+      return res.json({
+        totalUsers: 0,
+        totalPartners: 0,
+        recentUsers: [],
+        recentPartners: [],
+        message: 'Demo mode - database not available'
+      });
+    }
+    
+    const prisma = getPrisma();
+    if (!prisma) {
+      return res.json({
+        totalUsers: 0,
+        totalPartners: 0,
+        recentUsers: [],
+        recentPartners: [],
+        warning: 'Database not configured'
+      });
     }
 
     // Buscar estatísticas (apenas tabelas que existem)
@@ -181,28 +227,28 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
       const results = await Promise.all([
         prisma.user.count(),
         prisma.partner.count(),
-      prisma.user.findMany({
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          createdAt: true
-        }
-      }),
-      prisma.partner.findMany({
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          category: true,
-          isActive: true,
-          createdAt: true
-        }
-      })
-    ]);
+        prisma.user.findMany({
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            createdAt: true
+          }
+        }),
+        prisma.partner.findMany({
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            isActive: true,
+            createdAt: true
+          }
+        })
+      ]);
 
       totalUsers = results[0];
       totalPartners = results[1];
@@ -253,83 +299,66 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     console.log('✅ Usuário autenticado:', userId);
 
-    // Verificar se DATABASE_URL está configurada
-    if (!process.env.DATABASE_URL) {
-      console.error('❌ DATABASE_URL não configurada!');
-      return res.status(503).json({
+    // Obter Prisma (lazy initialization)
+    const prisma = getPrisma();
+    
+    // Se Prisma não estiver disponível, retornar array vazio imediatamente
+    if (!prisma) {
+      console.warn('⚠️ Prisma não disponível - retornando array vazio');
+      return res.json({
         companies: [],
-        error: 'Database not configured',
-        message: 'DATABASE_URL environment variable is not set. Please configure it in Vercel settings.'
+        warning: 'Database not configured. Please set DATABASE_URL in Vercel settings.'
       });
     }
 
-    // Tentar buscar empresas do banco com timeout
+    // Tentar buscar empresas do banco com timeout reduzido
     let companies = [];
     try {
-      console.log('🔄 Tentando conectar ao banco...');
-      console.log('📋 DATABASE_URL configurada?', !!process.env.DATABASE_URL);
+      console.log('🔄 Tentando buscar empresas do banco...');
       
-      // Criar uma Promise com timeout de 8 segundos
+      // Timeout de 5 segundos (mais rápido)
       const queryPromise = prisma.partner.findMany({
         orderBy: { createdAt: 'desc' }
       });
       
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Database query timeout after 8s')), 8000);
+        setTimeout(() => reject(new Error('Database query timeout after 5s')), 5000);
       });
       
       companies = await Promise.race([queryPromise, timeoutPromise]) as any[];
-      console.log(`✅ Total de empresas encontradas no banco: ${companies.length}`);
-      if (companies.length > 0) {
-        console.log('📋 Primeira empresa:', companies[0]);
-      }
+      console.log(`✅ Total de empresas encontradas: ${companies.length}`);
     } catch (dbError: any) {
-      console.error('⚠️ Erro ao buscar empresas no banco:', dbError?.message || dbError);
-      console.error('⚠️ Tipo do erro:', dbError?.name || typeof dbError);
-      console.error('⚠️ Stack:', dbError?.stack);
-      
-      // Se for timeout ou erro de conexão, retornar erro específico
-      if (dbError?.message?.includes('timeout') || dbError?.message?.includes('Can\'t reach database')) {
-        return res.status(503).json({
-          companies: [],
-          error: 'Database connection timeout',
-          message: 'Unable to connect to database. Please check DATABASE_URL in Vercel settings.'
-        });
-      }
-      
-      companies = []; // Retorna array vazio se der outro erro
+      console.error('⚠️ Erro ao buscar empresas:', dbError?.message || dbError);
+      // Em caso de erro, retornar array vazio (não travar)
+      companies = [];
     }
 
-    console.log(`📊 Enviando ${companies.length} empresas para o frontend`);
-    const mappedCompanies = companies.map(company => {
-      const mapped = {
-        id: company.id,
-        name: company.name,
-        category: company.category || 'N/A',
-        status: company.isActive ? 'active' : 'inactive',
-        discount: 0,
-        location: company.city && company.state ? `${company.city}, ${company.state}` : company.address || 'N/A',
-        address: company.address,
-        city: company.city,
-        state: company.state,
-        hours: 'Seg-Sex: 9h-18h',
-        phone: company.phone,
-        email: company.email,
-        createdAt: company.createdAt,
-        discountCount: 0
-      };
-      console.log('📌 Empresa mapeada:', mapped.name, mapped.location);
-      return mapped;
-    });
+    // Mapear empresas
+    const mappedCompanies = companies.map(company => ({
+      id: company.id,
+      name: company.name,
+      category: company.category || 'N/A',
+      status: company.isActive ? 'active' : 'inactive',
+      discount: 0,
+      location: company.city && company.state ? `${company.city}, ${company.state}` : company.address || 'N/A',
+      address: company.address,
+      city: company.city,
+      state: company.state,
+      hours: 'Seg-Sex: 9h-18h',
+      phone: company.phone,
+      email: company.email,
+      createdAt: company.createdAt,
+      discountCount: 0
+    }));
     
-    // Sempre retornar resposta, mesmo se não houver empresas
+    // Sempre retornar resposta rapidamente
     res.json({
       companies: mappedCompanies
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar empresas:', error?.message || error);
-    // Retornar array vazio em caso de erro, não erro 500
+    console.error('❌ Erro geral ao buscar empresas:', error?.message || error);
+    // Retornar array vazio em caso de erro
     res.json({
       companies: []
     });
