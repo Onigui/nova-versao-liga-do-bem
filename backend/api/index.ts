@@ -6,20 +6,20 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-// Importar rotas de forma síncrona (normal)
-// O Prisma dentro das rotas é lazy (getPrisma()), então não trava na inicialização
+// Importar apenas rotas essenciais (admin já usa Prisma lazy)
+// Outras rotas serão importadas depois quando corrigirmos Prisma nelas
 import adminRoutes from '../src/routes/admin';
-import partnersRoutes from '../src/routes/partners';
-import authRoutes from '../src/routes/auth';
-import usersRoutes from '../src/routes/users';
-import animalsRoutes from '../src/routes/animals';
-import adoptionsRoutes from '../src/routes/adoptions';
-import eventsRoutes from '../src/routes/events';
-import donationsRoutes from '../src/routes/donations';
-import volunteersRoutes from '../src/routes/volunteers';
-import notificationsRoutes from '../src/routes/notifications';
-import paymentsRoutes from '../src/routes/payments';
-import transparencyRoutes from '../src/routes/transparency';
+// import partnersRoutes from '../src/routes/partners'; // Comentado - Prisma no nível do módulo
+// import authRoutes from '../src/routes/auth'; // Comentado - Prisma no nível do módulo
+// import usersRoutes from '../src/routes/users'; // Comentado - Prisma no nível do módulo
+// import animalsRoutes from '../src/routes/animals'; // Comentado - Prisma no nível do módulo
+// import adoptionsRoutes from '../src/routes/adoptions'; // Comentado - Prisma no nível do módulo
+// import eventsRoutes from '../src/routes/events'; // Comentado - Prisma no nível do módulo
+// import donationsRoutes from '../src/routes/donations'; // Comentado - Prisma no nível do módulo
+// import volunteersRoutes from '../src/routes/volunteers'; // Comentado - Prisma no nível do módulo
+// import notificationsRoutes from '../src/routes/notifications'; // Comentado - Prisma no nível do módulo
+// import paymentsRoutes from '../src/routes/payments'; // Comentado - Prisma no nível do módulo
+// import transparencyRoutes from '../src/routes/transparency'; // Comentado - Prisma no nível do módulo
 
 // Load environment variables
 dotenv.config();
@@ -124,19 +124,21 @@ app.get('/api/test-companies', async (req, res) => {
 });
 
 // ========== ROTAS PRINCIPAIS ==========
+// Carregar apenas rotas essenciais primeiro (admin já usa Prisma lazy)
+// Outras rotas serão carregadas depois quando corrigirmos Prisma nelas
 
 app.use('/api/admin', adminRoutes);
-app.use('/api/partners', partnersRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/animals', animalsRoutes);
-app.use('/api/adoptions', adoptionsRoutes);
-app.use('/api/events', eventsRoutes);
-app.use('/api/donations', donationsRoutes);
-app.use('/api/volunteers', volunteersRoutes);
-app.use('/api/notifications', notificationsRoutes);
-app.use('/api/payments', paymentsRoutes);
-app.use('/api/transparency', transparencyRoutes);
+// app.use('/api/partners', partnersRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/auth', authRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/users', usersRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/animals', animalsRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/adoptions', adoptionsRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/events', eventsRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/donations', donationsRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/volunteers', volunteersRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/notifications', notificationsRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/payments', paymentsRoutes); // Comentado temporariamente - Prisma no nível do módulo
+// app.use('/api/transparency', transparencyRoutes); // Comentado temporariamente - Prisma no nível do módulo
 
 // ========== HANDLERS DE ERRO ==========
 
