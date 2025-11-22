@@ -295,40 +295,46 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
 
 // Listar todas as empresas (para admin)
 router.get('/companies', authenticate, async (req: Request, res: Response) => {
+  const startTime = Date.now();
   try {
-    const userId = (req as any).user.id;
-    console.log('✅ Usuário autenticado:', userId);
+    const userId = (req as any).user?.id;
+    console.log('🔍 [COMPANIES] Iniciando busca de empresas...');
+    console.log('🔍 [COMPANIES] Usuário autenticado:', userId);
+    console.log('🔍 [COMPANIES] DATABASE_URL configurada?', !!process.env.DATABASE_URL);
 
     // Obter Prisma (lazy initialization)
     const prisma = getPrisma();
     
     // Se Prisma não estiver disponível, retornar array vazio imediatamente
     if (!prisma) {
-      console.warn('⚠️ Prisma não disponível - retornando array vazio');
+      console.warn('⚠️ [COMPANIES] Prisma não disponível - retornando array vazio');
+      const responseTime = Date.now() - startTime;
+      console.log(`⏱️ [COMPANIES] Resposta em ${responseTime}ms (sem banco)`);
       return res.json({
         companies: [],
-        warning: 'Database not configured. Please set DATABASE_URL in Vercel settings.'
+        warning: 'Database not configured. Please set DATABASE_URL in Vercel settings.',
+        responseTime: `${responseTime}ms`
       });
     }
 
     // Tentar buscar empresas do banco com timeout reduzido
     let companies = [];
     try {
-      console.log('🔄 Tentando buscar empresas do banco...');
+      console.log('🔄 [COMPANIES] Tentando buscar empresas do banco...');
       
-      // Timeout de 5 segundos (mais rápido)
+      // Timeout de 3 segundos (mais rápido)
       const queryPromise = prisma.partner.findMany({
         orderBy: { createdAt: 'desc' }
       });
       
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Database query timeout after 5s')), 5000);
+        setTimeout(() => reject(new Error('Database query timeout after 3s')), 3000);
       });
       
       companies = await Promise.race([queryPromise, timeoutPromise]) as any[];
-      console.log(`✅ Total de empresas encontradas: ${companies.length}`);
+      console.log(`✅ [COMPANIES] Total de empresas encontradas: ${companies.length}`);
     } catch (dbError: any) {
-      console.error('⚠️ Erro ao buscar empresas:', dbError?.message || dbError);
+      console.error('⚠️ [COMPANIES] Erro ao buscar empresas:', dbError?.message || dbError);
       // Em caso de erro, retornar array vazio (não travar)
       companies = [];
     }
@@ -351,16 +357,24 @@ router.get('/companies', authenticate, async (req: Request, res: Response) => {
       discountCount: 0
     }));
     
+    const responseTime = Date.now() - startTime;
+    console.log(`⏱️ [COMPANIES] Resposta em ${responseTime}ms com ${mappedCompanies.length} empresas`);
+    
     // Sempre retornar resposta rapidamente
     res.json({
-      companies: mappedCompanies
+      companies: mappedCompanies,
+      responseTime: `${responseTime}ms`
     });
 
   } catch (error: any) {
-    console.error('❌ Erro geral ao buscar empresas:', error?.message || error);
+    const responseTime = Date.now() - startTime;
+    console.error('❌ [COMPANIES] Erro geral ao buscar empresas:', error?.message || error);
+    console.error('❌ [COMPANIES] Stack:', error?.stack);
     // Retornar array vazio em caso de erro
     res.json({
-      companies: []
+      companies: [],
+      error: error?.message || 'Unknown error',
+      responseTime: `${responseTime}ms`
     });
   }
 });
