@@ -1,40 +1,24 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../utils/prisma';
 import { generateToken, verifyToken } from '../utils/jwt';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
-// Função para obter Prisma Client de forma lazy (só inicializa quando necessário)
-let prismaInstance: PrismaClient | null = null;
-
-function getPrisma(): PrismaClient | null {
-  // Se não tiver DATABASE_URL, não inicializar Prisma
-  if (!process.env.DATABASE_URL) {
-    console.warn('⚠️ DATABASE_URL não configurada - Prisma não será inicializado');
-    return null;
-  }
-  
-  // Inicializar apenas uma vez
-  if (!prismaInstance) {
-    try {
-      prismaInstance = new PrismaClient({
-        log: ['error', 'warn'],
-      });
-      console.log('✅ Prisma Client inicializado');
-    } catch (error) {
-      console.error('❌ Erro ao inicializar Prisma:', error);
-      return null;
-    }
-  }
-  
-  return prismaInstance;
-}
-
 // Endpoint de teste para verificar se o admin está funcionando
 router.get('/test', async (req: Request, res: Response) => {
   try {
     console.log('🧪 Teste do endpoint admin iniciado...');
+    
+    const prisma = getPrisma();
+    if (!prisma) {
+      return res.json({
+        message: 'Admin endpoint funcionando (sem banco)',
+        usersCount: 0,
+        timestamp: new Date().toISOString(),
+        warning: 'Database not configured'
+      });
+    }
     
     // Teste básico de conexão
     const testUsers = await prisma.$queryRaw<any[]>`
