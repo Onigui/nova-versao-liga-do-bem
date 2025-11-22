@@ -6,21 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-// Importar rotas
-import adminRoutes from '../src/routes/admin';
-import partnersRoutes from '../src/routes/partners';
-import authRoutes from '../src/routes/auth';
-import usersRoutes from '../src/routes/users';
-import animalsRoutes from '../src/routes/animals';
-import adoptionsRoutes from '../src/routes/adoptions';
-import eventsRoutes from '../src/routes/events';
-import donationsRoutes from '../src/routes/donations';
-import volunteersRoutes from '../src/routes/volunteers';
-import notificationsRoutes from '../src/routes/notifications';
-import paymentsRoutes from '../src/routes/payments';
-import transparencyRoutes from '../src/routes/transparency';
-
-// Load environment variables
+// Load environment variables PRIMEIRO
 dotenv.config();
 
 const app = express();
@@ -43,20 +29,15 @@ app.options('*', (req, res) => {
   return res.status(204).end();
 });
 
-// Middleware CORS - Configuração permissiva para Vercel (incluindo preview deployments)
+// Middleware CORS - Configuração permissiva para Vercel
 app.use(cors({
   origin: function(origin, callback) {
-    // Permitir requisições sem origin (mobile apps, Postman, etc)
     if (!origin) {
       return callback(null, true);
     }
-    
-    // Permitir qualquer URL do Vercel (incluindo preview deployments como -pufx.vercel.app)
     if (origin.includes('.vercel.app') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return callback(null, true);
     }
-    
-    // Permitir tudo para facilitar (pode restringir depois)
     callback(null, true);
   },
   credentials: true,
@@ -67,11 +48,10 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Middleware adicional para garantir headers CORS em TODAS as respostas (backup)
+// Middleware adicional para garantir headers CORS em TODAS as respostas
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Sempre adicionar headers CORS
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
@@ -88,31 +68,9 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check - SEM dependências (sem autenticação)
-app.get('/api/test', (req, res) => {
-  try {
-    console.log('✅ Health check chamado');
-    res.json({ 
-      message: 'Server is working!', 
-      timestamp: new Date().toISOString(),
-      platform: 'Vercel Serverless',
-      database: 'PostgreSQL via Prisma',
-      env: {
-        nodeEnv: process.env.NODE_ENV,
-        hasDatabaseUrl: !!process.env.DATABASE_URL,
-        hasDirectUrl: !!process.env.DIRECT_URL
-      }
-    });
-  } catch (error: any) {
-    console.error('❌ Erro no health check:', error);
-    res.status(500).json({
-      error: 'Health check failed',
-      message: error.message
-    });
-  }
-});
+// ========== ENDPOINTS DE TESTE (SEM DEPENDÊNCIAS) ==========
 
-// Test endpoint para verificar se o backend está respondendo (sem autenticação)
+// Ping - SEMPRE deve responder rapidamente
 app.get('/api/ping', (req, res) => {
   console.log('🏓 Ping recebido');
   res.json({ 
@@ -122,139 +80,7 @@ app.get('/api/ping', (req, res) => {
   });
 });
 
-// Health check com Prisma
-app.get('/api/test-db', async (req, res) => {
-  try {
-    console.log('🔍 Testando conexão com banco...');
-    console.log('📋 DATABASE_URL existe?', !!process.env.DATABASE_URL);
-    console.log('📋 DIRECT_URL existe?', !!process.env.DIRECT_URL);
-    
-    if (!process.env.DATABASE_URL) {
-      return res.status(500).json({
-        error: 'DATABASE_URL não configurada',
-        message: 'A variável de ambiente DATABASE_URL não está definida no Vercel'
-      });
-    }
-    
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient({
-      log: ['error', 'warn'],
-    });
-    
-    try {
-      // Timeout de 5 segundos para conexão
-      const connectPromise = prisma.$connect();
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Connection timeout after 5s')), 5000);
-      });
-      
-      await Promise.race([connectPromise, timeoutPromise]);
-      console.log('✅ Conectado ao banco');
-      
-      const result = await prisma.$queryRaw`SELECT 1 as test`;
-      await prisma.$disconnect();
-      
-      res.json({
-        message: 'Database connection successful!',
-        timestamp: new Date().toISOString(),
-        test: result,
-        databaseUrl: process.env.DATABASE_URL ? 'Configurada (oculta)' : 'Não configurada'
-      });
-    } catch (dbError: any) {
-      console.error('❌ Erro na conexão:', dbError.message);
-      try {
-        await prisma.$disconnect();
-      } catch (e) {
-        // Ignorar erro ao desconectar
-      }
-      res.status(500).json({
-        error: 'Database connection failed',
-        message: dbError.message,
-        hint: 'Verifique se DATABASE_URL está configurada no Vercel'
-      });
-    }
-  } catch (error: any) {
-    console.error('❌ Erro ao inicializar Prisma:', error.message);
-    res.status(500).json({
-      error: 'Failed to initialize Prisma',
-      message: error.message
-    });
-  }
-});
-
-// Endpoint de diagnóstico completo
-app.get('/api/diagnostic', async (req, res) => {
-  const diagnostic: any = {
-    timestamp: new Date().toISOString(),
-    environment: {
-      nodeEnv: process.env.NODE_ENV || 'not set',
-      hasDatabaseUrl: !!process.env.DATABASE_URL,
-      hasDirectUrl: !!process.env.DIRECT_URL,
-      hasJwtSecret: !!process.env.JWT_SECRET,
-      databaseUrlLength: process.env.DATABASE_URL?.length || 0
-    },
-    prisma: {
-      status: 'unknown'
-    }
-  };
-  
-  // Testar Prisma
-  try {
-    if (!process.env.DATABASE_URL) {
-      diagnostic.prisma.status = 'DATABASE_URL not configured';
-      diagnostic.prisma.error = 'DATABASE_URL environment variable is missing';
-    } else {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
-      
-      try {
-        const connectPromise = prisma.$connect();
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout')), 3000);
-        });
-        
-        await Promise.race([connectPromise, timeoutPromise]);
-        diagnostic.prisma.status = 'connected';
-        
-        // Tentar uma query simples
-        const result = await prisma.$queryRaw`SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'`;
-        diagnostic.prisma.tables = result;
-        
-        await prisma.$disconnect();
-      } catch (dbError: any) {
-        diagnostic.prisma.status = 'connection failed';
-        diagnostic.prisma.error = dbError.message;
-        try {
-          await prisma.$disconnect();
-        } catch (e) {
-          // Ignorar
-        }
-      }
-    }
-  } catch (error: any) {
-    diagnostic.prisma.status = 'initialization failed';
-    diagnostic.prisma.error = error.message;
-  }
-  
-  res.json(diagnostic);
-});
-
-// Routes
-// Nota: As rotas são importadas de forma síncrona, mas o Prisma é inicializado de forma lazy
-app.use('/api/admin', adminRoutes);
-app.use('/api/partners', partnersRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/animals', animalsRoutes);
-app.use('/api/adoptions', adoptionsRoutes);
-app.use('/api/events', eventsRoutes);
-app.use('/api/donations', donationsRoutes);
-app.use('/api/volunteers', volunteersRoutes);
-app.use('/api/notifications', notificationsRoutes);
-app.use('/api/payments', paymentsRoutes);
-app.use('/api/transparency', transparencyRoutes);
-
-// Endpoint de teste rápido para verificar se o servidor está respondendo
+// Quick test
 app.get('/api/quick-test', (req, res) => {
   res.json({ 
     status: 'ok',
@@ -263,36 +89,137 @@ app.get('/api/quick-test', (req, res) => {
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('❌ Error:', err);
-  console.error('❌ Error name:', err.name);
-  console.error('❌ Error message:', err.message);
-  console.error('❌ Error stack:', err.stack);
-  
-  // Se for erro de conexão do Prisma, retornar erro mais amigável
-  if (err.name === 'PrismaClientInitializationError' || err.message?.includes('Can\'t reach database server')) {
-    return res.status(503).json({
-      error: 'Database connection error',
-      message: 'Unable to connect to database. Please check environment variables.',
-      ...(process.env.NODE_ENV !== 'production' && { 
-        details: err.message,
-        stack: err.stack 
-      })
+// Test endpoint para empresas SEM autenticação (apenas para diagnóstico)
+app.get('/api/test-companies', async (req, res) => {
+  try {
+    console.log('🔍 [TEST-COMPANIES] Iniciando teste...');
+    const { getPrisma } = await import('../src/utils/prisma');
+    const prisma = getPrisma();
+    
+    if (!prisma) {
+      return res.json({
+        error: 'Prisma not available',
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        companies: []
+      });
+    }
+    
+    const queryPromise = prisma.partner.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout')), 3000);
+    });
+    
+    const companies = await Promise.race([queryPromise, timeoutPromise]) as any[];
+    
+    res.json({
+      status: 'ok',
+      companiesCount: companies.length,
+      companies: companies.map(c => ({
+        id: c.id,
+        name: c.name,
+        category: c.category
+      }))
+    });
+  } catch (error: any) {
+    console.error('❌ [TEST-COMPANIES] Erro:', error.message);
+    res.json({
+      error: error.message,
+      companies: []
     });
   }
-  
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+});
+
+// Health check básico
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Server is working!', 
+    timestamp: new Date().toISOString(),
+    env: {
+      nodeEnv: process.env.NODE_ENV,
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      hasDirectUrl: !!process.env.DIRECT_URL
+    }
   });
 });
 
-// Export handler for Vercel using serverless-http
-export default serverless(app);
+// ========== CARREGAR ROTAS ==========
+// Importar rotas de forma segura para não travar o servidor
 
+let routesLoaded = false;
+
+async function loadRoutes() {
+  if (routesLoaded) return;
+  
+  try {
+    console.log('📦 Carregando rotas...');
+    
+    const adminRoutes = (await import('../src/routes/admin')).default;
+    const partnersRoutes = (await import('../src/routes/partners')).default;
+    const authRoutes = (await import('../src/routes/auth')).default;
+    const usersRoutes = (await import('../src/routes/users')).default;
+    const animalsRoutes = (await import('../src/routes/animals')).default;
+    const adoptionsRoutes = (await import('../src/routes/adoptions')).default;
+    const eventsRoutes = (await import('../src/routes/events')).default;
+    const donationsRoutes = (await import('../src/routes/donations')).default;
+    const volunteersRoutes = (await import('../src/routes/volunteers')).default;
+    const notificationsRoutes = (await import('../src/routes/notifications')).default;
+    const paymentsRoutes = (await import('../src/routes/payments')).default;
+    const transparencyRoutes = (await import('../src/routes/transparency')).default;
+
+    app.use('/api/admin', adminRoutes);
+    app.use('/api/partners', partnersRoutes);
+    app.use('/api/auth', authRoutes);
+    app.use('/api/users', usersRoutes);
+    app.use('/api/animals', animalsRoutes);
+    app.use('/api/adoptions', adoptionsRoutes);
+    app.use('/api/events', eventsRoutes);
+    app.use('/api/donations', donationsRoutes);
+    app.use('/api/volunteers', volunteersRoutes);
+    app.use('/api/notifications', notificationsRoutes);
+    app.use('/api/payments', paymentsRoutes);
+    app.use('/api/transparency', transparencyRoutes);
+    
+    routesLoaded = true;
+    console.log('✅ Rotas carregadas com sucesso');
+  } catch (error: any) {
+    console.error('❌ Erro ao carregar rotas:', error);
+    // Continuar mesmo com erro - endpoints básicos funcionam
+  }
+}
+
+// Carregar rotas de forma assíncrona após inicialização básica
+loadRoutes().catch(err => {
+  console.error('❌ Erro fatal ao carregar rotas:', err);
+});
+
+// ========== HANDLERS DE ERRO ==========
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found', path: req.path });
+});
+
+// Error handler global
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('❌ [GLOBAL ERROR]', err?.message || err);
+  console.error('❌ [GLOBAL ERROR] Stack:', err?.stack);
+  
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({
+      error: err.message || 'Internal server error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// ========== EXPORT HANDLER ==========
+
+const handler = serverless(app, {
+  binary: ['image/*', 'application/pdf']
+});
+
+export default handler;
