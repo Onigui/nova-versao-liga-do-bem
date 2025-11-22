@@ -240,6 +240,7 @@ app.get('/api/diagnostic', async (req, res) => {
 });
 
 // Routes
+// Nota: As rotas são importadas de forma síncrona, mas o Prisma é inicializado de forma lazy
 app.use('/api/admin', adminRoutes);
 app.use('/api/partners', partnersRoutes);
 app.use('/api/auth', authRoutes);
@@ -252,6 +253,15 @@ app.use('/api/volunteers', volunteersRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/transparency', transparencyRoutes);
+
+// Endpoint de teste rápido para verificar se o servidor está respondendo
+app.get('/api/quick-test', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    message: 'Server is responding immediately',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // 404 handler
 app.use((req, res) => {
