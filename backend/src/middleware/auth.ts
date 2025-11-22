@@ -2,10 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
+import { getPrisma } from '../utils/prisma';
 
 dotenv.config();
-
-const prisma = new PrismaClient();
 
 interface AuthRequest extends Request {
   user?: {
@@ -43,9 +42,29 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       return next();
     }
 
-    // For real users, try database lookup
+    // For real users, try database lookup with timeout
+    const prisma = getPrisma();
+    if (!prisma) {
+      // Se Prisma não estiver disponível e for admin@ligadobem.com, permitir acesso demo
+      if (decoded.email === 'admin@ligadobem.com' && decoded.role === 'admin') {
+        console.log('⚠️ Prisma não disponível, permitindo acesso demo como fallback');
+        req.user = {
+          id: 'admin-demo-id',
+          email: decoded.email,
+          role: 'ADMIN'
+        };
+        return next();
+      }
+      // Para outros usuários, rejeitar se não houver banco
+      return res.status(503).json({
+        error: 'Database not available',
+        message: 'Unable to verify user. Database connection not configured.'
+      });
+    }
+
     try {
-      const user = await prisma.user.findUnique({
+      // Timeout de 3 segundos para consulta no banco
+      const queryPromise = prisma.user.findUnique({
         where: { id: decoded.userId },
         select: {
           id: true,
@@ -55,6 +74,12 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         }
       });
 
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database query timeout')), 3000);
+      });
+
+      const user = await Promise.race([queryPromise, timeoutPromise]) as any;
+
       if (!user || !user.isActive) {
         return res.status(401).json({
           error: 'Usuário não encontrado ou inativo'
@@ -63,10 +88,10 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
 
       req.user = user;
       next();
-    } catch (dbError) {
-      console.error('❌ Erro ao consultar banco:', dbError);
+    } catch (dbError: any) {
+      console.error('❌ Erro ao consultar banco:', dbError?.message || dbError);
       // Se der erro no banco E for admin@ligadobem.com, permitir acesso demo
-      if (decoded.email === 'admin@ligadobem.com' && decoded.role === 'ADMIN') {
+      if (decoded.email === 'admin@ligadobem.com' && decoded.role === 'admin') {
         console.log('⚠️ Erro no banco, permitindo acesso demo como fallback');
         req.user = {
           id: 'admin-demo-id',
@@ -75,7 +100,11 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         };
         return next();
       }
-      throw dbError;
+      // Para outros usuários, retornar erro
+      return res.status(503).json({
+        error: 'Database connection error',
+        message: 'Unable to verify user. Please try again later.'
+      });
     }
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -111,18 +140,33 @@ export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFu
       const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          isActive: true
-        }
-      });
+      const prisma = getPrisma();
+      if (prisma) {
+        try {
+          // Timeout de 2 segundos
+          const queryPromise = prisma.user.findUnique({
+            where: { id: decoded.userId },
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              isActive: true
+            }
+          });
 
-      if (user && user.isActive) {
-        req.user = user;
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout')), 2000);
+          });
+
+          const user = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+          if (user && user.isActive) {
+            req.user = user;
+          }
+        } catch (error) {
+          // Ignorar erros e continuar sem usuário
+          console.warn('⚠️ Erro ao buscar usuário em optionalAuth:', error);
+        }
       }
     }
 
