@@ -147,54 +147,60 @@ app.get('/api/test', (req, res) => {
 });
 
 // ========== CARREGAR ROTAS ==========
-// Importar rotas de forma segura para não travar o servidor
+// Importar rotas de forma síncrona (necessário no Vercel)
+// Mas o Prisma dentro das rotas é lazy, então não trava
 
-let routesLoaded = false;
-
-async function loadRoutes() {
-  if (routesLoaded) return;
+try {
+  import('../src/routes/admin').then(module => {
+    app.use('/api/admin', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar admin routes:', err));
   
-  try {
-    console.log('📦 Carregando rotas...');
-    
-    const adminRoutes = (await import('../src/routes/admin')).default;
-    const partnersRoutes = (await import('../src/routes/partners')).default;
-    const authRoutes = (await import('../src/routes/auth')).default;
-    const usersRoutes = (await import('../src/routes/users')).default;
-    const animalsRoutes = (await import('../src/routes/animals')).default;
-    const adoptionsRoutes = (await import('../src/routes/adoptions')).default;
-    const eventsRoutes = (await import('../src/routes/events')).default;
-    const donationsRoutes = (await import('../src/routes/donations')).default;
-    const volunteersRoutes = (await import('../src/routes/volunteers')).default;
-    const notificationsRoutes = (await import('../src/routes/notifications')).default;
-    const paymentsRoutes = (await import('../src/routes/payments')).default;
-    const transparencyRoutes = (await import('../src/routes/transparency')).default;
-
-    app.use('/api/admin', adminRoutes);
-    app.use('/api/partners', partnersRoutes);
-    app.use('/api/auth', authRoutes);
-    app.use('/api/users', usersRoutes);
-    app.use('/api/animals', animalsRoutes);
-    app.use('/api/adoptions', adoptionsRoutes);
-    app.use('/api/events', eventsRoutes);
-    app.use('/api/donations', donationsRoutes);
-    app.use('/api/volunteers', volunteersRoutes);
-    app.use('/api/notifications', notificationsRoutes);
-    app.use('/api/payments', paymentsRoutes);
-    app.use('/api/transparency', transparencyRoutes);
-    
-    routesLoaded = true;
-    console.log('✅ Rotas carregadas com sucesso');
-  } catch (error: any) {
-    console.error('❌ Erro ao carregar rotas:', error);
-    // Continuar mesmo com erro - endpoints básicos funcionam
-  }
+  import('../src/routes/partners').then(module => {
+    app.use('/api/partners', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar partners routes:', err));
+  
+  import('../src/routes/auth').then(module => {
+    app.use('/api/auth', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar auth routes:', err));
+  
+  import('../src/routes/users').then(module => {
+    app.use('/api/users', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar users routes:', err));
+  
+  import('../src/routes/animals').then(module => {
+    app.use('/api/animals', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar animals routes:', err));
+  
+  import('../src/routes/adoptions').then(module => {
+    app.use('/api/adoptions', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar adoptions routes:', err));
+  
+  import('../src/routes/events').then(module => {
+    app.use('/api/events', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar events routes:', err));
+  
+  import('../src/routes/donations').then(module => {
+    app.use('/api/donations', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar donations routes:', err));
+  
+  import('../src/routes/volunteers').then(module => {
+    app.use('/api/volunteers', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar volunteers routes:', err));
+  
+  import('../src/routes/notifications').then(module => {
+    app.use('/api/notifications', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar notifications routes:', err));
+  
+  import('../src/routes/payments').then(module => {
+    app.use('/api/payments', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar payments routes:', err));
+  
+  import('../src/routes/transparency').then(module => {
+    app.use('/api/transparency', module.default);
+  }).catch(err => console.error('❌ Erro ao carregar transparency routes:', err));
+} catch (error: any) {
+  console.error('❌ Erro ao importar rotas:', error);
 }
-
-// Carregar rotas de forma assíncrona após inicialização básica
-loadRoutes().catch(err => {
-  console.error('❌ Erro fatal ao carregar rotas:', err);
-});
 
 // ========== HANDLERS DE ERRO ==========
 
