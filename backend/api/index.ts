@@ -24,7 +24,12 @@ import adminRoutes from '../src/routes/admin';
 // Load environment variables
 dotenv.config();
 
+console.log('🚀 Iniciando servidor Express...');
+console.log('📋 DATABASE_URL configurada?', !!process.env.DATABASE_URL);
+console.log('📋 NODE_ENV:', process.env.NODE_ENV || 'not set');
+
 const app = express();
+console.log('✅ Express app criado');
 
 // Handler explícito para OPTIONS (preflight) - DEVE vir ANTES de tudo
 app.options('*', (req, res) => {
@@ -72,21 +77,62 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ========== ENDPOINTS DE TESTE (SEMPRE RESPONDEM PRIMEIRO) ==========
+// Estes endpoints DEVEM responder mesmo se tudo mais falhar
 
 app.get('/api/ping', (req, res) => {
+  console.log('🏓 Ping recebido');
   res.json({ 
     status: 'ok',
     message: 'Backend is alive!',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    server: 'Vercel Serverless'
   });
 });
 
 app.get('/api/quick-test', (req, res) => {
+  console.log('⚡ Quick test recebido');
   res.json({ 
     status: 'ok',
     message: 'Server is responding immediately',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    server: 'Vercel Serverless'
   });
+});
+
+// Endpoint de teste para empresas SEM autenticação (apenas diagnóstico)
+app.get('/api/test-companies', async (req, res) => {
+  try {
+    console.log('🔍 [TEST-COMPANIES] Iniciando teste...');
+    const { getPrisma } = await import('../src/utils/prisma');
+    const prisma = getPrisma();
+    
+    if (!prisma) {
+      return res.json({
+        error: 'Prisma not available',
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        companies: []
+      });
+    }
+    
+    const queryPromise = prisma.partner.findMany({ take: 5 });
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout')), 3000);
+    });
+    
+    const companies = await Promise.race([queryPromise, timeoutPromise]) as any[];
+    
+    res.json({
+      status: 'ok',
+      companiesCount: companies.length,
+      companies: companies.map(c => ({ id: c.id, name: c.name, category: c.category }))
+    });
+  } catch (error: any) {
+    console.error('❌ [TEST-COMPANIES] Erro:', error.message);
+    res.json({
+      error: error.message,
+      companies: []
+    });
+  }
 });
 
 // Test endpoint para empresas SEM autenticação
@@ -127,7 +173,15 @@ app.get('/api/test-companies', async (req, res) => {
 // Carregar apenas rotas essenciais primeiro (admin já usa Prisma lazy)
 // Outras rotas serão carregadas depois quando corrigirmos Prisma nelas
 
-app.use('/api/admin', adminRoutes);
+try {
+  console.log('🔄 Carregando rota admin...');
+  app.use('/api/admin', adminRoutes);
+  console.log('✅ Rota admin carregada');
+} catch (error: any) {
+  console.error('❌ Erro ao carregar rota admin:', error.message);
+  // Continuar mesmo se der erro
+}
+
 // app.use('/api/partners', partnersRoutes); // Comentado temporariamente - Prisma no nível do módulo
 // app.use('/api/auth', authRoutes); // Comentado temporariamente - Prisma no nível do módulo
 // app.use('/api/users', usersRoutes); // Comentado temporariamente - Prisma no nível do módulo
@@ -158,6 +212,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // ========== EXPORT HANDLER ==========
 
-export default serverless(app, {
+console.log('✅ Configurando handler serverless...');
+
+const handler = serverless(app, {
   binary: ['image/*', 'application/pdf']
 });
+
+console.log('✅ Handler serverless criado - servidor pronto!');
+
+export default handler;
