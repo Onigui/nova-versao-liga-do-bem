@@ -171,15 +171,39 @@ app.get('/api/test-companies', async (req, res) => {
 // ========== ROTAS PRINCIPAIS ==========
 // Carregar rotas de forma lazy (só quando necessário) para evitar travamento na inicialização
 
-// Middleware para carregar rota admin lazy
+// Variável para cache da rota admin (carregada uma vez)
+let adminRoutesCache: any = null;
+
+// Função para carregar rota admin lazy
+async function loadAdminRoutes() {
+  if (!adminRoutesCache) {
+    try {
+      console.log('🔄 Carregando rota admin (lazy)...');
+      const module = await import('../src/routes/admin');
+      adminRoutesCache = module.default;
+      console.log('✅ Rota admin carregada (lazy)');
+    } catch (error: any) {
+      console.error('❌ Erro ao carregar rota admin:', error.message);
+      throw error;
+    }
+  }
+  return adminRoutesCache;
+}
+
+// Middleware para rota admin com lazy loading
 app.use('/api/admin', async (req, res, next) => {
   try {
-    // Carregar rota admin apenas quando necessário
-    const { default: adminRoutes } = await import('../src/routes/admin');
+    const adminRoutes = await loadAdminRoutes();
+    // Usar o router como middleware
     adminRoutes(req, res, next);
   } catch (error: any) {
-    console.error('❌ Erro ao carregar rota admin:', error.message);
-    res.status(500).json({ error: 'Failed to load admin routes', message: error.message });
+    console.error('❌ Erro ao processar rota admin:', error.message);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Failed to load admin routes', 
+        message: error.message 
+      });
+    }
   }
 });
 
