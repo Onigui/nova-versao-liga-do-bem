@@ -6,9 +6,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-// Importar apenas rotas essenciais (admin já usa Prisma lazy)
-// Outras rotas serão importadas depois quando corrigirmos Prisma nelas
-import adminRoutes from '../src/routes/admin';
+// NÃO importar rotas no topo - fazer lazy loading para evitar travamento
+// import adminRoutes from '../src/routes/admin'; // Comentado - será carregado lazy
 // import partnersRoutes from '../src/routes/partners'; // Comentado - Prisma no nível do módulo
 // import authRoutes from '../src/routes/auth'; // Comentado - Prisma no nível do módulo
 // import usersRoutes from '../src/routes/users'; // Comentado - Prisma no nível do módulo
@@ -170,17 +169,19 @@ app.get('/api/test-companies', async (req, res) => {
 });
 
 // ========== ROTAS PRINCIPAIS ==========
-// Carregar apenas rotas essenciais primeiro (admin já usa Prisma lazy)
-// Outras rotas serão carregadas depois quando corrigirmos Prisma nelas
+// Carregar rotas de forma lazy (só quando necessário) para evitar travamento na inicialização
 
-try {
-  console.log('🔄 Carregando rota admin...');
-  app.use('/api/admin', adminRoutes);
-  console.log('✅ Rota admin carregada');
-} catch (error: any) {
-  console.error('❌ Erro ao carregar rota admin:', error.message);
-  // Continuar mesmo se der erro
-}
+// Middleware para carregar rota admin lazy
+app.use('/api/admin', async (req, res, next) => {
+  try {
+    // Carregar rota admin apenas quando necessário
+    const { default: adminRoutes } = await import('../src/routes/admin');
+    adminRoutes(req, res, next);
+  } catch (error: any) {
+    console.error('❌ Erro ao carregar rota admin:', error.message);
+    res.status(500).json({ error: 'Failed to load admin routes', message: error.message });
+  }
+});
 
 // app.use('/api/partners', partnersRoutes); // Comentado temporariamente - Prisma no nível do módulo
 // app.use('/api/auth', authRoutes); // Comentado temporariamente - Prisma no nível do módulo
