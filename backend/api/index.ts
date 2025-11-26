@@ -1,41 +1,22 @@
-// Vercel Serverless Function handler - VERSÃO ULTRA MINIMALISTA
-// Garante que o servidor SEMPRE responde
+// Vercel Serverless Function handler - VERSÃO SEM PRISMA
+// Para diagnosticar se o problema é o Prisma
 
-console.log('🚀 [INIT] Carregando módulos...');
+console.log('🚀 [INIT] Iniciando servidor...');
 
-// Importar apenas o essencial de forma síncrona
 import serverless from 'serverless-http';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 
-console.log('✅ Módulos carregados');
+console.log('✅ Módulos básicos carregados');
 
-// Configurar dotenv
-dotenv.config();
-
-console.log('✅ Dotenv configurado');
-console.log('📋 DATABASE_URL:', !!process.env.DATABASE_URL ? 'Configurada' : 'NÃO configurada');
-
-// Criar app Express
 const app = express();
 
-console.log('✅ Express app criado');
+// CORS
+app.use(cors({ origin: true, credentials: true }));
 
-// CORS básico
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-
-// Headers CORS em todas as respostas
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -43,72 +24,86 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Handler OPTIONS
-app.options('*', (req, res) => {
-  res.status(204).end();
-});
+// OPTIONS handler
+app.options('*', (req, res) => res.status(204).end());
 
-// Endpoint ping - SEMPRE responde primeiro
+// Ping - resposta imediata
 app.get('/api/ping', (req, res) => {
-  console.log('🏓 Ping recebido');
+  console.log('🏓 Ping!');
   res.json({ 
     status: 'ok',
-    message: 'Backend is alive!',
-    timestamp: new Date().toISOString()
+    message: 'Backend alive!',
+    timestamp: new Date().toISOString(),
+    env: {
+      hasDbUrl: !!process.env.DATABASE_URL,
+      nodeEnv: process.env.NODE_ENV
+    }
   });
 });
 
 app.get('/ping', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend is alive!' });
+  res.json({ status: 'ok' });
 });
 
-// Carregar rota admin lazy (só quando necessário)
-let adminRouter: any = null;
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Test OK',
+    timestamp: new Date().toISOString()
+  });
+});
 
-app.use('/api/admin', async (req, res, next) => {
-  try {
-    if (!adminRouter) {
-      console.log('🔄 Carregando rota admin (lazy)...');
-      const adminModule = await import('../src/routes/admin');
-      adminRouter = adminModule.default;
-      console.log('✅ Rota admin carregada');
-    }
-    adminRouter(req, res, next);
-  } catch (error: any) {
-    console.error('❌ Erro ao carregar/admin:', error.message);
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Failed to load admin routes', 
-        message: error.message 
-      });
-    }
+// Admin login - versão demo sem banco
+app.post('/api/admin/login', (req, res) => {
+  console.log('🔐 Login attempt');
+  const { email, password } = req.body;
+  
+  // Demo login
+  if (email === 'admin@ligadobem.com' && (password === 'admin123' || password === 'demo123')) {
+    res.json({
+      success: true,
+      token: 'demo-token-' + Date.now(),
+      user: {
+        id: 'demo-1',
+        name: 'Admin Demo',
+        email: email,
+        role: 'admin'
+      }
+    });
+  } else {
+    res.status(401).json({ error: 'Credenciais inválidas' });
   }
+});
+
+// Admin companies - dados demo
+app.get('/api/admin/companies', (req, res) => {
+  console.log('🏢 Get companies');
+  res.json({
+    companies: [
+      { id: '1', name: 'Empresa Demo 1', category: 'Restaurante', status: 'active', discount: '10%' },
+      { id: '2', name: 'Empresa Demo 2', category: 'Pet Shop', status: 'pending', discount: '15%' }
+    ],
+    total: 2
+  });
 });
 
 // 404
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found', path: req.path });
+  console.log('❌ 404:', req.method, req.path);
+  res.status(404).json({ error: 'Not found', path: req.path });
 });
 
 // Error handler
 app.use((err: any, req: any, res: any, next: any) => {
-  console.error('❌ Error:', err?.message || err);
-  if (!res.headersSent) {
-    res.status(err.status || 500).json({
-      error: err.message || 'Internal server error'
-    });
-  }
+  console.error('❌ Error:', err?.message);
+  res.status(500).json({ error: err?.message || 'Internal error' });
 });
 
-// Criar handler serverless
-console.log('✅ Criando handler serverless...');
+console.log('✅ Servidor configurado');
 
-const handler = serverless(app, {
-  binary: ['image/*', 'application/pdf']
-});
+const handler = serverless(app);
 
-console.log('✅ Handler serverless criado - PRONTO!');
+console.log('✅ Handler pronto!');
 
 export default handler;
