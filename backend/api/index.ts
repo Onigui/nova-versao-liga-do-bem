@@ -1,6 +1,17 @@
-// Vercel Serverless Function - Versão simples sem serverless-http
+// Vercel Serverless Function - Com Prisma
 
-export default function handler(req: any, res: any) {
+import { PrismaClient } from '@prisma/client';
+
+let prisma: PrismaClient | null = null;
+
+function getPrisma() {
+  if (!prisma && process.env.DATABASE_URL) {
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
+
+export default async function handler(req: any, res: any) {
   // CORS
   const origin = req.headers?.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
@@ -8,7 +19,6 @@ export default function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  // Handle OPTIONS
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
@@ -18,52 +28,69 @@ export default function handler(req: any, res: any) {
 
   console.log(`📥 ${method} ${path}`);
 
-  // Routes
-  if (path === '/api/ping' || path === '/ping') {
-    return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-  }
-
-  if (path === '/api/admin/login' && method === 'POST') {
-    const { email, password } = req.body || {};
-    if (email === 'admin@ligadobem.com' && (password === 'admin123' || password === 'demo123')) {
-      return res.status(200).json({
-        success: true,
-        token: 'demo-token-' + Date.now(),
-        user: { id: 'demo-1', name: 'Admin Demo', email, role: 'admin' }
-      });
+  try {
+    // Ping
+    if (path === '/api/ping' || path === '/ping') {
+      return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString(), hasDb: !!process.env.DATABASE_URL });
     }
-    return res.status(401).json({ error: 'Credenciais inválidas' });
-  }
 
-  if (path === '/api/admin/dashboard') {
-    return res.status(200).json({
-      totalCompanies: 2,
-      totalMembers: 10,
-      pendingApprovals: 1,
-      revenue: 5000
-    });
-  }
+    // Admin login
+    if (path === '/api/admin/login' && method === 'POST') {
+      const { email, password } = req.body || {};
+      if (email === 'admin@ligadobem.com' && (password === 'admin123' || password === 'demo123')) {
+        return res.status(200).json({
+          success: true,
+          token: 'demo-token-' + Date.now(),
+          user: { id: 'demo-1', name: 'Admin Demo', email, role: 'admin' }
+        });
+      }
+      return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
 
-  if (path === '/api/admin/companies') {
-    return res.status(200).json({
-      companies: [
-        { id: '1', name: 'Empresa Demo 1', category: 'Restaurante', status: 'active', discount: '10%', location: 'Centro' },
-        { id: '2', name: 'Empresa Demo 2', category: 'Pet Shop', status: 'pending', discount: '15%', location: 'Zona Sul' }
-      ],
-      total: 2
-    });
-  }
+    // Admin dashboard
+    if (path === '/api/admin/dashboard') {
+      const db = getPrisma();
+      if (db) {
+        const [totalCompanies, totalMembers] = await Promise.all([
+          db.partnerCompany.count().catch(() => 0),
+          db.user.count().catch(() => 0)
+        ]);
+        return res.status(200).json({ totalCompanies, totalMembers, pendingApprovals: 0, revenue: 0 });
+      }
+      return res.status(200).json({ totalCompanies: 0, totalMembers: 0, pendingApprovals: 0, revenue: 0 });
+    }
 
-  if (path === '/api/admin/members') {
-    return res.status(200).json({
-      members: [
-        { id: '1', name: 'Membro 1', email: 'membro1@test.com', status: 'active' },
-        { id: '2', name: 'Membro 2', email: 'membro2@test.com', status: 'active' }
-      ],
-      total: 2
-    });
-  }
+    // Admin companies
+    if (path === '/api/admin/companies') {
+      const db = getPrisma();
+      if (db) {
+        const companies = await db.partnerCompany.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 100
+        });
+        return res.status(200).json({ companies, total: companies.length });
+      }
+      return res.status(200).json({ companies: [], total: 0, error: 'Database not configured' });
+    }
 
-  // 404
-  return res.status(404).json({ error: 'Not found', path });
+    // Admin members
+    if (path === '/api/admin/members') {
+      const db = getPrisma();
+      if (db) {
+        const members = await db.user.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 100
+        });
+        return res.status(200).json({ members, total: members.length });
+      }
+      return res.status(200).json({ members: [], total: 0 });
+    }
+
+    // 404
+    return res.status(404).json({ error: 'Not found', path });
+
+  } catch (error: any) {
+    console.error('❌ Error:', error?.message);
+    return res.status(500).json({ error: error?.message || 'Internal error' });
+  }
 }
