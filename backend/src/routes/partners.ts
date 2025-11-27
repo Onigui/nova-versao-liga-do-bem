@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../utils/prisma';
 import { authenticate, authorize, optionalAuth } from '../middleware/auth';
 import { body, query, validationResult } from 'express-validator';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Get all partners with optional location filter
 router.get('/', [

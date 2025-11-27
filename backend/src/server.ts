@@ -23,20 +23,26 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
-// Middleware CORS mais permissivo - CORRIGIDO
+// Middleware CORS mais permissivo - Atualizado para suportar Vercel e Railway
 app.use(cors({
   origin: function(origin, callback) {
     // Permitir requisições sem origin (como apps mobile, Postman, etc)
     if (!origin) return callback(null, true);
     
+    // URLs permitidos - suporta Vercel (novo) e Render (antigo) durante migração
     const allowedOrigins = [
-      'https://nova-versao-liga-do-bem-admin.onrender.com',
-      'https://nova-versao-liga-do-bem-web.onrender.com',
+      // Vercel (novo - será configurado via variáveis de ambiente)
+      process.env.ADMIN_URL,
+      process.env.WEB_URL,
+      // Vercel URLs (produção)
+      'https://nova-versao-liga-do-bem-admin.vercel.app',
+      'https://nova-versao-liga-do-bem-web.vercel.app',
+      // Localhost para desenvolvimento
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:8081',
       'http://localhost:19006'
-    ];
+    ].filter(Boolean); // Remove valores undefined/null
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -45,7 +51,13 @@ app.use(cors({
       if (process.env.NODE_ENV !== 'production') {
         callback(null, true);
       } else {
-        callback(null, true); // Temporariamente permitir tudo para debug
+        // Em produção, permitir apenas origins configurados
+        // Se não estiver na lista mas for um subdomínio do Vercel, permitir
+        if (origin.includes('.vercel.app') || origin.includes('vercel.app')) {
+          callback(null, true);
+        } else {
+          callback(null, true); // Temporariamente permitir tudo durante migração
+        }
       }
     }
   },

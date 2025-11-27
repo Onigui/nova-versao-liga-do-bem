@@ -7,7 +7,6 @@
     "dev": "nodemon src/server.ts",
     "build": "echo 'Build skipped for Vercel serverless - TypeScript compiled automatically'",
     "build:local": "tsc",
-    "vercel-build": "echo 'Vercel build skipped - serverless functions compile automatically'",
     "postinstall": "prisma generate",
     "start": "node dist/server.js",
     "test": "jest",
