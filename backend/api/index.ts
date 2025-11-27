@@ -1,5 +1,4 @@
-// Vercel Serverless Function handler - VERSÃO SEM PRISMA
-// Para diagnosticar se o problema é o Prisma
+// Vercel Serverless Function handler
 
 console.log('🚀 [INIT] Iniciando servidor...');
 
@@ -25,64 +24,69 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Log all requests
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path} (originalUrl: ${req.originalUrl})`);
+  next();
+});
+
 // OPTIONS handler
 app.options('*', (req, res) => res.status(204).end());
 
-// Ping - resposta imediata
-app.get('/api/ping', (req, res) => {
-  console.log('🏓 Ping!');
-  res.json({ 
-    status: 'ok',
-    message: 'Backend alive!',
-    timestamp: new Date().toISOString(),
-    env: {
-      hasDbUrl: !!process.env.DATABASE_URL,
-      nodeEnv: process.env.NODE_ENV
-    }
-  });
+// Root
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Liga do Bem API' });
 });
 
+// Ping
 app.get('/ping', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Test endpoint
-app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'Test OK',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Admin login - versão demo sem banco
-app.post('/api/admin/login', (req, res) => {
+// Admin login
+app.post('/admin/login', (req, res) => {
   console.log('🔐 Login attempt');
   const { email, password } = req.body;
   
-  // Demo login
   if (email === 'admin@ligadobem.com' && (password === 'admin123' || password === 'demo123')) {
     res.json({
       success: true,
       token: 'demo-token-' + Date.now(),
-      user: {
-        id: 'demo-1',
-        name: 'Admin Demo',
-        email: email,
-        role: 'admin'
-      }
+      user: { id: 'demo-1', name: 'Admin Demo', email, role: 'admin' }
     });
   } else {
     res.status(401).json({ error: 'Credenciais inválidas' });
   }
 });
 
-// Admin companies - dados demo
-app.get('/api/admin/companies', (req, res) => {
+// Admin dashboard
+app.get('/admin/dashboard', (req, res) => {
+  res.json({
+    totalCompanies: 2,
+    totalMembers: 10,
+    pendingApprovals: 1,
+    revenue: 5000
+  });
+});
+
+// Admin companies
+app.get('/admin/companies', (req, res) => {
   console.log('🏢 Get companies');
   res.json({
     companies: [
-      { id: '1', name: 'Empresa Demo 1', category: 'Restaurante', status: 'active', discount: '10%' },
-      { id: '2', name: 'Empresa Demo 2', category: 'Pet Shop', status: 'pending', discount: '15%' }
+      { id: '1', name: 'Empresa Demo 1', category: 'Restaurante', status: 'active', discount: '10%', location: 'Centro' },
+      { id: '2', name: 'Empresa Demo 2', category: 'Pet Shop', status: 'pending', discount: '15%', location: 'Zona Sul' }
+    ],
+    total: 2
+  });
+});
+
+// Admin members
+app.get('/admin/members', (req, res) => {
+  res.json({
+    members: [
+      { id: '1', name: 'Membro 1', email: 'membro1@test.com', status: 'active' },
+      { id: '2', name: 'Membro 2', email: 'membro2@test.com', status: 'active' }
     ],
     total: 2
   });
@@ -91,18 +95,12 @@ app.get('/api/admin/companies', (req, res) => {
 // 404
 app.use((req, res) => {
   console.log('❌ 404:', req.method, req.path);
-  res.status(404).json({ error: 'Not found', path: req.path });
-});
-
-// Error handler
-app.use((err: any, req: any, res: any, next: any) => {
-  console.error('❌ Error:', err?.message);
-  res.status(500).json({ error: err?.message || 'Internal error' });
+  res.status(404).json({ error: 'Not found', path: req.path, originalUrl: req.originalUrl });
 });
 
 console.log('✅ Servidor configurado');
 
-const handler = serverless(app);
+const handler = serverless(app, { basePath: '/api' });
 
 console.log('✅ Handler pronto!');
 
