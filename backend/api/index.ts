@@ -52,7 +52,7 @@ export default async function handler(req: any, res: any) {
       const db = getPrisma();
       if (db) {
         const [totalCompanies, totalMembers] = await Promise.all([
-          db.partnerCompany.count().catch(() => 0),
+          db.partner.count().catch(() => 0),
           db.user.count().catch(() => 0)
         ]);
         return res.status(200).json({ totalCompanies, totalMembers, pendingApprovals: 0, revenue: 0 });
@@ -60,14 +60,29 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ totalCompanies: 0, totalMembers: 0, pendingApprovals: 0, revenue: 0 });
     }
 
-    // Admin companies
+    // Admin companies (partners)
     if (path === '/api/admin/companies') {
       const db = getPrisma();
       if (db) {
-        const companies = await db.partnerCompany.findMany({
+        const partners = await db.partner.findMany({
           orderBy: { createdAt: 'desc' },
-          take: 100
+          take: 100,
+          include: {
+            discounts: true
+          }
         });
+        // Map to expected format
+        const companies = partners.map(p => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          status: p.isActive ? 'active' : 'inactive',
+          discount: p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : 'N/A',
+          location: p.city || p.address,
+          email: p.email,
+          phone: p.phone,
+          description: p.description
+        }));
         return res.status(200).json({ companies, total: companies.length });
       }
       return res.status(200).json({ companies: [], total: 0, error: 'Database not configured' });
