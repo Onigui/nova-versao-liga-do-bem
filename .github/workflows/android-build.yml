@@ -43,6 +43,18 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: '34'
+          target: 'default'
+          cmdline-tools-version: 'latest'
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: true
+          platforms: |
+            android-34
+          build-tools: |
+            34.0.0
+          ndk-version: |
+            25.1.8937393
 
       - name: Cache Gradle
         uses: actions/cache@v3
@@ -58,16 +70,23 @@ jobs:
         working-directory: ./mobile/android
         run: chmod +x gradlew
 
+      - name: Create local.properties
+        working-directory: ./mobile/android
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
       - name: Clean Gradle
         working-directory: ./mobile/android
-        run: ./gradlew clean
+        run: ./gradlew clean --no-daemon
 
       - name: Build APK
         working-directory: ./mobile/android
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           JAVA_HOME: ${{ env.JAVA_HOME }}
+          ORG_GRADLE_DAEMON: false
+          ORG_GRADLE_PARALLEL: true
 
       - name: Find APK
         id: find_apk
