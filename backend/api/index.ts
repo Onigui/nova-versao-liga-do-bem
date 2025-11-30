@@ -1,14 +1,22 @@
 // Vercel Serverless Function - Com Prisma
 
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 let prisma: PrismaClient | null = null;
+
+const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
 
 function getPrisma() {
   if (!prisma && process.env.DATABASE_URL) {
     prisma = new PrismaClient();
   }
   return prisma;
+}
+
+function generateToken(payload: any) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
 export default async function handler(req: any, res: any) {
@@ -407,6 +415,180 @@ export default async function handler(req: any, res: any) {
           return res.status(404).json({ error: 'Membro não encontrado' });
         }
         return res.status(500).json({ error: error?.message || 'Erro ao deletar membro' });
+      }
+    }
+
+    // Auth - Login
+    if (path === '/api/auth/login' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const { email, password } = body;
+        
+        if (!email || !password) {
+          return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+        }
+
+        console.log('🔐 Login attempt:', email);
+
+        // Find user
+        const user = await db.user.findUnique({
+          where: { email }
+        });
+
+        if (!user) {
+          console.log('❌ User not found:', email);
+          return res.status(401).json({ error: 'Credenciais inválidas' });
+        }
+
+        // Check password
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+          console.log('❌ Invalid password for:', email);
+          return res.status(401).json({ error: 'Credenciais inválidas' });
+        }
+
+        // Check if user is active
+        if (!user.isActive) {
+          return res.status(401).json({ error: 'Usuário inativo' });
+        }
+
+        // Generate JWT
+        const token = generateToken({
+          userId: user.id,
+          email: user.email,
+          role: user.role
+        });
+
+        console.log('✅ Login successful:', user.id);
+
+        return res.status(200).json({
+          message: 'Login realizado com sucesso',
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            phone: user.phone,
+            role: user.role
+          },
+          token
+        });
+      } catch (error: any) {
+        console.error('❌ Login error:', error);
+        return res.status(500).json({ error: error?.message || 'Erro interno do servidor' });
+      }
+    }
+
+    // Auth - Register
+    if (path === '/api/auth/register' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const { email, name, phone, password } = body;
+        
+        if (!email || !name || !password) {
+          return res.status(400).json({ error: 'Email, nome e senha são obrigatórios' });
+        }
+
+        console.log('📝 Register attempt:', email);
+
+        // Check if user already exists
+        const existingUser = await db.user.findUnique({
+          where: { email }
+        });
+
+        if (existingUser) {
+          return res.status(400).json({ error: 'Usuário já existe com este email' });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // Create user
+        const user = await db.user.create({
+          data: {
+            email,
+            name,
+            phone: phone || null,
+            password: hashedPassword,
+            role: 'MEMBER'
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            role: true,
+            createdAt: true
+          }
+        });
+
+        // Generate JWT
+        const token = generateToken({
+          userId: user.id,
+          email: user.email,
+          role: user.role
+        });
+
+        console.log('✅ User registered:', user.id);
+
+        return res.status(201).json({
+          message: 'Usuário criado com sucesso',
+          user,
+          token
+        });
+      } catch (error: any) {
+        console.error('❌ Register error:', error);
+        return res.status(500).json({ error: error?.message || 'Erro interno do servidor' });
+      }
+    }
+
+    // Partners - GET all (public, only active)
+    if (path === '/api/partners' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(200).json({ partners: [] });
+      }
+      try {
+        const partners = await db.partner.findMany({
+          where: { isActive: true },
+          orderBy: { name: 'asc' },
+          include: {
+            discounts: {
+              where: {
+                validFrom: { lte: new Date() },
+                validUntil: { gte: new Date() }
+              },
+              take: 1
+            }
+          }
+        });
+
+        // Map to expected format
+        const formattedPartners = partners.map(p => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          description: p.description || 'Parceiro da Liga do Bem',
+          address: p.address || `${p.city || ''}${p.state ? ` - ${p.state}` : ''}`.trim(),
+          phone: p.phone,
+          email: p.email,
+          latitude: p.latitude ? parseFloat(p.latitude.toString()) : null,
+          longitude: p.longitude ? parseFloat(p.longitude.toString()) : null,
+          city: p.city,
+          state: p.state,
+          discount: p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : null
+        }));
+
+        console.log(`✅ Partners loaded: ${formattedPartners.length}`);
+        return res.status(200).json({ partners: formattedPartners });
+      } catch (error: any) {
+        console.error('❌ Error loading partners:', error);
+        return res.status(200).json({ partners: [] });
       }
     }
 

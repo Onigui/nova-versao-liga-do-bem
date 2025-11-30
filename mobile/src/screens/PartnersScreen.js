@@ -16,8 +16,6 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
 
-const API_BASE_URL = API_BASE_PATH;
-
 const deg2rad = deg => deg * (Math.PI / 180);
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -92,8 +90,13 @@ export default function PartnersScreen({navigation}) {
   const loadPartners = useCallback(async () => {
     try {
       console.log('🔄 Carregando parceiros da API...');
+      console.log('🔗 URL:', `${API_BASE_PATH}/partners`);
 
-      const response = await fetch(`${API_BASE_URL}/partners`);
+      const response = await fetch(`${API_BASE_PATH}/partners`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`Erro HTTP: ${response.status}`);
@@ -108,9 +111,9 @@ export default function PartnersScreen({navigation}) {
         id: partner.id,
         name: partner.name,
         category: partner.category,
-        discount: '15%', // TODO: implementar sistema de descontos
+        discount: partner.discount || 'Sem desconto',
         description: partner.description || 'Parceiro da Liga do Bem',
-        address: partner.address,
+        address: partner.address || `${partner.city || ''}${partner.state ? ` - ${partner.state}` : ''}`.trim(),
         phone: partner.phone,
         whatsapp: partner.phone?.replace(/\D/g, ''), // Remove caracteres não numéricos
         latitude: partner.latitude,
