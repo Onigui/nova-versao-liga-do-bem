@@ -17,7 +17,7 @@ buildscript {
         ndkVersion = "25.1.8937393"
         kotlinVersion = "1.9.24"
         googlePlayServicesVersion = "21.5.0"
-        firebaseVersion = "33.7.0"
+        firebaseVersion = "32.7.0"
     }
     repositories {
         google()
