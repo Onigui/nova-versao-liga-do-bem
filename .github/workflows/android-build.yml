@@ -39,7 +39,7 @@ jobs:
       - name: Install dependencies
         working-directory: ./mobile
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
