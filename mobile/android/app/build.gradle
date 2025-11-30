@@ -78,7 +78,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.ligadobem.botucatu"
+    namespace "com.ligadobemnovo"
     defaultConfig {
         applicationId "com.ligadobem.botucatu"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -86,6 +86,10 @@ android {
         versionCode 5
         versionName "1.2.3"
         multiDexEnabled true
+    }
+    
+    buildFeatures {
+        buildConfig = true
     }
     signingConfigs {
         debug {
@@ -133,5 +137,9 @@ dependencies {
     // Multidex
     implementation("androidx.multidex:multidex:2.0.1")
 }
+
+// Autolinking - necessário para gerar PackageList
+apply from: "../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"
+applyNativeModulesAppBuildGradle(project)
 
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
