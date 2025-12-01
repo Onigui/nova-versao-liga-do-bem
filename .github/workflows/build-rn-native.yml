@@ -1,4 +1,4 @@
-name: 🚀 Build APK React Native 0.76.5 Nativo (100% Gratuito)
+name: 🚀 Build APK React Native 0.74.5 Nativo (100% Gratuito)
 
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
       - name: 📦 Install dependencies
         working-directory: ./mobile
         run: |
-          echo "📦 Instalando dependências React Native 0.76.5..."
+          echo "📦 Instalando dependências React Native 0.74.5..."
           npm ci --legacy-peer-deps
           
           echo "✅ Dependências instaladas com sucesso!"
@@ -82,7 +82,7 @@ jobs:
       - name: 🏗️ Build APK
         working-directory: ./mobile
         run: |
-          echo "🏗️ Iniciando build React Native 0.76.5 nativo..."
+          echo "🏗️ Iniciando build React Native 0.74.5 nativo..."
           
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
           
@@ -133,18 +133,18 @@ jobs:
             ### ✨ Build Info
             - **Versão**: 1.2.3
             - **Build**: ${{ github.run_number }}
-            - **Método**: React Native 0.76.5 Nativo (100% GRATUITO!)
+            - **Método**: React Native 0.74.5 Nativo (100% GRATUITO!)
             - **Branch**: ${{ github.ref_name }}
             - **Commit**: ${{ github.sha }}
             
             ### 🎯 Novidades desta versão:
-            - ✅ **Projeto completamente reconstruído** com RN 0.76.5
+            - ✅ **Projeto completamente reconstruído** com RN 0.74.5
             - ✅ **TODAS as dependências compatíveis** (sem erros de compilação!)
             - ✅ Firebase integrado (notificações push)
             - ✅ React Navigation 7.x
-            - ✅ Gesture Handler 2.20.2
-            - ✅ Reanimated 3.16.4
-            - ✅ Screens 4.3.0
+            - ✅ Gesture Handler 2.16.0
+            - ✅ Reanimated 3.10.1
+            - ✅ Screens 3.31.1
             - ✅ Vector Icons, Linear Gradient, QR Code
             - ✅ Vision Camera 4.6.1
             - ✅ Geolocation, AsyncStorage
@@ -177,7 +177,7 @@ jobs:
         run: |
           echo "## 🎯 Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Type**: React Native 0.76.5 Nativo" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: React Native 0.74.5 Nativo" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -186,7 +186,7 @@ jobs:
             APK_SIZE=$(du -h liga-do-bem-botucatu-v1.2.3.apk | cut -f1)
             echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "✅ **APK gerado com React Native 0.76.5 Nativo!**" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **APK gerado com React Native 0.74.5 Nativo!**" >> $GITHUB_STEP_SUMMARY
           elif [ -f "liga-do-bem-botucatu-v1.2.3-debug.apk" ]; then
             APK_SIZE=$(du -h liga-do-bem-botucatu-v1.2.3-debug.apk | cut -f1)
             echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
