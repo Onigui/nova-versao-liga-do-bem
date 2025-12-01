@@ -134,8 +134,11 @@ dependencies {
     
     // Firebase
     implementation platform("com.google.firebase:firebase-bom:${rootProject.ext.firebaseVersion}")
-    implementation("com.google.firebase:firebase-messaging")
-    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-messaging") {
+        exclude group: 'com.google.android.gms', module: 'play-services-measurement'
+        exclude group: 'com.google.android.gms', module: 'play-services-measurement-api'
+        exclude group: 'com.google.android.gms', module: 'play-services-measurement-impl'
+    }
     
     // Multidex
     implementation("androidx.multidex:multidex:2.0.1")
