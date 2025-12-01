@@ -48,7 +48,7 @@ jobs:
         working-directory: ./mobile
         run: |
           echo "📦 Instalando dependências React Native 0.76.5..."
-          npm ci
+          npm ci --legacy-peer-deps
           
           echo "✅ Dependências instaladas com sucesso!"
 
