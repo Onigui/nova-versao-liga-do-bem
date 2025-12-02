@@ -443,8 +443,37 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Credenciais inválidas' });
         }
 
-        // Check password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        console.log('👤 User found:', { id: user.id, email: user.email, isActive: user.isActive });
+        console.log('🔑 Password hash starts with:', user.password.substring(0, 10));
+
+        // Check if password is hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+        const isPasswordHashed = user.password.startsWith('$2a$') || 
+                                 user.password.startsWith('$2b$') || 
+                                 user.password.startsWith('$2y$');
+
+        let isPasswordValid = false;
+
+        if (isPasswordHashed) {
+          // Password is hashed, use bcrypt.compare
+          console.log('🔐 Comparing with bcrypt (hashed password)');
+          isPasswordValid = await bcrypt.compare(password, user.password);
+        } else {
+          // Password is not hashed (legacy user), compare directly
+          console.log('⚠️ Password is not hashed (legacy user), comparing directly');
+          isPasswordValid = password === user.password;
+          
+          // If direct comparison works, hash the password for future use
+          if (isPasswordValid) {
+            console.log('✅ Legacy password match, updating to hashed password...');
+            const hashedPassword = await bcrypt.hash(password, 12);
+            await db.user.update({
+              where: { id: user.id },
+              data: { password: hashedPassword }
+            });
+            console.log('✅ Password updated to hashed format');
+          }
+        }
+
         if (!isPasswordValid) {
           console.log('❌ Invalid password for:', email);
           return res.status(401).json({ error: 'Credenciais inválidas' });
