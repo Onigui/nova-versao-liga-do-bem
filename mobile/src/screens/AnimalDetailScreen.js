@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,18 @@ const {width} = Dimensions.get('window');
 export default function AnimalDetailScreen({route, navigation}) {
   const {animal} = route.params || {};
   const [isFavorite, setIsFavorite] = useState(false);
+
+  // Safety check: if no animal data, go back
+  useEffect(() => {
+    if (!animal) {
+      navigation.goBack();
+    }
+  }, [animal, navigation]);
+
+  // Early return if no animal (prevents crash)
+  if (!animal) {
+    return null;
+  }
 
   const handleAdopt = () => {
     Alert.alert(
@@ -38,25 +50,25 @@ export default function AnimalDetailScreen({route, navigation}) {
     );
   };
 
-  const animalData = animal || {
-    id: '1',
-    name: 'Rex',
-    species: 'Cachorro',
-    breed: 'Vira-Lata',
-    age: '2 anos',
-    gender: 'Macho',
-    size: 'Médio',
-    color: 'Caramelo',
-    vaccinated: true,
-    neutered: true,
-    description:
-      'Rex é um cachorro muito carinhoso e brincalhão. Adora crianças e se dá bem com outros animais. Está procurando um lar cheio de amor!',
-    photos: [
+  // Merge animal data with defaults, handling missing fields
+  const animalData = {
+    id: animal?.id || '1',
+    name: animal?.name || 'Animal',
+    species: animal?.species || 'Cachorro',
+    breed: animal?.breed || 'Vira-Lata',
+    age: animal?.age || 'N/A',
+    gender: animal?.gender || 'Macho',
+    size: animal?.size || 'Médio',
+    color: animal?.color || 'Não informado',
+    vaccinated: animal?.vaccinated || false,
+    neutered: animal?.neutered || false,
+    description: animal?.description || 'Este animal está procurando um lar cheio de amor!',
+    // Handle both 'photo' (singular) and 'photos' (array)
+    photos: animal?.photos || (animal?.photo ? [animal.photo] : [
       'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
-      'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400',
-    ],
-    adoptionDate: null,
-    rescueDate: '2024-01-15',
+    ]),
+    adoptionDate: animal?.adoptionDate || null,
+    rescueDate: animal?.rescueDate || new Date().toISOString().split('T')[0],
   };
 
   return (
@@ -65,9 +77,12 @@ export default function AnimalDetailScreen({route, navigation}) {
         {/* Image Gallery */}
         <View style={styles.imageContainer}>
           <Image
-            source={{uri: animalData.photos[0]}}
+            source={{uri: animalData.photos && animalData.photos.length > 0 ? animalData.photos[0] : 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400'}}
             style={styles.mainImage}
             resizeMode="cover"
+            onError={(error) => {
+              console.log('Erro ao carregar imagem:', error);
+            }}
           />
           <TouchableOpacity
             style={styles.favoriteButton}
@@ -161,13 +176,15 @@ export default function AnimalDetailScreen({route, navigation}) {
           </View>
 
           {/* Rescue Info */}
-          <View style={styles.rescueInfo}>
-            <Ionicons name="information-circle" size={20} color="#8B5CF6" />
-            <Text style={styles.rescueInfoText}>
-              Resgatado em{' '}
-              {new Date(animalData.rescueDate).toLocaleDateString('pt-BR')}
-            </Text>
-          </View>
+          {animalData.rescueDate && (
+            <View style={styles.rescueInfo}>
+              <Ionicons name="information-circle" size={20} color="#8B5CF6" />
+              <Text style={styles.rescueInfoText}>
+                Resgatado em{' '}
+                {new Date(animalData.rescueDate).toLocaleDateString('pt-BR')}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
