@@ -621,6 +621,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="#animals" class="nav-link" onclick="showSection('animals')">
+                        <span class="nav-icon">🐾</span>
+                        Animais para Adoção
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="#discounts" class="nav-link" onclick="showSection('discounts')">
                         <span class="nav-icon">💰</span>
                         Descontos
@@ -868,6 +874,52 @@
                             </tr>
                         </thead>
                         <tbody id="members-table-body">
+                            <!-- Dados serão carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Animals Section -->
+            <section id="animals-section" class="content-section">
+                <div class="header">
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Animais para Adoção</h1>
+                            <p class="header-subtitle">Gerencie animais disponíveis para adoção</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="exportAnimals()">
+                                <span>📊</span>
+                                Exportar
+                            </button>
+                            <button class="btn btn-primary" onclick="openAnimalModal()">
+                                <span>➕</span>
+                                Cadastrar Animal
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3 class="table-title">Todos os Animais</h3>
+                    </div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Foto</th>
+                                <th>Nome</th>
+                                <th>Espécie</th>
+                                <th>Raça</th>
+                                <th>Idade</th>
+                                <th>Gênero</th>
+                                <th>Status</th>
+                                <th>Data Cadastro</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="animals-table-body">
                             <!-- Dados serão carregados via JavaScript -->
                         </tbody>
                     </table>
@@ -1859,6 +1911,121 @@
         </div>
     </div>
 
+    <!-- Animal Modal -->
+    <div id="animalModal" class="modal-overlay">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="animalModalTitle">Cadastrar Novo Animal</h3>
+                <button class="modal-close" onclick="closeModal('animalModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="animalForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Nome do Animal *</label>
+                            <input type="text" class="form-input" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Espécie *</label>
+                            <select class="form-input" name="species" required>
+                                <option value="">Selecione...</option>
+                                <option value="DOG">Cachorro</option>
+                                <option value="CAT">Gato</option>
+                                <option value="BIRD">Ave</option>
+                                <option value="RABBIT">Coelho</option>
+                                <option value="OTHER">Outro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Raça</label>
+                            <input type="text" class="form-input" name="breed" placeholder="Ex: Vira-Lata">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Idade (meses)</label>
+                            <input type="number" class="form-input" name="age" min="0" placeholder="Ex: 12">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Gênero *</label>
+                            <select class="form-input" name="gender" required>
+                                <option value="">Selecione...</option>
+                                <option value="MALE">Macho</option>
+                                <option value="FEMALE">Fêmea</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Porte *</label>
+                            <select class="form-input" name="size" required>
+                                <option value="">Selecione...</option>
+                                <option value="SMALL">Pequeno</option>
+                                <option value="MEDIUM">Médio</option>
+                                <option value="LARGE">Grande</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">URL da Imagem</label>
+                        <input type="url" class="form-input" name="image" placeholder="https://exemplo.com/imagem.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-input" name="description" rows="4" placeholder="Conte a história do animal..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" name="isVaccinated" style="margin-right: 8px;">
+                                Vacinado
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" name="isCastrated" style="margin-right: 8px;">
+                                Castrado
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" name="hasSpecialNeeds" style="margin-right: 8px;">
+                                Necessidades Especiais
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group" id="specialNeedsGroup" style="display: none;">
+                        <label class="form-label">Descreva as Necessidades Especiais</label>
+                        <textarea class="form-input" name="specialNeeds" rows="2"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select class="form-input" name="isActive" required>
+                                <option value="true">Ativo (Disponível)</option>
+                                <option value="false">Inativo</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status de Adoção</label>
+                            <select class="form-input" name="isAdopted" required>
+                                <option value="false">Disponível para Adoção</option>
+                                <option value="true">Já Adotado</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('animalModal')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" form="animalForm" id="animalSubmitBtn">
+                    <span class="loading" style="display: none;"></span>
+                    Cadastrar Animal
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Configuração da API
         // Normalizar URL (remover barra final se existir)
@@ -1944,6 +2111,15 @@
             if (targetSection) {
                 targetSection.classList.add('active');
                 targetSection.style.display = 'block';
+                
+                // Carregar dados específicos da seção
+                if (sectionId === 'animals') {
+                    loadAnimals();
+                } else if (sectionId === 'members') {
+                    loadMembers();
+                } else if (sectionId === 'companies') {
+                    loadCompanies();
+                }
             }
             
             // Adicionar active ao link selecionado
@@ -4034,6 +4210,7 @@
             
             // Carregar dados do backend
             loadMembers();
+            loadAnimals();
             
             // Não renderizar tabelas aqui - elas serão renderizadas quando os dados forem carregados
             // renderCompaniesTable(); // Removido - será chamado após loadCompanies()
@@ -4043,6 +4220,227 @@
                 initializeCharts();
             }, 500);
         });
+
+        // Funções para gerenciar animais
+        let animalsData = [];
+        let editingAnimalId = null;
+
+        async function loadAnimals() {
+            try {
+                console.log('🔄 Carregando animais do banco...');
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/animals`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    animalsData = data.animals || [];
+                    console.log('✅ Animais carregados:', animalsData.length);
+                    renderAnimalsTable();
+                } else {
+                    console.error('❌ Erro ao carregar animais:', data);
+                    animalsData = [];
+                }
+            } catch (error) {
+                console.error('❌ Erro ao carregar animais:', error);
+                animalsData = [];
+            }
+        }
+
+        function renderAnimalsTable() {
+            const tbody = document.getElementById('animals-table-body');
+            if (!tbody) return;
+            
+            if (animalsData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-gray);">Nenhum animal cadastrado</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = animalsData.map(animal => {
+                const speciesMap = {
+                    'DOG': 'Cachorro',
+                    'CAT': 'Gato',
+                    'BIRD': 'Ave',
+                    'RABBIT': 'Coelho',
+                    'OTHER': 'Outro'
+                };
+                const genderMap = {
+                    'MALE': 'Macho',
+                    'FEMALE': 'Fêmea'
+                };
+                const sizeMap = {
+                    'SMALL': 'Pequeno',
+                    'MEDIUM': 'Médio',
+                    'LARGE': 'Grande'
+                };
+                const ageText = animal.age ? `${Math.floor(animal.age / 12)} ${Math.floor(animal.age / 12) === 1 ? 'ano' : 'anos'}` : 'N/A';
+                const statusBadge = animal.isAdopted 
+                    ? '<span style="background: #FEE2E2; color: #DC2626; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">Adotado</span>'
+                    : animal.isActive
+                    ? '<span style="background: #D1FAE5; color: #059669; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">Disponível</span>'
+                    : '<span style="background: #F3F4F6; color: #6B7280; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">Inativo</span>';
+                
+                return `
+                    <tr>
+                        <td>
+                            ${animal.image 
+                                ? `<img src="${animal.image}" alt="${animal.name}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;">`
+                                : '<div style="width: 50px; height: 50px; background: #F3F4F6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #9CA3AF;">🐾</div>'
+                            }
+                        </td>
+                        <td><strong>${animal.name}</strong></td>
+                        <td>${speciesMap[animal.species] || animal.species}</td>
+                        <td>${animal.breed || 'N/A'}</td>
+                        <td>${ageText}</td>
+                        <td>${genderMap[animal.gender] || animal.gender}</td>
+                        <td>${statusBadge}</td>
+                        <td>${new Date(animal.createdAt).toLocaleDateString('pt-BR')}</td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="editAnimal('${animal.id}')" style="background: #3B82F6; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.875rem;">✏️ Editar</button>
+                                <button onclick="deleteAnimal('${animal.id}')" style="background: #EF4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.875rem;">🗑️ Excluir</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openAnimalModal(animalId = null) {
+            editingAnimalId = animalId;
+            const form = document.getElementById('animalForm');
+            const modal = document.getElementById('animalModal');
+            const title = document.getElementById('animalModalTitle');
+            const submitBtn = document.getElementById('animalSubmitBtn');
+            
+            if (animalId) {
+                const animal = animalsData.find(a => a.id === animalId);
+                if (animal) {
+                    title.textContent = 'Editar Animal';
+                    submitBtn.textContent = 'Salvar Alterações';
+                    form.name.value = animal.name || '';
+                    form.species.value = animal.species || '';
+                    form.breed.value = animal.breed || '';
+                    form.age.value = animal.age || '';
+                    form.gender.value = animal.gender || '';
+                    form.size.value = animal.size || '';
+                    form.image.value = animal.image || '';
+                    form.description.value = animal.description || '';
+                    form.isVaccinated.checked = animal.isVaccinated || false;
+                    form.isCastrated.checked = animal.isCastrated || false;
+                    form.hasSpecialNeeds.checked = animal.hasSpecialNeeds || false;
+                    form.specialNeeds.value = animal.specialNeeds || '';
+                    form.isActive.value = animal.isActive ? 'true' : 'false';
+                    form.isAdopted.value = animal.isAdopted ? 'true' : 'false';
+                    document.getElementById('specialNeedsGroup').style.display = animal.hasSpecialNeeds ? 'block' : 'none';
+                }
+            } else {
+                title.textContent = 'Cadastrar Novo Animal';
+                submitBtn.textContent = 'Cadastrar Animal';
+                form.reset();
+                document.getElementById('specialNeedsGroup').style.display = 'none';
+            }
+            modal.style.display = 'flex';
+        }
+
+        document.getElementById('animalForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const submitBtn = document.getElementById('animalSubmitBtn');
+            const loading = submitBtn.querySelector('.loading');
+            
+            try {
+                loading.style.display = 'inline-block';
+                submitBtn.disabled = true;
+                
+                const formData = {
+                    name: form.name.value,
+                    species: form.species.value,
+                    breed: form.breed.value || null,
+                    age: form.age.value ? parseInt(form.age.value) : null,
+                    gender: form.gender.value,
+                    size: form.size.value,
+                    description: form.description.value || null,
+                    image: form.image.value || null,
+                    isVaccinated: form.isVaccinated.checked,
+                    isCastrated: form.isCastrated.checked,
+                    hasSpecialNeeds: form.hasSpecialNeeds.checked,
+                    specialNeeds: form.hasSpecialNeeds.checked ? (form.specialNeeds.value || null) : null,
+                    isActive: form.isActive.value === 'true',
+                    isAdopted: form.isAdopted.value === 'true'
+                };
+
+                const token = localStorage.getItem('admin_token');
+                const url = editingAnimalId 
+                    ? `${API_BASE_URL}/api/admin/animals/${editingAnimalId}`
+                    : `${API_BASE_URL}/api/admin/animals`;
+                const method = editingAnimalId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao salvar animal');
+                }
+
+                alert(editingAnimalId ? '✅ Animal atualizado com sucesso!' : '✅ Animal cadastrado com sucesso!');
+                closeModal('animalModal');
+                await loadAnimals();
+                
+            } catch (error) {
+                console.error('❌ Erro ao salvar animal:', error);
+                alert(`Erro ao salvar animal: ${error.message}`);
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+
+        document.querySelector('input[name="hasSpecialNeeds"]').addEventListener('change', (e) => {
+            document.getElementById('specialNeedsGroup').style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        function editAnimal(animalId) {
+            openAnimalModal(animalId);
+        }
+
+        async function deleteAnimal(animalId) {
+            if (!confirm('⚠️ ATENÇÃO: Esta ação é irreversível! Deseja realmente EXCLUIR este animal?')) {
+                return;
+            }
+            try {
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/animals/${animalId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao excluir animal');
+                }
+                alert('✅ Animal excluído com sucesso!');
+                await loadAnimals();
+            } catch (error) {
+                console.error('❌ Erro ao excluir animal:', error);
+                alert(`Erro ao excluir animal: ${error.message}`);
+            }
+        }
+
+        function exportAnimals() {
+            alert('Funcionalidade de exportação será implementada em breve!');
+        }
     </script>
 </body>
 </html>

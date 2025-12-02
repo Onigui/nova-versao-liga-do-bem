@@ -8,9 +8,13 @@ import {
   TouchableOpacity,
   Alert,
   Dimensions,
+  Modal,
+  TextInput,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_PATH } from '../config/apiConfig';
 
 const {width} = Dimensions.get('window');
 
@@ -30,24 +34,72 @@ export default function AnimalDetailScreen({route, navigation}) {
     return null;
   }
 
+  const [showVisitModal, setShowVisitModal] = useState(false);
+  const [visitForm, setVisitForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    message: '',
+    visitDate: '',
+  });
+
   const handleAdopt = () => {
-    Alert.alert(
-      'Solicitar Adoção',
-      `Deseja solicitar a adoção de ${animal?.name || 'este animal'}?`,
-      [
-        {text: 'Cancelar', style: 'cancel'},
-        {
-          text: 'Sim, solicitar',
-          onPress: () => {
-            Alert.alert(
-              'Sucesso!',
-              'Solicitação enviada! Entraremos em contato em breve.',
-            );
-            navigation.goBack();
-          },
+    setShowVisitModal(true);
+  };
+
+  const handleSubmitVisit = async () => {
+    try {
+      if (!visitForm.name || !visitForm.email) {
+        Alert.alert('Erro', 'Nome e email são obrigatórios');
+        return;
+      }
+
+      // Buscar token e dados do usuário logado (se houver)
+      const token = await AsyncStorage.getItem('auth_token');
+      const userData = await AsyncStorage.getItem('user_data');
+      const user = userData ? JSON.parse(userData) : null;
+      const userId = user?.id || null;
+
+      const response = await fetch(`${API_BASE_PATH}/adoptions/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
         },
-      ],
-    );
+        body: JSON.stringify({
+          animalId: animalData.id,
+          userId: userId,
+          name: visitForm.name,
+          email: visitForm.email,
+          phone: visitForm.phone || null,
+          message: visitForm.message || null,
+          visitDate: visitForm.visitDate || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert(
+          'Sucesso!',
+          data.message || 'Solicitação de visita registrada com sucesso! Um voluntário entrará em contato em breve.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setShowVisitModal(false);
+                setVisitForm({ name: '', email: '', phone: '', message: '', visitDate: '' });
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert('Erro', data.error || 'Erro ao registrar solicitação');
+      }
+    } catch (error) {
+      console.error('Erro ao registrar visita:', error);
+      Alert.alert('Erro', 'Erro ao registrar solicitação. Tente novamente.');
+    }
   };
 
   // Merge animal data with defaults, handling missing fields
@@ -206,6 +258,90 @@ export default function AnimalDetailScreen({route, navigation}) {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Visit Modal */}
+      <Modal
+        visible={showVisitModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowVisitModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Agendar Visita</Text>
+              <TouchableOpacity onPress={() => setShowVisitModal(false)}>
+                <Ionicons name="close" size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.modalSubtitle}>
+                Preencha os dados abaixo para agendar uma visita e conhecer {animalData.name}!
+              </Text>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Nome Completo *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Seu nome"
+                  value={visitForm.name}
+                  onChangeText={(text) => setVisitForm({...visitForm, name: text})}
+                />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Email *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="seu@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={visitForm.email}
+                  onChangeText={(text) => setVisitForm({...visitForm, email: text})}
+                />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Telefone</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="(14) 99999-9999"
+                  keyboardType="phone-pad"
+                  value={visitForm.phone}
+                  onChangeText={(text) => setVisitForm({...visitForm, phone: text})}
+                />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Data Sugerida para Visita</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="DD/MM/AAAA"
+                  value={visitForm.visitDate}
+                  onChangeText={(text) => setVisitForm({...visitForm, visitDate: text})}
+                />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Mensagem (opcional)</Text>
+                <TextInput
+                  style={[styles.formInput, {height: 100, textAlignVertical: 'top'}]}
+                  placeholder="Conte-nos um pouco sobre você e sua família..."
+                  multiline
+                  value={visitForm.message}
+                  onChangeText={(text) => setVisitForm({...visitForm, message: text})}
+                />
+              </View>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowVisitModal(false)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSubmitButton}
+                onPress={handleSubmitVisit}>
+                <Text style={styles.modalSubmitText}>Enviar Solicitação</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -354,5 +490,88 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalBody: {
+    padding: 20,
+    maxHeight: 400,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    paddingTop: 0,
+  },
+  modalCancelButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  modalSubmitButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#8B5CF6',
+    alignItems: 'center',
+  },
+  modalSubmitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

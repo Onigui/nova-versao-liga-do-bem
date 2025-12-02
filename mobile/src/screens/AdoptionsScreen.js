@@ -33,53 +33,61 @@ export default function AdoptionsScreen({navigation}) {
 
   const loadAnimals = async () => {
     try {
-      // Dados mockados por enquanto
-      const mockAnimals = [
+      console.log('🔄 Carregando animais da API...');
+      const response = await fetch(`${API_BASE_PATH}/animals`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+
+      const apiData = await response.json();
+      const apiAnimals = apiData.animals || [];
+      console.log('✅ Animais carregados:', apiAnimals.length);
+
+      // Converter dados da API para formato esperado pelo app
+      const formattedAnimals = apiAnimals.map(animal => ({
+        id: animal.id,
+        name: animal.name,
+        species: animal.species,
+        breed: animal.breed || 'Vira-Lata',
+        age: animal.age,
+        gender: animal.gender,
+        size: animal.size,
+        photo: animal.photo || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
+        photos: animal.photos || [animal.photo || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400'],
+        vaccinated: animal.vaccinated || false,
+        neutered: animal.neutered || false,
+        description: animal.description || 'Este animal está procurando um lar cheio de amor!',
+        color: animal.color || 'Não informado',
+        rescueDate: animal.rescueDate || new Date().toISOString().split('T')[0],
+      }));
+
+      setAnimals(formattedAnimals);
+      setFilteredAnimals(formattedAnimals);
+    } catch (error) {
+      console.error('❌ Erro ao carregar animais:', error);
+      
+      // Fallback para dados mockados em caso de erro
+      const fallbackAnimals = [
         {
-          id: '1',
+          id: 'fallback-1',
           name: 'Rex',
           species: 'Cachorro',
           breed: 'Vira-Lata',
           age: '2 anos',
           gender: 'Macho',
           size: 'Médio',
-          photo:
-            'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
+          photo: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
+          photos: ['https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400'],
           vaccinated: true,
           neutered: true,
-        },
-        {
-          id: '2',
-          name: 'Luna',
-          species: 'Gato',
-          breed: 'Siamês',
-          age: '1 ano',
-          gender: 'Fêmea',
-          size: 'Pequeno',
-          photo:
-            'https://images.unsplash.com/photo-1513360371669-4adf3dd7dff8?w=400',
-          vaccinated: true,
-          neutered: true,
-        },
-        {
-          id: '3',
-          name: 'Bob',
-          species: 'Cachorro',
-          breed: 'Labrador',
-          age: '3 anos',
-          gender: 'Macho',
-          size: 'Grande',
-          photo:
-            'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400',
-          vaccinated: true,
-          neutered: true,
+          description: 'Rex é um cachorro muito carinhoso e brincalhão.',
+          color: 'Caramelo',
+          rescueDate: new Date().toISOString().split('T')[0],
         },
       ];
-
-      setAnimals(mockAnimals);
-      setFilteredAnimals(mockAnimals);
-    } catch (error) {
-      console.error('Erro ao carregar animais:', error);
+      setAnimals(fallbackAnimals);
+      setFilteredAnimals(fallbackAnimals);
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -621,6 +621,223 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // --- Admin Animals Endpoints ---
+    // GET all animals (admin)
+    if (path === '/api/admin/animals' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const animals = await db.animal.findMany({
+          orderBy: { createdAt: 'desc' },
+          include: {
+            adoptions: {
+              where: { status: 'PENDING' },
+              take: 1
+            }
+          }
+        });
+        return res.status(200).json({ animals, total: animals.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao listar animais:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao listar animais' });
+      }
+    }
+
+    // POST create animal (admin)
+    if (path === '/api/admin/animals' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const { name, species, breed, age, gender, size, description, image, isVaccinated, isCastrated, hasSpecialNeeds, specialNeeds, isActive } = body;
+        if (!name || !species || !gender || !size) {
+          return res.status(400).json({ error: 'Nome, espécie, gênero e porte são obrigatórios' });
+        }
+        const animal = await db.animal.create({
+          data: {
+            name,
+            species,
+            breed: breed || null,
+            age: age ? parseInt(age) : null,
+            gender,
+            size,
+            description: description || null,
+            image: image || null,
+            isVaccinated: isVaccinated || false,
+            isCastrated: isCastrated || false,
+            hasSpecialNeeds: hasSpecialNeeds || false,
+            specialNeeds: specialNeeds || null,
+            isActive: isActive !== undefined ? isActive : true,
+            isAdopted: false
+          }
+        });
+        return res.status(201).json({ message: 'Animal cadastrado com sucesso', animal });
+      } catch (error: any) {
+        console.error('❌ Erro ao criar animal:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao criar animal' });
+      }
+    }
+
+    // PUT update animal (admin)
+    if ((path.startsWith('/api/admin/animals/') || path.match(/^\/api\/admin\/animals\/[^\/]+$/)) && method === 'PUT') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        let match = path.match(/\/api\/admin\/animals\/([^\/]+)$/);
+        if (!match) match = path.match(/\/admin\/animals\/([^\/]+)$/);
+        const animalId = match?.[1];
+        if (!animalId) {
+          return res.status(400).json({ error: 'ID do animal é obrigatório' });
+        }
+        const { name, species, breed, age, gender, size, description, image, isVaccinated, isCastrated, hasSpecialNeeds, specialNeeds, isActive, isAdopted } = body;
+        const updateData: any = {};
+        if (name) updateData.name = name;
+        if (species) updateData.species = species;
+        if (breed !== undefined) updateData.breed = breed || null;
+        if (age !== undefined) updateData.age = age ? parseInt(age) : null;
+        if (gender) updateData.gender = gender;
+        if (size) updateData.size = size;
+        if (description !== undefined) updateData.description = description || null;
+        if (image !== undefined) updateData.image = image || null;
+        if (isVaccinated !== undefined) updateData.isVaccinated = isVaccinated;
+        if (isCastrated !== undefined) updateData.isCastrated = isCastrated;
+        if (hasSpecialNeeds !== undefined) updateData.hasSpecialNeeds = hasSpecialNeeds;
+        if (specialNeeds !== undefined) updateData.specialNeeds = specialNeeds || null;
+        if (isActive !== undefined) updateData.isActive = isActive;
+        if (isAdopted !== undefined) updateData.isAdopted = isAdopted;
+        const animal = await db.animal.update({
+          where: { id: animalId },
+          data: updateData
+        });
+        return res.status(200).json({ message: 'Animal atualizado com sucesso', animal });
+      } catch (error: any) {
+        console.error('❌ Erro ao atualizar animal:', error);
+        if (error?.code === 'P2025') {
+          return res.status(404).json({ error: 'Animal não encontrado' });
+        }
+        return res.status(500).json({ error: error?.message || 'Erro ao atualizar animal' });
+      }
+    }
+
+    // DELETE animal (admin)
+    if ((path.startsWith('/api/admin/animals/') || path.match(/^\/api\/admin\/animals\/[^\/]+$/)) && method === 'DELETE') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        let match = path.match(/\/api\/admin\/animals\/([^\/]+)$/);
+        if (!match) match = path.match(/\/admin\/animals\/([^\/]+)$/);
+        const animalId = match?.[1];
+        if (!animalId) {
+          return res.status(400).json({ error: 'ID do animal é obrigatório' });
+        }
+        await db.animal.delete({ where: { id: animalId } });
+        return res.status(200).json({ message: 'Animal deletado com sucesso' });
+      } catch (error: any) {
+        console.error('❌ Erro ao deletar animal:', error);
+        if (error?.code === 'P2025') {
+          return res.status(404).json({ error: 'Animal não encontrado' });
+        }
+        return res.status(500).json({ error: error?.message || 'Erro ao deletar animal' });
+      }
+    }
+
+    // --- Public Animals Endpoint (for mobile app) ---
+    if (path === '/api/animals' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(200).json({ animals: [] });
+      }
+      try {
+        const animals = await db.animal.findMany({
+          where: { 
+            isActive: true,
+            isAdopted: false
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        // Format for mobile app
+        const formattedAnimals = animals.map(a => ({
+          id: a.id,
+          name: a.name,
+          species: a.species === 'DOG' ? 'Cachorro' : a.species === 'CAT' ? 'Gato' : a.species === 'BIRD' ? 'Ave' : a.species === 'RABBIT' ? 'Coelho' : 'Outro',
+          breed: a.breed || 'Vira-Lata',
+          age: a.age ? `${Math.floor(a.age / 12)} ${Math.floor(a.age / 12) === 1 ? 'ano' : 'anos'}` : 'N/A',
+          gender: a.gender === 'MALE' ? 'Macho' : 'Fêmea',
+          size: a.size === 'SMALL' ? 'Pequeno' : a.size === 'MEDIUM' ? 'Médio' : 'Grande',
+          photo: a.image || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
+          photos: a.image ? [a.image] : ['https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400'],
+          vaccinated: a.isVaccinated,
+          neutered: a.isCastrated,
+          description: a.description || 'Este animal está procurando um lar cheio de amor!',
+          color: 'Não informado', // Campo não existe no schema, mas pode ser adicionado depois
+          rescueDate: a.createdAt.toISOString().split('T')[0]
+        }));
+        return res.status(200).json({ animals: formattedAnimals, total: formattedAnimals.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao listar animais públicos:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao listar animais' });
+      }
+    }
+
+    // --- Adoption Request Endpoint (for mobile app) ---
+    if (path === '/api/adoptions/request' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const { animalId, userId, name, email, phone, message, visitDate } = body;
+        if (!animalId || (!userId && (!name || !email))) {
+          return res.status(400).json({ error: 'ID do animal e dados de contato são obrigatórios' });
+        }
+        // Se userId não foi fornecido, criar ou buscar usuário pelo email
+        let finalUserId = userId;
+        if (!userId && email) {
+          let user = await db.user.findUnique({ where: { email } });
+          if (!user) {
+            // Criar usuário temporário (sem senha, apenas para registro de interesse)
+            user = await db.user.create({
+              data: {
+                email,
+                name: name || 'Visitante',
+                phone: phone || null,
+                password: 'temp-' + Date.now(), // Senha temporária
+                role: 'MEMBER',
+                isActive: true
+              }
+            });
+          }
+          finalUserId = user.id;
+        }
+        if (!finalUserId) {
+          return res.status(400).json({ error: 'Não foi possível identificar o usuário' });
+        }
+        // Criar registro de adoção
+        const adoption = await db.adoption.create({
+          data: {
+            animalId,
+            userId: finalUserId,
+            status: 'PENDING',
+            notes: message || `Interesse em visitar. ${visitDate ? `Data sugerida: ${visitDate}` : ''}`
+          }
+        });
+        return res.status(201).json({ 
+          message: 'Solicitação de visita registrada com sucesso! Um voluntário entrará em contato em breve.',
+          adoption 
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao registrar interesse em adoção:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao registrar interesse' });
+      }
+    }
+
     // 404
     return res.status(404).json({ error: 'Not found', path });
 
