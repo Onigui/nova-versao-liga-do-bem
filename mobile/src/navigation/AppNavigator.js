@@ -82,19 +82,7 @@ export function MainTabs() {
           fontSize: 12,
           fontWeight: '500',
         },
-        headerStyle: {
-          backgroundColor: '#ffffff',
-          borderBottomColor: '#E5E7EB',
-          borderBottomWidth: 1,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-        headerTitleStyle: {
-          fontSize: 18,
-          fontWeight: '600',
-          color: '#1F2937',
-        },
-        headerTintColor: '#8B5CF6',
+        headerShown: false,
       })}
     >
       <Tab.Screen 
