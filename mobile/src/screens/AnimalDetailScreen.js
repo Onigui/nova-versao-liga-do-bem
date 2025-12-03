@@ -121,6 +121,8 @@ export default function AnimalDetailScreen({route, navigation}) {
     ]),
     adoptionDate: animal?.adoptionDate || null,
     rescueDate: animal?.rescueDate || new Date().toISOString().split('T')[0],
+    hasSpecialNeeds: animal?.hasSpecialNeeds || false,
+    specialNeeds: animal?.specialNeeds || null,
   };
 
   return (
@@ -203,6 +205,19 @@ export default function AnimalDetailScreen({route, navigation}) {
             <Text style={styles.sectionTitle}>Sobre {animalData.name}</Text>
             <Text style={styles.description}>{animalData.description}</Text>
           </View>
+
+          {/* Special Needs */}
+          {animalData.hasSpecialNeeds && animalData.specialNeeds && (
+            <View style={styles.section}>
+              <View style={styles.specialNeedsHeader}>
+                <Ionicons name="medical-outline" size={20} color="#EF4444" />
+                <Text style={styles.sectionTitle}>Necessidades Especiais</Text>
+              </View>
+              <View style={styles.specialNeedsBox}>
+                <Text style={styles.specialNeedsText}>{animalData.specialNeeds}</Text>
+              </View>
+            </View>
+          )}
 
           {/* Details */}
           <View style={styles.section}>
@@ -465,6 +480,24 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#6B7280',
+  },
+  specialNeedsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  specialNeedsBox: {
+    backgroundColor: '#FEF2F2',
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
+    padding: 16,
+    borderRadius: 12,
+  },
+  specialNeedsText: {
+    fontSize: 15,
+    color: '#1F2937',
+    lineHeight: 24,
   },
   footer: {
     position: 'absolute',

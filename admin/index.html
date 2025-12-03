@@ -4197,7 +4197,13 @@
         function closeModal(modalId) {
             const modal = document.getElementById(modalId);
             if (modal) {
-                modal.remove();
+                // Para modais fixos (animalModal, companyModal, memberModal), apenas esconder
+                if (modalId === 'animalModal' || modalId === 'companyModal' || modalId === 'memberModal') {
+                    modal.style.display = 'none';
+                } else {
+                    // Para modais dinâmicos (edit-company-modal, etc.), remover do DOM
+                    modal.remove();
+                }
             }
         }
 
@@ -4329,10 +4335,20 @@
 
         function openAnimalModal(animalId = null) {
             editingAnimalId = animalId;
-            const form = document.getElementById('animalForm');
             const modal = document.getElementById('animalModal');
+            if (!modal) {
+                console.error('❌ Modal animalModal não encontrado no DOM');
+                return;
+            }
+            
+            const form = document.getElementById('animalForm');
             const title = document.getElementById('animalModalTitle');
             const submitBtn = document.getElementById('animalSubmitBtn');
+            
+            if (!form || !title || !submitBtn) {
+                console.error('❌ Elementos do formulário não encontrados');
+                return;
+            }
             
             if (animalId) {
                 const animal = animalsData.find(a => a.id === animalId);
@@ -4400,7 +4416,11 @@
                 const imagePreview = document.getElementById('imagePreview');
                 if (imagePreview) imagePreview.style.display = 'none';
             }
-            modal.style.display = 'flex';
+            
+            // Garantir que o modal esteja visível
+            if (modal) {
+                modal.style.display = 'flex';
+            }
         }
 
         // Função para alternar entre URL e Upload

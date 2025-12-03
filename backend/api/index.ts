@@ -777,7 +777,9 @@ export default async function handler(req: any, res: any) {
           neutered: a.isCastrated,
           description: a.description || 'Este animal está procurando um lar cheio de amor!',
           color: 'Não informado', // Campo não existe no schema, mas pode ser adicionado depois
-          rescueDate: a.createdAt.toISOString().split('T')[0]
+          rescueDate: a.createdAt.toISOString().split('T')[0],
+          hasSpecialNeeds: a.hasSpecialNeeds || false,
+          specialNeeds: a.specialNeeds || null
         }));
         return res.status(200).json({ animals: formattedAnimals, total: formattedAnimals.length });
       } catch (error: any) {
