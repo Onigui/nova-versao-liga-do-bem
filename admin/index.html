@@ -4370,8 +4370,8 @@
         function closeModal(modalId) {
             const modal = document.getElementById(modalId);
             if (modal) {
-                // Para modais fixos (animalModal, companyModal, memberModal), apenas esconder
-                if (modalId === 'animalModal' || modalId === 'companyModal' || modalId === 'memberModal') {
+                // Para modais fixos (animalModal, companyModal, memberModal, eventModal), apenas esconder
+                if (modalId === 'animalModal' || modalId === 'companyModal' || modalId === 'memberModal' || modalId === 'eventModal' || modalId === 'eventRegistrationsModal') {
                     modal.style.display = 'none';
                 } else {
                     // Para modais dinâmicos (edit-company-modal, etc.), remover do DOM
@@ -4825,28 +4825,29 @@
             };
 
             tbody.innerHTML = eventsData.map(event => {
-                // Corrigir fuso horário: ajustar para UTC-3 (Brasil)
+                // A data vem do banco como string ISO em UTC
+                // Quando criamos um Date object, ele já converte para o timezone local do navegador
+                // Não precisamos subtrair horas manualmente, o JavaScript faz isso automaticamente
                 const startDate = new Date(event.startDate);
-                // A data vem do banco em UTC, precisamos ajustar para o horário local do Brasil
-                const localDate = new Date(startDate.getTime() - (3 * 60 * 60 * 1000)); // UTC-3
                 
-                const formattedDate = localDate.toLocaleDateString('pt-BR', { 
+                const formattedDate = startDate.toLocaleDateString('pt-BR', { 
                     day: '2-digit', 
                     month: '2-digit', 
                     year: 'numeric'
                 });
-                const formattedTime = localDate.toLocaleTimeString('pt-BR', {
+                const formattedTime = startDate.toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
-                    minute: '2-digit'
+                    minute: '2-digit',
+                    timeZone: 'America/Sao_Paulo' // Forçar timezone do Brasil
                 });
                 
                 const endDate = event.endDate ? new Date(event.endDate) : null;
                 let timeDisplay = formattedTime;
                 if (endDate) {
-                    const localEndDate = new Date(endDate.getTime() - (3 * 60 * 60 * 1000));
-                    const formattedEndTime = localEndDate.toLocaleTimeString('pt-BR', {
+                    const formattedEndTime = endDate.toLocaleTimeString('pt-BR', {
                         hour: '2-digit',
-                        minute: '2-digit'
+                        minute: '2-digit',
+                        timeZone: 'America/Sao_Paulo'
                     });
                     timeDisplay = `${formattedTime} - ${formattedEndTime}`;
                 }
@@ -4935,10 +4936,28 @@
                     form.elements.title.value = event.title || '';
                     form.elements.type.value = event.type || '';
                     form.elements.description.value = event.description || '';
+                    // Converter data UTC do banco para horário local do Brasil
                     const startDate = new Date(event.startDate);
-                    const endDate = event.endDate ? new Date(event.endDate) : null;
-                    form.elements.startDate.value = startDate.toISOString().slice(0, 16);
-                    form.elements.endDate.value = endDate ? endDate.toISOString().slice(0, 16) : '';
+                    // Criar string no formato datetime-local (YYYY-MM-DDTHH:mm)
+                    // O input datetime-local espera o horário local, não UTC
+                    const startYear = startDate.getFullYear();
+                    const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+                    const startDay = String(startDate.getDate()).padStart(2, '0');
+                    const startHours = String(startDate.getHours()).padStart(2, '0');
+                    const startMinutes = String(startDate.getMinutes()).padStart(2, '0');
+                    form.elements.startDate.value = `${startYear}-${startMonth}-${startDay}T${startHours}:${startMinutes}`;
+                    
+                    if (event.endDate) {
+                        const endDate = new Date(event.endDate);
+                        const endYear = endDate.getFullYear();
+                        const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+                        const endDay = String(endDate.getDate()).padStart(2, '0');
+                        const endHours = String(endDate.getHours()).padStart(2, '0');
+                        const endMinutes = String(endDate.getMinutes()).padStart(2, '0');
+                        form.elements.endDate.value = `${endYear}-${endMonth}-${endDay}T${endHours}:${endMinutes}`;
+                    } else {
+                        form.elements.endDate.value = '';
+                    }
                     form.elements.location.value = event.location || '';
                     form.elements.address.value = event.address || '';
                     form.elements.latitude.value = event.latitude || '';
@@ -5054,12 +5073,26 @@
                     imageValue = event?.image || null;
                 }
                 
+                // Converter datetime-local para ISO string (UTC)
+                // O input datetime-local retorna no timezone local, precisamos converter para UTC
+                let startDateISO = '';
+                if (form.elements.startDate?.value) {
+                    const localStartDate = new Date(form.elements.startDate.value);
+                    startDateISO = localStartDate.toISOString();
+                }
+                
+                let endDateISO = null;
+                if (form.elements.endDate?.value) {
+                    const localEndDate = new Date(form.elements.endDate.value);
+                    endDateISO = localEndDate.toISOString();
+                }
+                
                 const formData = {
                     title: form.elements.title?.value || '',
                     type: form.elements.type?.value || '',
                     description: form.elements.description?.value || null,
-                    startDate: form.elements.startDate?.value || '',
-                    endDate: form.elements.endDate?.value || null,
+                    startDate: startDateISO,
+                    endDate: endDateISO,
                     location: form.elements.location?.value || null,
                     address: form.elements.address?.value || null,
                     latitude: form.elements.latitude?.value || null,
