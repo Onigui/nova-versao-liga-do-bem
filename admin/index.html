@@ -1967,8 +1967,27 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">URL da Imagem</label>
-                        <input type="url" class="form-input" name="image" placeholder="https://exemplo.com/imagem.jpg">
+                        <label class="form-label">Imagem do Animal</label>
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <input type="radio" name="imageType" value="url" checked onchange="toggleImageInput()">
+                                <span>Usar URL</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="radio" name="imageType" value="upload" onchange="toggleImageInput()">
+                                <span>Fazer Upload</span>
+                            </label>
+                        </div>
+                        <div id="imageUrlInput">
+                            <input type="url" class="form-input" name="imageUrl" placeholder="https://exemplo.com/imagem.jpg">
+                        </div>
+                        <div id="imageUploadInput" style="display: none;">
+                            <input type="file" class="form-input" name="imageFile" accept="image/*" onchange="previewImage(this)">
+                            <div id="imagePreview" style="margin-top: 12px; display: none;">
+                                <img id="previewImg" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #E5E7EB;">
+                            </div>
+                        </div>
+                        <input type="hidden" name="image" id="animalImage">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Descrição</label>
@@ -4320,20 +4339,51 @@
                 if (animal) {
                     title.textContent = 'Editar Animal';
                     submitBtn.textContent = 'Salvar Alterações';
-                    form.name.value = animal.name || '';
-                    form.species.value = animal.species || '';
-                    form.breed.value = animal.breed || '';
-                    form.age.value = animal.age || '';
-                    form.gender.value = animal.gender || '';
-                    form.size.value = animal.size || '';
-                    form.image.value = animal.image || '';
-                    form.description.value = animal.description || '';
-                    form.isVaccinated.checked = animal.isVaccinated || false;
-                    form.isCastrated.checked = animal.isCastrated || false;
-                    form.hasSpecialNeeds.checked = animal.hasSpecialNeeds || false;
-                    form.specialNeeds.value = animal.specialNeeds || '';
-                    form.isActive.value = animal.isActive ? 'true' : 'false';
-                    form.isAdopted.value = animal.isAdopted ? 'true' : 'false';
+                    form.elements.name.value = animal.name || '';
+                    form.elements.species.value = animal.species || '';
+                    form.elements.breed.value = animal.breed || '';
+                    form.elements.age.value = animal.age || '';
+                    form.elements.gender.value = animal.gender || '';
+                    form.elements.size.value = animal.size || '';
+                    // Configurar tipo de imagem
+                    if (animal.image) {
+                        const uploadRadio = document.querySelector('input[name="imageType"][value="upload"]');
+                        const urlRadio = document.querySelector('input[name="imageType"][value="url"]');
+                        
+                        if (animal.image.startsWith('data:')) {
+                            // É base64, usar upload
+                            if (uploadRadio) {
+                                uploadRadio.checked = true;
+                                toggleImageInput();
+                                const previewImg = document.getElementById('previewImg');
+                                const imagePreview = document.getElementById('imagePreview');
+                                if (previewImg) previewImg.src = animal.image;
+                                if (imagePreview) imagePreview.style.display = 'block';
+                            }
+                        } else {
+                            // É URL, usar URL
+                            if (urlRadio) {
+                                urlRadio.checked = true;
+                                toggleImageInput();
+                                const urlInput = form.querySelector('[name="imageUrl"]');
+                                if (urlInput) urlInput.value = animal.image || '';
+                            }
+                        }
+                    } else {
+                        // Sem imagem, usar URL como padrão
+                        const urlRadio = document.querySelector('input[name="imageType"][value="url"]');
+                        if (urlRadio) {
+                            urlRadio.checked = true;
+                            toggleImageInput();
+                        }
+                    }
+                    form.elements.description.value = animal.description || '';
+                    form.elements.isVaccinated.checked = animal.isVaccinated || false;
+                    form.elements.isCastrated.checked = animal.isCastrated || false;
+                    form.elements.hasSpecialNeeds.checked = animal.hasSpecialNeeds || false;
+                    form.elements.specialNeeds.value = animal.specialNeeds || '';
+                    form.elements.isActive.value = animal.isActive ? 'true' : 'false';
+                    form.elements.isAdopted.value = animal.isAdopted ? 'true' : 'false';
                     document.getElementById('specialNeedsGroup').style.display = animal.hasSpecialNeeds ? 'block' : 'none';
                 }
             } else {
@@ -4341,35 +4391,119 @@
                 submitBtn.textContent = 'Cadastrar Animal';
                 form.reset();
                 document.getElementById('specialNeedsGroup').style.display = 'none';
+                // Resetar tipo de imagem para URL
+                const urlRadio = document.querySelector('input[name="imageType"][value="url"]');
+                if (urlRadio) {
+                    urlRadio.checked = true;
+                    toggleImageInput();
+                }
+                const imagePreview = document.getElementById('imagePreview');
+                if (imagePreview) imagePreview.style.display = 'none';
             }
             modal.style.display = 'flex';
+        }
+
+        // Função para alternar entre URL e Upload
+        function toggleImageInput() {
+            const checkedRadio = document.querySelector('input[name="imageType"]:checked');
+            if (!checkedRadio) return;
+            
+            const imageType = checkedRadio.value;
+            const urlInput = document.getElementById('imageUrlInput');
+            const uploadInput = document.getElementById('imageUploadInput');
+            const preview = document.getElementById('imagePreview');
+            
+            if (!urlInput || !uploadInput) return;
+            
+            if (imageType === 'url') {
+                urlInput.style.display = 'block';
+                uploadInput.style.display = 'none';
+                if (preview) preview.style.display = 'none';
+            } else {
+                urlInput.style.display = 'none';
+                uploadInput.style.display = 'block';
+            }
+        }
+
+        // Função para pré-visualizar imagem
+        function previewImage(input) {
+            if (!input) return;
+            
+            const preview = document.getElementById('imagePreview');
+            const previewImg = document.getElementById('previewImg');
+            
+            if (!preview || !previewImg) return;
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (previewImg && e.target && e.target.result) {
+                        previewImg.src = e.target.result;
+                        preview.style.display = 'block';
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        // Função para converter arquivo em base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
         }
 
         document.getElementById('animalForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const form = e.target;
             const submitBtn = document.getElementById('animalSubmitBtn');
-            const loading = submitBtn.querySelector('.loading');
+            const loading = submitBtn ? submitBtn.querySelector('.loading') : null;
             
             try {
-                loading.style.display = 'inline-block';
-                submitBtn.disabled = true;
+                if (loading) loading.style.display = 'inline-block';
+                if (submitBtn) submitBtn.disabled = true;
+                
+                // Obter imagem (URL ou base64 do upload)
+                let imageValue = null;
+                const imageType = document.querySelector('input[name="imageType"]:checked')?.value || 'url';
+                
+                if (imageType === 'url') {
+                    const urlInput = form.querySelector('[name="imageUrl"]');
+                    imageValue = urlInput?.value || null;
+                } else {
+                    const fileInput = form.querySelector('[name="imageFile"]');
+                    if (fileInput?.files && fileInput.files[0]) {
+                        // Converter arquivo para base64
+                        imageValue = await fileToBase64(fileInput.files[0]);
+                    }
+                }
+                
+                // Se já havia uma imagem salva (ao editar) e não foi alterada, manter
+                if (!imageValue && editingAnimalId) {
+                    const animal = animalsData.find(a => a.id === editingAnimalId);
+                    imageValue = animal?.image || null;
+                }
                 
                 const formData = {
-                    name: form.name.value,
-                    species: form.species.value,
-                    breed: form.breed.value || null,
-                    age: form.age.value ? parseInt(form.age.value) : null,
-                    gender: form.gender.value,
-                    size: form.size.value,
-                    description: form.description.value || null,
-                    image: form.image.value || null,
-                    isVaccinated: form.isVaccinated.checked,
-                    isCastrated: form.isCastrated.checked,
-                    hasSpecialNeeds: form.hasSpecialNeeds.checked,
-                    specialNeeds: form.hasSpecialNeeds.checked ? (form.specialNeeds.value || null) : null,
-                    isActive: form.isActive.value === 'true',
-                    isAdopted: form.isAdopted.value === 'true'
+                    name: form.elements.name?.value || form.querySelector('[name="name"]')?.value || '',
+                    species: form.elements.species?.value || form.querySelector('[name="species"]')?.value || '',
+                    breed: form.elements.breed?.value || form.querySelector('[name="breed"]')?.value || null,
+                    age: (form.elements.age?.value || form.querySelector('[name="age"]')?.value) ? parseInt(form.elements.age?.value || form.querySelector('[name="age"]')?.value) : null,
+                    gender: form.elements.gender?.value || form.querySelector('[name="gender"]')?.value || '',
+                    size: form.elements.size?.value || form.querySelector('[name="size"]')?.value || '',
+                    description: form.elements.description?.value || form.querySelector('[name="description"]')?.value || null,
+                    image: imageValue,
+                    isVaccinated: form.elements.isVaccinated?.checked || form.querySelector('[name="isVaccinated"]')?.checked || false,
+                    isCastrated: form.elements.isCastrated?.checked || form.querySelector('[name="isCastrated"]')?.checked || false,
+                    hasSpecialNeeds: form.elements.hasSpecialNeeds?.checked || form.querySelector('[name="hasSpecialNeeds"]')?.checked || false,
+                    specialNeeds: (form.elements.hasSpecialNeeds?.checked || form.querySelector('[name="hasSpecialNeeds"]')?.checked) ? (form.elements.specialNeeds?.value || form.querySelector('[name="specialNeeds"]')?.value || null) : null,
+                    isActive: (form.elements.isActive?.value || form.querySelector('[name="isActive"]')?.value) === 'true',
+                    isAdopted: (form.elements.isAdopted?.value || form.querySelector('[name="isAdopted"]')?.value) === 'true'
                 };
 
                 const token = localStorage.getItem('admin_token');
@@ -4401,14 +4535,21 @@
                 console.error('❌ Erro ao salvar animal:', error);
                 alert(`Erro ao salvar animal: ${error.message}`);
             } finally {
-                loading.style.display = 'none';
-                submitBtn.disabled = false;
+                if (loading) loading.style.display = 'none';
+                if (submitBtn) submitBtn.disabled = false;
             }
         });
 
-        document.querySelector('input[name="hasSpecialNeeds"]').addEventListener('change', (e) => {
-            document.getElementById('specialNeedsGroup').style.display = e.target.checked ? 'block' : 'none';
-        });
+        // Event listener para necessidades especiais
+        const hasSpecialNeedsInput = document.querySelector('input[name="hasSpecialNeeds"]');
+        if (hasSpecialNeedsInput) {
+            hasSpecialNeedsInput.addEventListener('change', (e) => {
+                const specialNeedsGroup = document.getElementById('specialNeedsGroup');
+                if (specialNeedsGroup) {
+                    specialNeedsGroup.style.display = e.target.checked ? 'block' : 'none';
+                }
+            });
+        }
 
         function editAnimal(animalId) {
             openAnimalModal(animalId);
