@@ -942,35 +942,39 @@ export default async function handler(req: any, res: any) {
             'OTHER': 'Outro'
           };
 
-          // Converter UTC do banco para horário do Brasil (UTC-3)
-          // Ajustar para timezone do Brasil ao formatar horários
-          const brazilOffset = -3 * 60; // UTC-3 em minutos
-          const startDateBrazil = new Date(startDate.getTime() + (brazilOffset * 60 * 1000));
-          const endDateBrazil = endDate ? new Date(endDate.getTime() + (brazilOffset * 60 * 1000)) : null;
-          
+          // Formatar horários usando timezone do Brasil
+          // O JavaScript converte automaticamente de UTC para o timezone especificado
           let timeStr = '';
-          if (endDateBrazil) {
-            const startTime = startDateBrazil.toLocaleTimeString('pt-BR', { 
+          if (endDate) {
+            const startTime = startDate.toLocaleTimeString('pt-BR', { 
               hour: '2-digit', 
               minute: '2-digit',
               timeZone: 'America/Sao_Paulo'
             });
-            const endTime = endDateBrazil.toLocaleTimeString('pt-BR', { 
+            const endTime = endDate.toLocaleTimeString('pt-BR', { 
               hour: '2-digit', 
               minute: '2-digit',
               timeZone: 'America/Sao_Paulo'
             });
             timeStr = `${startTime} - ${endTime}`;
           } else {
-            timeStr = startDateBrazil.toLocaleTimeString('pt-BR', { 
+            timeStr = startDate.toLocaleTimeString('pt-BR', { 
               hour: '2-digit', 
               minute: '2-digit',
               timeZone: 'America/Sao_Paulo'
             });
           }
 
-          // Usar a data ajustada para o Brasil também
-          const dateStr = startDateBrazil.toISOString().split('T')[0];
+          // Formatar data também usando timezone do Brasil
+          const dateStr = startDate.toLocaleDateString('en-CA', { 
+            timeZone: 'America/Sao_Paulo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          });
+
+          // Obter mês e dia usando timezone do Brasil
+          const startDateBrazil = new Date(startDate.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
 
           return {
             id: e.id,
