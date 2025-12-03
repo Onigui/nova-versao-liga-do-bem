@@ -942,20 +942,41 @@ export default async function handler(req: any, res: any) {
             'OTHER': 'Outro'
           };
 
+          // Converter UTC do banco para horário do Brasil (UTC-3)
+          // Ajustar para timezone do Brasil ao formatar horários
+          const brazilOffset = -3 * 60; // UTC-3 em minutos
+          const startDateBrazil = new Date(startDate.getTime() + (brazilOffset * 60 * 1000));
+          const endDateBrazil = endDate ? new Date(endDate.getTime() + (brazilOffset * 60 * 1000)) : null;
+          
           let timeStr = '';
-          if (endDate) {
-            const startTime = startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            const endTime = endDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          if (endDateBrazil) {
+            const startTime = startDateBrazil.toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              timeZone: 'America/Sao_Paulo'
+            });
+            const endTime = endDateBrazil.toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              timeZone: 'America/Sao_Paulo'
+            });
             timeStr = `${startTime} - ${endTime}`;
           } else {
-            timeStr = startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            timeStr = startDateBrazil.toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              timeZone: 'America/Sao_Paulo'
+            });
           }
+
+          // Usar a data ajustada para o Brasil também
+          const dateStr = startDateBrazil.toISOString().split('T')[0];
 
           return {
             id: e.id,
             title: e.title,
             description: e.description || 'Participe e faça a diferença!',
-            date: startDate.toISOString().split('T')[0],
+            date: dateStr,
             time: timeStr,
             location: e.location || 'Local a definir',
             address: e.address || null,
@@ -964,9 +985,9 @@ export default async function handler(req: any, res: any) {
             vacancies: e.maxAttendees || 0,
             registered: e.registrations.length,
             image: e.image || 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
-            month: monthNames[startDate.getMonth()],
-            monthAbbr: monthAbbr[startDate.getMonth()],
-            day: startDate.getDate(),
+            month: monthNames[startDateBrazil.getMonth()],
+            monthAbbr: monthAbbr[startDateBrazil.getMonth()],
+            day: startDateBrazil.getDate(),
           };
         });
         return res.status(200).json({ events: formattedEvents, total: formattedEvents.length });
