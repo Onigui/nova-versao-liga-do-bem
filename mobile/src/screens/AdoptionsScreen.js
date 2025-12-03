@@ -238,7 +238,10 @@ export default function AdoptionsScreen({navigation}) {
                   </View>
                 </View>
 
-                <TouchableOpacity style={styles.adoptButton}>
+                <TouchableOpacity 
+                  style={styles.adoptButton}
+                  onPress={() => navigation.navigate('AnimalDetail', {animal})}
+                  activeOpacity={0.7}>
                   <Text style={styles.adoptButtonText}>Conhecer</Text>
                   <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
                 </TouchableOpacity>

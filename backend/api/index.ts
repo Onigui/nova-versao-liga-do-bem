@@ -788,6 +788,194 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // --- Admin Events Endpoints ---
+    // GET all events (admin)
+    if (path === '/api/admin/events' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const events = await db.event.findMany({
+          orderBy: { startDate: 'desc' },
+          include: {
+            registrations: {
+              where: { status: 'REGISTERED' },
+            }
+          }
+        });
+        return res.status(200).json({ events, total: events.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao listar eventos:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao listar eventos' });
+      }
+    }
+
+    // POST create event (admin)
+    if (path === '/api/admin/events' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const { title, description, type, startDate, endDate, location, address, latitude, longitude, maxAttendees, image, isActive } = body;
+        if (!title || !type || !startDate) {
+          return res.status(400).json({ error: 'Título, tipo e data de início são obrigatórios' });
+        }
+        const event = await db.event.create({
+          data: {
+            title,
+            description: description || null,
+            type,
+            startDate: new Date(startDate),
+            endDate: endDate ? new Date(endDate) : null,
+            location: location || null,
+            address: address || null,
+            latitude: latitude ? parseFloat(latitude) : null,
+            longitude: longitude ? parseFloat(longitude) : null,
+            maxAttendees: maxAttendees ? parseInt(maxAttendees) : null,
+            image: image || null,
+            isActive: isActive !== undefined ? isActive : true,
+            currentAttendees: 0
+          }
+        });
+        return res.status(201).json({ message: 'Evento cadastrado com sucesso', event });
+      } catch (error: any) {
+        console.error('❌ Erro ao criar evento:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao criar evento' });
+      }
+    }
+
+    // PUT update event (admin)
+    if ((path.startsWith('/api/admin/events/') || path.match(/^\/api\/admin\/events\/[^\/]+$/)) && method === 'PUT') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        let match = path.match(/\/api\/admin\/events\/([^\/]+)$/);
+        if (!match) match = path.match(/\/admin\/events\/([^\/]+)$/);
+        const eventId = match?.[1];
+        if (!eventId) {
+          return res.status(400).json({ error: 'ID do evento é obrigatório' });
+        }
+        const { title, description, type, startDate, endDate, location, address, latitude, longitude, maxAttendees, image, isActive } = body;
+        const updateData: any = {};
+        if (title) updateData.title = title;
+        if (description !== undefined) updateData.description = description || null;
+        if (type) updateData.type = type;
+        if (startDate) updateData.startDate = new Date(startDate);
+        if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
+        if (location !== undefined) updateData.location = location || null;
+        if (address !== undefined) updateData.address = address || null;
+        if (latitude !== undefined) updateData.latitude = latitude ? parseFloat(latitude) : null;
+        if (longitude !== undefined) updateData.longitude = longitude ? parseFloat(longitude) : null;
+        if (maxAttendees !== undefined) updateData.maxAttendees = maxAttendees ? parseInt(maxAttendees) : null;
+        if (image !== undefined) updateData.image = image || null;
+        if (isActive !== undefined) updateData.isActive = isActive;
+        const event = await db.event.update({
+          where: { id: eventId },
+          data: updateData
+        });
+        return res.status(200).json({ message: 'Evento atualizado com sucesso', event });
+      } catch (error: any) {
+        console.error('❌ Erro ao atualizar evento:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao atualizar evento' });
+      }
+    }
+
+    // DELETE event (admin)
+    if ((path.startsWith('/api/admin/events/') || path.match(/^\/api\/admin\/events\/[^\/]+$/)) && method === 'DELETE') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        let match = path.match(/\/api\/admin\/events\/([^\/]+)$/);
+        if (!match) match = path.match(/\/admin\/events\/([^\/]+)$/);
+        const eventId = match?.[1];
+        if (!eventId) {
+          return res.status(400).json({ error: 'ID do evento é obrigatório' });
+        }
+        await db.event.delete({
+          where: { id: eventId }
+        });
+        return res.status(200).json({ message: 'Evento excluído com sucesso' });
+      } catch (error: any) {
+        console.error('❌ Erro ao excluir evento:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao excluir evento' });
+      }
+    }
+
+    // --- Public Events Endpoint (for mobile app) ---
+    if (path === '/api/events' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(200).json({ events: [] });
+      }
+      try {
+        const events = await db.event.findMany({
+          where: { 
+            isActive: true,
+            startDate: { gte: new Date() } // Apenas eventos futuros
+          },
+          orderBy: { startDate: 'asc' },
+          include: {
+            registrations: {
+              where: { status: 'REGISTERED' },
+            }
+          }
+        });
+        // Format for mobile app
+        const formattedEvents = events.map(e => {
+          const startDate = new Date(e.startDate);
+          const endDate = e.endDate ? new Date(e.endDate) : null;
+          const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+          const monthAbbr = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+          
+          const categoryMap: any = {
+            'ADOPTION_FAIR': 'Adoção',
+            'FUNDRAISING': 'Arrecadação',
+            'VOLUNTEER_MEETING': 'Voluntariado',
+            'MEDICAL_CAMPAIGN': 'Saúde',
+            'EDUCATION': 'Educação',
+            'OTHER': 'Outro'
+          };
+
+          let timeStr = '';
+          if (endDate) {
+            const startTime = startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const endTime = endDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            timeStr = `${startTime} - ${endTime}`;
+          } else {
+            timeStr = startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          }
+
+          return {
+            id: e.id,
+            title: e.title,
+            description: e.description || 'Participe e faça a diferença!',
+            date: startDate.toISOString().split('T')[0],
+            time: timeStr,
+            location: e.location || 'Local a definir',
+            address: e.address || null,
+            category: categoryMap[e.type] || 'Outro',
+            type: e.type,
+            vacancies: e.maxAttendees || 0,
+            registered: e.registrations.length,
+            image: e.image || 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
+            month: monthNames[startDate.getMonth()],
+            monthAbbr: monthAbbr[startDate.getMonth()],
+            day: startDate.getDate(),
+          };
+        });
+        return res.status(200).json({ events: formattedEvents, total: formattedEvents.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao listar eventos públicos:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao listar eventos' });
+      }
+    }
+
     // --- Adoption Request Endpoint (for mobile app) ---
     if (path === '/api/adoptions/request' && method === 'POST') {
       const db = getPrisma();

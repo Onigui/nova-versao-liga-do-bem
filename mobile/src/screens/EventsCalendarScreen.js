@@ -10,6 +10,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import { API_BASE_PATH } from '../config/apiConfig';
 
 export default function EventsCalendarScreen({navigation}) {
   const {isAuthenticated} = useAuth();
@@ -23,7 +24,23 @@ export default function EventsCalendarScreen({navigation}) {
 
   const loadEvents = async () => {
     try {
-      // Dados mockados
+      setRefreshing(true);
+      // Tentar carregar do backend
+      try {
+        const response = await fetch(`${API_BASE_PATH}/events`);
+        if (response.ok) {
+          const data = await response.json();
+          const apiEvents = data.events || [];
+          if (apiEvents.length > 0) {
+            setEvents(apiEvents);
+            return;
+          }
+        }
+      } catch (apiError) {
+        console.log('⚠️ Erro ao carregar eventos da API, usando dados mockados:', apiError);
+      }
+      
+      // Fallback para dados mockados
       const mockEvents = [
         {
           id: '1',
@@ -146,9 +163,15 @@ export default function EventsCalendarScreen({navigation}) {
           {months[selectedMonth]} {new Date().getFullYear()}
         </Text>
 
-        {events.map(event => {
-          const vacanciesLeft = event.vacancies - event.registered;
-          const isFull = vacanciesLeft === 0;
+        {events
+          .filter(event => {
+            const eventDate = new Date(event.date);
+            const eventMonth = eventDate.getMonth();
+            return eventMonth === selectedMonth;
+          })
+          .map(event => {
+          const vacanciesLeft = (event.vacancies || 0) - (event.registered || 0);
+          const isFull = event.vacancies > 0 && vacanciesLeft === 0;
 
           return (
             <TouchableOpacity
@@ -157,10 +180,10 @@ export default function EventsCalendarScreen({navigation}) {
               onPress={() => navigation.navigate('EventDetail', {event})}>
               <View style={styles.eventDate}>
                 <Text style={styles.eventDay}>
-                  {new Date(event.date).getDate()}
+                  {event.day || new Date(event.date).getDate()}
                 </Text>
                 <Text style={styles.eventMonth}>
-                  {months[new Date(event.date).getMonth()].substring(0, 3)}
+                  {event.monthAbbr || months[new Date(event.date).getMonth()].substring(0, 3).toUpperCase()}
                 </Text>
               </View>
 
@@ -264,17 +287,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    maxHeight: 60,
   },
   monthSelectorContent: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 8,
+    alignItems: 'center',
   },
   monthButton: {
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: '#F9FAFB',
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   monthButtonActive: {
     backgroundColor: '#8B5CF6',

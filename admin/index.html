@@ -627,6 +627,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="#events" class="nav-link" onclick="showSection('events')">
+                        <span class="nav-icon">📅</span>
+                        Eventos
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="#discounts" class="nav-link" onclick="showSection('discounts')">
                         <span class="nav-icon">💰</span>
                         Descontos
@@ -920,6 +926,43 @@
                             </tr>
                         </thead>
                         <tbody id="animals-table-body">
+                            <!-- Dados serão carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Events Section -->
+            <section id="events-section" class="content-section">
+                <div class="header">
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Eventos</h1>
+                            <p class="header-subtitle">Gerencie eventos e atividades da Liga do Bem</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary" onclick="openEventModal()">
+                                <span>➕</span>
+                                Cadastrar Evento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Título</th>
+                                <th>Tipo</th>
+                                <th>Data</th>
+                                <th>Local</th>
+                                <th>Vagas</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-table-body">
                             <!-- Dados serão carregados via JavaScript -->
                         </tbody>
                     </table>
@@ -2045,6 +2088,112 @@
         </div>
     </div>
 
+    <!-- Event Modal -->
+    <div id="eventModal" class="modal-overlay">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="eventModalTitle">Cadastrar Novo Evento</h3>
+                <button class="modal-close" onclick="closeModal('eventModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="eventForm">
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Título do Evento *</label>
+                            <input type="text" class="form-input" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipo *</label>
+                            <select class="form-input" name="type" required>
+                                <option value="">Selecione...</option>
+                                <option value="ADOPTION_FAIR">Feira de Adoção</option>
+                                <option value="FUNDRAISING">Arrecadação</option>
+                                <option value="VOLUNTEER_MEETING">Reunião de Voluntários</option>
+                                <option value="MEDICAL_CAMPAIGN">Campanha Médica</option>
+                                <option value="EDUCATION">Educação</option>
+                                <option value="OTHER">Outro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-input" name="description" rows="4" placeholder="Descreva o evento..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Data de Início *</label>
+                            <input type="datetime-local" class="form-input" name="startDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data de Término</label>
+                            <input type="datetime-local" class="form-input" name="endDate">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Local</label>
+                            <input type="text" class="form-input" name="location" placeholder="Ex: Shopping Botucatu">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Endereço</label>
+                            <input type="text" class="form-input" name="address" placeholder="Ex: Av. Dom Lúcio, 1835">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Latitude</label>
+                            <input type="number" step="any" class="form-input" name="latitude" placeholder="Ex: -22.8858">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Longitude</label>
+                            <input type="number" step="any" class="form-input" name="longitude" placeholder="Ex: -48.4439">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Máx. Participantes</label>
+                            <input type="number" class="form-input" name="maxAttendees" min="0" placeholder="Ex: 50">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Imagem do Evento</label>
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <input type="radio" name="eventImageType" value="url" checked onchange="toggleEventImageInput()">
+                                <span>Usar URL</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="radio" name="eventImageType" value="upload" onchange="toggleEventImageInput()">
+                                <span>Fazer Upload</span>
+                            </label>
+                        </div>
+                        <div id="eventImageUrlInput">
+                            <input type="url" class="form-input" name="eventImageUrl" placeholder="https://exemplo.com/imagem.jpg">
+                        </div>
+                        <div id="eventImageUploadInput" style="display: none;">
+                            <input type="file" class="form-input" name="eventImageFile" accept="image/*" onchange="previewEventImage(this)">
+                            <div id="eventImagePreview" style="margin-top: 12px; display: none;">
+                                <img id="previewEventImg" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #E5E7EB;">
+                            </div>
+                        </div>
+                        <input type="hidden" name="image" id="eventImage">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <input type="checkbox" name="isActive" checked style="margin-right: 8px;">
+                            Evento Ativo
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('eventModal')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" form="eventForm" id="eventSubmitBtn">
+                    <span class="loading" style="display: none;"></span>
+                    Cadastrar Evento
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Configuração da API
         // Normalizar URL (remover barra final se existir)
@@ -2138,6 +2287,8 @@
                     loadMembers();
                 } else if (sectionId === 'companies') {
                     loadCompanies();
+                } else if (sectionId === 'events') {
+                    loadEvents();
                 }
             }
             
@@ -4601,6 +4752,310 @@
 
         function exportAnimals() {
             alert('Funcionalidade de exportação será implementada em breve!');
+        }
+
+        // ========== EVENTOS ==========
+        let eventsData = [];
+        let editingEventId = null;
+
+        async function loadEvents() {
+            try {
+                console.log('🔄 Carregando eventos do banco...');
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/events`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    eventsData = data.events || [];
+                    console.log('✅ Eventos carregados:', eventsData.length);
+                    renderEventsTable();
+                } else {
+                    console.error('❌ Erro ao carregar eventos:', data);
+                    eventsData = [];
+                    renderEventsTable();
+                }
+            } catch (error) {
+                console.error('❌ Erro ao carregar eventos:', error);
+                eventsData = [];
+                renderEventsTable();
+            }
+        }
+
+        function renderEventsTable() {
+            const tbody = document.getElementById('events-table-body');
+            if (!tbody) return;
+            
+            if (eventsData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #6B7280;">Nenhum evento cadastrado</td></tr>';
+                return;
+            }
+
+            const typeMap = {
+                'ADOPTION_FAIR': 'Feira de Adoção',
+                'FUNDRAISING': 'Arrecadação',
+                'VOLUNTEER_MEETING': 'Reunião de Voluntários',
+                'MEDICAL_CAMPAIGN': 'Campanha Médica',
+                'EDUCATION': 'Educação',
+                'OTHER': 'Outro'
+            };
+
+            tbody.innerHTML = eventsData.map(event => {
+                const startDate = new Date(event.startDate);
+                const formattedDate = startDate.toLocaleDateString('pt-BR', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                const vacancies = event.maxAttendees ? `${event.currentAttendees || 0}/${event.maxAttendees}` : 'Ilimitado';
+                
+                return `
+                    <tr>
+                        <td><strong>${event.title}</strong></td>
+                        <td>${typeMap[event.type] || event.type}</td>
+                        <td>${formattedDate}</td>
+                        <td>${event.location || '-'}</td>
+                        <td>${vacancies}</td>
+                        <td>
+                            <span class="status-badge ${event.isActive ? 'active' : 'inactive'}">
+                                ${event.isActive ? 'Ativo' : 'Inativo'}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn-icon" onclick="editEvent('${event.id}')" title="Editar">
+                                ✏️
+                            </button>
+                            <button class="btn-icon" onclick="deleteEvent('${event.id}')" title="Excluir">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openEventModal(eventId = null) {
+            editingEventId = eventId;
+            const modal = document.getElementById('eventModal');
+            if (!modal) {
+                console.error('❌ Modal eventModal não encontrado no DOM');
+                return;
+            }
+            
+            const form = document.getElementById('eventForm');
+            const title = document.getElementById('eventModalTitle');
+            const submitBtn = document.getElementById('eventSubmitBtn');
+            
+            if (!form || !title || !submitBtn) {
+                console.error('❌ Elementos do formulário não encontrados');
+                return;
+            }
+            
+            if (eventId) {
+                const event = eventsData.find(e => e.id === eventId);
+                if (event) {
+                    title.textContent = 'Editar Evento';
+                    submitBtn.textContent = 'Salvar Alterações';
+                    form.elements.title.value = event.title || '';
+                    form.elements.type.value = event.type || '';
+                    form.elements.description.value = event.description || '';
+                    const startDate = new Date(event.startDate);
+                    const endDate = event.endDate ? new Date(event.endDate) : null;
+                    form.elements.startDate.value = startDate.toISOString().slice(0, 16);
+                    form.elements.endDate.value = endDate ? endDate.toISOString().slice(0, 16) : '';
+                    form.elements.location.value = event.location || '';
+                    form.elements.address.value = event.address || '';
+                    form.elements.latitude.value = event.latitude || '';
+                    form.elements.longitude.value = event.longitude || '';
+                    form.elements.maxAttendees.value = event.maxAttendees || '';
+                    form.elements.isActive.checked = event.isActive !== false;
+                    
+                    // Configurar imagem
+                    if (event.image) {
+                        const uploadRadio = document.querySelector('input[name="eventImageType"][value="upload"]');
+                        const urlRadio = document.querySelector('input[name="eventImageType"][value="url"]');
+                        if (event.image.startsWith('data:')) {
+                            if (uploadRadio) {
+                                uploadRadio.checked = true;
+                                toggleEventImageInput();
+                                const previewImg = document.getElementById('previewEventImg');
+                                const imagePreview = document.getElementById('eventImagePreview');
+                                if (previewImg) previewImg.src = event.image;
+                                if (imagePreview) imagePreview.style.display = 'block';
+                            }
+                        } else {
+                            if (urlRadio) {
+                                urlRadio.checked = true;
+                                toggleEventImageInput();
+                                const urlInput = form.querySelector('[name="eventImageUrl"]');
+                                if (urlInput) urlInput.value = event.image || '';
+                            }
+                        }
+                    }
+                }
+            } else {
+                title.textContent = 'Cadastrar Novo Evento';
+                submitBtn.textContent = 'Cadastrar Evento';
+                form.reset();
+                const urlRadio = document.querySelector('input[name="eventImageType"][value="url"]');
+                if (urlRadio) {
+                    urlRadio.checked = true;
+                    toggleEventImageInput();
+                }
+                const imagePreview = document.getElementById('eventImagePreview');
+                if (imagePreview) imagePreview.style.display = 'none';
+            }
+            
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        }
+
+        function toggleEventImageInput() {
+            const checkedRadio = document.querySelector('input[name="eventImageType"]:checked');
+            if (!checkedRadio) return;
+            
+            const imageType = checkedRadio.value;
+            const urlInput = document.getElementById('eventImageUrlInput');
+            const uploadInput = document.getElementById('eventImageUploadInput');
+            
+            if (!urlInput || !uploadInput) return;
+            
+            if (imageType === 'url') {
+                urlInput.style.display = 'block';
+                uploadInput.style.display = 'none';
+            } else {
+                urlInput.style.display = 'none';
+                uploadInput.style.display = 'block';
+            }
+        }
+
+        function previewEventImage(input) {
+            const preview = document.getElementById('eventImagePreview');
+            const previewImg = document.getElementById('previewEventImg');
+            
+            if (!preview || !previewImg) return;
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (previewImg && e.target && e.target.result) {
+                        previewImg.src = e.target.result;
+                        preview.style.display = 'block';
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        document.getElementById('eventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const submitBtn = document.getElementById('eventSubmitBtn');
+            const loading = submitBtn ? submitBtn.querySelector('.loading') : null;
+            
+            try {
+                if (loading) loading.style.display = 'inline-block';
+                if (submitBtn) submitBtn.disabled = true;
+                
+                let imageValue = null;
+                const imageType = document.querySelector('input[name="eventImageType"]:checked')?.value || 'url';
+                
+                if (imageType === 'url') {
+                    const urlInput = form.querySelector('[name="eventImageUrl"]');
+                    imageValue = urlInput?.value || null;
+                } else {
+                    const fileInput = form.querySelector('[name="eventImageFile"]');
+                    if (fileInput?.files && fileInput.files[0]) {
+                        imageValue = await fileToBase64(fileInput.files[0]);
+                    }
+                }
+                
+                if (!imageValue && editingEventId) {
+                    const event = eventsData.find(e => e.id === editingEventId);
+                    imageValue = event?.image || null;
+                }
+                
+                const formData = {
+                    title: form.elements.title?.value || '',
+                    type: form.elements.type?.value || '',
+                    description: form.elements.description?.value || null,
+                    startDate: form.elements.startDate?.value || '',
+                    endDate: form.elements.endDate?.value || null,
+                    location: form.elements.location?.value || null,
+                    address: form.elements.address?.value || null,
+                    latitude: form.elements.latitude?.value || null,
+                    longitude: form.elements.longitude?.value || null,
+                    maxAttendees: form.elements.maxAttendees?.value ? parseInt(form.elements.maxAttendees.value) : null,
+                    image: imageValue,
+                    isActive: form.elements.isActive?.checked !== false
+                };
+
+                const token = localStorage.getItem('admin_token');
+                const url = editingEventId 
+                    ? `${API_BASE_URL}/api/admin/events/${editingEventId}`
+                    : `${API_BASE_URL}/api/admin/events`;
+                const method = editingEventId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao salvar evento');
+                }
+
+                alert(editingEventId ? '✅ Evento atualizado com sucesso!' : '✅ Evento cadastrado com sucesso!');
+                closeModal('eventModal');
+                await loadEvents();
+                
+            } catch (error) {
+                console.error('❌ Erro ao salvar evento:', error);
+                alert(`Erro ao salvar evento: ${error.message}`);
+            } finally {
+                if (loading) loading.style.display = 'none';
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+
+        function editEvent(eventId) {
+            openEventModal(eventId);
+        }
+
+        async function deleteEvent(eventId) {
+            if (!confirm('⚠️ ATENÇÃO: Esta ação é irreversível! Deseja realmente EXCLUIR este evento?')) {
+                return;
+            }
+            try {
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/events/${eventId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao excluir evento');
+                }
+                alert('✅ Evento excluído com sucesso!');
+                await loadEvents();
+            } catch (error) {
+                console.error('❌ Erro ao excluir evento:', error);
+                alert(`Erro ao excluir evento: ${error.message}`);
+            }
         }
     </script>
 </body>
