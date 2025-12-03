@@ -60,6 +60,8 @@ export default function AdoptionsScreen({navigation}) {
         description: animal.description || 'Este animal está procurando um lar cheio de amor!',
         color: animal.color || 'Não informado',
         rescueDate: animal.rescueDate || new Date().toISOString().split('T')[0],
+        hasSpecialNeeds: animal.hasSpecialNeeds || false,
+        specialNeeds: animal.specialNeeds || null,
       }));
 
       setAnimals(formattedAnimals);
