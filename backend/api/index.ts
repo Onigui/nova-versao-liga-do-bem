@@ -976,6 +976,222 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // --- Event Registration Endpoints (for mobile app) ---
+    // GET check if user is registered in event
+    if (path.startsWith('/api/events/') && path.endsWith('/registration') && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        // Extract event ID from path
+        const eventId = path.replace('/api/events/', '').replace('/registration', '');
+        
+        // Get user from token
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        let userId = null;
+        if (token) {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            userId = decoded.userId || decoded.id;
+          } catch (e) {
+            // Token inválido, continuar sem userId
+          }
+        }
+        
+        if (!userId) {
+          return res.status(200).json({ isRegistered: false });
+        }
+        
+        const registration = await db.eventRegistration.findUnique({
+          where: {
+            eventId_userId: {
+              eventId,
+              userId
+            }
+          }
+        });
+        
+        return res.status(200).json({ 
+          isRegistered: !!registration && registration.status === 'REGISTERED',
+          registration: registration ? {
+            id: registration.id,
+            status: registration.status,
+            createdAt: registration.createdAt
+          } : null
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao verificar registro:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao verificar registro' });
+      }
+    }
+
+    // POST register for event
+    if (path.startsWith('/api/events/') && path.endsWith('/register') && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        // Extract event ID from path
+        const eventId = path.replace('/api/events/', '').replace('/register', '');
+        
+        // Get user from token
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        // Check if event exists
+        const event = await db.event.findUnique({
+          where: { id: eventId }
+        });
+        
+        if (!event) {
+          return res.status(404).json({ error: 'Evento não encontrado' });
+        }
+        
+        if (!event.isActive) {
+          return res.status(400).json({ error: 'Evento não está mais ativo' });
+        }
+        
+        if (new Date(event.startDate) < new Date()) {
+          return res.status(400).json({ error: 'Evento já começou' });
+        }
+        
+        // Check if event has capacity
+        if (event.maxAttendees && event.currentAttendees >= event.maxAttendees) {
+          return res.status(400).json({ error: 'Evento lotado' });
+        }
+        
+        // Check if user is already registered
+        const existingRegistration = await db.eventRegistration.findUnique({
+          where: {
+            eventId_userId: {
+              eventId,
+              userId
+            }
+          }
+        });
+        
+        if (existingRegistration) {
+          if (existingRegistration.status === 'REGISTERED') {
+            return res.status(400).json({ error: 'Você já está inscrito neste evento' });
+          } else {
+            // Re-register if previously cancelled
+            await db.eventRegistration.update({
+              where: { id: existingRegistration.id },
+              data: { status: 'REGISTERED' }
+            });
+            await db.event.update({
+              where: { id: eventId },
+              data: { currentAttendees: { increment: 1 } }
+            });
+            return res.status(200).json({ 
+              message: 'Inscrição realizada com sucesso',
+              registration: existingRegistration
+            });
+          }
+        }
+        
+        // Create registration
+        const registration = await db.eventRegistration.create({
+          data: {
+            eventId,
+            userId,
+            status: 'REGISTERED',
+            notes: body.notes || null
+          }
+        });
+        
+        // Update event attendee count
+        await db.event.update({
+          where: { id: eventId },
+          data: {
+            currentAttendees: { increment: 1 }
+          }
+        });
+        
+        return res.status(201).json({ 
+          message: 'Inscrição realizada com sucesso! Nos vemos lá! 🎉',
+          registration 
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao registrar em evento:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao registrar em evento' });
+      }
+    }
+
+    // DELETE cancel event registration
+    if (path.startsWith('/api/events/') && path.endsWith('/register') && method === 'DELETE') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        // Extract event ID from path
+        const eventId = path.replace('/api/events/', '').replace('/register', '');
+        
+        // Get user from token
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        // Find registration
+        const registration = await db.eventRegistration.findUnique({
+          where: {
+            eventId_userId: {
+              eventId,
+              userId
+            }
+          }
+        });
+        
+        if (!registration || registration.status !== 'REGISTERED') {
+          return res.status(404).json({ error: 'Inscrição não encontrada' });
+        }
+        
+        // Update registration status to CANCELLED
+        await db.eventRegistration.update({
+          where: { id: registration.id },
+          data: { status: 'CANCELLED' }
+        });
+        
+        // Decrease event attendee count
+        await db.event.update({
+          where: { id: eventId },
+          data: {
+            currentAttendees: { decrement: 1 }
+          }
+        });
+        
+        return res.status(200).json({ 
+          message: 'Inscrição cancelada com sucesso',
+          registration 
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao cancelar inscrição:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao cancelar inscrição' });
+      }
+    }
+
     // --- Adoption Request Endpoint (for mobile app) ---
     if (path === '/api/adoptions/request' && method === 'POST') {
       const db = getPrisma();
