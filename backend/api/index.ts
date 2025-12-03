@@ -1192,6 +1192,65 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // --- Event Registrations List (admin) ---
+    if (path.startsWith('/api/admin/events/') && path.endsWith('/registrations') && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        // Extract event ID from path
+        const eventId = path.replace('/api/admin/events/', '').replace('/registrations', '');
+        
+        const registrations = await db.eventRegistration.findMany({
+          where: {
+            eventId,
+            status: 'REGISTERED'
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true
+              }
+            },
+            event: {
+              select: {
+                title: true,
+                startDate: true,
+                location: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        });
+        
+        return res.status(200).json({ 
+          registrations: registrations.map(r => ({
+            id: r.id,
+            userId: r.userId,
+            userName: r.user.name,
+            userEmail: r.user.email,
+            userPhone: r.user.phone,
+            status: r.status,
+            notes: r.notes,
+            createdAt: r.createdAt,
+            eventTitle: r.event.title,
+            eventDate: r.event.startDate,
+            eventLocation: r.event.location
+          })),
+          total: registrations.length
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao listar inscrições:', error);
+        return res.status(500).json({ error: error?.message || 'Erro ao listar inscrições' });
+      }
+    }
+
     // --- Adoption Request Endpoint (for mobile app) ---
     if (path === '/api/adoptions/request' && method === 'POST') {
       const db = getPrisma();
