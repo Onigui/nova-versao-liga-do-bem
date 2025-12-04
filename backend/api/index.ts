@@ -100,16 +100,22 @@ export default async function handler(req: any, res: any) {
       const db = getPrisma();
       if (db) {
         try {
-          const [totalMembers, activePartners, totalAdoptions] = await Promise.all([
+          const [totalMembers, activePartners, totalAdoptions, totalAnimals, totalDonations] = await Promise.all([
             db.user.count().catch((e) => { console.error('Error counting users:', e); return 0; }),
             db.partner.count({ where: { isActive: true } }).catch((e) => { console.error('Error counting partners:', e); return 0; }),
-            db.adoption.count().catch((e) => { console.error('Error counting adoptions:', e); return 0; })
+            db.adoption.count({ where: { status: 'COMPLETED' } }).catch((e) => { console.error('Error counting adoptions:', e); return 0; }),
+            db.animal.count({ where: { isActive: true, isAdopted: false } }).catch((e) => { console.error('Error counting animals:', e); return 0; }),
+            db.donation.aggregate({ _sum: { amount: true } }).catch((e) => { console.error('Error summing donations:', e); return { _sum: { amount: 0 } }; })
           ]);
+          const donationTotal = totalDonations?._sum?.amount ? parseFloat(totalDonations._sum.amount.toString()) : 0;
           const response = {
             stats: {
               totalMembers,
               activePartners,
               totalAdoptions,
+              totalAnimals: totalAnimals || 0,
+              totalPartners: activePartners || 0,
+              totalDonations: donationTotal || 0,
               monthlyRevenue: 0
             }
           };
