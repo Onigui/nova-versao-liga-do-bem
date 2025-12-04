@@ -12,6 +12,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
+import { APP_CONFIG } from '../config/appConfig';
 
 const API_BASE_URL = API_BASE_PATH;
 
@@ -99,9 +100,29 @@ export default function HomeScreen({navigation}) {
         start={{x: 0, y: 0}}
         end={{x: 1, y: 1}}>
         <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerTitle}>Liga do Bem</Text>
-            <Text style={styles.headerSubtitle}>Botucatu</Text>
+          <View style={styles.logoContainer}>
+            {APP_CONFIG.logoUrl ? (
+              <Image
+                source={{ uri: APP_CONFIG.logoUrl }}
+                style={styles.logo}
+                resizeMode="contain"
+                onError={(error) => {
+                  console.log('Erro ao carregar logo:', error);
+                }}
+              />
+            ) : APP_CONFIG.logoLocal ? (
+              <Image
+                source={APP_CONFIG.logoLocal}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            ) : (
+              // Fallback para texto se não houver logo configurado
+              <View>
+                <Text style={styles.headerTitle}>{APP_CONFIG.appName}</Text>
+                <Text style={styles.headerSubtitle}>{APP_CONFIG.appSubtitle}</Text>
+              </View>
+            )}
           </View>
           {isAuthenticated && user && (
             <View style={styles.userInfo}>
@@ -238,6 +259,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  logoContainer: {
+    height: 50,
+    justifyContent: 'center',
+  },
+  logo: {
+    height: 50,
+    width: 200,
+    maxWidth: '100%',
   },
   headerTitle: {
     fontSize: 28,
