@@ -1348,6 +1348,7 @@ export default async function handler(req: any, res: any) {
         const configs = await db.systemConfig.findMany({
           where: { isPublic: true },
         });
+        console.log('📊 Configurações públicas encontradas:', configs.length);
         const configObject: any = {};
         configs.forEach((config) => {
           if (config.type === 'JSON') {
@@ -1364,6 +1365,7 @@ export default async function handler(req: any, res: any) {
             configObject[config.key] = config.value;
           }
         });
+        console.log('✅ Configurações retornadas:', Object.keys(configObject));
         return res.status(200).json(configObject);
       } catch (error: any) {
         console.error('❌ Error loading app config:', error);

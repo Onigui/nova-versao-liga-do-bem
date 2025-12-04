@@ -39,19 +39,37 @@ export default function LoginScreen({navigation}) {
   // Carregar configurações do app da API
   const loadLoginConfig = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/app/config`);
+      console.log('🔄 Carregando configurações de login de:', `${API_BASE_URL}/api/app/config`);
+      const response = await fetch(`${API_BASE_URL}/api/app/config`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store', // Forçar buscar sempre da API
+      });
+      
+      console.log('📡 Resposta do servidor (login):', response.status, response.statusText);
+      
       if (response.ok) {
         const config = await response.json();
+        console.log('✅ Configurações de login recebidas:', config);
+        
         // Usar configurações de login se disponíveis, senão usar da página inicial
-        setLoginConfig({
+        const newConfig = {
           logoUrl: config['login.logoUrl'] || config['app.logoUrl'] || null,
           appName: config['login.appName'] || config['app.name'] || APP_CONFIG.appName,
           icon: config['login.icon'] || '🐾',
           iconImage: config['login.iconImage'] || null,
-        });
+        };
+        
+        console.log('📝 Configurações de login aplicadas:', newConfig);
+        setLoginConfig(newConfig);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erro ao carregar configurações de login:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Erro ao carregar configurações do login:', error);
+      console.error('❌ Erro ao carregar configurações do login:', error);
     }
   };
 
