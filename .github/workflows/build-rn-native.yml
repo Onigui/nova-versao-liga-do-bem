@@ -79,6 +79,14 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "✅ local.properties criado!"
           
+      - name: 🎨 Atualizar Ícone do App
+        working-directory: ./mobile
+        run: |
+          echo "🎨 Atualizando ícone do app com configurações do admin..."
+          node scripts/update-app-icon.js || echo "⚠️ Script de ícone falhou, usando ícone padrão"
+        env:
+          API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
+
       - name: 🏗️ Build APK
         working-directory: ./mobile
         run: |
