@@ -26,6 +26,18 @@ export default function HomeScreen({navigation}) {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  // Função para traduzir o role do usuário
+  const translateRole = (role) => {
+    const roleTranslations = {
+      'MEMBER': 'Membro',
+      'ADMIN': 'Administrador',
+      'VOLUNTEER': 'Voluntário',
+      'PARTNER': 'Parceiro',
+    };
+    return roleTranslations[role] || role;
+  };
 
   useEffect(() => {
     loadStats();
@@ -115,23 +127,28 @@ export default function HomeScreen({navigation}) {
         end={{x: 1, y: 1}}>
         <View style={styles.headerContent}>
           <View style={styles.logoContainer}>
-            {APP_CONFIG.logoUrl ? (
+            {!logoError && APP_CONFIG.logoUrl && !APP_CONFIG.logoUrl.includes('placeholder') ? (
               <Image
                 source={{ uri: APP_CONFIG.logoUrl }}
                 style={styles.logo}
                 resizeMode="contain"
                 onError={(error) => {
                   console.log('Erro ao carregar logo:', error);
+                  setLogoError(true);
                 }}
               />
-            ) : APP_CONFIG.logoLocal ? (
+            ) : !logoError && APP_CONFIG.logoLocal ? (
               <Image
                 source={APP_CONFIG.logoLocal}
                 style={styles.logo}
                 resizeMode="contain"
+                onError={(error) => {
+                  console.log('Erro ao carregar logo local:', error);
+                  setLogoError(true);
+                }}
               />
             ) : (
-              // Fallback para texto se não houver logo configurado
+              // Fallback para texto se não houver logo configurado ou se houver erro
               <View>
                 <Text style={styles.headerTitle}>{APP_CONFIG.appName}</Text>
                 <Text style={styles.headerSubtitle}>{APP_CONFIG.appSubtitle}</Text>
@@ -141,7 +158,7 @@ export default function HomeScreen({navigation}) {
           {isAuthenticated && user && (
             <View style={styles.userInfo}>
               <Text style={styles.userName}>Olá, {user.name}</Text>
-              <Text style={styles.userRole}>{user.role}</Text>
+              <Text style={styles.userRole}>{translateRole(user.role)}</Text>
             </View>
           )}
         </View>
