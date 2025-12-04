@@ -31,8 +31,10 @@ export default function LoginScreen({navigation}) {
     logoUrl: null,
     appName: APP_CONFIG.appName,
     icon: '🐾',
+    iconImage: null,
   });
   const [logoError, setLogoError] = useState(false);
+  const [iconError, setIconError] = useState(false);
 
   // Carregar configurações do app da API
   const loadLoginConfig = async () => {
@@ -45,6 +47,7 @@ export default function LoginScreen({navigation}) {
           logoUrl: config['login.logoUrl'] || config['app.logoUrl'] || null,
           appName: config['login.appName'] || config['app.name'] || APP_CONFIG.appName,
           icon: config['login.icon'] || '🐾',
+          iconImage: config['login.iconImage'] || null,
         });
       }
     } catch (error) {
@@ -119,7 +122,19 @@ export default function LoginScreen({navigation}) {
             ) : (
               <>
                 <View style={styles.logoCircle}>
-                  <Text style={styles.logoIcon}>{loginConfig.icon}</Text>
+                  {!iconError && loginConfig.iconImage ? (
+                    <Image
+                      source={{ uri: loginConfig.iconImage }}
+                      style={styles.iconImage}
+                      resizeMode="contain"
+                      onError={(error) => {
+                        console.log('Erro ao carregar ícone:', error);
+                        setIconError(true);
+                      }}
+                    />
+                  ) : (
+                    <Text style={styles.logoIcon}>{loginConfig.icon}</Text>
+                  )}
                 </View>
                 <Text style={styles.logoText}>{loginConfig.appName}</Text>
                 <Text style={styles.logoSubtext}>{APP_CONFIG.appSubtitle}</Text>
@@ -296,6 +311,10 @@ const styles = StyleSheet.create({
     width: 200,
     height: 80,
     marginBottom: 16,
+  },
+  iconImage: {
+    width: 40,
+    height: 40,
   },
   card: {
     backgroundColor: '#FFFFFF',

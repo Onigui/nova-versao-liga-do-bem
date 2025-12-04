@@ -1062,17 +1062,50 @@
                                 <input type="hidden" id="loginAppLogo" name="loginAppLogo">
                             </div>
 
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">Nome do App (Tela de Login)</label>
-                                    <input type="text" class="form-input" id="loginAppName" name="loginAppName" placeholder="Ex: Liga do Bem (deixe vazio para usar o mesmo da página inicial)">
+                            <div class="form-group">
+                                <label class="form-label">Nome do App (Tela de Login)</label>
+                                <input type="text" class="form-input" id="loginAppName" name="loginAppName" placeholder="Ex: Liga do Bem (deixe vazio para usar o mesmo da página inicial)">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Ícone da Tela de Login</label>
+                                <div style="margin-bottom: 8px;">
+                                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <input type="radio" name="loginIconType" value="emoji" checked onchange="toggleLoginIconInput()">
+                                        <span>Usar Emoji/Texto</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="radio" name="loginIconType" value="image" onchange="toggleLoginIconInput()">
+                                        <span>Usar Imagem</span>
+                                    </label>
                                 </div>
-                                <div class="form-group">
-                                    <label class="form-label">Ícone (Emoji ou Texto)</label>
+                                <div id="loginIconEmojiInput">
                                     <input type="text" class="form-input" id="loginIcon" name="loginIcon" placeholder="🐾" maxlength="10">
                                     <p style="font-size: 0.875rem; color: var(--text-gray); margin-top: 0.5rem;">
                                         💡 Use um emoji (ex: 🐾) ou texto curto
                                     </p>
+                                </div>
+                                <div id="loginIconImageInput" style="display: none;">
+                                    <div style="margin-bottom: 8px;">
+                                        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                            <input type="radio" name="loginIconImageType" value="url" checked onchange="toggleLoginIconImageInput()">
+                                            <span>Usar URL</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="radio" name="loginIconImageType" value="upload" onchange="toggleLoginIconImageInput()">
+                                            <span>Fazer Upload</span>
+                                        </label>
+                                    </div>
+                                    <div id="loginIconImageUrlInput">
+                                        <input type="url" class="form-input" id="loginIconImageUrl" name="loginIconImageUrl" placeholder="https://exemplo.com/icone.png">
+                                    </div>
+                                    <div id="loginIconImageUploadInput" style="display: none;">
+                                        <input type="file" class="form-input" id="loginIconImageFile" name="loginIconImageFile" accept="image/*" onchange="previewLoginIconImage(this)">
+                                        <div id="loginIconImagePreview" style="margin-top: 12px; display: none;">
+                                            <img id="previewLoginIconImg" src="" alt="Preview" style="max-width: 100px; max-height: 100px; border-radius: 8px; border: 1px solid #E5E7EB;">
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="loginIconImage" name="loginIconImage">
                                 </div>
                             </div>
 
@@ -5306,8 +5339,32 @@
                     const loginLogoUrlValue = data['login.logoUrl'] || '';
                     document.getElementById('loginLogoUrl').value = loginLogoUrlValue;
                     document.getElementById('loginAppName').value = data['login.appName'] || '';
-                    document.getElementById('loginIcon').value = data['login.icon'] || '🐾';
+                    const loginIconValue = data['login.icon'] || '🐾';
+                    const loginIconImageValue = data['login.iconImage'] || '';
+                    document.getElementById('loginIcon').value = loginIconValue;
+                    document.getElementById('loginIconImage').value = loginIconImageValue;
                     document.getElementById('loginAppLogo').value = loginLogoUrlValue;
+                    
+                    // Configurar tipo de ícone
+                    if (loginIconImageValue) {
+                        document.querySelector('input[name="loginIconType"][value="image"]').checked = true;
+                        toggleLoginIconInput();
+                        if (loginIconImageValue.startsWith('data:')) {
+                            document.querySelector('input[name="loginIconImageType"][value="upload"]').checked = true;
+                            toggleLoginIconImageInput();
+                            const previewImg = document.getElementById('previewLoginIconImg');
+                            const imagePreview = document.getElementById('loginIconImagePreview');
+                            if (previewImg) previewImg.src = loginIconImageValue;
+                            if (imagePreview) imagePreview.style.display = 'block';
+                        } else {
+                            document.querySelector('input[name="loginIconImageType"][value="url"]').checked = true;
+                            toggleLoginIconImageInput();
+                            document.getElementById('loginIconImageUrl').value = loginIconImageValue;
+                        }
+                    } else {
+                        document.querySelector('input[name="loginIconType"][value="emoji"]').checked = true;
+                        toggleLoginIconInput();
+                    }
                     
                     // Configurar tipo de logo baseado no valor
                     if (logoUrlValue && logoUrlValue.startsWith('data:')) {
@@ -5450,7 +5507,29 @@
                 }
 
                 const loginAppName = document.getElementById('loginAppName').value.trim();
-                const loginIcon = document.getElementById('loginIcon').value.trim() || '🐾';
+                
+                // Obter ícone (emoji ou imagem)
+                const loginIconType = document.querySelector('input[name="loginIconType"]:checked')?.value;
+                let loginIcon = '🐾';
+                let loginIconImage = '';
+                
+                if (loginIconType === 'emoji') {
+                    loginIcon = document.getElementById('loginIcon').value.trim() || '🐾';
+                } else {
+                    // Imagem
+                    const iconImageType = document.querySelector('input[name="loginIconImageType"]:checked')?.value;
+                    if (iconImageType === 'url') {
+                        loginIconImage = document.getElementById('loginIconImageUrl').value.trim();
+                    } else {
+                        // Upload
+                        const fileInput = document.getElementById('loginIconImageFile');
+                        if (fileInput && fileInput.files[0]) {
+                            loginIconImage = await fileToBase64(fileInput.files[0]);
+                        } else {
+                            loginIconImage = document.getElementById('loginIconImage').value || '';
+                        }
+                    }
+                }
 
                 const response = await fetch(`${API_BASE_URL}/api/admin/app/config`, {
                     method: 'PUT',
@@ -5465,7 +5544,8 @@
                         appSubtitle: appSubtitle || null,
                         loginLogoUrl: loginLogoUrl || null,
                         loginAppName: loginAppName || null,
-                        loginIcon: loginIcon || '🐾'
+                        loginIcon: loginIcon || '🐾',
+                        loginIconImage: loginIconImage || null
                     })
                 });
 
@@ -5513,6 +5593,61 @@
                 
                 if (previewImg) previewImg.src = base64;
                 if (logoPreview) logoPreview.style.display = 'block';
+            } catch (error) {
+                console.error('❌ Erro ao processar imagem:', error);
+                alert('Erro ao processar imagem. Tente novamente.');
+            }
+        }
+
+        function toggleLoginIconInput() {
+            const checkedRadio = document.querySelector('input[name="loginIconType"]:checked');
+            if (!checkedRadio) return;
+            
+            const iconType = checkedRadio.value;
+            const emojiInput = document.getElementById('loginIconEmojiInput');
+            const imageInput = document.getElementById('loginIconImageInput');
+            
+            if (!emojiInput || !imageInput) return;
+            
+            if (iconType === 'emoji') {
+                emojiInput.style.display = 'block';
+                imageInput.style.display = 'none';
+            } else {
+                emojiInput.style.display = 'none';
+                imageInput.style.display = 'block';
+            }
+        }
+
+        function toggleLoginIconImageInput() {
+            const checkedRadio = document.querySelector('input[name="loginIconImageType"]:checked');
+            if (!checkedRadio) return;
+            
+            const imageType = checkedRadio.value;
+            const urlInput = document.getElementById('loginIconImageUrlInput');
+            const uploadInput = document.getElementById('loginIconImageUploadInput');
+            
+            if (!urlInput || !uploadInput) return;
+            
+            if (imageType === 'url') {
+                urlInput.style.display = 'block';
+                uploadInput.style.display = 'none';
+            } else {
+                urlInput.style.display = 'none';
+                uploadInput.style.display = 'block';
+            }
+        }
+
+        async function previewLoginIconImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            try {
+                const base64 = await fileToBase64(file);
+                const previewImg = document.getElementById('previewLoginIconImg');
+                const imagePreview = document.getElementById('loginIconImagePreview');
+                
+                if (previewImg) previewImg.src = base64;
+                if (imagePreview) imagePreview.style.display = 'block';
             } catch (error) {
                 console.error('❌ Erro ao processar imagem:', error);
                 alert('Erro ao processar imagem. Tente novamente.');
