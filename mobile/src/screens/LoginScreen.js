@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,15 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import { API_BASE_PATH } from '../config/apiConfig';
+import { APP_CONFIG } from '../config/appConfig';
+
+const API_BASE_URL = API_BASE_PATH;
 
 export default function LoginScreen({navigation}) {
   const {login, continueAsGuest} = useAuth();
@@ -22,6 +27,32 @@ export default function LoginScreen({navigation}) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
+  const [loginConfig, setLoginConfig] = useState({
+    logoUrl: null,
+    appName: APP_CONFIG.appName,
+  });
+  const [logoError, setLogoError] = useState(false);
+
+  // Carregar configurações do app da API
+  const loadLoginConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/app/config`);
+      if (response.ok) {
+        const config = await response.json();
+        // Usar configurações de login se disponíveis, senão usar da página inicial
+        setLoginConfig({
+          logoUrl: config['login.logoUrl'] || config['app.logoUrl'] || null,
+          appName: config['login.appName'] || config['app.name'] || APP_CONFIG.appName,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações do login:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLoginConfig();
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -73,11 +104,25 @@ export default function LoginScreen({navigation}) {
           showsVerticalScrollIndicator={false}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoIcon}>🐾</Text>
-            </View>
-            <Text style={styles.logoText}>Liga do Bem</Text>
-            <Text style={styles.logoSubtext}>Botucatu</Text>
+            {!logoError && loginConfig.logoUrl ? (
+              <Image
+                source={{ uri: loginConfig.logoUrl }}
+                style={styles.logoImage}
+                resizeMode="contain"
+                onError={(error) => {
+                  console.log('Erro ao carregar logo:', error);
+                  setLogoError(true);
+                }}
+              />
+            ) : (
+              <>
+                <View style={styles.logoCircle}>
+                  <Text style={styles.logoIcon}>🐾</Text>
+                </View>
+                <Text style={styles.logoText}>{loginConfig.appName}</Text>
+                <Text style={styles.logoSubtext}>{APP_CONFIG.appSubtitle}</Text>
+              </>
+            )}
           </View>
 
           {/* Form Card */}
@@ -244,6 +289,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
+  },
+  logoImage: {
+    width: 200,
+    height: 80,
+    marginBottom: 16,
   },
   card: {
     backgroundColor: '#FFFFFF',

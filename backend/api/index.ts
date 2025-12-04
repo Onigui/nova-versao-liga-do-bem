@@ -1442,13 +1442,15 @@ export default async function handler(req: any, res: any) {
           return res.status(403).json({ error: 'Forbidden' });
         }
 
-        const { logoUrl, appName, appSubtitle } = body;
+        const { logoUrl, appName, appSubtitle, loginLogoUrl, loginAppName } = body;
 
         // Update or create configs
         const configsToUpdate = [
           { key: 'app.logoUrl', value: logoUrl || '', type: 'STRING', isPublic: true },
           { key: 'app.name', value: appName || 'Liga do Bem', type: 'STRING', isPublic: true },
           { key: 'app.subtitle', value: appSubtitle || 'Botucatu', type: 'STRING', isPublic: true },
+          { key: 'login.logoUrl', value: loginLogoUrl || '', type: 'STRING', isPublic: true },
+          { key: 'login.appName', value: loginAppName || 'Liga do Bem', type: 'STRING', isPublic: true },
         ];
 
         for (const config of configsToUpdate) {

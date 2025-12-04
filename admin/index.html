@@ -1022,13 +1022,49 @@
 
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label class="form-label">Nome do App *</label>
-                                    <input type="text" class="form-input" id="appName" name="appName" required placeholder="Ex: Liga do Bem">
+                                    <label class="form-label">Nome do App (Página Inicial)</label>
+                                    <input type="text" class="form-input" id="appName" name="appName" placeholder="Ex: Liga do Bem">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Subtítulo</label>
+                                    <label class="form-label">Subtítulo (Página Inicial)</label>
                                     <input type="text" class="form-input" id="appSubtitle" name="appSubtitle" placeholder="Ex: Botucatu">
                                 </div>
+                            </div>
+
+                            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+                            <h3 style="font-size: 1.125rem; font-weight: 600; color: var(--text-dark); margin-bottom: 1rem;">Configurações da Tela de Login</h3>
+
+                            <div class="form-group">
+                                <label class="form-label">Logo da Tela de Login</label>
+                                <div style="margin-bottom: 8px;">
+                                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <input type="radio" name="loginLogoType" value="url" checked onchange="toggleLoginLogoInput()">
+                                        <span>Usar URL</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="radio" name="loginLogoType" value="upload" onchange="toggleLoginLogoInput()">
+                                        <span>Fazer Upload</span>
+                                    </label>
+                                </div>
+                                <div id="loginLogoUrlInput">
+                                    <input type="url" class="form-input" id="loginLogoUrl" name="loginLogoUrl" placeholder="https://exemplo.com/logo.png">
+                                    <p style="font-size: 0.875rem; color: var(--text-gray); margin-top: 0.5rem;">
+                                        💡 Deixe vazio para usar o mesmo logo da página inicial
+                                    </p>
+                                </div>
+                                <div id="loginLogoUploadInput" style="display: none;">
+                                    <input type="file" class="form-input" id="loginLogoFile" name="loginLogoFile" accept="image/*" onchange="previewLoginLogoImage(this)">
+                                    <div id="loginLogoPreview" style="margin-top: 12px; display: none;">
+                                        <img id="previewLoginLogoImg" src="" alt="Preview" style="max-width: 300px; max-height: 150px; border-radius: 8px; border: 1px solid #E5E7EB;">
+                                    </div>
+                                </div>
+                                <input type="hidden" id="loginAppLogo" name="loginAppLogo">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Nome do App (Tela de Login)</label>
+                                <input type="text" class="form-input" id="loginAppName" name="loginAppName" placeholder="Ex: Liga do Bem (deixe vazio para usar o mesmo da página inicial)">
                             </div>
 
                             <div style="display: flex; gap: 1rem; margin-top: 1rem;">
@@ -2403,6 +2439,11 @@
                 } else if (sectionId === 'app-config') {
                     loadAppConfig();
                 }
+            }
+            
+            // Carregar dados específicos da seção (duplicado para garantir)
+            if (sectionId === 'app-config') {
+                loadAppConfig();
             }
             
             // Adicionar active ao link selecionado
@@ -5239,18 +5280,53 @@
                 const token = localStorage.getItem('admin_token');
                 const response = await fetch(`${API_BASE_URL}/api/admin/app/config`, {
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'X-Admin-Token': token
                     }
                 });
                 const data = await response.json();
                 if (response.ok) {
-                    // Preencher formulário
-                    document.getElementById('logoUrl').value = data['app.logoUrl'] || '';
+                    // Preencher formulário - Página Inicial
+                    const logoUrlValue = data['app.logoUrl'] || '';
+                    document.getElementById('logoUrl').value = logoUrlValue;
                     document.getElementById('appName').value = data['app.name'] || 'Liga do Bem';
                     document.getElementById('appSubtitle').value = data['app.subtitle'] || 'Botucatu';
+                    document.getElementById('appLogo').value = logoUrlValue;
+                    
+                    // Preencher formulário - Tela de Login
+                    const loginLogoUrlValue = data['login.logoUrl'] || '';
+                    document.getElementById('loginLogoUrl').value = loginLogoUrlValue;
+                    document.getElementById('loginAppName').value = data['login.appName'] || '';
+                    document.getElementById('loginAppLogo').value = loginLogoUrlValue;
+                    
+                    // Configurar tipo de logo baseado no valor
+                    if (logoUrlValue && logoUrlValue.startsWith('data:')) {
+                        document.querySelector('input[name="logoType"][value="upload"]').checked = true;
+                        toggleLogoInput();
+                        const previewImg = document.getElementById('previewImg');
+                        const imagePreview = document.getElementById('imagePreview');
+                        if (previewImg) previewImg.src = logoUrlValue;
+                        if (imagePreview) imagePreview.style.display = 'block';
+                    } else {
+                        document.querySelector('input[name="logoType"][value="url"]').checked = true;
+                        toggleLogoInput();
+                    }
+                    
+                    // Configurar tipo de logo de login
+                    if (loginLogoUrlValue && loginLogoUrlValue.startsWith('data:')) {
+                        document.querySelector('input[name="loginLogoType"][value="upload"]').checked = true;
+                        toggleLoginLogoInput();
+                        const previewLoginImg = document.getElementById('previewLoginLogoImg');
+                        const loginImagePreview = document.getElementById('loginLogoPreview');
+                        if (previewLoginImg) previewLoginImg.src = loginLogoUrlValue;
+                        if (loginImagePreview) loginImagePreview.style.display = 'block';
+                    } else {
+                        document.querySelector('input[name="loginLogoType"][value="url"]').checked = true;
+                        toggleLoginLogoInput();
+                    }
                     
                     // Atualizar preview
-                    updateLogoPreview(data['app.logoUrl']);
+                    updateLogoPreview(logoUrlValue);
                 } else {
                     console.error('❌ Erro ao carregar configurações:', data);
                 }
@@ -5326,7 +5402,7 @@
                     return;
                 }
 
-                // Obter valores do formulário
+                // Obter valores do formulário - Página Inicial
                 const logoType = document.querySelector('input[name="logoType"]:checked')?.value;
                 let logoUrl = '';
                 
@@ -5346,21 +5422,38 @@
                 const appName = document.getElementById('appName').value.trim();
                 const appSubtitle = document.getElementById('appSubtitle').value.trim();
 
-                if (!appName) {
-                    alert('❌ Por favor, preencha o nome do app');
-                    return;
+                // Obter valores do formulário - Tela de Login
+                const loginLogoType = document.querySelector('input[name="loginLogoType"]:checked')?.value;
+                let loginLogoUrl = '';
+                
+                if (loginLogoType === 'url') {
+                    loginLogoUrl = document.getElementById('loginLogoUrl').value.trim();
+                } else {
+                    // Upload - obter base64
+                    const fileInput = document.getElementById('loginLogoFile');
+                    if (fileInput && fileInput.files[0]) {
+                        loginLogoUrl = await fileToBase64(fileInput.files[0]);
+                    } else {
+                        // Se não há novo arquivo, manter o existente
+                        loginLogoUrl = document.getElementById('loginAppLogo').value || '';
+                    }
                 }
+
+                const loginAppName = document.getElementById('loginAppName').value.trim();
 
                 const response = await fetch(`${API_BASE_URL}/api/admin/app/config`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`,
+                        'X-Admin-Token': token,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         logoUrl: logoUrl || null,
-                        appName: appName,
-                        appSubtitle: appSubtitle || null
+                        appName: appName || null,
+                        appSubtitle: appSubtitle || null,
+                        loginLogoUrl: loginLogoUrl || null,
+                        loginAppName: loginAppName || null
                     })
                 });
 
@@ -5375,6 +5468,42 @@
             } catch (error) {
                 console.error('❌ Erro ao salvar configurações:', error);
                 alert(`Erro ao salvar configurações: ${error.message}`);
+            }
+        }
+
+        function toggleLoginLogoInput() {
+            const checkedRadio = document.querySelector('input[name="loginLogoType"]:checked');
+            if (!checkedRadio) return;
+            
+            const logoType = checkedRadio.value;
+            const urlInput = document.getElementById('loginLogoUrlInput');
+            const uploadInput = document.getElementById('loginLogoUploadInput');
+            
+            if (!urlInput || !uploadInput) return;
+            
+            if (logoType === 'url') {
+                urlInput.style.display = 'block';
+                uploadInput.style.display = 'none';
+            } else {
+                urlInput.style.display = 'none';
+                uploadInput.style.display = 'block';
+            }
+        }
+
+        async function previewLoginLogoImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            try {
+                const base64 = await fileToBase64(file);
+                const previewImg = document.getElementById('previewLoginLogoImg');
+                const logoPreview = document.getElementById('loginLogoPreview');
+                
+                if (previewImg) previewImg.src = base64;
+                if (logoPreview) logoPreview.style.display = 'block';
+            } catch (error) {
+                console.error('❌ Erro ao processar imagem:', error);
+                alert('Erro ao processar imagem. Tente novamente.');
             }
         }
 
