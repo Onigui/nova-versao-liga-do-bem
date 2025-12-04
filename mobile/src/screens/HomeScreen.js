@@ -47,7 +47,7 @@ export default function HomeScreen({navigation}) {
   // Carregar configurações do app da API
   const loadAppConfig = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/app/config`);
+      const response = await fetch(`${API_BASE_URL}/api/app/config`);
       if (response.ok) {
         const config = await response.json();
         setAppConfig({
