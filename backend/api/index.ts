@@ -1337,6 +1337,144 @@ export default async function handler(req: any, res: any) {
     // 404
     return res.status(404).json({ error: 'Not found', path });
 
+    // ==========================================
+    // APP CONFIGURATION ENDPOINTS
+    // ==========================================
+
+    // GET app configuration (public endpoint for mobile app)
+    if (path === '/api/app/config' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const configs = await db.systemConfig.findMany({
+          where: { isPublic: true },
+        });
+        const configObject: any = {};
+        configs.forEach((config) => {
+          if (config.type === 'JSON') {
+            try {
+              configObject[config.key] = JSON.parse(config.value);
+            } catch {
+              configObject[config.key] = config.value;
+            }
+          } else if (config.type === 'BOOLEAN') {
+            configObject[config.key] = config.value === 'true';
+          } else if (config.type === 'NUMBER') {
+            configObject[config.key] = parseFloat(config.value);
+          } else {
+            configObject[config.key] = config.value;
+          }
+        });
+        return res.status(200).json(configObject);
+      } catch (error: any) {
+        console.error('❌ Error loading app config:', error);
+        return res.status(500).json({ error: 'Error loading configuration' });
+      }
+    }
+
+    // GET app configuration (admin - all configs)
+    if (path === '/api/admin/app/config' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let decoded: any;
+        try {
+          decoded = jwt.verify(token, JWT_SECRET);
+        } catch {
+          return res.status(401).json({ error: 'Invalid token' });
+        }
+        if (decoded.role !== 'ADMIN') {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const configs = await db.systemConfig.findMany({
+          orderBy: { key: 'asc' },
+        });
+        const configObject: any = {};
+        configs.forEach((config) => {
+          if (config.type === 'JSON') {
+            try {
+              configObject[config.key] = JSON.parse(config.value);
+            } catch {
+              configObject[config.key] = config.value;
+            }
+          } else if (config.type === 'BOOLEAN') {
+            configObject[config.key] = config.value === 'true';
+          } else if (config.type === 'NUMBER') {
+            configObject[config.key] = parseFloat(config.value);
+          } else {
+            configObject[config.key] = config.value;
+          }
+        });
+        return res.status(200).json(configObject);
+      } catch (error: any) {
+        console.error('❌ Error loading admin app config:', error);
+        return res.status(500).json({ error: 'Error loading configuration' });
+      }
+    }
+
+    // PUT app configuration (admin only)
+    if (path === '/api/admin/app/config' && method === 'PUT') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let decoded: any;
+        try {
+          decoded = jwt.verify(token, JWT_SECRET);
+        } catch {
+          return res.status(401).json({ error: 'Invalid token' });
+        }
+        if (decoded.role !== 'ADMIN') {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const { logoUrl, appName, appSubtitle } = body;
+
+        // Update or create configs
+        const configsToUpdate = [
+          { key: 'app.logoUrl', value: logoUrl || '', type: 'STRING', isPublic: true },
+          { key: 'app.name', value: appName || 'Liga do Bem', type: 'STRING', isPublic: true },
+          { key: 'app.subtitle', value: appSubtitle || 'Botucatu', type: 'STRING', isPublic: true },
+        ];
+
+        for (const config of configsToUpdate) {
+          await db.systemConfig.upsert({
+            where: { key: config.key },
+            update: {
+              value: config.value,
+              type: config.type as any,
+              isPublic: config.isPublic,
+            },
+            create: {
+              key: config.key,
+              value: config.value,
+              type: config.type as any,
+              isPublic: config.isPublic,
+            },
+          });
+        }
+
+        return res.status(200).json({ message: 'Configuration updated successfully' });
+      } catch (error: any) {
+        console.error('❌ Error updating app config:', error);
+        return res.status(500).json({ error: 'Error updating configuration' });
+      }
+    }
+
   } catch (error: any) {
     console.error('❌ Error:', error?.message);
     return res.status(500).json({ error: error?.message || 'Internal error' });

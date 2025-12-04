@@ -633,6 +633,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="#app-config" class="nav-link" onclick="showSection('app-config')">
+                        <span class="nav-icon">⚙️</span>
+                        Configurações do App
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="#discounts" class="nav-link" onclick="showSection('discounts')">
                         <span class="nav-icon">💰</span>
                         Descontos
@@ -966,6 +972,89 @@
                             <!-- Dados serão carregados via JavaScript -->
                         </tbody>
                     </table>
+                </div>
+            </section>
+
+            <!-- App Configuration Section -->
+            <section id="app-config-section" class="content-section">
+                <div class="header">
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Configurações do App</h1>
+                            <p class="header-subtitle">Gerencie logo, nome e outras configurações do aplicativo móvel</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="dashboard-card" style="grid-column: 1 / -1;">
+                        <div class="card-header">
+                            <div class="card-icon purple">⚙️</div>
+                            <h3 class="card-title">Configurações Gerais</h3>
+                        </div>
+                        <form id="appConfigForm" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Logo do App</label>
+                                <div style="margin-bottom: 8px;">
+                                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <input type="radio" name="logoType" value="url" checked onchange="toggleLogoInput()">
+                                        <span>Usar URL</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="radio" name="logoType" value="upload" onchange="toggleLogoInput()">
+                                        <span>Fazer Upload</span>
+                                    </label>
+                                </div>
+                                <div id="logoUrlInput">
+                                    <input type="url" class="form-input" id="logoUrl" name="logoUrl" placeholder="https://exemplo.com/logo.png">
+                                    <p style="font-size: 0.875rem; color: var(--text-gray); margin-top: 0.5rem;">
+                                        💡 Dica: Você pode hospedar a imagem em Imgur, Cloudinary, GitHub ou qualquer serviço de hospedagem
+                                    </p>
+                                </div>
+                                <div id="logoUploadInput" style="display: none;">
+                                    <input type="file" class="form-input" id="logoFile" name="logoFile" accept="image/*" onchange="previewLogoImage(this)">
+                                    <div id="logoPreview" style="margin-top: 12px; display: none;">
+                                        <img id="previewLogoImg" src="" alt="Preview" style="max-width: 300px; max-height: 150px; border-radius: 8px; border: 1px solid #E5E7EB;">
+                                    </div>
+                                </div>
+                                <input type="hidden" id="appLogo" name="appLogo">
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Nome do App *</label>
+                                    <input type="text" class="form-input" id="appName" name="appName" required placeholder="Ex: Liga do Bem">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Subtítulo</label>
+                                    <input type="text" class="form-input" id="appSubtitle" name="appSubtitle" placeholder="Ex: Botucatu">
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                                <button type="button" class="btn btn-primary" onclick="saveAppConfig()">
+                                    <span>💾</span>
+                                    Salvar Configurações
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="loadAppConfig()">
+                                    <span>🔄</span>
+                                    Recarregar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="dashboard-card" style="grid-column: 1 / -1;">
+                        <div class="card-header">
+                            <div class="card-icon blue">👁️</div>
+                            <h3 class="card-title">Preview do Logo</h3>
+                        </div>
+                        <div id="logoPreviewContainer" style="padding: 2rem; background: linear-gradient(135deg, #8B5CF6, #A855F7); border-radius: 12px; display: flex; align-items: center; justify-content: center; min-height: 150px;">
+                            <div id="logoPreviewContent" style="text-align: center;">
+                                <p style="color: rgba(255,255,255,0.8);">Configure o logo para ver o preview</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -2311,6 +2400,8 @@
                     loadCompanies();
                 } else if (sectionId === 'events') {
                     loadEvents();
+                } else if (sectionId === 'app-config') {
+                    loadAppConfig();
                 }
             }
             
@@ -5138,6 +5229,183 @@
         function editEvent(eventId) {
             openEventModal(eventId);
         }
+
+        // ==========================================
+        // APP CONFIGURATION FUNCTIONS
+        // ==========================================
+
+        async function loadAppConfig() {
+            try {
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/app/config`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    // Preencher formulário
+                    document.getElementById('logoUrl').value = data['app.logoUrl'] || '';
+                    document.getElementById('appName').value = data['app.name'] || 'Liga do Bem';
+                    document.getElementById('appSubtitle').value = data['app.subtitle'] || 'Botucatu';
+                    
+                    // Atualizar preview
+                    updateLogoPreview(data['app.logoUrl']);
+                } else {
+                    console.error('❌ Erro ao carregar configurações:', data);
+                }
+            } catch (error) {
+                console.error('❌ Erro ao carregar configurações:', error);
+            }
+        }
+
+        function toggleLogoInput() {
+            const checkedRadio = document.querySelector('input[name="logoType"]:checked');
+            if (!checkedRadio) return;
+            
+            const logoType = checkedRadio.value;
+            const urlInput = document.getElementById('logoUrlInput');
+            const uploadInput = document.getElementById('logoUploadInput');
+            
+            if (!urlInput || !uploadInput) return;
+            
+            if (logoType === 'url') {
+                urlInput.style.display = 'block';
+                uploadInput.style.display = 'none';
+            } else {
+                urlInput.style.display = 'none';
+                uploadInput.style.display = 'block';
+            }
+        }
+
+        async function previewLogoImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            try {
+                const base64 = await fileToBase64(file);
+                const previewImg = document.getElementById('previewLogoImg');
+                const logoPreview = document.getElementById('logoPreview');
+                
+                if (previewImg) previewImg.src = base64;
+                if (logoPreview) logoPreview.style.display = 'block';
+                
+                // Atualizar preview do header
+                updateLogoPreview(base64);
+            } catch (error) {
+                console.error('❌ Erro ao processar imagem:', error);
+                alert('Erro ao processar imagem. Tente novamente.');
+            }
+        }
+
+        function updateLogoPreview(logoUrl) {
+            const previewContent = document.getElementById('logoPreviewContent');
+            if (!previewContent) return;
+            
+            if (logoUrl) {
+                previewContent.innerHTML = `
+                    <img src="${logoUrl}" alt="Logo Preview" style="max-width: 300px; max-height: 100px; object-fit: contain;">
+                `;
+            } else {
+                const appName = document.getElementById('appName')?.value || 'Liga do Bem';
+                const appSubtitle = document.getElementById('appSubtitle')?.value || 'Botucatu';
+                previewContent.innerHTML = `
+                    <div style="text-align: center;">
+                        <h2 style="color: white; margin: 0; font-size: 2rem;">${appName}</h2>
+                        <p style="color: rgba(255,255,255,0.8); margin: 0.5rem 0 0 0;">${appSubtitle}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function saveAppConfig() {
+            try {
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    alert('❌ Você precisa estar logado para salvar configurações');
+                    return;
+                }
+
+                // Obter valores do formulário
+                const logoType = document.querySelector('input[name="logoType"]:checked')?.value;
+                let logoUrl = '';
+                
+                if (logoType === 'url') {
+                    logoUrl = document.getElementById('logoUrl').value.trim();
+                } else {
+                    // Upload - obter base64
+                    const fileInput = document.getElementById('logoFile');
+                    if (fileInput && fileInput.files[0]) {
+                        logoUrl = await fileToBase64(fileInput.files[0]);
+                    } else {
+                        // Se não há novo arquivo, manter o existente
+                        logoUrl = document.getElementById('appLogo').value || '';
+                    }
+                }
+
+                const appName = document.getElementById('appName').value.trim();
+                const appSubtitle = document.getElementById('appSubtitle').value.trim();
+
+                if (!appName) {
+                    alert('❌ Por favor, preencha o nome do app');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/api/admin/app/config`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        logoUrl: logoUrl || null,
+                        appName: appName,
+                        appSubtitle: appSubtitle || null
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao salvar configurações');
+                }
+
+                alert('✅ Configurações salvas com sucesso! O app será atualizado na próxima vez que for aberto.');
+                await loadAppConfig();
+                
+            } catch (error) {
+                console.error('❌ Erro ao salvar configurações:', error);
+                alert(`Erro ao salvar configurações: ${error.message}`);
+            }
+        }
+
+        // Atualizar preview quando nome ou subtítulo mudarem
+        document.addEventListener('DOMContentLoaded', () => {
+            const appNameInput = document.getElementById('appName');
+            const appSubtitleInput = document.getElementById('appSubtitle');
+            const logoUrlInput = document.getElementById('logoUrl');
+            
+            if (appNameInput) {
+                appNameInput.addEventListener('input', () => {
+                    if (!logoUrlInput?.value) {
+                        updateLogoPreview(null);
+                    }
+                });
+            }
+            
+            if (appSubtitleInput) {
+                appSubtitleInput.addEventListener('input', () => {
+                    if (!logoUrlInput?.value) {
+                        updateLogoPreview(null);
+                    }
+                });
+            }
+            
+            if (logoUrlInput) {
+                logoUrlInput.addEventListener('input', () => {
+                    updateLogoPreview(logoUrlInput.value);
+                });
+            }
+        });
 
         async function deleteEvent(eventId) {
             if (!confirm('⚠️ ATENÇÃO: Esta ação é irreversível! Deseja realmente EXCLUIR este evento?')) {

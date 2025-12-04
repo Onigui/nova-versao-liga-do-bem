@@ -27,6 +27,11 @@ export default function HomeScreen({navigation}) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logoError, setLogoError] = useState(false);
+  const [appConfig, setAppConfig] = useState({
+    logoUrl: null,
+    appName: APP_CONFIG.appName,
+    appSubtitle: APP_CONFIG.appSubtitle,
+  });
 
   // Função para traduzir o role do usuário
   const translateRole = (role) => {
@@ -39,8 +44,27 @@ export default function HomeScreen({navigation}) {
     return roleTranslations[role] || role;
   };
 
+  // Carregar configurações do app da API
+  const loadAppConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/app/config`);
+      if (response.ok) {
+        const config = await response.json();
+        setAppConfig({
+          logoUrl: config['app.logoUrl'] || null,
+          appName: config['app.name'] || APP_CONFIG.appName,
+          appSubtitle: config['app.subtitle'] || APP_CONFIG.appSubtitle,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações do app:', error);
+      // Usar configurações padrão em caso de erro
+    }
+  };
+
   useEffect(() => {
     loadStats();
+    loadAppConfig();
   }, []);
 
   const loadStats = async () => {
@@ -81,6 +105,7 @@ export default function HomeScreen({navigation}) {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadStats();
+    await loadAppConfig();
     setRefreshing(false);
   };
 
@@ -127,9 +152,9 @@ export default function HomeScreen({navigation}) {
         end={{x: 1, y: 1}}>
         <View style={styles.headerContent}>
           <View style={styles.logoContainer}>
-            {!logoError && APP_CONFIG.logoUrl && !APP_CONFIG.logoUrl.includes('placeholder') ? (
+            {!logoError && appConfig.logoUrl ? (
               <Image
-                source={{ uri: APP_CONFIG.logoUrl }}
+                source={{ uri: appConfig.logoUrl }}
                 style={styles.logo}
                 resizeMode="contain"
                 onError={(error) => {
@@ -150,8 +175,8 @@ export default function HomeScreen({navigation}) {
             ) : (
               // Fallback para texto se não houver logo configurado ou se houver erro
               <View>
-                <Text style={styles.headerTitle}>{APP_CONFIG.appName}</Text>
-                <Text style={styles.headerSubtitle}>{APP_CONFIG.appSubtitle}</Text>
+                <Text style={styles.headerTitle}>{appConfig.appName}</Text>
+                <Text style={styles.headerSubtitle}>{appConfig.appSubtitle}</Text>
               </View>
             )}
           </View>
