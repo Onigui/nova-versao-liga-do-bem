@@ -30,6 +30,7 @@ export default function LoginScreen({navigation}) {
   const [loginConfig, setLoginConfig] = useState({
     logoUrl: null,
     appName: APP_CONFIG.appName,
+    icon: '🐾',
   });
   const [logoError, setLogoError] = useState(false);
 
@@ -43,6 +44,7 @@ export default function LoginScreen({navigation}) {
         setLoginConfig({
           logoUrl: config['login.logoUrl'] || config['app.logoUrl'] || null,
           appName: config['login.appName'] || config['app.name'] || APP_CONFIG.appName,
+          icon: config['login.icon'] || '🐾',
         });
       }
     } catch (error) {
@@ -117,7 +119,7 @@ export default function LoginScreen({navigation}) {
             ) : (
               <>
                 <View style={styles.logoCircle}>
-                  <Text style={styles.logoIcon}>🐾</Text>
+                  <Text style={styles.logoIcon}>{loginConfig.icon}</Text>
                 </View>
                 <Text style={styles.logoText}>{loginConfig.appName}</Text>
                 <Text style={styles.logoSubtext}>{APP_CONFIG.appSubtitle}</Text>

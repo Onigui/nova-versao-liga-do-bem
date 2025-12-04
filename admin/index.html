@@ -1062,9 +1062,18 @@
                                 <input type="hidden" id="loginAppLogo" name="loginAppLogo">
                             </div>
 
-                            <div class="form-group">
-                                <label class="form-label">Nome do App (Tela de Login)</label>
-                                <input type="text" class="form-input" id="loginAppName" name="loginAppName" placeholder="Ex: Liga do Bem (deixe vazio para usar o mesmo da página inicial)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Nome do App (Tela de Login)</label>
+                                    <input type="text" class="form-input" id="loginAppName" name="loginAppName" placeholder="Ex: Liga do Bem (deixe vazio para usar o mesmo da página inicial)">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Ícone (Emoji ou Texto)</label>
+                                    <input type="text" class="form-input" id="loginIcon" name="loginIcon" placeholder="🐾" maxlength="10">
+                                    <p style="font-size: 0.875rem; color: var(--text-gray); margin-top: 0.5rem;">
+                                        💡 Use um emoji (ex: 🐾) ou texto curto
+                                    </p>
+                                </div>
                             </div>
 
                             <div style="display: flex; gap: 1rem; margin-top: 1rem;">
@@ -5297,6 +5306,7 @@
                     const loginLogoUrlValue = data['login.logoUrl'] || '';
                     document.getElementById('loginLogoUrl').value = loginLogoUrlValue;
                     document.getElementById('loginAppName').value = data['login.appName'] || '';
+                    document.getElementById('loginIcon').value = data['login.icon'] || '🐾';
                     document.getElementById('loginAppLogo').value = loginLogoUrlValue;
                     
                     // Configurar tipo de logo baseado no valor
@@ -5440,6 +5450,7 @@
                 }
 
                 const loginAppName = document.getElementById('loginAppName').value.trim();
+                const loginIcon = document.getElementById('loginIcon').value.trim() || '🐾';
 
                 const response = await fetch(`${API_BASE_URL}/api/admin/app/config`, {
                     method: 'PUT',
@@ -5453,7 +5464,8 @@
                         appName: appName || null,
                         appSubtitle: appSubtitle || null,
                         loginLogoUrl: loginLogoUrl || null,
-                        loginAppName: loginAppName || null
+                        loginAppName: loginAppName || null,
+                        loginIcon: loginIcon || '🐾'
                     })
                 });
 

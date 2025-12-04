@@ -1334,9 +1334,6 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 404
-    return res.status(404).json({ error: 'Not found', path });
-
     // ==========================================
     // APP CONFIGURATION ENDPOINTS
     // ==========================================
@@ -1423,26 +1420,32 @@ export default async function handler(req: any, res: any) {
 
     // PUT app configuration (admin only)
     if (path === '/api/admin/app/config' && method === 'PUT') {
+      console.log('📝 PUT /api/admin/app/config - Request received');
       const db = getPrisma();
       if (!db) {
+        console.error('❌ Database not configured');
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
         const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
         if (!token) {
+          console.error('❌ No token provided');
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let decoded: any;
         try {
           decoded = jwt.verify(token, JWT_SECRET);
+          console.log('✅ Token verified, role:', decoded.role);
         } catch {
+          console.error('❌ Invalid token');
           return res.status(401).json({ error: 'Invalid token' });
         }
         if (decoded.role !== 'ADMIN') {
+          console.error('❌ Not admin role');
           return res.status(403).json({ error: 'Forbidden' });
         }
 
-        const { logoUrl, appName, appSubtitle, loginLogoUrl, loginAppName } = body;
+        const { logoUrl, appName, appSubtitle, loginLogoUrl, loginAppName, loginIcon } = body;
 
         // Update or create configs
         const configsToUpdate = [
@@ -1451,6 +1454,7 @@ export default async function handler(req: any, res: any) {
           { key: 'app.subtitle', value: appSubtitle || 'Botucatu', type: 'STRING', isPublic: true },
           { key: 'login.logoUrl', value: loginLogoUrl || '', type: 'STRING', isPublic: true },
           { key: 'login.appName', value: loginAppName || 'Liga do Bem', type: 'STRING', isPublic: true },
+          { key: 'login.icon', value: loginIcon || '🐾', type: 'STRING', isPublic: true },
         ];
 
         for (const config of configsToUpdate) {
@@ -1476,6 +1480,9 @@ export default async function handler(req: any, res: any) {
         return res.status(500).json({ error: 'Error updating configuration' });
       }
     }
+
+    // 404 - Must be last, after all endpoints
+    return res.status(404).json({ error: 'Not found', path });
 
   } catch (error: any) {
     console.error('❌ Error:', error?.message);
