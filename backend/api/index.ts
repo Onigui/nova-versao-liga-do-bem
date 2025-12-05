@@ -1499,6 +1499,26 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // POST logs from mobile app
+    if (path === '/api/logs' && method === 'POST') {
+      try {
+        const { logs } = body;
+        if (Array.isArray(logs)) {
+          // Logar os logs recebidos do app
+          console.log('📱 Logs recebidos do app:', logs.length, 'logs');
+          logs.forEach((log) => {
+            const logData = log.data ? (typeof log.data === 'string' ? JSON.parse(log.data) : log.data) : null;
+            console.log(`[${log.level.toUpperCase()}] ${log.timestamp} - ${log.message}`, logData || '');
+          });
+          return res.status(200).json({ message: 'Logs recebidos', count: logs.length });
+        }
+        return res.status(400).json({ error: 'Invalid logs format' });
+      } catch (error: any) {
+        console.error('❌ Error processing logs:', error);
+        return res.status(500).json({ error: 'Error processing logs' });
+      }
+    }
+
     // 404 - Must be last, after all endpoints
     return res.status(404).json({ error: 'Not found', path });
 

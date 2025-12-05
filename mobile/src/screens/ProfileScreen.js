@@ -67,6 +67,12 @@ export default function ProfileScreen({navigation}) {
       onPress: () => navigation.navigate('Notifications'),
     },
     {
+      icon: 'bug-outline',
+      title: 'Debug & Logs',
+      subtitle: 'Ver logs do aplicativo',
+      onPress: () => navigation.navigate('Debug'),
+    },
+    {
       icon: 'help-circle-outline',
       title: 'Ajuda & Suporte',
       subtitle: 'Tire suas dúvidas',
