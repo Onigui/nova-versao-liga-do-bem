@@ -26,6 +26,7 @@ import SearchPartnerScreen from '../screens/SearchPartnerScreen';
 import AnimalDetailScreen from '../screens/AnimalDetailScreen';
 import PartnerDetailScreen from '../screens/PartnerDetailScreen';
 import EventDetailScreen from '../screens/EventDetailScreen';
+import DebugScreen from '../screens/DebugScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -241,6 +242,18 @@ export function AppStack() {
             backgroundColor: '#ffffff',
           },
           headerTintColor: '#8B5CF6',
+        }}
+      />
+      <Stack.Screen 
+        name="Debug" 
+        component={DebugScreen}
+        options={{
+          headerShown: true,
+          title: 'Debug & Logs',
+          headerStyle: {
+            backgroundColor: '#8B5CF6',
+          },
+          headerTintColor: '#FFFFFF',
         }}
       />
     </Stack.Navigator>

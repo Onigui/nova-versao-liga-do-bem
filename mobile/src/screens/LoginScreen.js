@@ -17,6 +17,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_CONFIG } from '../config/appConfig';
+import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 
 const API_BASE_URL = API_BASE_PATH;
 
@@ -39,7 +40,7 @@ export default function LoginScreen({navigation}) {
   // Carregar configurações do app da API
   const loadLoginConfig = async () => {
     try {
-      console.log('🔄 Carregando configurações de login de:', `${API_BASE_URL}/api/app/config`);
+      logInfo('🔄 Carregando configurações de login', {url: `${API_BASE_URL}/api/app/config`});
       const response = await fetch(`${API_BASE_URL}/api/app/config`, {
         method: 'GET',
         headers: {
@@ -48,11 +49,11 @@ export default function LoginScreen({navigation}) {
         cache: 'no-store', // Forçar buscar sempre da API
       });
       
-      console.log('📡 Resposta do servidor (login):', response.status, response.statusText);
+      logDebug('📡 Resposta do servidor (login)', {status: response.status, statusText: response.statusText});
       
       if (response.ok) {
         const config = await response.json();
-        console.log('✅ Configurações de login recebidas:', config);
+        logInfo('✅ Configurações de login recebidas', config);
         
         // Usar configurações de login se disponíveis, senão usar da página inicial
         const loginLogoUrl = config['login.logoUrl'] || config['app.logoUrl'];
@@ -65,9 +66,9 @@ export default function LoginScreen({navigation}) {
           iconImage: (loginIconImage && loginIconImage.trim() !== '') ? loginIconImage : null,
         };
         
-        console.log('📝 Configurações de login aplicadas:', newConfig);
-        console.log('🖼️ Logo URL:', newConfig.logoUrl ? 'Configurado' : 'Não configurado');
-        console.log('🖼️ Ícone Imagem:', newConfig.iconImage ? 'Configurado' : 'Não configurado');
+        logInfo('📝 Configurações de login aplicadas', newConfig);
+        logDebug('🖼️ Logo URL', {hasLogo: !!newConfig.logoUrl, logoUrl: newConfig.logoUrl});
+        logDebug('🖼️ Ícone Imagem', {hasIconImage: !!newConfig.iconImage, iconImage: newConfig.iconImage});
         setLoginConfig(newConfig);
         // Resetar erros quando novas configurações são carregadas
         if (newConfig.logoUrl) {
@@ -78,10 +79,10 @@ export default function LoginScreen({navigation}) {
         }
       } else {
         const errorText = await response.text();
-        console.error('❌ Erro ao carregar configurações de login:', response.status, errorText);
+        logError('❌ Erro ao carregar configurações de login', {status: response.status, error: errorText});
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar configurações do login:', error);
+      logError('❌ Erro ao carregar configurações do login', error);
     }
   };
 
@@ -145,12 +146,11 @@ export default function LoginScreen({navigation}) {
                 style={styles.logoImage}
                 resizeMode="contain"
                 onError={(error) => {
-                  console.error('❌ Erro ao carregar logo da API:', error);
-                  console.error('URL do logo:', loginConfig.logoUrl);
+                  logError('❌ Erro ao carregar logo da API', {error, url: loginConfig.logoUrl});
                   setLogoError(true);
                 }}
                 onLoad={() => {
-                  console.log('✅ Logo de login carregado com sucesso:', loginConfig.logoUrl);
+                  logInfo('✅ Logo de login carregado com sucesso', {url: loginConfig.logoUrl});
                 }}
               />
             ) : (
@@ -162,12 +162,11 @@ export default function LoginScreen({navigation}) {
                       style={styles.iconImage}
                       resizeMode="contain"
                       onError={(error) => {
-                        console.error('❌ Erro ao carregar ícone da API:', error);
-                        console.error('URL do ícone:', loginConfig.iconImage);
+                        logError('❌ Erro ao carregar ícone da API', {error, url: loginConfig.iconImage});
                         setIconError(true);
                       }}
                       onLoad={() => {
-                        console.log('✅ Ícone de login carregado com sucesso:', loginConfig.iconImage);
+                        logInfo('✅ Ícone de login carregado com sucesso', {url: loginConfig.iconImage});
                       }}
                     />
                   ) : (

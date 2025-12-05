@@ -13,6 +13,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_CONFIG } from '../config/appConfig';
+import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 
 const API_BASE_URL = API_BASE_PATH;
 
@@ -47,7 +48,7 @@ export default function HomeScreen({navigation}) {
   // Carregar configurações do app da API
   const loadAppConfig = async () => {
     try {
-      console.log('🔄 Carregando configurações do app de:', `${API_BASE_URL}/api/app/config`);
+      logInfo('🔄 Carregando configurações do app', {url: `${API_BASE_URL}/api/app/config`});
       const response = await fetch(`${API_BASE_URL}/api/app/config`, {
         method: 'GET',
         headers: {
@@ -56,11 +57,11 @@ export default function HomeScreen({navigation}) {
         cache: 'no-store', // Forçar buscar sempre da API
       });
       
-      console.log('📡 Resposta do servidor:', response.status, response.statusText);
+      logDebug('📡 Resposta do servidor', {status: response.status, statusText: response.statusText});
       
       if (response.ok) {
         const config = await response.json();
-        console.log('✅ Configurações recebidas:', config);
+        logInfo('✅ Configurações recebidas', config);
         
         const logoUrlValue = config['app.logoUrl'];
         const newConfig = {
@@ -69,8 +70,8 @@ export default function HomeScreen({navigation}) {
           appSubtitle: config['app.subtitle'] || APP_CONFIG.appSubtitle,
         };
         
-        console.log('📝 Configurações aplicadas:', newConfig);
-        console.log('🖼️ Logo URL:', newConfig.logoUrl ? 'Configurado' : 'Não configurado');
+        logInfo('📝 Configurações aplicadas', newConfig);
+        logDebug('🖼️ Logo URL', {hasLogo: !!newConfig.logoUrl, logoUrl: newConfig.logoUrl});
         setAppConfig(newConfig);
         // Resetar erro de logo quando novas configurações são carregadas
         if (newConfig.logoUrl) {
@@ -78,10 +79,10 @@ export default function HomeScreen({navigation}) {
         }
       } else {
         const errorText = await response.text();
-        console.error('❌ Erro ao carregar configurações:', response.status, errorText);
+        logError('❌ Erro ao carregar configurações', {status: response.status, error: errorText});
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar configurações do app:', error);
+      logError('❌ Erro ao carregar configurações do app', error);
       // Usar configurações padrão em caso de erro
     }
   };
@@ -182,12 +183,11 @@ export default function HomeScreen({navigation}) {
                 style={styles.logo}
                 resizeMode="contain"
                 onError={(error) => {
-                  console.error('❌ Erro ao carregar logo da API:', error);
-                  console.error('URL do logo:', appConfig.logoUrl);
+                  logError('❌ Erro ao carregar logo da API', {error, url: appConfig.logoUrl});
                   setLogoError(true);
                 }}
                 onLoad={() => {
-                  console.log('✅ Logo carregado com sucesso:', appConfig.logoUrl);
+                  logInfo('✅ Logo carregado com sucesso', {url: appConfig.logoUrl});
                 }}
               />
             ) : APP_CONFIG.logoLocal && !logoError ? (
