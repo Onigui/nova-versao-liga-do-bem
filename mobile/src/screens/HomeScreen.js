@@ -62,14 +62,20 @@ export default function HomeScreen({navigation}) {
         const config = await response.json();
         console.log('✅ Configurações recebidas:', config);
         
+        const logoUrlValue = config['app.logoUrl'];
         const newConfig = {
-          logoUrl: config['app.logoUrl'] || null,
+          logoUrl: (logoUrlValue && logoUrlValue.trim() !== '') ? logoUrlValue : null,
           appName: config['app.name'] || APP_CONFIG.appName,
           appSubtitle: config['app.subtitle'] || APP_CONFIG.appSubtitle,
         };
         
         console.log('📝 Configurações aplicadas:', newConfig);
+        console.log('🖼️ Logo URL:', newConfig.logoUrl ? 'Configurado' : 'Não configurado');
         setAppConfig(newConfig);
+        // Resetar erro de logo quando novas configurações são carregadas
+        if (newConfig.logoUrl) {
+          setLogoError(false);
+        }
       } else {
         const errorText = await response.text();
         console.error('❌ Erro ao carregar configurações:', response.status, errorText);
@@ -170,23 +176,27 @@ export default function HomeScreen({navigation}) {
         end={{x: 1, y: 1}}>
         <View style={styles.headerContent}>
           <View style={styles.logoContainer}>
-            {!logoError && appConfig.logoUrl ? (
+            {appConfig.logoUrl && !logoError ? (
               <Image
                 source={{ uri: appConfig.logoUrl }}
                 style={styles.logo}
                 resizeMode="contain"
                 onError={(error) => {
-                  console.log('Erro ao carregar logo:', error);
+                  console.error('❌ Erro ao carregar logo da API:', error);
+                  console.error('URL do logo:', appConfig.logoUrl);
                   setLogoError(true);
                 }}
+                onLoad={() => {
+                  console.log('✅ Logo carregado com sucesso:', appConfig.logoUrl);
+                }}
               />
-            ) : !logoError && APP_CONFIG.logoLocal ? (
+            ) : APP_CONFIG.logoLocal && !logoError ? (
               <Image
                 source={APP_CONFIG.logoLocal}
                 style={styles.logo}
                 resizeMode="contain"
                 onError={(error) => {
-                  console.log('Erro ao carregar logo local:', error);
+                  console.error('❌ Erro ao carregar logo local:', error);
                   setLogoError(true);
                 }}
               />

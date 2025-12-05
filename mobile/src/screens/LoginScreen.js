@@ -55,15 +55,27 @@ export default function LoginScreen({navigation}) {
         console.log('✅ Configurações de login recebidas:', config);
         
         // Usar configurações de login se disponíveis, senão usar da página inicial
+        const loginLogoUrl = config['login.logoUrl'] || config['app.logoUrl'];
+        const loginIconImage = config['login.iconImage'];
+        
         const newConfig = {
-          logoUrl: config['login.logoUrl'] || config['app.logoUrl'] || null,
+          logoUrl: (loginLogoUrl && loginLogoUrl.trim() !== '') ? loginLogoUrl : null,
           appName: config['login.appName'] || config['app.name'] || APP_CONFIG.appName,
           icon: config['login.icon'] || '🐾',
-          iconImage: config['login.iconImage'] || null,
+          iconImage: (loginIconImage && loginIconImage.trim() !== '') ? loginIconImage : null,
         };
         
         console.log('📝 Configurações de login aplicadas:', newConfig);
+        console.log('🖼️ Logo URL:', newConfig.logoUrl ? 'Configurado' : 'Não configurado');
+        console.log('🖼️ Ícone Imagem:', newConfig.iconImage ? 'Configurado' : 'Não configurado');
         setLoginConfig(newConfig);
+        // Resetar erros quando novas configurações são carregadas
+        if (newConfig.logoUrl) {
+          setLogoError(false);
+        }
+        if (newConfig.iconImage) {
+          setIconError(false);
+        }
       } else {
         const errorText = await response.text();
         console.error('❌ Erro ao carregar configurações de login:', response.status, errorText);
@@ -127,27 +139,35 @@ export default function LoginScreen({navigation}) {
           showsVerticalScrollIndicator={false}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            {!logoError && loginConfig.logoUrl ? (
+            {loginConfig.logoUrl && !logoError ? (
               <Image
                 source={{ uri: loginConfig.logoUrl }}
                 style={styles.logoImage}
                 resizeMode="contain"
                 onError={(error) => {
-                  console.log('Erro ao carregar logo:', error);
+                  console.error('❌ Erro ao carregar logo da API:', error);
+                  console.error('URL do logo:', loginConfig.logoUrl);
                   setLogoError(true);
+                }}
+                onLoad={() => {
+                  console.log('✅ Logo de login carregado com sucesso:', loginConfig.logoUrl);
                 }}
               />
             ) : (
               <>
                 <View style={styles.logoCircle}>
-                  {!iconError && loginConfig.iconImage ? (
+                  {loginConfig.iconImage && !iconError ? (
                     <Image
                       source={{ uri: loginConfig.iconImage }}
                       style={styles.iconImage}
                       resizeMode="contain"
                       onError={(error) => {
-                        console.log('Erro ao carregar ícone:', error);
+                        console.error('❌ Erro ao carregar ícone da API:', error);
+                        console.error('URL do ícone:', loginConfig.iconImage);
                         setIconError(true);
+                      }}
+                      onLoad={() => {
+                        console.log('✅ Ícone de login carregado com sucesso:', loginConfig.iconImage);
                       }}
                     />
                   ) : (
