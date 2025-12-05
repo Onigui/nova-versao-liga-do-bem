@@ -17,6 +17,9 @@ export default function ProfileScreen({navigation}) {
   const {user, logout} = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  
+  // Verificar se o usuário é administrador
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
 
   const handleLogout = () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair da sua conta?', [
@@ -66,12 +69,13 @@ export default function ProfileScreen({navigation}) {
       subtitle: 'Ver todas as notificações',
       onPress: () => navigation.navigate('Notifications'),
     },
-    {
+    // Debug & Logs - Apenas para administradores
+    ...(isAdmin ? [{
       icon: 'bug-outline',
       title: 'Debug & Logs',
-      subtitle: 'Ver logs do aplicativo',
+      subtitle: 'Ver logs do aplicativo (Admin)',
       onPress: () => navigation.navigate('Debug'),
-    },
+    }] : []),
     {
       icon: 'help-circle-outline',
       title: 'Ajuda & Suporte',

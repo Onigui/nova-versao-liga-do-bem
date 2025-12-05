@@ -16,8 +16,26 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import remoteLogger, {logInfo, logError, logDebug} from '../services/RemoteLogger';
 import { API_BASE_PATH } from '../config/apiConfig';
+import {useAuth} from '../services/AuthService';
 
 export default function DebugScreen({navigation}) {
+  const {user} = useAuth();
+  
+  // Verificar se o usuário é administrador
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
+  
+  // Se não for admin, redirecionar
+  useEffect(() => {
+    if (!isAdmin) {
+      Alert.alert('Acesso Negado', 'Esta área é restrita apenas para administradores.', [
+        {text: 'OK', onPress: () => navigation.goBack()},
+      ]);
+    }
+  }, [isAdmin, navigation]);
+  
+  if (!isAdmin) {
+    return null; // Não renderizar nada se não for admin
+  }
   const [logs, setLogs] = useState([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollViewRef = useRef(null);

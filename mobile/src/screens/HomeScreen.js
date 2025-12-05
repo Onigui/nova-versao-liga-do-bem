@@ -15,7 +15,7 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_CONFIG } from '../config/appConfig';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 
-const API_BASE_URL = API_BASE_PATH;
+const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
 
 export default function HomeScreen({navigation}) {
   const {user, isAuthenticated} = useAuth();
@@ -48,8 +48,8 @@ export default function HomeScreen({navigation}) {
   // Carregar configurações do app da API
   const loadAppConfig = async () => {
     try {
-      logInfo('🔄 Carregando configurações do app', {url: `${API_BASE_URL}/api/app/config`});
-      const response = await fetch(`${API_BASE_URL}/api/app/config`, {
+      logInfo('🔄 Carregando configurações do app', {url: `${API_BASE_PATH}/app/config`});
+      const response = await fetch(`${API_BASE_PATH}/app/config`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
