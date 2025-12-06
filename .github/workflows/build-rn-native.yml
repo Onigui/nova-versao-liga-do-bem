@@ -87,6 +87,14 @@ jobs:
         env:
           API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
 
+      - name: 🖼️ Atualizar Assets do App (Logo e Ícone)
+        working-directory: ./mobile
+        run: |
+          echo "🖼️ Baixando logo e ícone do app com configurações do admin..."
+          node scripts/update-app-assets.js || echo "⚠️ Script de assets falhou, usando assets padrão"
+        env:
+          API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
+
       - name: 🏗️ Build APK
         working-directory: ./mobile
         run: |

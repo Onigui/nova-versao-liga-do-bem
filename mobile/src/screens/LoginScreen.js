@@ -36,6 +36,39 @@ export default function LoginScreen({navigation}) {
   });
   const [logoError, setLogoError] = useState(false);
   const [iconError, setIconError] = useState(false);
+  const [localAssets, setLocalAssets] = useState({
+    logo: null,
+    icon: null,
+    iconEmoji: '🐾',
+  });
+  
+  // Tentar carregar assets locais
+  useEffect(() => {
+    try {
+      const localLogo = require('../assets/images/login-logo.png');
+      setLocalAssets(prev => ({ ...prev, logo: localLogo }));
+      logInfo('✅ Logo local de login encontrado');
+    } catch (error) {
+      logDebug('ℹ️ Logo local de login não encontrado');
+    }
+    
+    try {
+      const localIcon = require('../assets/images/app-icon.png');
+      setLocalAssets(prev => ({ ...prev, icon: localIcon }));
+      logInfo('✅ Ícone local encontrado');
+    } catch (error) {
+      logDebug('ℹ️ Ícone local não encontrado');
+    }
+    
+    // Tentar carregar configuração do ícone emoji
+    try {
+      const iconConfig = require('../assets/images/icon-config.json');
+      setLocalAssets(prev => ({ ...prev, iconEmoji: iconConfig.icon || '🐾' }));
+      logInfo('✅ Configuração do ícone local encontrada');
+    } catch (error) {
+      logDebug('ℹ️ Configuração do ícone local não encontrada');
+    }
+  }, []);
 
   // Carregar configurações do app da API
   const loadLoginConfig = async () => {
@@ -141,9 +174,18 @@ export default function LoginScreen({navigation}) {
           {/* Logo */}
           <View style={styles.logoContainer}>
             {/* Ícone acima do logo (sempre mostra se configurado) */}
-            {(loginConfig.iconImage || loginConfig.icon) && (
+            {(localAssets.icon || loginConfig.iconImage || localAssets.iconEmoji || loginConfig.icon) && (
               <View style={styles.logoCircle}>
-                {loginConfig.iconImage && !iconError ? (
+                {localAssets.icon ? (
+                  <Image
+                    source={localAssets.icon}
+                    style={styles.iconImage}
+                    resizeMode="contain"
+                    onLoad={() => {
+                      logInfo('✅ Ícone local de login carregado com sucesso');
+                    }}
+                  />
+                ) : loginConfig.iconImage && !iconError ? (
                   <Image
                     source={{ uri: loginConfig.iconImage }}
                     style={styles.iconImage}
@@ -157,13 +199,22 @@ export default function LoginScreen({navigation}) {
                     }}
                   />
                 ) : (
-                  <Text style={styles.logoIcon}>{loginConfig.icon}</Text>
+                  <Text style={styles.logoIcon}>{localAssets.iconEmoji || loginConfig.icon}</Text>
                 )}
               </View>
             )}
             
             {/* Logo ou texto do app */}
-            {loginConfig.logoUrl && !logoError ? (
+            {localAssets.logo ? (
+              <Image
+                source={localAssets.logo}
+                style={styles.logoImage}
+                resizeMode="contain"
+                onLoad={() => {
+                  logInfo('✅ Logo local de login carregado com sucesso');
+                }}
+              />
+            ) : loginConfig.logoUrl && !logoError ? (
               <Image
                 source={{ uri: loginConfig.logoUrl }}
                 style={styles.logoImage}
@@ -179,7 +230,7 @@ export default function LoginScreen({navigation}) {
             ) : (
               <>
                 {/* Se não tem logo, mostra texto do app (só se não tiver ícone) */}
-                {(!loginConfig.iconImage && !loginConfig.icon) && (
+                {(!localAssets.icon && !loginConfig.iconImage && !localAssets.iconEmoji && !loginConfig.icon) && (
                   <>
                     <Text style={styles.logoText}>{loginConfig.appName}</Text>
                     <Text style={styles.logoSubtext}>{APP_CONFIG.appSubtitle}</Text>

@@ -15,6 +15,9 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_CONFIG } from '../config/appConfig';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 
+// Importar RemoteLogger para compatibilidade
+const RemoteLogger = { log: logInfo, error: logError, debug: logDebug };
+
 const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
 
 export default function HomeScreen({navigation}) {
@@ -30,9 +33,21 @@ export default function HomeScreen({navigation}) {
   const [logoError, setLogoError] = useState(false);
   const [appConfig, setAppConfig] = useState({
     logoUrl: null,
+    logoLocal: null,
     appName: APP_CONFIG.appName,
     appSubtitle: APP_CONFIG.appSubtitle,
   });
+  
+  // Tentar carregar asset local do logo
+  useEffect(() => {
+    try {
+      const localLogo = require('../assets/images/app-logo.png');
+      setAppConfig(prev => ({ ...prev, logoLocal: localLogo }));
+      logInfo('✅ Logo local encontrado e carregado');
+    } catch (error) {
+      logDebug('ℹ️ Logo local não encontrado, usando API');
+    }
+  }, []);
 
   // Função para traduzir o role do usuário
   const translateRole = (role) => {

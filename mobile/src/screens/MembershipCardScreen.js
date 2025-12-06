@@ -24,6 +24,28 @@ export default function MembershipCardScreen() {
     icon: '🐾',
   });
   const [iconError, setIconError] = useState(false);
+  const [localIcon, setLocalIcon] = useState(null);
+  const [localIconEmoji, setLocalIconEmoji] = useState('🐾');
+  
+  // Tentar carregar asset local do ícone
+  useEffect(() => {
+    try {
+      const localIconAsset = require('../assets/images/app-icon.png');
+      setLocalIcon(localIconAsset);
+      logInfo('✅ Ícone local do cartão encontrado');
+    } catch (error) {
+      logDebug('ℹ️ Ícone local do cartão não encontrado');
+    }
+    
+    // Tentar carregar configuração do ícone emoji
+    try {
+      const iconConfig = require('../assets/images/icon-config.json');
+      setLocalIconEmoji(iconConfig.icon || '🐾');
+      logInfo('✅ Configuração do ícone local do cartão encontrada');
+    } catch (error) {
+      logDebug('ℹ️ Configuração do ícone local do cartão não encontrada');
+    }
+  }, []);
 
   useEffect(() => {
     loadIconConfig();
@@ -131,7 +153,16 @@ export default function MembershipCardScreen() {
           {/* Header do Cartão */}
           <View style={styles.cardHeader}>
             <View style={styles.logoContainer}>
-              {iconConfig.iconImage && !iconError ? (
+              {localIcon ? (
+                <Image
+                  source={localIcon}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                  onLoad={() => {
+                    logInfo('✅ Ícone local do cartão carregado com sucesso');
+                  }}
+                />
+              ) : iconConfig.iconImage && !iconError ? (
                 <Image
                   source={{ uri: iconConfig.iconImage }}
                   style={styles.logoImage}
@@ -145,7 +176,7 @@ export default function MembershipCardScreen() {
                   }}
                 />
               ) : (
-                <Text style={styles.logo}>{iconConfig.icon}</Text>
+                <Text style={styles.logo}>{localIconEmoji || iconConfig.icon}</Text>
               )}
             </View>
             <View style={styles.statusContainer}>
