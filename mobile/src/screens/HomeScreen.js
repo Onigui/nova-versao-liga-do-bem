@@ -192,7 +192,16 @@ export default function HomeScreen({navigation}) {
         end={{x: 1, y: 1}}>
         <View style={styles.headerContent}>
           <View style={styles.logoContainer}>
-            {appConfig.logoUrl && !logoError ? (
+            {appConfig.logoLocal ? (
+              <Image
+                source={appConfig.logoLocal}
+                style={styles.logo}
+                resizeMode="contain"
+                onLoad={() => {
+                  logInfo('✅ Logo local carregado com sucesso');
+                }}
+              />
+            ) : appConfig.logoUrl && !logoError ? (
               <Image
                 source={{ uri: appConfig.logoUrl }}
                 style={styles.logo}
@@ -203,16 +212,6 @@ export default function HomeScreen({navigation}) {
                 }}
                 onLoad={() => {
                   logInfo('✅ Logo carregado com sucesso', {url: appConfig.logoUrl});
-                }}
-              />
-            ) : APP_CONFIG.logoLocal && !logoError ? (
-              <Image
-                source={APP_CONFIG.logoLocal}
-                style={styles.logo}
-                resizeMode="contain"
-                onError={(error) => {
-                  console.error('❌ Erro ao carregar logo local:', error);
-                  setLogoError(true);
                 }}
               />
             ) : (
