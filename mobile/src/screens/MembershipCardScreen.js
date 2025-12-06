@@ -6,23 +6,71 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import { API_BASE_PATH } from '../config/apiConfig';
+import { APP_CONFIG } from '../config/appConfig';
+import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 
 export default function MembershipCardScreen() {
   const {user, isAuthenticated, login} = useAuth();
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [iconConfig, setIconConfig] = useState({
+    iconImage: null,
+    icon: '🐾',
+  });
+  const [iconError, setIconError] = useState(false);
 
   useEffect(() => {
+    loadIconConfig();
     if (isAuthenticated) {
       loadMembership();
     } else {
       setLoading(false);
     }
   }, [isAuthenticated]);
+
+  // Carregar configuração do ícone da API
+  const loadIconConfig = async () => {
+    try {
+      logInfo('🔄 Carregando configuração do ícone para cartão', {url: `${API_BASE_PATH}/app/config`});
+      const response = await fetch(`${API_BASE_PATH}/app/config`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+      
+      logDebug('📡 Resposta do servidor (cartão)', {status: response.status, statusText: response.statusText});
+      
+      if (response.ok) {
+        const config = await response.json();
+        logInfo('✅ Configuração do ícone recebida', config);
+        
+        const loginIconImage = config['login.iconImage'];
+        const newIconConfig = {
+          iconImage: (loginIconImage && loginIconImage.trim() !== '') ? loginIconImage : null,
+          icon: config['login.icon'] || '🐾',
+        };
+        
+        logInfo('📝 Configuração do ícone aplicada', newIconConfig);
+        setIconConfig(newIconConfig);
+        if (newIconConfig.iconImage) {
+          setIconError(false);
+        }
+      } else {
+        const errorText = await response.text();
+        logError('❌ Erro ao carregar configuração do ícone', {status: response.status, error: errorText});
+      }
+    } catch (error) {
+      logError('❌ Erro ao carregar configuração do ícone do cartão', error);
+    }
+  };
 
   const loadMembership = async () => {
     try {
@@ -83,7 +131,22 @@ export default function MembershipCardScreen() {
           {/* Header do Cartão */}
           <View style={styles.cardHeader}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logo}>🐾</Text>
+              {iconConfig.iconImage && !iconError ? (
+                <Image
+                  source={{ uri: iconConfig.iconImage }}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                  onError={(error) => {
+                    logError('❌ Erro ao carregar ícone do cartão', {error, url: iconConfig.iconImage});
+                    setIconError(true);
+                  }}
+                  onLoad={() => {
+                    logInfo('✅ Ícone do cartão carregado com sucesso', {url: iconConfig.iconImage});
+                  }}
+                />
+              ) : (
+                <Text style={styles.logo}>{iconConfig.icon}</Text>
+              )}
             </View>
             <View style={styles.statusContainer}>
               <View style={[styles.statusDot, {backgroundColor: '#10B981'}]} />
@@ -298,6 +361,10 @@ const styles = StyleSheet.create({
   },
   logo: {
     fontSize: 24,
+  },
+  logoImage: {
+    width: 30,
+    height: 30,
   },
   statusContainer: {
     flexDirection: 'row',

@@ -140,6 +140,29 @@ export default function LoginScreen({navigation}) {
           showsVerticalScrollIndicator={false}>
           {/* Logo */}
           <View style={styles.logoContainer}>
+            {/* Ícone acima do logo (sempre mostra se configurado) */}
+            {(loginConfig.iconImage || loginConfig.icon) && (
+              <View style={styles.logoCircle}>
+                {loginConfig.iconImage && !iconError ? (
+                  <Image
+                    source={{ uri: loginConfig.iconImage }}
+                    style={styles.iconImage}
+                    resizeMode="contain"
+                    onError={(error) => {
+                      logError('❌ Erro ao carregar ícone da API', {error, url: loginConfig.iconImage});
+                      setIconError(true);
+                    }}
+                    onLoad={() => {
+                      logInfo('✅ Ícone de login carregado com sucesso', {url: loginConfig.iconImage});
+                    }}
+                  />
+                ) : (
+                  <Text style={styles.logoIcon}>{loginConfig.icon}</Text>
+                )}
+              </View>
+            )}
+            
+            {/* Logo ou texto do app */}
             {loginConfig.logoUrl && !logoError ? (
               <Image
                 source={{ uri: loginConfig.logoUrl }}
@@ -155,26 +178,13 @@ export default function LoginScreen({navigation}) {
               />
             ) : (
               <>
-                <View style={styles.logoCircle}>
-                  {loginConfig.iconImage && !iconError ? (
-                    <Image
-                      source={{ uri: loginConfig.iconImage }}
-                      style={styles.iconImage}
-                      resizeMode="contain"
-                      onError={(error) => {
-                        logError('❌ Erro ao carregar ícone da API', {error, url: loginConfig.iconImage});
-                        setIconError(true);
-                      }}
-                      onLoad={() => {
-                        logInfo('✅ Ícone de login carregado com sucesso', {url: loginConfig.iconImage});
-                      }}
-                    />
-                  ) : (
-                    <Text style={styles.logoIcon}>{loginConfig.icon}</Text>
-                  )}
-                </View>
-                <Text style={styles.logoText}>{loginConfig.appName}</Text>
-                <Text style={styles.logoSubtext}>{APP_CONFIG.appSubtitle}</Text>
+                {/* Se não tem logo, mostra texto do app (só se não tiver ícone) */}
+                {(!loginConfig.iconImage && !loginConfig.icon) && (
+                  <>
+                    <Text style={styles.logoText}>{loginConfig.appName}</Text>
+                    <Text style={styles.logoSubtext}>{APP_CONFIG.appSubtitle}</Text>
+                  </>
+                )}
               </>
             )}
           </View>
