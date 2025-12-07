@@ -1718,17 +1718,24 @@ export default async function handler(req: any, res: any) {
         }
         
         const updateData: any = {};
-        if (name && name.trim()) updateData.name = name.trim();
-        if (phone !== undefined) updateData.phone = phone ? phone.trim() : null;
+        if (name && name.trim()) {
+          updateData.name = name.trim();
+        }
+        if (phone !== undefined) {
+          updateData.phone = phone ? phone.trim() : null;
+        }
         // Só adicionar cpf se coluna existir (será tratado no try/catch do update)
-        if (cpf !== undefined) {
-          try {
-            updateData.cpf = cpf ? cpf.replace(/\D/g, '') : null;
-          } catch {
-            // Ignorar se não puder adicionar
+        if (cpf !== undefined && cpf !== null) {
+          const cpfClean = cpf ? cpf.replace(/\D/g, '') : null;
+          if (cpfClean && cpfClean.length === 11) {
+            updateData.cpf = cpfClean;
+          } else if (cpf === '') {
+            updateData.cpf = null;
           }
         }
-        if (avatar !== undefined) updateData.avatar = avatar ? avatar.trim() : null;
+        if (avatar !== undefined) {
+          updateData.avatar = avatar ? avatar.trim() : null;
+        }
         
         console.log('🔄 PUT /api/user/profile: Atualizando perfil', { userId, updateData });
         
@@ -1980,3 +1987,4 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: error?.message || 'Internal error' });
   }
 }
+

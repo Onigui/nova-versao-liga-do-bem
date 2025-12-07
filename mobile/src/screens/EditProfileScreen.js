@@ -82,14 +82,17 @@ export default function EditProfileScreen({navigation}) {
       const responseData = await response.json();
 
       if (response.ok) {
-        // Atualizar usuário no contexto usando updateUser ou setUser
+        // Atualizar usuário no contexto
         const userData = responseData.user;
         if (updateUser) {
           updateUser(userData);
         } else if (setUser) {
           setUser(userData);
           await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+        } else {
+          console.error('❌ Nem updateUser nem setUser estão disponíveis');
         }
+        
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {text: 'OK', onPress: () => navigation.goBack()},
         ]);
