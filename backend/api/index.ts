@@ -400,7 +400,18 @@ export default async function handler(req: any, res: any) {
       if (db) {
         const members = await db.user.findMany({
           orderBy: { createdAt: 'desc' },
-          take: 100
+          take: 100,
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            avatar: true,
+            role: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+          }
         });
         return res.status(200).json({ members, total: members.length });
       }
@@ -488,9 +499,21 @@ export default async function handler(req: any, res: any) {
 
         console.log('🔐 Login attempt:', email);
 
-        // Find user
+        // Find user (sem cpf até migration ser executada)
         const user = await db.user.findUnique({
-          where: { email }
+          where: { email },
+          select: {
+            id: true,
+            email: true,
+            password: true,
+            name: true,
+            phone: true,
+            avatar: true,
+            role: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+          }
         });
 
         if (!user) {
@@ -580,9 +603,13 @@ export default async function handler(req: any, res: any) {
 
         console.log('📝 Register attempt:', email);
 
-        // Check if user already exists
+        // Check if user already exists (sem cpf até migration ser executada)
         const existingUser = await db.user.findUnique({
-          where: { email }
+          where: { email },
+          select: {
+            id: true,
+            email: true,
+          }
         });
 
         if (existingUser) {
@@ -1345,7 +1372,16 @@ export default async function handler(req: any, res: any) {
         // Se userId não foi fornecido, criar ou buscar usuário pelo email
         let finalUserId = userId;
         if (!userId && email) {
-          let user = await db.user.findUnique({ where: { email } });
+          let user = await db.user.findUnique({ 
+            where: { email },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              role: true,
+            }
+          });
           if (!user) {
             // Criar usuário temporário (sem senha, apenas para registro de interesse)
             user = await db.user.create({
@@ -1656,40 +1692,82 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
           }
           
-          // Verificar se CPF já está em uso por outro usuário
-          const existingUser = await db.user.findFirst({
-            where: {
-              cpf: cpfClean,
-              id: { not: userId }
+          // Verificar se CPF já está em uso por outro usuário (só se coluna existir)
+          try {
+            const existingUser = await db.user.findFirst({
+              where: {
+                cpf: cpfClean,
+                id: { not: userId }
+              }
+            });
+            
+            if (existingUser) {
+              return res.status(400).json({ error: 'CPF já cadastrado para outro usuário' });
             }
-          });
-          
-          if (existingUser) {
-            return res.status(400).json({ error: 'CPF já cadastrado para outro usuário' });
+          } catch (error: any) {
+            // Se coluna cpf não existir, ignorar verificação
+            if (error.message?.includes('cpf') || error.code === 'P2021') {
+              console.warn('⚠️ Coluna cpf não existe ainda, pulando verificação de duplicidade');
+            } else {
+              throw error;
+            }
           }
         }
         
         const updateData: any = {};
         if (name && name.trim()) updateData.name = name.trim();
         if (phone !== undefined) updateData.phone = phone ? phone.trim() : null;
-        if (cpf !== undefined) updateData.cpf = cpf ? cpf.replace(/\D/g, '') : null;
+        // Só adicionar cpf se coluna existir (será tratado no try/catch do update)
+        if (cpf !== undefined) {
+          try {
+            updateData.cpf = cpf ? cpf.replace(/\D/g, '') : null;
+          } catch {
+            // Ignorar se não puder adicionar
+          }
+        }
         if (avatar !== undefined) updateData.avatar = avatar ? avatar.trim() : null;
         
         console.log('🔄 PUT /api/user/profile: Atualizando perfil', { userId, updateData });
         
-        const updatedUser = await db.user.update({
-          where: { id: userId },
-          data: updateData,
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            phone: true,
-            cpf: true,
-            avatar: true,
-            role: true,
+        // Tentar atualizar com cpf, mas tratar erro se coluna não existir
+        let updatedUser;
+        try {
+          updatedUser = await db.user.update({
+            where: { id: userId },
+            data: updateData,
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              cpf: true,
+              avatar: true,
+              role: true,
+            }
+          });
+        } catch (error: any) {
+          // Se erro for relacionado a coluna cpf não existir, atualizar sem cpf
+          if (error.message?.includes('cpf') || error.code === 'P2021' || error.code === 'P2002') {
+            console.warn('⚠️ Coluna cpf não existe ainda, atualizando sem cpf');
+            // Remover cpf do updateData
+            const { cpf: _, ...updateDataWithoutCpf } = updateData;
+            updatedUser = await db.user.update({
+              where: { id: userId },
+              data: updateDataWithoutCpf,
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                phone: true,
+                avatar: true,
+                role: true,
+              }
+            });
+            (updatedUser as any).cpf = null; // Adicionar cpf como null na resposta
+          } else {
+            throw error;
           }
-        });
+        }
         
         console.log('✅ PUT /api/user/profile: Perfil atualizado com sucesso', updatedUser.id);
         
