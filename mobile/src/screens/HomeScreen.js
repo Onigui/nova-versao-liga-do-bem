@@ -31,23 +31,22 @@ export default function HomeScreen({navigation}) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logoError, setLogoError] = useState(false);
+  
+  // Tentar carregar asset local do logo ANTES de definir o estado
+  let logoLocalAsset = null;
+  try {
+    logoLocalAsset = require('../assets/images/app-logo.png');
+    logInfo('✅ Logo local encontrado');
+  } catch (error) {
+    logDebug('ℹ️ Logo local não encontrado, usando API');
+  }
+  
   const [appConfig, setAppConfig] = useState({
     logoUrl: null,
-    logoLocal: null,
+    logoLocal: logoLocalAsset, // Definir logo local no estado inicial
     appName: APP_CONFIG.appName,
     appSubtitle: APP_CONFIG.appSubtitle,
   });
-  
-  // Tentar carregar asset local do logo
-  useEffect(() => {
-    try {
-      const localLogo = require('../assets/images/app-logo.png');
-      setAppConfig(prev => ({ ...prev, logoLocal: localLogo }));
-      logInfo('✅ Logo local encontrado e carregado');
-    } catch (error) {
-      logDebug('ℹ️ Logo local não encontrado, usando API');
-    }
-  }, []);
 
   // Função para traduzir o role do usuário
   const translateRole = (role) => {
@@ -81,11 +80,13 @@ export default function HomeScreen({navigation}) {
         const logoUrlValue = config['app.logoUrl'];
         const newConfig = {
           logoUrl: (logoUrlValue && logoUrlValue.trim() !== '') ? logoUrlValue : null,
+          logoLocal: appConfig.logoLocal, // Preservar logo local
           appName: config['app.name'] || APP_CONFIG.appName,
           appSubtitle: config['app.subtitle'] || APP_CONFIG.appSubtitle,
         };
         
         logInfo('📝 Configurações aplicadas', newConfig);
+        logDebug('🖼️ Logo Local', {hasLogoLocal: !!newConfig.logoLocal});
         logDebug('🖼️ Logo URL', {hasLogo: !!newConfig.logoUrl, logoUrl: newConfig.logoUrl});
         setAppConfig(newConfig);
         // Resetar erro de logo quando novas configurações são carregadas
