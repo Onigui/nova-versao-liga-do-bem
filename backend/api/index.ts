@@ -1568,6 +1568,283 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // --- User Profile Endpoints ---
+    
+    // GET user profile
+    if (path === '/api/user/profile' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            avatar: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+          }
+        });
+        
+        if (!user) {
+          return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+        
+        return res.status(200).json(user);
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar perfil:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+
+    // PUT user profile
+    if (path === '/api/user/profile' && method === 'PUT') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        const { name, phone, avatar } = body;
+        
+        const updatedUser = await db.user.update({
+          where: { id: userId },
+          data: {
+            ...(name && { name }),
+            ...(phone !== undefined && { phone }),
+            ...(avatar !== undefined && { avatar }),
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            avatar: true,
+            role: true,
+          }
+        });
+        
+        return res.status(200).json({
+          message: 'Perfil atualizado com sucesso',
+          user: updatedUser
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao atualizar perfil:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+
+    // GET user donations
+    if (path === '/api/user/donations' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        const donations = await db.donation.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            status: true,
+            description: true,
+            createdAt: true,
+          }
+        });
+        
+        return res.status(200).json({ donations, total: donations.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar doações:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+
+    // GET user adoptions
+    if (path === '/api/user/adoptions' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        const adoptions = await db.adoption.findMany({
+          where: { userId },
+          include: {
+            animal: {
+              select: {
+                id: true,
+                name: true,
+                species: true,
+                breed: true,
+                image: true,
+              }
+            }
+          },
+          orderBy: { applicationDate: 'desc' }
+        });
+        
+        return res.status(200).json({ adoptions, total: adoptions.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar adoções:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+
+    // GET user events
+    if (path === '/api/user/events' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        const registrations = await db.eventRegistration.findMany({
+          where: { userId },
+          include: {
+            event: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                type: true,
+                startDate: true,
+                endDate: true,
+                location: true,
+                address: true,
+                image: true,
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        
+        return res.status(200).json({ events: registrations, total: registrations.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar eventos:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+
+    // GET user stats
+    if (path === '/api/user/stats' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        const [donationsCount, donationsTotal, adoptionsCount, volunteerWorks] = await Promise.all([
+          db.donation.count({ where: { userId, status: 'APPROVED' } }),
+          db.donation.aggregate({
+            where: { userId, status: 'APPROVED' },
+            _sum: { amount: true }
+          }),
+          db.adoption.count({ where: { userId, status: 'COMPLETED' } }),
+          db.volunteerWork.findMany({
+            where: { userId, isActive: true },
+            select: { startDate: true, endDate: true }
+          }).catch(() => [])
+        ]);
+        
+        const totalDonations = donationsTotal._sum.amount ? parseFloat(donationsTotal._sum.amount.toString()) : 0;
+        
+        // Calcular horas de voluntariado (simulado - baseado em trabalhos ativos)
+        // Se não houver campo hours, usar contagem de trabalhos ativos
+        const volunteerHours = volunteerWorks.length; // Simplificado por enquanto
+        
+        return res.status(200).json({
+          donations: donationsCount,
+          donationsTotal: totalDonations,
+          adoptions: adoptionsCount,
+          volunteerHours: volunteerHours,
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar estatísticas:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+
     // 404 - Must be last, after all endpoints
     return res.status(404).json({ error: 'Not found', path });
 
