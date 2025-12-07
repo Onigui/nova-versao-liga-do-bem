@@ -41,14 +41,8 @@ export default function EditProfileScreen({navigation}) {
       return;
     }
 
-    // Validar CPF se fornecido
-    if (formData.cpf && formData.cpf.trim() !== '') {
-      const cpfNumbers = formData.cpf.replace(/\D/g, '');
-      if (cpfNumbers.length !== 11) {
-        Alert.alert('Erro', 'CPF inválido. Deve conter 11 dígitos');
-        return;
-      }
-    }
+    // CPF não pode ser alterado - remover do body se estiver presente
+    // (já está desabilitado no formulário, mas garantir aqui também)
 
     setLoading(true);
     try {
@@ -74,7 +68,7 @@ export default function EditProfileScreen({navigation}) {
         body: JSON.stringify({
           name: formData.name.trim(),
           phone: formData.phone.trim() || null,
-          cpf: formData.cpf ? formData.cpf.replace(/\D/g, '') : null,
+          // CPF não é enviado - não pode ser alterado após cadastro
           avatar: formData.avatar || null,
         }),
       });
@@ -178,18 +172,17 @@ export default function EditProfileScreen({navigation}) {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>CPF</Text>
             <TextInput
-              style={styles.input}
-              value={formData.cpf}
-              onChangeText={(text) => {
-                const formatted = formatCPF(text);
-                setFormData({...formData, cpf: formatted});
-              }}
+              style={[styles.input, styles.inputDisabled]}
+              value={formData.cpf ? formatCPF(formData.cpf) : ''}
+              editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-              maxLength={14}
             />
-            <Text style={styles.helperText}>CPF é opcional, mas recomendado para identificação única</Text>
+            <Text style={styles.helperText}>
+              {formData.cpf 
+                ? 'CPF não pode ser alterado após o cadastro para prevenir fraudes'
+                : 'CPF não cadastrado. Entre em contato com o suporte para adicionar seu CPF.'}
+            </Text>
           </View>
         </View>
 

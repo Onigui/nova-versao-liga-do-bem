@@ -21,6 +21,7 @@ export default function RegisterScreen({navigation}) {
     name: '',
     email: '',
     phone: '',
+    cpf: '',
     password: '',
     confirmPassword: '',
   });
@@ -29,15 +30,31 @@ export default function RegisterScreen({navigation}) {
   const [loading, setLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
+  const formatCPF = (value) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return value;
+  };
+
   const handleRegister = async () => {
     // Validações
     if (
       !formData.name ||
       !formData.email ||
       !formData.phone ||
+      !formData.cpf ||
       !formData.password
     ) {
       Alert.alert('Atenção', 'Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    // Validar CPF (11 dígitos)
+    const cpfNumbers = formData.cpf.replace(/\D/g, '');
+    if (cpfNumbers.length !== 11) {
+      Alert.alert('Atenção', 'CPF inválido. Deve conter 11 dígitos');
       return;
     }
 
@@ -68,6 +85,7 @@ export default function RegisterScreen({navigation}) {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
+        cpf: cpfNumbers, // Enviar apenas números
         password: formData.password,
       });
 
@@ -173,6 +191,28 @@ export default function RegisterScreen({navigation}) {
                 value={formData.phone}
                 onChangeText={text => updateFormData('phone', text)}
                 keyboardType="phone-pad"
+              />
+            </View>
+
+            {/* CPF Input */}
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="card-outline"
+                size={20}
+                color="#6B7280"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="CPF *"
+                placeholderTextColor="#9CA3AF"
+                value={formData.cpf}
+                onChangeText={text => {
+                  const formatted = formatCPF(text);
+                  updateFormData('cpf', formatted);
+                }}
+                keyboardType="numeric"
+                maxLength={14}
               />
             </View>
 
