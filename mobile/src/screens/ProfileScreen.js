@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -8,18 +8,66 @@ import {
   Image,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import { API_BASE_PATH } from '../config/apiConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen({navigation}) {
   const {user, logout} = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [stats, setStats] = useState({
+    donations: 0,
+    adoptions: 0,
+    volunteerHours: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
   
   // Verificar se o usuário é administrador
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
+
+  useEffect(() => {
+    if (user) {
+      loadUserStats();
+    } else {
+      setLoadingStats(false);
+    }
+  }, [user]);
+
+  const loadUserStats = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        setLoadingStats(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_PATH}/user/stats`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setStats({
+          donations: data.donations || 0,
+          adoptions: data.adoptions || 0,
+          volunteerHours: data.volunteerHours || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair da sua conta?', [
@@ -33,8 +81,7 @@ export default function ProfileScreen({navigation}) {
       icon: 'person-outline',
       title: 'Editar Perfil',
       subtitle: 'Altere seus dados pessoais',
-      onPress: () =>
-        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () => navigation.navigate('EditProfile'),
     },
     {
       icon: 'card-outline',
@@ -123,17 +170,29 @@ export default function ProfileScreen({navigation}) {
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Ionicons name="heart" size={24} color="#EC4899" />
-            <Text style={styles.statValue}>12</Text>
+            {loadingStats ? (
+              <ActivityIndicator size="small" color="#EC4899" style={{marginTop: 8}} />
+            ) : (
+              <Text style={styles.statValue}>{stats.donations}</Text>
+            )}
             <Text style={styles.statLabel}>Doações</Text>
           </View>
           <View style={styles.statCard}>
             <Ionicons name="paw" size={24} color="#8B5CF6" />
-            <Text style={styles.statValue}>3</Text>
+            {loadingStats ? (
+              <ActivityIndicator size="small" color="#8B5CF6" style={{marginTop: 8}} />
+            ) : (
+              <Text style={styles.statValue}>{stats.adoptions}</Text>
+            )}
             <Text style={styles.statLabel}>Adoções</Text>
           </View>
           <View style={styles.statCard}>
             <Ionicons name="time" size={24} color="#10B981" />
-            <Text style={styles.statValue}>24h</Text>
+            {loadingStats ? (
+              <ActivityIndicator size="small" color="#10B981" style={{marginTop: 8}} />
+            ) : (
+              <Text style={styles.statValue}>{stats.volunteerHours}h</Text>
+            )}
             <Text style={styles.statLabel}>Voluntário</Text>
           </View>
         </View>

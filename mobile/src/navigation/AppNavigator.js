@@ -27,6 +27,7 @@ import AnimalDetailScreen from '../screens/AnimalDetailScreen';
 import PartnerDetailScreen from '../screens/PartnerDetailScreen';
 import EventDetailScreen from '../screens/EventDetailScreen';
 import DebugScreen from '../screens/DebugScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -254,6 +255,13 @@ export function AppStack() {
             backgroundColor: '#8B5CF6',
           },
           headerTintColor: '#FFFFFF',
+        }}
+      />
+      <Stack.Screen 
+        name="EditProfile" 
+        component={EditProfileScreen}
+        options={{
+          headerShown: false,
         }}
       />
     </Stack.Navigator>
