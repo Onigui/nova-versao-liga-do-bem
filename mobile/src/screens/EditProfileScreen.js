@@ -17,7 +17,7 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function EditProfileScreen({navigation}) {
-  const {user, setUser} = useAuth();
+  const {user, setUser, updateUser} = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -82,9 +82,14 @@ export default function EditProfileScreen({navigation}) {
       const responseData = await response.json();
 
       if (response.ok) {
-        // Atualizar usuário no contexto
-        setUser(responseData.user);
-        await AsyncStorage.setItem('user_data', JSON.stringify(responseData.user));
+        // Atualizar usuário no contexto usando updateUser ou setUser
+        const userData = responseData.user;
+        if (updateUser) {
+          updateUser(userData);
+        } else if (setUser) {
+          setUser(userData);
+          await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+        }
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {text: 'OK', onPress: () => navigation.goBack()},
         ]);

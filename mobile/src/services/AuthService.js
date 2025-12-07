@@ -174,6 +174,16 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const updateUser = (userData) => {
+    setUser(userData);
+    // Salvar também no AsyncStorage para persistência
+    if (userData) {
+      AsyncStorage.setItem('user_data', JSON.stringify(userData)).catch(err => {
+        console.error('Erro ao salvar dados do usuário:', err);
+      });
+    }
+  };
+
   const value = {
     user,
     token,
@@ -185,6 +195,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     continueAsGuest,
     makeAuthenticatedRequest,
+    updateUser,
+    setUser, // Expor setUser também para compatibilidade
     isAuthenticated: (!!user && !!token) || isGuest,
   };
 
