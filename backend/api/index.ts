@@ -1626,6 +1626,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token inválido' });
         }
         
+        // Buscar usuário (sem cpf por enquanto até migration ser executada)
         const user = await db.user.findUnique({
           where: { id: userId },
           select: {
@@ -1633,7 +1634,6 @@ export default async function handler(req: any, res: any) {
             email: true,
             name: true,
             phone: true,
-            cpf: true,
             avatar: true,
             role: true,
             createdAt: true,
@@ -1644,6 +1644,9 @@ export default async function handler(req: any, res: any) {
         if (!user) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
+        
+        // Adicionar cpf como null (será preenchido após migration)
+        (user as any).cpf = null;
         
         return res.status(200).json(user);
       } catch (error: any) {
