@@ -110,33 +110,49 @@ export default function HomeScreen({navigation}) {
 
   const loadStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/dashboard`);
+      logInfo('🔄 Carregando estatísticas', {url: `${API_BASE_PATH}/stats`});
+      const response = await fetch(`${API_BASE_PATH}/stats`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      logDebug('📡 Resposta do servidor (stats)', {status: response.status, statusText: response.statusText});
+      
       if (response.ok) {
         const data = await response.json();
+        logInfo('✅ Estatísticas recebidas', data);
+        
         // Garantir que todos os valores sejam números válidos
-        setStats({
-          totalAnimals: data.stats?.totalAnimals || 0,
-          totalAdoptions: data.stats?.totalAdoptions || 0,
-          totalDonations: data.stats?.totalDonations || 0,
-          totalPartners: data.stats?.totalPartners || data.stats?.activePartners || 0,
-        });
+        const newStats = {
+          totalAnimals: Number(data.stats?.totalAnimals) || 0,
+          totalAdoptions: Number(data.stats?.totalAdoptions) || 0,
+          totalDonations: Number(data.stats?.totalDonations) || 0,
+          totalPartners: Number(data.stats?.totalPartners) || 0,
+        };
+        
+        logInfo('📝 Estatísticas aplicadas', newStats);
+        setStats(newStats);
       } else {
-        // Se a resposta não for OK, usar dados mockados
+        const errorText = await response.text();
+        logError('❌ Erro ao carregar estatísticas', {status: response.status, error: errorText});
+        // Se a resposta não for OK, manter valores em 0
         setStats({
-          totalAnimals: 45,
-          totalAdoptions: 23,
-          totalDonations: 1250,
-          totalPartners: 12,
+          totalAnimals: 0,
+          totalAdoptions: 0,
+          totalDonations: 0,
+          totalPartners: 0,
         });
       }
     } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error);
-      // Usar dados mockados em caso de erro
+      logError('❌ Erro ao carregar estatísticas', error);
+      // Em caso de erro, manter valores em 0
       setStats({
-        totalAnimals: 45,
-        totalAdoptions: 23,
-        totalDonations: 1250,
-        totalPartners: 12,
+        totalAnimals: 0,
+        totalAdoptions: 0,
+        totalDonations: 0,
+        totalPartners: 0,
       });
     } finally {
       setLoading(false);

@@ -94,6 +94,55 @@ export default async function handler(req: any, res: any) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
+    // Public stats endpoint (for mobile app)
+    if (path === '/api/stats' && method === 'GET') {
+      console.log('📊 Public stats request');
+      const db = getPrisma();
+      if (db) {
+        try {
+          const [totalAdoptions, totalAnimals, totalDonations, activePartners] = await Promise.all([
+            db.adoption.count({ where: { status: 'COMPLETED' } }).catch((e) => { console.error('Error counting adoptions:', e); return 0; }),
+            db.animal.count({ where: { isActive: true, isAdopted: false } }).catch((e) => { console.error('Error counting animals:', e); return 0; }),
+            db.donation.aggregate({ 
+              where: { status: 'APPROVED' },
+              _sum: { amount: true } 
+            }).catch((e) => { console.error('Error summing donations:', e); return { _sum: { amount: 0 } }; }),
+            db.partner.count({ where: { isActive: true } }).catch((e) => { console.error('Error counting partners:', e); return 0; })
+          ]);
+          const donationTotal = totalDonations?._sum?.amount ? parseFloat(totalDonations._sum.amount.toString()) : 0;
+          const response = {
+            stats: {
+              totalAdoptions: totalAdoptions || 0,
+              totalAnimals: totalAnimals || 0,
+              totalDonations: donationTotal || 0,
+              totalPartners: activePartners || 0,
+            }
+          };
+          console.log('✅ Public stats response:', response);
+          return res.status(200).json(response);
+        } catch (error: any) {
+          console.error('❌ Public stats error:', error);
+          return res.status(200).json({
+            stats: {
+              totalAdoptions: 0,
+              totalAnimals: 0,
+              totalDonations: 0,
+              totalPartners: 0,
+            }
+          });
+        }
+      }
+      console.log('⚠️ Public stats: No database');
+      return res.status(200).json({
+        stats: {
+          totalAdoptions: 0,
+          totalAnimals: 0,
+          totalDonations: 0,
+          totalPartners: 0,
+        }
+      });
+    }
+
     // Admin dashboard
     if (path === '/api/admin/dashboard' && method === 'GET') {
       console.log('📊 Dashboard request');
