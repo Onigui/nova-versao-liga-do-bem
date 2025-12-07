@@ -1597,6 +1597,7 @@ export default async function handler(req: any, res: any) {
             email: true,
             name: true,
             phone: true,
+            cpf: true,
             avatar: true,
             role: true,
             createdAt: true,
@@ -1622,8 +1623,14 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
-        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        // Verificar token em múltiplos lugares (header Authorization ou x-auth-token)
+        const token = req.headers?.authorization?.replace('Bearer ', '') || 
+                     req.headers?.['x-auth-token'] || 
+                     req.headers?.['authorization']?.replace('Bearer ', '') ||
+                     null;
+        
         if (!token) {
+          console.error('❌ PUT /api/user/profile: Token não fornecido');
           return res.status(401).json({ error: 'Token de autenticação necessário' });
         }
         
@@ -1631,28 +1638,60 @@ export default async function handler(req: any, res: any) {
         try {
           const decoded: any = jwt.verify(token, JWT_SECRET);
           userId = decoded.userId || decoded.id;
-        } catch (e) {
-          return res.status(401).json({ error: 'Token inválido' });
+          if (!userId) {
+            console.error('❌ PUT /api/user/profile: userId não encontrado no token', decoded);
+            return res.status(401).json({ error: 'Token inválido - userId não encontrado' });
+          }
+        } catch (e: any) {
+          console.error('❌ PUT /api/user/profile: Erro ao verificar token', e.message);
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
         }
         
-        const { name, phone, avatar } = body;
+        const { name, phone, cpf, avatar } = body;
+        
+        // Validar CPF se fornecido (formato básico)
+        if (cpf && cpf.trim() !== '') {
+          const cpfClean = cpf.replace(/\D/g, '');
+          if (cpfClean.length !== 11) {
+            return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
+          }
+          
+          // Verificar se CPF já está em uso por outro usuário
+          const existingUser = await db.user.findFirst({
+            where: {
+              cpf: cpfClean,
+              id: { not: userId }
+            }
+          });
+          
+          if (existingUser) {
+            return res.status(400).json({ error: 'CPF já cadastrado para outro usuário' });
+          }
+        }
+        
+        const updateData: any = {};
+        if (name && name.trim()) updateData.name = name.trim();
+        if (phone !== undefined) updateData.phone = phone ? phone.trim() : null;
+        if (cpf !== undefined) updateData.cpf = cpf ? cpf.replace(/\D/g, '') : null;
+        if (avatar !== undefined) updateData.avatar = avatar ? avatar.trim() : null;
+        
+        console.log('🔄 PUT /api/user/profile: Atualizando perfil', { userId, updateData });
         
         const updatedUser = await db.user.update({
           where: { id: userId },
-          data: {
-            ...(name && { name }),
-            ...(phone !== undefined && { phone }),
-            ...(avatar !== undefined && { avatar }),
-          },
+          data: updateData,
           select: {
             id: true,
             email: true,
             name: true,
             phone: true,
+            cpf: true,
             avatar: true,
             role: true,
           }
         });
+        
+        console.log('✅ PUT /api/user/profile: Perfil atualizado com sucesso', updatedUser.id);
         
         return res.status(200).json({
           message: 'Perfil atualizado com sucesso',
@@ -1660,7 +1699,14 @@ export default async function handler(req: any, res: any) {
         });
       } catch (error: any) {
         console.error('❌ Erro ao atualizar perfil:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor' });
+        // Se for erro do Prisma, retornar mensagem mais específica
+        if (error.code === 'P2002') {
+          return res.status(400).json({ error: 'CPF já cadastrado para outro usuário' });
+        }
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+        return res.status(500).json({ error: error?.message || 'Erro interno do servidor' });
       }
     }
 

@@ -18,6 +18,7 @@ model User {
   password  String
   name      String
   phone     String?
+  cpf       String?  @unique
   avatar    String?
   role      UserRole @default(MEMBER)
   isActive  Boolean  @default(true)

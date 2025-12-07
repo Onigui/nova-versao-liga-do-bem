@@ -156,6 +156,9 @@ export default function ProfileScreen({navigation}) {
           <Text style={styles.userEmail}>
             {user?.email || 'Entre para acessar todos os recursos'}
           </Text>
+          {user?.cpf && (
+            <Text style={styles.userCpf}>CPF: {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</Text>
+          )}
           {user?.role === 'MEMBER' && (
             <View style={styles.memberBadge}>
               <Ionicons name="star" size={12} color="#FFFFFF" />
@@ -341,6 +344,11 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 4,
+  },
+  userCpf: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 12,
   },
   memberBadge: {

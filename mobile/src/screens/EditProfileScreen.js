@@ -23,13 +23,31 @@ export default function EditProfileScreen({navigation}) {
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
+    cpf: user?.cpf || '',
     avatar: user?.avatar || null,
   });
+
+  const formatCPF = (value) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return value;
+  };
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
       Alert.alert('Erro', 'O nome é obrigatório');
       return;
+    }
+
+    // Validar CPF se fornecido
+    if (formData.cpf && formData.cpf.trim() !== '') {
+      const cpfNumbers = formData.cpf.replace(/\D/g, '');
+      if (cpfNumbers.length !== 11) {
+        Alert.alert('Erro', 'CPF inválido. Deve conter 11 dígitos');
+        return;
+      }
     }
 
     setLoading(true);
@@ -41,6 +59,12 @@ export default function EditProfileScreen({navigation}) {
         return;
       }
 
+      console.log('🔄 Enviando atualização de perfil...', {
+        name: formData.name.trim(),
+        phone: formData.phone.trim() || null,
+        cpf: formData.cpf ? formData.cpf.replace(/\D/g, '') : null,
+      });
+
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
         method: 'PUT',
         headers: {
@@ -50,25 +74,27 @@ export default function EditProfileScreen({navigation}) {
         body: JSON.stringify({
           name: formData.name.trim(),
           phone: formData.phone.trim() || null,
+          cpf: formData.cpf ? formData.cpf.replace(/\D/g, '') : null,
           avatar: formData.avatar || null,
         }),
       });
 
+      const responseData = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
         // Atualizar usuário no contexto
-        setUser(data.user);
-        await AsyncStorage.setItem('user_data', JSON.stringify(data.user));
+        setUser(responseData.user);
+        await AsyncStorage.setItem('user_data', JSON.stringify(responseData.user));
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {text: 'OK', onPress: () => navigation.goBack()},
         ]);
       } else {
-        const error = await response.json();
-        Alert.alert('Erro', error.error || 'Erro ao atualizar perfil');
+        console.error('❌ Erro ao atualizar perfil:', response.status, responseData);
+        Alert.alert('Erro', responseData.error || 'Erro ao atualizar perfil');
       }
     } catch (error) {
-      console.error('Erro ao atualizar perfil:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar o perfil. Tente novamente.');
+      console.error('❌ Erro ao atualizar perfil:', error);
+      Alert.alert('Erro', `Não foi possível atualizar o perfil: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -139,6 +165,23 @@ export default function EditProfileScreen({navigation}) {
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
             />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>CPF</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.cpf}
+              onChangeText={(text) => {
+                const formatted = formatCPF(text);
+                setFormData({...formData, cpf: formatted});
+              }}
+              placeholder="000.000.000-00"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+              maxLength={14}
+            />
+            <Text style={styles.helperText}>CPF é opcional, mas recomendado para identificação única</Text>
           </View>
         </View>
 
