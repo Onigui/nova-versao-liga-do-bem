@@ -107,6 +107,8 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
+      console.log('🔄 Tentando registrar usuário:', { email: userData.email, hasCpf: !!userData.cpf });
+      
       const response = await fetch(`${API_BASE_PATH}/auth/register`, {
         method: 'POST',
         headers: {
@@ -116,15 +118,18 @@ export const AuthProvider = ({ children }) => {
       });
 
       const data = await response.json();
+      console.log('📡 Resposta do registro:', { status: response.status, data });
 
       if (response.ok) {
-        return { success: true, message: 'Conta criada com sucesso!' };
+        console.log('✅ Registro bem-sucedido');
+        return { success: true, message: data.message || 'Conta criada com sucesso!' };
       } else {
-        return { success: false, error: data.message || 'Erro ao criar conta' };
+        console.error('❌ Erro no registro:', data.error || data.message);
+        return { success: false, error: data.error || data.message || 'Erro ao criar conta' };
       }
     } catch (error) {
-      console.error('Erro no registro:', error);
-      return { success: false, error: 'Erro de conexão' };
+      console.error('❌ Erro de conexão no registro:', error);
+      return { success: false, error: `Erro de conexão: ${error.message || 'Verifique sua internet'}` };
     }
   };
 

@@ -81,7 +81,7 @@ export default function RegisterScreen({navigation}) {
 
     setLoading(true);
     try {
-      const success = await register({
+      const result = await register({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
@@ -89,20 +89,21 @@ export default function RegisterScreen({navigation}) {
         password: formData.password,
       });
 
-      if (success) {
+      console.log('📝 Resultado do registro:', result);
+
+      if (result && result.success) {
         Alert.alert(
           'Sucesso!',
           'Conta criada com sucesso! Faça login para continuar.',
           [{text: 'OK', onPress: () => navigation.navigate('Login')}],
         );
       } else {
-        Alert.alert(
-          'Erro',
-          'Não foi possível criar sua conta. Tente novamente.',
-        );
+        const errorMessage = result?.error || 'Não foi possível criar sua conta. Tente novamente.';
+        Alert.alert('Erro', errorMessage);
       }
     } catch (error) {
-      Alert.alert('Erro', 'Este e-mail já está em uso ou ocorreu um erro.');
+      console.error('❌ Erro no registro:', error);
+      Alert.alert('Erro', error.message || 'Este e-mail já está em uso ou ocorreu um erro.');
     } finally {
       setLoading(false);
     }

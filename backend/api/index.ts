@@ -662,26 +662,50 @@ export default async function handler(req: any, res: any) {
           role: 'MEMBER'
         };
 
-        // Adicionar CPF se coluna existir
-        try {
-          userData.cpf = cpfClean;
-        } catch {
-          // Se não puder adicionar CPF, continuar sem ele (mas logar aviso)
-          console.warn('⚠️ Não foi possível adicionar CPF ao criar usuário');
-        }
+        // Adicionar CPF ao userData
+        userData.cpf = cpfClean;
 
-        const user = await db.user.create({
-          data: userData,
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            phone: true,
-            cpf: true,
-            role: true,
-            createdAt: true
+        console.log('🔄 Criando usuário com dados:', { email, name, hasCpf: !!cpfClean });
+
+        // Tentar criar usuário com CPF
+        let user;
+        try {
+          user = await db.user.create({
+            data: userData,
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              cpf: true,
+              role: true,
+              createdAt: true
+            }
+          });
+          console.log('✅ Usuário criado com sucesso:', user.id);
+        } catch (error: any) {
+          // Se erro for relacionado a coluna cpf não existir, criar sem cpf
+          if (error.message?.includes('cpf') || error.code === 'P2021') {
+            console.warn('⚠️ Coluna cpf não existe ainda, criando usuário sem cpf');
+            const { cpf: _, ...userDataWithoutCpf } = userData;
+            user = await db.user.create({
+              data: userDataWithoutCpf,
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                phone: true,
+                role: true,
+                createdAt: true
+              }
+            });
+            (user as any).cpf = null;
+            console.log('✅ Usuário criado sem CPF (coluna não existe):', user.id);
+          } else {
+            console.error('❌ Erro ao criar usuário:', error);
+            throw error;
           }
-        });
+        }
 
         // Generate JWT
         const token = generateToken({
