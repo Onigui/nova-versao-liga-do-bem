@@ -499,22 +499,51 @@ export default async function handler(req: any, res: any) {
 
         console.log('🔐 Login attempt:', email);
 
-        // Find user (sem cpf até migration ser executada)
-        const user = await db.user.findUnique({
-          where: { email },
-          select: {
-            id: true,
-            email: true,
-            password: true,
-            name: true,
-            phone: true,
-            avatar: true,
-            role: true,
-            isActive: true,
-            createdAt: true,
-            updatedAt: true,
+        // Find user (tentar buscar cpf se coluna existir)
+        let user: any;
+        try {
+          user = await db.user.findUnique({
+            where: { email },
+            select: {
+              id: true,
+              email: true,
+              password: true,
+              name: true,
+              phone: true,
+              avatar: true,
+              role: true,
+              isActive: true,
+              createdAt: true,
+              updatedAt: true,
+              cpf: true, // Tentar buscar CPF
+            }
+          });
+        } catch (error: any) {
+          // Se coluna cpf não existir, buscar sem ela
+          if (error.message?.includes('cpf') || error.code === 'P2021') {
+            console.warn('⚠️ Coluna cpf não existe ainda, buscando usuário sem cpf');
+            user = await db.user.findUnique({
+              where: { email },
+              select: {
+                id: true,
+                email: true,
+                password: true,
+                name: true,
+                phone: true,
+                avatar: true,
+                role: true,
+                isActive: true,
+                createdAt: true,
+                updatedAt: true,
+              }
+            });
+            if (user) {
+              (user as any).cpf = null;
+            }
+          } else {
+            throw error;
           }
-        });
+        }
 
         if (!user) {
           console.log('❌ User not found:', email);
@@ -571,15 +600,25 @@ export default async function handler(req: any, res: any) {
 
         console.log('✅ Login successful:', user.id);
 
+        // Preparar dados do usuário para retorno
+        const userData: any = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          phone: user.phone,
+          role: user.role
+        };
+        
+        // Adicionar CPF se existir (pode ser null se coluna não existir)
+        if ('cpf' in user) {
+          userData.cpf = user.cpf || null;
+        } else {
+          userData.cpf = null;
+        }
+
         return res.status(200).json({
           message: 'Login realizado com sucesso',
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            phone: user.phone,
-            role: user.role
-          },
+          user: userData,
           token
         });
       } catch (error: any) {
@@ -1695,27 +1734,58 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token inválido' });
         }
         
-        // Buscar usuário (sem cpf por enquanto até migration ser executada)
-        const user = await db.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            phone: true,
-            avatar: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
+        // Buscar usuário (tentar buscar cpf se coluna existir)
+        let user: any;
+        try {
+          user = await db.user.findUnique({
+            where: { id: userId },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              avatar: true,
+              role: true,
+              createdAt: true,
+              updatedAt: true,
+              cpf: true, // Tentar buscar CPF
+            }
+          });
+        } catch (error: any) {
+          // Se coluna cpf não existir, buscar sem ela
+          if (error.message?.includes('cpf') || error.code === 'P2021') {
+            console.warn('⚠️ Coluna cpf não existe ainda, buscando usuário sem cpf');
+            user = await db.user.findUnique({
+              where: { id: userId },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                phone: true,
+                avatar: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+              }
+            });
+            if (user) {
+              (user as any).cpf = null;
+            }
+          } else {
+            throw error;
           }
-        });
+        }
         
         if (!user) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
-        // Adicionar cpf como null (será preenchido após migration)
-        (user as any).cpf = null;
+        // Garantir que cpf seja null se não existir
+        if (!('cpf' in user)) {
+          (user as any).cpf = null;
+        } else if (!user.cpf) {
+          (user as any).cpf = null;
+        }
         
         return res.status(200).json(user);
       } catch (error: any) {

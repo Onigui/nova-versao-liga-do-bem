@@ -156,7 +156,7 @@ export default function ProfileScreen({navigation}) {
           <Text style={styles.userEmail}>
             {user?.email || 'Entre para acessar todos os recursos'}
           </Text>
-          {user?.cpf && (
+          {user?.cpf && user.cpf.trim() !== '' && user.cpf !== '00000000000' && (
             <Text style={styles.userCpf}>CPF: {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</Text>
           )}
           {user?.role === 'MEMBER' && (

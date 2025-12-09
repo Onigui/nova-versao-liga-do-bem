@@ -23,7 +23,7 @@ export default function EditProfileScreen({navigation}) {
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    cpf: user?.cpf || '',
+    cpf: (user?.cpf && user.cpf.trim() !== '' && user.cpf !== '00000000000') ? user.cpf : '',
     avatar: user?.avatar || null,
   });
 
@@ -173,13 +173,13 @@ export default function EditProfileScreen({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={formData.cpf ? formatCPF(formData.cpf) : ''}
+              value={(formData.cpf && formData.cpf.trim() !== '' && formData.cpf !== '00000000000') ? formatCPF(formData.cpf) : ''}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
             />
             <Text style={styles.helperText}>
-              {formData.cpf 
+              {(formData.cpf && formData.cpf.trim() !== '' && formData.cpf !== '00000000000')
                 ? 'CPF não pode ser alterado após o cadastro para prevenir fraudes'
                 : 'CPF não cadastrado. Entre em contato com o suporte para adicionar seu CPF.'}
             </Text>

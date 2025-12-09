@@ -241,7 +241,9 @@ export default function HomeScreen({navigation}) {
           </View>
           {isAuthenticated && user && (
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>Olá, {user.name}</Text>
+              <Text style={styles.userName}>
+                Olá, {user.name ? user.name.split(' ')[0] : 'Usuário'}
+              </Text>
               <Text style={styles.userRole}>{translateRole(user.role)}</Text>
             </View>
           )}
