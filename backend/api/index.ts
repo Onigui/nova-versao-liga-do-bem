@@ -2148,6 +2148,71 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // POST /api/admin/migrate - Executar migrations (apenas para administradores)
+    if (path === '/api/admin/migrate' && method === 'POST') {
+      try {
+        // Verificar token administrativo
+        const adminToken = req.headers?.['x-admin-token'] || req.headers?.['authorization']?.replace('Bearer ', '');
+        const validAdminTokens = [
+          'demo-token-admin',
+          'liga-do-bem-admin-2024',
+          process.env.ADMIN_TOKEN || 'admin-secret-token'
+        ];
+        
+        if (!adminToken || !validAdminTokens.includes(adminToken)) {
+          return res.status(401).json({ error: 'Token administrativo inválido' });
+        }
+
+        console.log('🔄 Executando migrations do Prisma...');
+        
+        // Executar migration usando Prisma CLI via child_process
+        const { execSync } = require('child_process');
+        const path = require('path');
+        
+        // Navegar para o diretório do backend
+        const backendDir = path.join(__dirname, '..');
+        process.chdir(backendDir);
+        
+        try {
+          // Executar prisma migrate deploy
+          const output = execSync('npx prisma migrate deploy', {
+            encoding: 'utf-8',
+            stdio: 'pipe',
+            env: process.env,
+          });
+          
+          console.log('✅ Migration executada com sucesso:', output);
+          
+          return res.status(200).json({
+            success: true,
+            message: 'Migrations executadas com sucesso',
+            output: output
+          });
+        } catch (migrationError: any) {
+          const errorOutput = migrationError.stdout || migrationError.stderr || migrationError.message;
+          console.error('❌ Erro ao executar migration:', errorOutput);
+          
+          // Se a migration já foi aplicada, isso é OK
+          if (errorOutput.includes('already applied') || errorOutput.includes('No pending migrations')) {
+            return res.status(200).json({
+              success: true,
+              message: 'Migrations já foram aplicadas anteriormente',
+              output: errorOutput
+            });
+          }
+          
+          return res.status(500).json({
+            success: false,
+            error: 'Erro ao executar migrations',
+            output: errorOutput
+          });
+        }
+      } catch (error: any) {
+        console.error('❌ Erro ao executar migrations:', error);
+        return res.status(500).json({ error: error?.message || 'Erro interno do servidor' });
+      }
+    }
+
     // 404 - Must be last, after all endpoints
     return res.status(404).json({ error: 'Not found', path });
 
