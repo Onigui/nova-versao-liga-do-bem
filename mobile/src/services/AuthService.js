@@ -31,7 +31,12 @@ export const AuthProvider = ({ children }) => {
       
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        const userData = JSON.parse(storedUser);
+        // Limpar CPF inválido (zeros) ao carregar do storage
+        if (userData.cpf && (userData.cpf.trim() === '' || userData.cpf === '00000000000')) {
+          userData.cpf = null;
+        }
+        setUser(userData);
       } else if (storedGuestMode === 'true') {
         setIsGuest(true);
       }
@@ -80,6 +85,11 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const { token: authToken, user: userData } = data;
+        
+        // Limpar CPF inválido (zeros) antes de salvar
+        if (userData.cpf && (userData.cpf.trim() === '' || userData.cpf === '00000000000')) {
+          userData.cpf = null;
+        }
         
         await AsyncStorage.setItem('auth_token', authToken);
         await AsyncStorage.setItem('user_data', JSON.stringify(userData));
@@ -180,6 +190,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (userData) => {
+    // Limpar CPF inválido (zeros) antes de atualizar
+    if (userData && userData.cpf && (userData.cpf.trim() === '' || userData.cpf === '00000000000')) {
+      userData.cpf = null;
+    }
     setUser(userData);
     // Salvar também no AsyncStorage para persistência
     if (userData) {
