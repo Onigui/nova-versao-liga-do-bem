@@ -16,16 +16,96 @@ import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Função helper para validar se CPF é válido
+const isValidCPF = (cpf) => {
+  if (!cpf) return false;
+  const cpfStr = String(cpf).trim();
+  if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') return false;
+  const numbers = cpfStr.replace(/\D/g, '');
+  return numbers.length === 11 && numbers !== '00000000000';
+};
+
 export default function EditProfileScreen({navigation}) {
   const {user, setUser, updateUser} = useAuth();
   const [loading, setLoading] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  
   const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-    cpf: (user?.cpf && user.cpf.trim() !== '' && user.cpf !== '00000000000') ? user.cpf : '',
-    avatar: user?.avatar || null,
+    name: '',
+    email: '',
+    phone: '',
+    cpf: '',
+    avatar: null,
   });
+
+  // Carregar perfil do usuário ao abrir a tela
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  // Atualizar formData quando user mudar
+  useEffect(() => {
+    if (user) {
+      const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        cpf: cpfValue,
+        avatar: user.avatar || null,
+      });
+      console.log('📝 FormData atualizado:', { 
+        name: user.name, 
+        email: user.email, 
+        hasCpf: !!cpfValue,
+        cpfValue: cpfValue ? '***' : 'vazio'
+      });
+    }
+  }, [user]);
+
+  const loadUserProfile = async () => {
+    try {
+      setLoadingProfile(true);
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        setLoadingProfile(false);
+        return;
+      }
+
+      console.log('🔄 Carregando perfil do usuário...');
+      const response = await fetch(`${API_BASE_PATH}/user/profile`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('✅ Perfil carregado:', { 
+          name: userData.name, 
+          email: userData.email,
+          cpf: userData.cpf ? 'existe' : 'null/vazio',
+          cpfValue: userData.cpf || 'null'
+        });
+        
+        // Atualizar usuário no contexto
+        if (updateUser) {
+          updateUser(userData);
+        } else if (setUser) {
+          setUser(userData);
+          await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+        }
+      } else {
+        console.error('❌ Erro ao carregar perfil:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar perfil:', error);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
 
   const formatCPF = (value) => {
     const numbers = value.replace(/\D/g, '');
@@ -102,6 +182,15 @@ export default function EditProfileScreen({navigation}) {
     }
   };
 
+  if (loadingProfile) {
+    return (
+      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={{marginTop: 16, color: '#6B7280'}}>Carregando perfil...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
@@ -173,13 +262,13 @@ export default function EditProfileScreen({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={(formData.cpf && formData.cpf.trim() !== '' && formData.cpf !== '00000000000') ? formatCPF(formData.cpf) : ''}
+              value={isValidCPF(formData.cpf) ? formatCPF(formData.cpf) : ''}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
             />
             <Text style={styles.helperText}>
-              {(formData.cpf && formData.cpf.trim() !== '' && formData.cpf !== '00000000000')
+              {isValidCPF(formData.cpf)
                 ? 'CPF não pode ser alterado após o cadastro para prevenir fraudes'
                 : 'CPF não cadastrado. Entre em contato com o suporte para adicionar seu CPF.'}
             </Text>

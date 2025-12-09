@@ -609,9 +609,9 @@ export default async function handler(req: any, res: any) {
           role: user.role
         };
         
-        // Adicionar CPF se existir (pode ser null se coluna não existir)
-        if ('cpf' in user) {
-          userData.cpf = user.cpf || null;
+        // Adicionar CPF se existir e for válido (não pode ser zeros ou vazio)
+        if ('cpf' in user && user.cpf && user.cpf.trim() !== '' && user.cpf !== '00000000000') {
+          userData.cpf = user.cpf;
         } else {
           userData.cpf = null;
         }
@@ -1780,10 +1780,10 @@ export default async function handler(req: any, res: any) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
-        // Garantir que cpf seja null se não existir
+        // Garantir que cpf seja null se não existir ou for inválido
         if (!('cpf' in user)) {
           (user as any).cpf = null;
-        } else if (!user.cpf) {
+        } else if (!user.cpf || user.cpf.trim() === '' || user.cpf === '00000000000') {
           (user as any).cpf = null;
         }
         
