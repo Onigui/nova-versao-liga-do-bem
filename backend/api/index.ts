@@ -2150,6 +2150,11 @@ export default async function handler(req: any, res: any) {
 
     // POST /api/admin/migrate - Executar migrations (apenas para administradores)
     if (path === '/api/admin/migrate' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      
       try {
         // Verificar token administrativo
         const adminToken = req.headers?.['x-admin-token'] || req.headers?.['authorization']?.replace('Bearer ', '');
@@ -2163,48 +2168,61 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token administrativo inválido' });
         }
 
-        console.log('🔄 Executando migrations do Prisma...');
+        console.log('🔄 Executando migration para adicionar coluna CPF...');
         
-        // Executar migration usando Prisma CLI via child_process
-        const { execSync } = require('child_process');
-        const path = require('path');
-        
-        // Navegar para o diretório do backend
-        const backendDir = path.join(__dirname, '..');
-        process.chdir(backendDir);
-        
+        // Executar SQL diretamente via Prisma
         try {
-          // Executar prisma migrate deploy
-          const output = execSync('npx prisma migrate deploy', {
-            encoding: 'utf-8',
-            stdio: 'pipe',
-            env: process.env,
-          });
+          // Verificar se a coluna já existe
+          const checkColumn = await db.$queryRaw`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'users' AND column_name = 'cpf'
+          ` as any[];
           
-          console.log('✅ Migration executada com sucesso:', output);
-          
-          return res.status(200).json({
-            success: true,
-            message: 'Migrations executadas com sucesso',
-            output: output
-          });
-        } catch (migrationError: any) {
-          const errorOutput = migrationError.stdout || migrationError.stderr || migrationError.message;
-          console.error('❌ Erro ao executar migration:', errorOutput);
-          
-          // Se a migration já foi aplicada, isso é OK
-          if (errorOutput.includes('already applied') || errorOutput.includes('No pending migrations')) {
+          if (checkColumn && checkColumn.length > 0) {
+            console.log('✅ Coluna CPF já existe');
             return res.status(200).json({
               success: true,
-              message: 'Migrations já foram aplicadas anteriormente',
-              output: errorOutput
+              message: 'Coluna CPF já existe no banco de dados',
+              alreadyExists: true
             });
           }
           
+          // Adicionar coluna CPF
+          await db.$executeRaw`
+            ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "cpf" TEXT
+          `;
+          
+          // Criar índice único para CPF
+          await db.$executeRaw`
+            CREATE UNIQUE INDEX IF NOT EXISTS "users_cpf_key" 
+            ON "users"("cpf") WHERE "cpf" IS NOT NULL
+          `;
+          
+          console.log('✅ Migration executada com sucesso - Coluna CPF adicionada');
+          
+          return res.status(200).json({
+            success: true,
+            message: 'Migration executada com sucesso - Coluna CPF adicionada ao banco de dados',
+            alreadyExists: false
+          });
+        } catch (migrationError: any) {
+          // Se a coluna já existe ou o índice já existe, isso é OK
+          if (migrationError.message?.includes('already exists') || 
+              migrationError.message?.includes('duplicate key')) {
+            console.log('✅ Coluna ou índice já existe');
+            return res.status(200).json({
+              success: true,
+              message: 'Coluna CPF ou índice já existe',
+              alreadyExists: true
+            });
+          }
+          
+          console.error('❌ Erro ao executar migration:', migrationError);
           return res.status(500).json({
             success: false,
-            error: 'Erro ao executar migrations',
-            output: errorOutput
+            error: 'Erro ao executar migration',
+            message: migrationError.message
           });
         }
       } catch (error: any) {
