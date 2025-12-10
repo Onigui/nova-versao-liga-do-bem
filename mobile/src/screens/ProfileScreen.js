@@ -17,15 +17,16 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen({navigation}) {
-  const {user, logout} = useAuth();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [locationEnabled, setLocationEnabled] = useState(true);
+  const {user, logout, updateUser} = useAuth();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(user?.notificationsEnabled !== false);
+  const [locationEnabled, setLocationEnabled] = useState(user?.locationEnabled !== false);
   const [stats, setStats] = useState({
     donations: 0,
     adoptions: 0,
     volunteerHours: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
+  const [savingPreferences, setSavingPreferences] = useState(false);
   
   // Verificar se o usuário é administrador
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
@@ -33,10 +34,62 @@ export default function ProfileScreen({navigation}) {
   useEffect(() => {
     if (user) {
       loadUserStats();
+      // Carregar preferências do usuário
+      if (user.notificationsEnabled !== undefined) {
+        setNotificationsEnabled(user.notificationsEnabled);
+      }
+      if (user.locationEnabled !== undefined) {
+        setLocationEnabled(user.locationEnabled);
+      }
     } else {
       setLoadingStats(false);
     }
   }, [user]);
+
+  const savePreferences = async (notifications: boolean, location: boolean) => {
+    try {
+      setSavingPreferences(true);
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_PATH}/user/preferences`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          notificationsEnabled: notifications,
+          locationEnabled: location,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.user && updateUser) {
+          updateUser(data.user);
+        }
+      } else {
+        console.error('Erro ao salvar preferências:', response.status);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar preferências:', error);
+    } finally {
+      setSavingPreferences(false);
+    }
+  };
+
+  const handleNotificationsToggle = (value: boolean) => {
+    setNotificationsEnabled(value);
+    savePreferences(value, locationEnabled);
+  };
+
+  const handleLocationToggle = (value: boolean) => {
+    setLocationEnabled(value);
+    savePreferences(notificationsEnabled, value);
+  };
 
   const loadUserStats = async () => {
     try {
@@ -215,9 +268,10 @@ export default function ProfileScreen({navigation}) {
           </View>
           <Switch
             value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
+            onValueChange={handleNotificationsToggle}
             trackColor={{false: '#E5E7EB', true: '#C4B5FD'}}
             thumbColor={notificationsEnabled ? '#8B5CF6' : '#F3F4F6'}
+            disabled={savingPreferences}
           />
         </View>
 
@@ -234,9 +288,10 @@ export default function ProfileScreen({navigation}) {
           </View>
           <Switch
             value={locationEnabled}
-            onValueChange={setLocationEnabled}
+            onValueChange={handleLocationToggle}
             trackColor={{false: '#E5E7EB', true: '#C4B5FD'}}
             thumbColor={locationEnabled ? '#8B5CF6' : '#F3F4F6'}
+            disabled={savingPreferences}
           />
         </View>
       </View>

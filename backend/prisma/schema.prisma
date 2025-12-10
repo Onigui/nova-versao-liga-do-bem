@@ -20,6 +20,8 @@ model User {
   phone     String?
   cpf       String?  @unique
   avatar    String?
+  notificationsEnabled Boolean @default(true)
+  locationEnabled     Boolean @default(true)
   role      UserRole @default(MEMBER)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
