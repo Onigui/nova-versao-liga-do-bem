@@ -99,8 +99,7 @@ export default function ProfileScreen({navigation}) {
       icon: 'paw-outline',
       title: 'Minhas Adoções',
       subtitle: 'Acompanhe suas solicitações',
-      onPress: () =>
-        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () => navigation.navigate('MyAdoptions'),
     },
     {
       icon: 'calendar-outline',
