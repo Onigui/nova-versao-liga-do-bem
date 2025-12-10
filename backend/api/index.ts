@@ -1943,6 +1943,8 @@ export default async function handler(req: any, res: any) {
               phone: true,
               cpf: true,
               avatar: true,
+              notificationsEnabled: true,
+              locationEnabled: true,
               role: true,
             }
           });
