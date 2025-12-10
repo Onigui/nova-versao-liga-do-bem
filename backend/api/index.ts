@@ -1776,9 +1776,9 @@ export default async function handler(req: any, res: any) {
             }
           });
         } catch (error: any) {
-          // Se coluna cpf não existir, buscar sem ela
-          if (error.message?.includes('cpf') || error.code === 'P2021') {
-            console.warn('⚠️ Coluna cpf não existe ainda, buscando usuário sem cpf');
+          // Se colunas não existirem, buscar sem elas
+          if (error.message?.includes('cpf') || error.message?.includes('notificationsEnabled') || error.message?.includes('locationEnabled') || error.code === 'P2021') {
+            console.warn('⚠️ Algumas colunas não existem ainda, buscando usuário sem elas');
             user = await db.user.findUnique({
               where: { id: userId },
               select: {
@@ -1787,8 +1787,6 @@ export default async function handler(req: any, res: any) {
                 name: true,
                 phone: true,
                 avatar: true,
-                notificationsEnabled: true,
-                locationEnabled: true,
                 role: true,
                 createdAt: true,
                 updatedAt: true,
@@ -1796,6 +1794,8 @@ export default async function handler(req: any, res: any) {
             });
             if (user) {
               (user as any).cpf = null;
+              (user as any).notificationsEnabled = true; // Default
+              (user as any).locationEnabled = true; // Default
             }
           } else {
             throw error;
@@ -1953,14 +1953,14 @@ export default async function handler(req: any, res: any) {
             }
           });
         } catch (error: any) {
-          // Se erro for relacionado a coluna cpf não existir, atualizar sem cpf
-          if (error.message?.includes('cpf') || error.code === 'P2021' || error.code === 'P2002') {
-            console.warn('⚠️ Coluna cpf não existe ainda, atualizando sem cpf');
-            // Remover cpf do updateData
-            const { cpf: _, ...updateDataWithoutCpf } = updateData;
+          // Se erro for relacionado a colunas não existirem, atualizar sem elas
+          if (error.message?.includes('cpf') || error.message?.includes('notificationsEnabled') || error.message?.includes('locationEnabled') || error.code === 'P2021' || error.code === 'P2002') {
+            console.warn('⚠️ Algumas colunas não existem ainda, atualizando sem elas');
+            // Remover campos que não existem do updateData
+            const { cpf: _, notificationsEnabled: __, locationEnabled: ___, ...updateDataWithoutNewFields } = updateData;
             updatedUser = await db.user.update({
               where: { id: userId },
-              data: updateDataWithoutCpf,
+              data: updateDataWithoutNewFields,
               select: {
                 id: true,
                 email: true,
@@ -1970,7 +1970,10 @@ export default async function handler(req: any, res: any) {
                 role: true,
               }
             });
-            (updatedUser as any).cpf = null; // Adicionar cpf como null na resposta
+            // Adicionar campos como null/default na resposta
+            (updatedUser as any).cpf = null;
+            (updatedUser as any).notificationsEnabled = true;
+            (updatedUser as any).locationEnabled = true;
           } else {
             throw error;
           }
