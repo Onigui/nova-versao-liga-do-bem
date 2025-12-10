@@ -539,9 +539,9 @@ export default async function handler(req: any, res: any) {
             }
           });
         } catch (error: any) {
-          // Se coluna cpf não existir, buscar sem ela
-          if (error.message?.includes('cpf') || error.code === 'P2021') {
-            console.warn('⚠️ Coluna cpf não existe ainda, buscando usuário sem cpf');
+          // Se colunas não existirem, buscar sem elas
+          if (error.message?.includes('cpf') || error.message?.includes('notificationsEnabled') || error.message?.includes('locationEnabled') || error.code === 'P2021') {
+            console.warn('⚠️ Algumas colunas não existem ainda, buscando usuário sem elas');
             user = await db.user.findUnique({
               where: { email },
               select: {
@@ -551,8 +551,6 @@ export default async function handler(req: any, res: any) {
                 name: true,
                 phone: true,
                 avatar: true,
-                notificationsEnabled: true,
-                locationEnabled: true,
                 role: true,
                 isActive: true,
                 createdAt: true,
@@ -561,6 +559,8 @@ export default async function handler(req: any, res: any) {
             });
             if (user) {
               (user as any).cpf = null;
+              (user as any).notificationsEnabled = true; // Default
+              (user as any).locationEnabled = true; // Default
             }
           } else {
             throw error;
