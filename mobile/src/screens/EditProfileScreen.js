@@ -202,6 +202,8 @@ export default function EditProfileScreen({navigation}) {
     */
   };
 
+  // Função comentada até instalar react-native-image-picker e react-native-fs
+  /*
   const handleImageResponse = async (response: any) => {
     if (response.didCancel || response.errorCode) {
       if (response.errorCode) {
@@ -286,6 +288,7 @@ export default function EditProfileScreen({navigation}) {
       setUploadingAvatar(false);
     }
   };
+  */
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
