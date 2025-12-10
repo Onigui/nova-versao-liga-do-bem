@@ -25,14 +25,24 @@ x-admin-token: demo-token-admin
 
 ### Opções de Ferramentas:
 
-#### Opção 1: cURL (Terminal)
+#### Opção 1: PowerShell (Windows)
+```powershell
+Invoke-WebRequest -Uri "https://nova-versao-liga-do-bem.vercel.app/api/admin/migrate" `
+  -Method POST `
+  -Headers @{
+    "Content-Type" = "application/json"
+    "x-admin-token" = "demo-token-admin"
+  } | Select-Object -ExpandProperty Content
+```
+
+#### Opção 2: cURL (Linux/Mac/Git Bash)
 ```bash
 curl -X POST https://nova-versao-liga-do-bem.vercel.app/api/admin/migrate \
   -H "Content-Type: application/json" \
   -H "x-admin-token: demo-token-admin"
 ```
 
-#### Opção 2: Postman / Insomnia
+#### Opção 3: Postman / Insomnia
 1. Criar nova requisição POST
 2. URL: `https://nova-versao-liga-do-bem.vercel.app/api/admin/migrate`
 3. Headers:
@@ -40,7 +50,7 @@ curl -X POST https://nova-versao-liga-do-bem.vercel.app/api/admin/migrate \
    - `x-admin-token: demo-token-admin`
 4. Enviar requisição
 
-#### Opção 3: Navegador (via Console)
+#### Opção 4: Navegador (via Console)
 Abra o console do navegador (F12) e execute:
 
 ```javascript
