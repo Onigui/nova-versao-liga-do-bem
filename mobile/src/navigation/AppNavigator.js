@@ -30,6 +30,7 @@ import DebugScreen from '../screens/DebugScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import MyDonationsScreen from '../screens/MyDonationsScreen';
 import MyAdoptionsScreen from '../screens/MyAdoptionsScreen';
+import MyEventsScreen from '../screens/MyEventsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -276,6 +277,13 @@ export function AppStack() {
       <Stack.Screen 
         name="MyAdoptions" 
         component={MyAdoptionsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="MyEvents" 
+        component={MyEventsScreen}
         options={{
           headerShown: false,
         }}

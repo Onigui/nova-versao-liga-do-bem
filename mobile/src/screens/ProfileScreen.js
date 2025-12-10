@@ -105,8 +105,7 @@ export default function ProfileScreen({navigation}) {
       icon: 'calendar-outline',
       title: 'Meus Eventos',
       subtitle: 'Eventos que você participou',
-      onPress: () =>
-        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () => navigation.navigate('MyEvents'),
     },
     {
       icon: 'notifications-outline',
