@@ -201,7 +201,7 @@ export default function EditProfileScreen({navigation}) {
     );
   };
 
-  const handleImageResponse = async (response: ImagePickerResponse) => {
+  const handleImageResponse = async (response: any) => {
     if (response.didCancel || response.errorCode) {
       if (response.errorCode) {
         Alert.alert('Erro', 'Erro ao selecionar imagem');
@@ -514,6 +514,9 @@ const styles = StyleSheet.create({
     color: '#8B5CF6',
     fontSize: 14,
     fontWeight: '600',
+  },
+  changeAvatarButtonDisabled: {
+    opacity: 0.6,
   },
   formSection: {
     marginBottom: 24,
