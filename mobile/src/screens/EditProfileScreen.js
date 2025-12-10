@@ -199,6 +199,7 @@ export default function EditProfileScreen({navigation}) {
       ],
       {cancelable: true},
     );
+    */
   };
 
   const handleImageResponse = async (response: any) => {
@@ -216,21 +217,36 @@ export default function EditProfileScreen({navigation}) {
 
     setUploadingAvatar(true);
     try {
-      // Converter imagem para base64
+      // Converter imagem para base64 usando fetch (React Native)
+      // No React Native, podemos ler o arquivo diretamente
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      
+      // Converter blob para base64 usando uma abordagem compatível com React Native
       const base64 = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = function() {
-          const reader = new FileReader();
-          reader.onloadend = function() {
-            resolve(reader.result);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(xhr.response);
-        };
-        xhr.onerror = reject;
-        xhr.open('GET', asset.uri);
-        xhr.responseType = 'blob';
-        xhr.send();
+        try {
+          // Usar FileReader se disponível (algumas versões do RN têm polyfill)
+          if (typeof FileReader !== 'undefined') {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64String = reader.result;
+              // Remover o prefixo data:image/...;base64, se existir
+              const base64Data = base64String && base64String.includes(',') 
+                ? base64String.split(',')[1] 
+                : base64String;
+              resolve(base64Data);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          } else {
+            // Fallback: usar uma abordagem alternativa
+            // Para React Native puro, podemos usar react-native-fs ou outra biblioteca
+            // Por enquanto, vamos tentar ler como texto e converter
+            reject(new Error('FileReader não disponível. Instale react-native-fs para upload de imagens.'));
+          }
+        } catch (error) {
+          reject(error);
+        }
       });
 
       // Enviar para o backend
