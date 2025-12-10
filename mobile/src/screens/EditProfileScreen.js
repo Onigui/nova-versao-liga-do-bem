@@ -9,9 +9,21 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+// Importação condicional do image picker
+let launchImageLibrary: any = null;
+let launchCamera: any = null;
+try {
+  const imagePicker = require('react-native-image-picker');
+  launchImageLibrary = imagePicker.launchImageLibrary;
+  launchCamera = imagePicker.launchCamera;
+} catch (e) {
+  console.warn('react-native-image-picker não instalado. Instale com: npm install react-native-image-picker');
+}
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -115,6 +127,150 @@ export default function EditProfileScreen({navigation}) {
     return value;
   };
 
+  const requestCameraPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Permissão de Câmera',
+            message: 'O app precisa de acesso à câmera para tirar fotos',
+            buttonNeutral: 'Perguntar depois',
+            buttonNegative: 'Cancelar',
+            buttonPositive: 'OK',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleImagePicker = () => {
+    if (!launchImageLibrary || !launchCamera) {
+      Alert.alert(
+        'Biblioteca não instalada',
+        'Para fazer upload de fotos, instale a biblioteca react-native-image-picker:\n\nnpm install react-native-image-picker\n\nE configure as permissões no AndroidManifest.xml e Info.plist',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Selecionar Foto',
+      'Escolha uma opção',
+      [
+        {text: 'Cancelar', style: 'cancel'},
+        {
+          text: 'Câmera',
+          onPress: async () => {
+            const hasPermission = await requestCameraPermission();
+            if (!hasPermission) {
+              Alert.alert('Permissão Negada', 'É necessário permitir o acesso à câmera');
+              return;
+            }
+            launchCamera(
+              {
+                mediaType: 'photo',
+                quality: 0.8,
+                maxWidth: 800,
+                maxHeight: 800,
+              },
+              handleImageResponse,
+            );
+          },
+        },
+        {
+          text: 'Galeria',
+          onPress: () => {
+            launchImageLibrary(
+              {
+                mediaType: 'photo',
+                quality: 0.8,
+                maxWidth: 800,
+                maxHeight: 800,
+              },
+              handleImageResponse,
+            );
+          },
+        },
+      ],
+      {cancelable: true},
+    );
+  };
+
+  const handleImageResponse = async (response: ImagePickerResponse) => {
+    if (response.didCancel || response.errorCode) {
+      if (response.errorCode) {
+        Alert.alert('Erro', 'Erro ao selecionar imagem');
+      }
+      return;
+    }
+
+    const asset = response.assets?.[0];
+    if (!asset?.uri) {
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      // Converter imagem para base64
+      const base64 = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function() {
+          const reader = new FileReader();
+          reader.onloadend = function() {
+            resolve(reader.result);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(xhr.response);
+        };
+        xhr.onerror = reject;
+        xhr.open('GET', asset.uri);
+        xhr.responseType = 'blob';
+        xhr.send();
+      });
+
+      // Enviar para o backend
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        Alert.alert('Erro', 'Você precisa estar logado');
+        return;
+      }
+
+      const uploadResponse = await fetch(`${API_BASE_PATH}/user/avatar/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          imageBase64: base64,
+        }),
+      });
+
+      const uploadData = await uploadResponse.json();
+
+      if (uploadResponse.ok && uploadData.avatarUrl) {
+        // Atualizar formData e user
+        setFormData({...formData, avatar: uploadData.avatarUrl});
+        if (updateUser) {
+          updateUser({...user, avatar: uploadData.avatarUrl});
+        }
+        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+      } else {
+        Alert.alert('Erro', uploadData.error || 'Erro ao fazer upload da foto');
+      }
+    } catch (error) {
+      console.error('Erro ao fazer upload:', error);
+      Alert.alert('Erro', 'Não foi possível fazer upload da foto');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim()) {
       Alert.alert('Erro', 'O nome é obrigatório');
@@ -215,10 +371,17 @@ export default function EditProfileScreen({navigation}) {
             )}
           </View>
           <TouchableOpacity
-            style={styles.changeAvatarButton}
-            onPress={() => Alert.alert('Em breve', 'Upload de foto será implementado em breve')}>
-            <Ionicons name="camera" size={20} color="#8B5CF6" />
-            <Text style={styles.changeAvatarText}>Alterar Foto</Text>
+            style={[styles.changeAvatarButton, uploadingAvatar && styles.changeAvatarButtonDisabled]}
+            onPress={handleImagePicker}
+            disabled={uploadingAvatar}>
+            {uploadingAvatar ? (
+              <ActivityIndicator size="small" color="#8B5CF6" />
+            ) : (
+              <>
+                <Ionicons name="camera" size={20} color="#8B5CF6" />
+                <Text style={styles.changeAvatarText}>Alterar Foto</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 

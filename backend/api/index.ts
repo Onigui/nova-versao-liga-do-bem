@@ -4,6 +4,24 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+// Cloudinary para upload de imagens
+let cloudinary: any = null;
+function getCloudinary() {
+  if (!cloudinary && process.env.CLOUDINARY_CLOUD_NAME) {
+    try {
+      cloudinary = require('cloudinary').v2;
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+      });
+    } catch (error) {
+      console.warn('⚠️ Cloudinary não configurado:', error);
+    }
+  }
+  return cloudinary;
+}
+
 let prisma: PrismaClient | null = null;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
@@ -2093,6 +2111,90 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ events: registrations, total: registrations.length });
       } catch (error: any) {
         console.error('❌ Erro ao buscar eventos:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+
+    // POST user avatar upload
+    if (path === '/api/user/avatar/upload' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+        } catch (e) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        
+        const { imageBase64 } = body;
+        
+        if (!imageBase64) {
+          return res.status(400).json({ error: 'Imagem não fornecida' });
+        }
+        
+        // Verificar se Cloudinary está configurado
+        const cloudinaryInstance = getCloudinary();
+        if (!cloudinaryInstance) {
+          // Se Cloudinary não estiver configurado, retornar erro ou usar URL direta
+          return res.status(503).json({ 
+            error: 'Serviço de upload de imagens não configurado. Configure Cloudinary nas variáveis de ambiente.' 
+          });
+        }
+        
+        // Upload para Cloudinary
+        try {
+          const uploadResult = await new Promise((resolve, reject) => {
+            cloudinaryInstance.uploader.upload(
+              imageBase64,
+              {
+                folder: 'liga-do-bem/avatars',
+                public_id: `avatar_${userId}_${Date.now()}`,
+                overwrite: true,
+                resource_type: 'image',
+                transformation: [
+                  { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+                  { quality: 'auto' },
+                ],
+              },
+              (error: any, result: any) => {
+                if (error) reject(error);
+                else resolve(result);
+              }
+            );
+          });
+          
+          const avatarUrl = (uploadResult as any).secure_url;
+          
+          // Atualizar avatar do usuário no banco
+          await db.user.update({
+            where: { id: userId },
+            data: { avatar: avatarUrl },
+          });
+          
+          return res.status(200).json({
+            success: true,
+            avatarUrl: avatarUrl,
+            message: 'Avatar atualizado com sucesso',
+          });
+        } catch (uploadError: any) {
+          console.error('❌ Erro ao fazer upload para Cloudinary:', uploadError);
+          return res.status(500).json({ 
+            error: 'Erro ao fazer upload da imagem',
+            details: uploadError.message 
+          });
+        }
+      } catch (error: any) {
+        console.error('❌ Erro ao fazer upload de avatar:', error);
         return res.status(500).json({ error: 'Erro interno do servidor' });
       }
     }
