@@ -10,16 +10,19 @@ Esta migration adiciona a coluna `cpf` à tabela `users` no banco de dados.
 
 ## Como Executar a Migration
 
-### Opção 1: Automático (Vercel/Render)
+### Opção 1: Via Endpoint Administrativo (Recomendado)
 
-A migration será executada automaticamente no próximo deploy se:
-- O `postinstall` script estiver configurado (já está)
-- O `vercel-build` script estiver configurado (já está)
+**⚠️ IMPORTANTE:** As migrations NÃO são executadas automaticamente no deploy do Vercel porque o banco de dados já existe.
 
-**Para forçar um novo deploy:**
-1. Faça um commit vazio ou pequena alteração
-2. Faça push para o repositório
-3. O Vercel/Render executará as migrations automaticamente
+Use o endpoint administrativo criado para executar a migration manualmente:
+
+```bash
+curl -X POST https://nova-versao-liga-do-bem.vercel.app/api/admin/migrate \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: demo-token-admin"
+```
+
+Veja instruções detalhadas em `EXECUTAR_MIGRATION.md`
 
 ### Opção 2: Manual (Local ou via Script)
 
