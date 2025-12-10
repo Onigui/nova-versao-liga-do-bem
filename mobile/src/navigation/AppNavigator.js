@@ -28,6 +28,7 @@ import PartnerDetailScreen from '../screens/PartnerDetailScreen';
 import EventDetailScreen from '../screens/EventDetailScreen';
 import DebugScreen from '../screens/DebugScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
+import MyDonationsScreen from '../screens/MyDonationsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -260,6 +261,13 @@ export function AppStack() {
       <Stack.Screen 
         name="EditProfile" 
         component={EditProfileScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="MyDonations" 
+        component={MyDonationsScreen}
         options={{
           headerShown: false,
         }}

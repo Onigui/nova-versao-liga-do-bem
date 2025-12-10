@@ -93,8 +93,7 @@ export default function ProfileScreen({navigation}) {
       icon: 'heart-outline',
       title: 'Minhas Doações',
       subtitle: 'Histórico de contribuições',
-      onPress: () =>
-        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () => navigation.navigate('MyDonations'),
     },
     {
       icon: 'paw-outline',
