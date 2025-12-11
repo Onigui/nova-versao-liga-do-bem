@@ -162,14 +162,82 @@ class RemoteLogger {
 }
 
 // Instância singleton
-const remoteLogger = new RemoteLogger();
+let remoteLogger = null;
+try {
+  remoteLogger = new RemoteLogger();
+} catch (error) {
+  console.error('Erro ao criar instância do RemoteLogger:', error);
+  // Criar uma instância mínima em caso de erro
+  remoteLogger = {
+    log: (level, message, data) => {
+      console.log(`[${level.toUpperCase()}]`, message, data);
+    },
+    captureError: (error, context) => {
+      console.error('Erro capturado:', error, context);
+    },
+  };
+}
 
-// Funções de conveniência
-export const logInfo = (message, data) => remoteLogger.log('info', message, data);
-export const logWarn = (message, data) => remoteLogger.log('warn', message, data);
-export const logError = (message, data) => remoteLogger.log('error', message, data);
-export const logDebug = (message, data) => remoteLogger.log('debug', message, data);
-export const captureError = (error, context) => remoteLogger.captureError(error, context);
+// Funções de conveniência com fallback seguro
+export const logInfo = (message, data) => {
+  try {
+    if (remoteLogger && remoteLogger.log) {
+      remoteLogger.log('info', message, data);
+    } else {
+      console.log('[INFO]', message, data);
+    }
+  } catch (e) {
+    console.log('[INFO]', message, data);
+  }
+};
+
+export const logWarn = (message, data) => {
+  try {
+    if (remoteLogger && remoteLogger.log) {
+      remoteLogger.log('warn', message, data);
+    } else {
+      console.warn('[WARN]', message, data);
+    }
+  } catch (e) {
+    console.warn('[WARN]', message, data);
+  }
+};
+
+export const logError = (message, data) => {
+  try {
+    if (remoteLogger && remoteLogger.log) {
+      remoteLogger.log('error', message, data);
+    } else {
+      console.error('[ERROR]', message, data);
+    }
+  } catch (e) {
+    console.error('[ERROR]', message, data);
+  }
+};
+
+export const logDebug = (message, data) => {
+  try {
+    if (remoteLogger && remoteLogger.log) {
+      remoteLogger.log('debug', message, data);
+    } else {
+      console.log('[DEBUG]', message, data);
+    }
+  } catch (e) {
+    console.log('[DEBUG]', message, data);
+  }
+};
+
+export const captureError = (error, context) => {
+  try {
+    if (remoteLogger && remoteLogger.captureError) {
+      remoteLogger.captureError(error, context);
+    } else {
+      console.error('Erro capturado:', error, context);
+    }
+  } catch (e) {
+    console.error('Erro capturado:', error, context);
+  }
+};
 
 export default remoteLogger;
 

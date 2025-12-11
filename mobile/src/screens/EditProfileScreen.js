@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -39,25 +39,29 @@ const isValidCPF = (cpf) => {
 };
 
 export default function EditProfileScreen({navigation}) {
-  logDebug('🔵 EditProfileScreen: Iniciando componente', {
-    hasNavigation: !!navigation,
-    timestamp: new Date().toISOString(),
-  });
-
   let authContext;
   try {
     authContext = useAuth();
-    logDebug('🔵 EditProfileScreen: useAuth retornado', {
-      hasAuthContext: !!authContext,
-      hasUser: !!authContext?.user,
-      hasSetUser: !!authContext?.setUser,
-      hasUpdateUser: !!authContext?.updateUser,
-    });
   } catch (error) {
-    logError('❌ EditProfileScreen: Erro ao chamar useAuth', error);
-    captureError(error, {context: 'useAuth call'});
+    console.error('❌ EditProfileScreen: Erro ao chamar useAuth', error);
     authContext = {};
   }
+  
+  // Log após hooks serem processados
+  useEffect(() => {
+    try {
+      if (logDebug) {
+        logDebug('🔵 EditProfileScreen: Componente montado', {
+          hasNavigation: !!navigation,
+          hasAuthContext: !!authContext,
+          hasUser: !!authContext?.user,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      // Ignorar erros de log
+    }
+  }, []);
 
   const user = authContext?.user || null;
   const setUser = authContext?.setUser || null;
@@ -75,11 +79,20 @@ export default function EditProfileScreen({navigation}) {
     avatar: null,
   });
 
-  logDebug('🔵 EditProfileScreen: Estados inicializados', {
-    loading,
-    loadingProfile,
-    uploadingAvatar,
-  });
+  // Log de inicialização movido para useEffect para evitar problemas
+  useEffect(() => {
+    try {
+      if (logDebug) {
+        logDebug('🔵 EditProfileScreen: Estados inicializados', {
+          loading,
+          loadingProfile,
+          uploadingAvatar,
+        });
+      }
+    } catch (e) {
+      // Ignorar erros de log
+    }
+  }, []);
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
