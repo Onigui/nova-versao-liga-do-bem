@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -38,14 +38,7 @@ const isValidCPF = (cpf) => {
 };
 
 export default function EditProfileScreen({navigation}) {
-  let authContext;
-  try {
-    authContext = useAuth();
-  } catch (error) {
-    console.error('❌ EditProfileScreen: Erro ao chamar useAuth', error);
-    authContext = {};
-  }
-  
+  const authContext = useAuth();
   const user = authContext?.user || null;
   const setUser = authContext?.setUser || null;
   const updateUser = authContext?.updateUser || null;
@@ -62,32 +55,7 @@ export default function EditProfileScreen({navigation}) {
     avatar: null,
   });
 
-  // Carregar perfil do usuário ao abrir a tela
-  useEffect(() => {
-    if (navigation) {
-      loadUserProfile();
-    }
-  }, []);
-
-  // Atualizar formData quando user mudar
-  useEffect(() => {
-    if (user) {
-      try {
-        const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
-        setFormData({
-          name: user.name || '',
-          email: user.email || '',
-          phone: user.phone || '',
-          cpf: cpfValue,
-          avatar: user.avatar || null,
-        });
-      } catch (error) {
-        console.error('Erro ao atualizar formData:', error);
-      }
-    }
-  }, [user]);
-
-  const loadUserProfile = async () => {
+  const loadUserProfile = useCallback(async () => {
     try {
       setLoadingProfile(true);
       
@@ -130,7 +98,32 @@ export default function EditProfileScreen({navigation}) {
     } finally {
       setLoadingProfile(false);
     }
-  };
+  }, [updateUser, setUser]);
+
+  // Carregar perfil do usuário ao abrir a tela
+  useEffect(() => {
+    if (navigation) {
+      loadUserProfile();
+    }
+  }, [navigation, loadUserProfile]);
+
+  // Atualizar formData quando user mudar
+  useEffect(() => {
+    if (user) {
+      try {
+        const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
+        setFormData({
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          cpf: cpfValue,
+          avatar: user.avatar || null,
+        });
+      } catch (error) {
+        console.error('Erro ao atualizar formData:', error);
+      }
+    }
+  }, [user]);
 
   const formatCPF = (value) => {
     if (!value) return '';

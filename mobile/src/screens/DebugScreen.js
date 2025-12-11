@@ -47,13 +47,18 @@ export default function DebugScreen({navigation}) {
   useEffect(() => {
     // Atualizar logs a cada segundo
     const interval = setInterval(() => {
-      const localLogs = remoteLogger.getLocalLogs();
-      // Filtrar logs se necessário
-      const filteredLogs = filterLevel === 'all' 
-        ? localLogs 
-        : localLogs.filter(log => log.level === filterLevel);
-      setLogs(filteredLogs);
-    }, 500); // Atualizar mais frequentemente
+      try {
+        const localLogs = remoteLogger?.getLocalLogs ? remoteLogger.getLocalLogs() : [];
+        // Filtrar logs se necessário
+        const filteredLogs = filterLevel === 'all' 
+          ? localLogs 
+          : localLogs.filter(log => log.level === filterLevel);
+        setLogs(filteredLogs);
+      } catch (error) {
+        console.error('Erro ao buscar logs:', error);
+        setLogs([]);
+      }
+    }, 1000); // Atualizar a cada segundo
 
     return () => clearInterval(interval);
   }, [filterLevel]);
@@ -65,9 +70,16 @@ export default function DebugScreen({navigation}) {
   }, [logs, autoScroll]);
 
   const clearLogs = () => {
-    remoteLogger.clearLogs();
-    setLogs([]);
-    Alert.alert('Logs Limpos', 'Todos os logs foram removidos.');
+    try {
+      if (remoteLogger?.clearLogs) {
+        remoteLogger.clearLogs();
+      }
+      setLogs([]);
+      Alert.alert('Logs Limpos', 'Todos os logs foram removidos.');
+    } catch (error) {
+      console.error('Erro ao limpar logs:', error);
+      setLogs([]);
+    }
   };
 
   const testLog = () => {
