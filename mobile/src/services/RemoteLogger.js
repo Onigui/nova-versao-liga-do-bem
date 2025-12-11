@@ -7,11 +7,19 @@ import { API_BASE_PATH } from '../config/apiConfig';
 
 class RemoteLogger {
   constructor() {
-    this.logs = [];
-    this.maxLogs = 100; // Manter últimos 100 logs em memória
-    this.sendInterval = 30000; // Enviar logs a cada 30 segundos
-    this.isEnabled = true;
-    this.startSending();
+    try {
+      this.logs = [];
+      this.maxLogs = 100; // Manter últimos 100 logs em memória
+      this.sendInterval = 30000; // Enviar logs a cada 30 segundos
+      this.isEnabled = true;
+      this.intervalId = null;
+      // Não iniciar envio automático na inicialização para evitar problemas
+      // this.startSending();
+    } catch (error) {
+      console.error('Erro ao inicializar RemoteLogger:', error);
+      this.logs = [];
+      this.isEnabled = false;
+    }
   }
 
   // Adicionar log

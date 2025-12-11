@@ -1,7 +1,18 @@
 import React from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {logError} from '../services/RemoteLogger';
+
+// Importação segura do logger
+let logError = null;
+try {
+  const logger = require('../services/RemoteLogger');
+  logError = logger.logError;
+} catch (e) {
+  // Se o logger não estiver disponível, usar console.error
+  logError = (message, data) => {
+    console.error(message, data);
+  };
+}
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,30 +25,43 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    const errorDetails = {
-      error: {
-        message: error?.message || 'Erro desconhecido',
-        stack: error?.stack || 'Sem stack trace',
-        name: error?.name || 'Error',
-      },
-      errorInfo: {
-        componentStack: errorInfo?.componentStack || 'Sem component stack',
-      },
-      timestamp: new Date().toISOString(),
-      userAgent: 'React Native',
-    };
+    try {
+      const errorDetails = {
+        error: {
+          message: error?.message || 'Erro desconhecido',
+          stack: error?.stack || 'Sem stack trace',
+          name: error?.name || 'Error',
+        },
+        errorInfo: {
+          componentStack: errorInfo?.componentStack || 'Sem component stack',
+        },
+        timestamp: new Date().toISOString(),
+        userAgent: 'React Native',
+      };
 
-    // Log do erro
-    logError('🚨 ERRO CRÍTICO - ErrorBoundary capturou um erro', errorDetails);
+      // Log do erro (com try-catch para não quebrar se o logger falhar)
+      try {
+        logError('🚨 ERRO CRÍTICO - ErrorBoundary capturou um erro', errorDetails);
+      } catch (logErr) {
+        console.error('Erro ao logar no ErrorBoundary:', logErr);
+      }
 
-    // Log no console também
-    console.error('🚨 ErrorBoundary capturou um erro:', error);
-    console.error('Error Info:', errorInfo);
+      // Log no console também
+      console.error('🚨 ErrorBoundary capturou um erro:', error);
+      console.error('Error Info:', errorInfo);
 
-    this.setState({
-      error,
-      errorInfo,
-    });
+      this.setState({
+        error,
+        errorInfo,
+      });
+    } catch (e) {
+      // Se até o ErrorBoundary falhar, pelo menos logar no console
+      console.error('Erro crítico no ErrorBoundary:', e);
+      this.setState({
+        error: error || e,
+        errorInfo: errorInfo || {componentStack: 'Erro ao processar errorInfo'},
+      });
+    }
   }
 
   handleReset = () => {

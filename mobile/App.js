@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StatusBar, ErrorUtils } from 'react-native';
+import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -12,7 +12,6 @@ import { AuthStack, AppStack } from './src/navigation/AppNavigator';
 // Services
 import { AuthProvider, useAuth } from './src/services/AuthService';
 import ErrorBoundary from './src/components/ErrorBoundary';
-import { captureError } from './src/services/RemoteLogger';
 
 const Stack = createStackNavigator();
 
@@ -36,49 +35,96 @@ function RootNavigator() {
 
 export default function App() {
   useEffect(() => {
-    // Configurar captura global de erros
-    const originalHandler = ErrorUtils.getGlobalHandler();
-    
-    ErrorUtils.setGlobalHandler((error, isFatal) => {
-      captureError(error, {
-        isFatal,
-        timestamp: new Date().toISOString(),
-        context: 'Global Error Handler',
-      });
-      
-      // Chamar handler original também
-      if (originalHandler) {
-        originalHandler(error, isFatal);
+    // Configurar captura global de erros (se disponível)
+    try {
+      const ErrorUtils = require('react-native').ErrorUtils;
+      if (ErrorUtils) {
+        const originalHandler = ErrorUtils.getGlobalHandler();
+        
+        ErrorUtils.setGlobalHandler((error, isFatal) => {
+          try {
+            const { captureError } = require('./src/services/RemoteLogger');
+            captureError(error, {
+              isFatal,
+              timestamp: new Date().toISOString(),
+              context: 'Global Error Handler',
+            });
+          } catch (logError) {
+            console.error('Erro ao capturar erro global:', logError);
+          }
+          
+          // Chamar handler original também
+          if (originalHandler) {
+            originalHandler(error, isFatal);
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.warn('ErrorUtils não disponível:', error);
+    }
 
     // Configurar listeners de notificação
-    const unsubscribe = NotificationService.setupNotificationListeners();
+    let unsubscribe;
+    try {
+      unsubscribe = NotificationService.setupNotificationListeners();
+    } catch (error) {
+      console.warn('Erro ao configurar notificações:', error);
+    }
     
     return () => {
-      // Restaurar handler original
-      if (originalHandler) {
-        ErrorUtils.setGlobalHandler(originalHandler);
+      try {
+        const ErrorUtils = require('react-native').ErrorUtils;
+        if (ErrorUtils) {
+          const originalHandler = ErrorUtils.getGlobalHandler();
+          if (originalHandler) {
+            ErrorUtils.setGlobalHandler(originalHandler);
+          }
+        }
+      } catch (error) {
+        // Ignorar
       }
       
       if (unsubscribe) {
-        unsubscribe();
+        try {
+          unsubscribe();
+        } catch (error) {
+          // Ignorar
+        }
       }
     };
   }, []);
 
-  return (
-    <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <PaperProvider>
-          <AuthProvider>
-            <NavigationContainer>
-              <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-              <RootNavigator />
-            </NavigationContainer>
-          </AuthProvider>
-        </PaperProvider>
-      </GestureHandlerRootView>
-    </ErrorBoundary>
-  );
+  try {
+    return (
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <PaperProvider>
+            <AuthProvider>
+              <NavigationContainer>
+                <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+                <RootNavigator />
+              </NavigationContainer>
+            </AuthProvider>
+          </PaperProvider>
+        </GestureHandlerRootView>
+      </ErrorBoundary>
+    );
+  } catch (error) {
+    console.error('Erro crítico no App:', error);
+    // Retornar uma tela de erro simples
+    return (
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <PaperProvider>
+            <AuthProvider>
+              <NavigationContainer>
+                <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+                <RootNavigator />
+              </NavigationContainer>
+            </AuthProvider>
+          </PaperProvider>
+        </GestureHandlerRootView>
+      </ErrorBoundary>
+    );
+  }
 }
