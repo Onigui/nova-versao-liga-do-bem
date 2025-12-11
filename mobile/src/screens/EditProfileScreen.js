@@ -15,8 +15,8 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 // Importação condicional do image picker
-let launchImageLibrary: any = null;
-let launchCamera: any = null;
+let launchImageLibrary = null;
+let launchCamera = null;
 try {
   const imagePicker = require('react-native-image-picker');
   launchImageLibrary = imagePicker.launchImageLibrary;
@@ -38,7 +38,11 @@ const isValidCPF = (cpf) => {
 };
 
 export default function EditProfileScreen({navigation}) {
-  const {user, setUser, updateUser} = useAuth();
+  const authContext = useAuth();
+  const user = authContext?.user || null;
+  const setUser = authContext?.setUser || null;
+  const updateUser = authContext?.updateUser || null;
+  
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -53,26 +57,32 @@ export default function EditProfileScreen({navigation}) {
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
-    loadUserProfile();
+    if (navigation) {
+      loadUserProfile();
+    }
   }, []);
 
   // Atualizar formData quando user mudar
   useEffect(() => {
     if (user) {
-      const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        cpf: cpfValue,
-        avatar: user.avatar || null,
-      });
-      console.log('📝 FormData atualizado:', { 
-        name: user.name, 
-        email: user.email, 
-        hasCpf: !!cpfValue,
-        cpfValue: cpfValue ? '***' : 'vazio'
-      });
+      try {
+        const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
+        setFormData({
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          cpf: cpfValue,
+          avatar: user.avatar || null,
+        });
+        console.log('📝 FormData atualizado:', { 
+          name: user.name, 
+          email: user.email, 
+          hasCpf: !!cpfValue,
+          cpfValue: cpfValue ? '***' : 'vazio'
+        });
+      } catch (error) {
+        console.error('❌ Erro ao atualizar formData:', error);
+      }
     }
   }, [user]);
 
@@ -81,6 +91,7 @@ export default function EditProfileScreen({navigation}) {
       setLoadingProfile(true);
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
+        console.warn('⚠️ Token não encontrado, usando dados do contexto');
         setLoadingProfile(false);
         return;
       }
@@ -96,36 +107,46 @@ export default function EditProfileScreen({navigation}) {
 
       if (response.ok) {
         const userData = await response.json();
-        console.log('✅ Perfil carregado:', { 
-          name: userData.name, 
-          email: userData.email,
-          cpf: userData.cpf ? 'existe' : 'null/vazio',
-          cpfValue: userData.cpf || 'null'
-        });
-        
-        // Atualizar usuário no contexto
-        if (updateUser) {
-          updateUser(userData);
-        } else if (setUser) {
-          setUser(userData);
-          await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+        if (userData) {
+          console.log('✅ Perfil carregado:', { 
+            name: userData.name, 
+            email: userData.email,
+            cpf: userData.cpf ? 'existe' : 'null/vazio',
+            cpfValue: userData.cpf || 'null'
+          });
+          
+          // Atualizar usuário no contexto
+          if (updateUser) {
+            updateUser(userData);
+          } else if (setUser) {
+            setUser(userData);
+            await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+          }
         }
       } else {
-        console.error('❌ Erro ao carregar perfil:', response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Erro ao carregar perfil:', response.status, errorData);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar perfil:', error);
+      // Não mostrar erro ao usuário, apenas usar dados do contexto se disponível
     } finally {
       setLoadingProfile(false);
     }
   };
 
   const formatCPF = (value) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 11) {
-      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    if (!value) return '';
+    try {
+      const numbers = String(value).replace(/\D/g, '');
+      if (numbers.length <= 11) {
+        return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+      }
+      return value;
+    } catch (error) {
+      console.error('Erro ao formatar CPF:', error);
+      return String(value || '');
     }
-    return value;
   };
 
   const requestCameraPermission = async () => {
@@ -247,27 +268,30 @@ export default function EditProfileScreen({navigation}) {
   */
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      Alert.alert('Erro', 'O nome é obrigatório');
-      return;
-    }
-
-    // CPF não pode ser alterado - remover do body se estiver presente
-    // (já está desabilitado no formulário, mas garantir aqui também)
-
-    setLoading(true);
     try {
+      if (!formData || !formData.name || !formData.name.trim()) {
+        Alert.alert('Erro', 'O nome é obrigatório');
+        return;
+      }
+
+      if (!navigation) {
+        Alert.alert('Erro', 'Navegação não disponível');
+        return;
+      }
+
+      setLoading(true);
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
         Alert.alert('Erro', 'Você precisa estar logado para atualizar o perfil');
-        navigation.goBack();
+        if (navigation && navigation.goBack) {
+          navigation.goBack();
+        }
         return;
       }
 
       console.log('🔄 Enviando atualização de perfil...', {
         name: formData.name.trim(),
-        phone: formData.phone.trim() || null,
-        cpf: formData.cpf ? formData.cpf.replace(/\D/g, '') : null,
+        phone: formData.phone ? formData.phone.trim() : null,
       });
 
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
@@ -278,7 +302,7 @@ export default function EditProfileScreen({navigation}) {
         },
         body: JSON.stringify({
           name: formData.name.trim(),
-          phone: formData.phone.trim() || null,
+          phone: formData.phone ? formData.phone.trim() : null,
           // CPF não é enviado - não pode ser alterado após cadastro
           avatar: formData.avatar || null,
         }),
@@ -288,26 +312,30 @@ export default function EditProfileScreen({navigation}) {
 
       if (response.ok) {
         // Atualizar usuário no contexto
-        const userData = responseData.user;
-        if (updateUser) {
+        const userData = responseData.user || responseData;
+        if (updateUser && userData) {
           updateUser(userData);
-        } else if (setUser) {
+        } else if (setUser && userData) {
           setUser(userData);
           await AsyncStorage.setItem('user_data', JSON.stringify(userData));
         } else {
-          console.error('❌ Nem updateUser nem setUser estão disponíveis');
+          console.warn('⚠️ Nem updateUser nem setUser estão disponíveis, mas perfil foi atualizado no servidor');
         }
         
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
-          {text: 'OK', onPress: () => navigation.goBack()},
+          {text: 'OK', onPress: () => {
+            if (navigation && navigation.goBack) {
+              navigation.goBack();
+            }
+          }},
         ]);
       } else {
         console.error('❌ Erro ao atualizar perfil:', response.status, responseData);
-        Alert.alert('Erro', responseData.error || 'Erro ao atualizar perfil');
+        Alert.alert('Erro', responseData.error || responseData.message || 'Erro ao atualizar perfil');
       }
     } catch (error) {
       console.error('❌ Erro ao atualizar perfil:', error);
-      Alert.alert('Erro', `Não foi possível atualizar o perfil: ${error.message}`);
+      Alert.alert('Erro', `Não foi possível atualizar o perfil: ${error.message || 'Erro desconhecido'}`);
     } finally {
       setLoading(false);
     }
@@ -322,12 +350,24 @@ export default function EditProfileScreen({navigation}) {
     );
   }
 
+  if (!navigation) {
+    return (
+      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
+        <Text style={{color: '#EF4444'}}>Erro: Navegação não disponível</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}>
+          onPress={() => {
+            if (navigation && navigation.goBack) {
+              navigation.goBack();
+            }
+          }}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Editar Perfil</Text>
@@ -337,7 +377,7 @@ export default function EditProfileScreen({navigation}) {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
-            {formData.avatar ? (
+            {formData && formData.avatar ? (
               <Image source={{uri: formData.avatar}} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
@@ -366,8 +406,12 @@ export default function EditProfileScreen({navigation}) {
             <Text style={styles.label}>Nome Completo</Text>
             <TextInput
               style={styles.input}
-              value={formData.name}
-              onChangeText={(text) => setFormData({...formData, name: text})}
+              value={formData?.name || ''}
+              onChangeText={(text) => {
+                if (formData) {
+                  setFormData({...formData, name: text});
+                }
+              }}
               placeholder="Seu nome completo"
               placeholderTextColor="#9CA3AF"
             />
@@ -377,7 +421,7 @@ export default function EditProfileScreen({navigation}) {
             <Text style={styles.label}>E-mail</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={formData.email}
+              value={formData?.email || ''}
               editable={false}
               placeholderTextColor="#9CA3AF"
             />
@@ -388,8 +432,12 @@ export default function EditProfileScreen({navigation}) {
             <Text style={styles.label}>Telefone</Text>
             <TextInput
               style={styles.input}
-              value={formData.phone}
-              onChangeText={(text) => setFormData({...formData, phone: text})}
+              value={formData?.phone || ''}
+              onChangeText={(text) => {
+                if (formData) {
+                  setFormData({...formData, phone: text});
+                }
+              }}
               placeholder="(00) 00000-0000"
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
@@ -400,13 +448,13 @@ export default function EditProfileScreen({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={isValidCPF(formData.cpf) ? formatCPF(formData.cpf) : ''}
+              value={formData && formData.cpf && isValidCPF(formData.cpf) ? formatCPF(formData.cpf) : ''}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
             />
             <Text style={styles.helperText}>
-              {isValidCPF(formData.cpf)
+              {formData && formData.cpf && isValidCPF(formData.cpf)
                 ? 'CPF não pode ser alterado após o cadastro para prevenir fraudes'
                 : 'CPF não cadastrado. Entre em contato com o suporte para adicionar seu CPF.'}
             </Text>
