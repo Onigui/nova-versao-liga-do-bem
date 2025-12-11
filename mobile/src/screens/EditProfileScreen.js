@@ -41,6 +41,7 @@ export default function EditProfileScreen({navigation}) {
   const {user, setUser, updateUser} = useAuth();
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -150,56 +151,11 @@ export default function EditProfileScreen({navigation}) {
   };
 
   const handleImagePicker = () => {
-    if (!launchImageLibrary || !launchCamera) {
-      Alert.alert(
-        'Biblioteca não instalada',
-        'Para fazer upload de fotos, instale a biblioteca react-native-image-picker:\n\nnpm install react-native-image-picker\n\nE configure as permissões no AndroidManifest.xml e Info.plist',
-      );
-      return;
-    }
-
     Alert.alert(
-      'Selecionar Foto',
-      'Escolha uma opção',
-      [
-        {text: 'Cancelar', style: 'cancel'},
-        {
-          text: 'Câmera',
-          onPress: async () => {
-            const hasPermission = await requestCameraPermission();
-            if (!hasPermission) {
-              Alert.alert('Permissão Negada', 'É necessário permitir o acesso à câmera');
-              return;
-            }
-            launchCamera(
-              {
-                mediaType: 'photo',
-                quality: 0.8,
-                maxWidth: 800,
-                maxHeight: 800,
-              },
-              handleImageResponse,
-            );
-          },
-        },
-        {
-          text: 'Galeria',
-          onPress: () => {
-            launchImageLibrary(
-              {
-                mediaType: 'photo',
-                quality: 0.8,
-                maxWidth: 800,
-                maxHeight: 800,
-              },
-              handleImageResponse,
-            );
-          },
-        },
-      ],
-      {cancelable: true},
+      'Em breve',
+      'A funcionalidade de upload de foto estará disponível em breve. Por enquanto, entre em contato com o suporte para atualizar sua foto de perfil.',
+      [{text: 'OK'}],
     );
-    */
   };
 
   // Função comentada até instalar react-native-image-picker e react-native-fs
