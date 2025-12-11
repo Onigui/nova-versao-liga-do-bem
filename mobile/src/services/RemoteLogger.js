@@ -16,11 +16,46 @@ class RemoteLogger {
 
   // Adicionar log
   log(level, message, data = null) {
+    // Capturar stack trace para erros
+    let stackTrace = null;
+    if (level === 'error' && data) {
+      try {
+        if (data instanceof Error) {
+          stackTrace = data.stack || null;
+          data = {
+            message: data.message,
+            name: data.name,
+            stack: data.stack,
+            ...(data.other && typeof data.other === 'object' ? data.other : {}),
+          };
+        } else if (data?.error?.stack) {
+          stackTrace = data.error.stack;
+        } else if (data?.stack) {
+          stackTrace = data.stack;
+        }
+      } catch (e) {
+        // Ignorar erros ao processar stack trace
+      }
+    }
+
+    // Capturar stack trace do contexto atual se for erro
+    if (level === 'error' && !stackTrace) {
+      try {
+        const error = new Error();
+        if (error.stack) {
+          stackTrace = error.stack;
+        }
+      } catch (e) {
+        // Ignorar
+      }
+    }
+
     const logEntry = {
       timestamp: new Date().toISOString(),
       level, // 'info', 'warn', 'error', 'debug'
       message,
-      data: data ? JSON.stringify(data) : null,
+      data: data ? (typeof data === 'string' ? data : JSON.stringify(data, null, 2)) : null,
+      stackTrace,
       platform: 'mobile',
     };
 
@@ -34,6 +69,9 @@ class RemoteLogger {
     // Log local também
     if (level === 'error') {
       console.error(`[${level.toUpperCase()}]`, message, data);
+      if (stackTrace) {
+        console.error('Stack Trace:', stackTrace);
+      }
     } else if (level === 'warn') {
       console.warn(`[${level.toUpperCase()}]`, message, data);
     } else {
@@ -95,6 +133,20 @@ class RemoteLogger {
     return [...this.logs];
   }
 
+  // Capturar erro com contexto adicional
+  captureError(error, context = {}) {
+    const errorData = {
+      error: {
+        message: error?.message || 'Erro desconhecido',
+        name: error?.name || 'Error',
+        stack: error?.stack || null,
+      },
+      context,
+      timestamp: new Date().toISOString(),
+    };
+    this.log('error', '🚨 Erro capturado', errorData);
+  }
+
   // Limpar logs locais
   clearLogs() {
     this.logs = [];
@@ -109,6 +161,7 @@ export const logInfo = (message, data) => remoteLogger.log('info', message, data
 export const logWarn = (message, data) => remoteLogger.log('warn', message, data);
 export const logError = (message, data) => remoteLogger.log('error', message, data);
 export const logDebug = (message, data) => remoteLogger.log('debug', message, data);
+export const captureError = (error, context) => remoteLogger.captureError(error, context);
 
 export default remoteLogger;
 

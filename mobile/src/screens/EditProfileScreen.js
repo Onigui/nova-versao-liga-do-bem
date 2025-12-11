@@ -27,6 +27,7 @@ try {
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {logInfo, logError, logDebug, logWarn, captureError} from '../services/RemoteLogger';
 
 // Função helper para validar se CPF é válido
 const isValidCPF = (cpf) => {
@@ -38,7 +39,26 @@ const isValidCPF = (cpf) => {
 };
 
 export default function EditProfileScreen({navigation}) {
-  const authContext = useAuth();
+  logDebug('🔵 EditProfileScreen: Iniciando componente', {
+    hasNavigation: !!navigation,
+    timestamp: new Date().toISOString(),
+  });
+
+  let authContext;
+  try {
+    authContext = useAuth();
+    logDebug('🔵 EditProfileScreen: useAuth retornado', {
+      hasAuthContext: !!authContext,
+      hasUser: !!authContext?.user,
+      hasSetUser: !!authContext?.setUser,
+      hasUpdateUser: !!authContext?.updateUser,
+    });
+  } catch (error) {
+    logError('❌ EditProfileScreen: Erro ao chamar useAuth', error);
+    captureError(error, {context: 'useAuth call'});
+    authContext = {};
+  }
+
   const user = authContext?.user || null;
   const setUser = authContext?.setUser || null;
   const updateUser = authContext?.updateUser || null;
@@ -55,17 +75,38 @@ export default function EditProfileScreen({navigation}) {
     avatar: null,
   });
 
+  logDebug('🔵 EditProfileScreen: Estados inicializados', {
+    loading,
+    loadingProfile,
+    uploadingAvatar,
+  });
+
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
+    logDebug('🔵 EditProfileScreen: useEffect de carregamento executado', {
+      hasNavigation: !!navigation,
+    });
     if (navigation) {
       loadUserProfile();
+    } else {
+      logError('❌ EditProfileScreen: navigation não disponível no useEffect');
     }
   }, []);
 
   // Atualizar formData quando user mudar
   useEffect(() => {
+    logDebug('🔵 EditProfileScreen: useEffect de user executado', {
+      hasUser: !!user,
+      userId: user?.id,
+    });
     if (user) {
       try {
+        logDebug('🔵 EditProfileScreen: Processando dados do usuário', {
+          hasName: !!user.name,
+          hasEmail: !!user.email,
+          hasPhone: !!user.phone,
+          hasCpf: !!user.cpf,
+        });
         const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
         setFormData({
           name: user.name || '',
@@ -74,29 +115,42 @@ export default function EditProfileScreen({navigation}) {
           cpf: cpfValue,
           avatar: user.avatar || null,
         });
-        console.log('📝 FormData atualizado:', { 
+        logInfo('📝 EditProfileScreen: FormData atualizado', { 
           name: user.name, 
           email: user.email, 
           hasCpf: !!cpfValue,
           cpfValue: cpfValue ? '***' : 'vazio'
         });
       } catch (error) {
-        console.error('❌ Erro ao atualizar formData:', error);
+        logError('❌ EditProfileScreen: Erro ao atualizar formData', error);
+        captureError(error, {
+          context: 'useEffect user',
+          userData: {id: user?.id, email: user?.email},
+        });
       }
+    } else {
+      logDebug('🔵 EditProfileScreen: user é null/undefined, não atualizando formData');
     }
   }, [user]);
 
   const loadUserProfile = async () => {
     try {
+      logDebug('🔵 EditProfileScreen: loadUserProfile iniciado');
       setLoadingProfile(true);
+      
+      logDebug('🔵 EditProfileScreen: Buscando token do AsyncStorage');
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
-        console.warn('⚠️ Token não encontrado, usando dados do contexto');
+        logWarn('⚠️ EditProfileScreen: Token não encontrado, usando dados do contexto');
         setLoadingProfile(false);
         return;
       }
 
-      console.log('🔄 Carregando perfil do usuário...');
+      logInfo('🔄 EditProfileScreen: Carregando perfil do usuário...', {
+        apiUrl: `${API_BASE_PATH}/user/profile`,
+        hasToken: !!token,
+      });
+      
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
         method: 'GET',
         headers: {
@@ -105,10 +159,21 @@ export default function EditProfileScreen({navigation}) {
         },
       });
 
+      logDebug('🔵 EditProfileScreen: Resposta recebida', {
+        status: response.status,
+        ok: response.ok,
+      });
+
       if (response.ok) {
         const userData = await response.json();
+        logDebug('🔵 EditProfileScreen: Dados do usuário recebidos', {
+          hasUserData: !!userData,
+          hasName: !!userData?.name,
+          hasEmail: !!userData?.email,
+        });
+        
         if (userData) {
-          console.log('✅ Perfil carregado:', { 
+          logInfo('✅ EditProfileScreen: Perfil carregado', { 
             name: userData.name, 
             email: userData.email,
             cpf: userData.cpf ? 'existe' : 'null/vazio',
@@ -116,22 +181,48 @@ export default function EditProfileScreen({navigation}) {
           });
           
           // Atualizar usuário no contexto
+          logDebug('🔵 EditProfileScreen: Tentando atualizar usuário no contexto', {
+            hasUpdateUser: !!updateUser,
+            hasSetUser: !!setUser,
+          });
+          
           if (updateUser) {
-            updateUser(userData);
+            try {
+              updateUser(userData);
+              logInfo('✅ EditProfileScreen: Usuário atualizado via updateUser');
+            } catch (error) {
+              logError('❌ EditProfileScreen: Erro ao chamar updateUser', error);
+              captureError(error, {context: 'updateUser', userData: {id: userData?.id}});
+            }
           } else if (setUser) {
-            setUser(userData);
-            await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+            try {
+              setUser(userData);
+              await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+              logInfo('✅ EditProfileScreen: Usuário atualizado via setUser');
+            } catch (error) {
+              logError('❌ EditProfileScreen: Erro ao chamar setUser', error);
+              captureError(error, {context: 'setUser', userData: {id: userData?.id}});
+            }
+          } else {
+            logWarn('⚠️ EditProfileScreen: Nem updateUser nem setUser disponíveis');
           }
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Erro ao carregar perfil:', response.status, errorData);
+        logError('❌ EditProfileScreen: Erro ao carregar perfil', {
+          status: response.status,
+          errorData,
+        });
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar perfil:', error);
-      // Não mostrar erro ao usuário, apenas usar dados do contexto se disponível
+      logError('❌ EditProfileScreen: Erro ao carregar perfil', error);
+      captureError(error, {
+        context: 'loadUserProfile',
+        function: 'loadUserProfile',
+      });
     } finally {
       setLoadingProfile(false);
+      logDebug('🔵 EditProfileScreen: loadUserProfile finalizado');
     }
   };
 
