@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -55,57 +55,57 @@ export default function EditProfileScreen({navigation}) {
     avatar: null,
   });
 
-  const loadUserProfile = useCallback(async () => {
-    try {
-      setLoadingProfile(true);
-      
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        setLoadingProfile(false);
-        return;
-      }
-      
-      const response = await fetch(`${API_BASE_PATH}/user/profile`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
+  // Carregar perfil do usuário ao abrir a tela
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        setLoadingProfile(true);
         
-        if (userData) {
-          if (updateUser) {
-            try {
-              updateUser(userData);
-            } catch (error) {
-              console.error('Erro ao chamar updateUser:', error);
-            }
-          } else if (setUser) {
-            try {
-              setUser(userData);
-              await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-            } catch (error) {
-              console.error('Erro ao chamar setUser:', error);
+        const token = await AsyncStorage.getItem('auth_token');
+        if (!token) {
+          setLoadingProfile(false);
+          return;
+        }
+        
+        const response = await fetch(`${API_BASE_PATH}/user/profile`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          
+          if (userData) {
+            if (updateUser && typeof updateUser === 'function') {
+              try {
+                updateUser(userData);
+              } catch (error) {
+                console.error('Erro ao chamar updateUser:', error);
+              }
+            } else if (setUser && typeof setUser === 'function') {
+              try {
+                setUser(userData);
+                await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+              } catch (error) {
+                console.error('Erro ao chamar setUser:', error);
+              }
             }
           }
         }
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+      } finally {
+        setLoadingProfile(false);
       }
-    } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-    } finally {
-      setLoadingProfile(false);
-    }
-  }, [updateUser, setUser]);
+    };
 
-  // Carregar perfil do usuário ao abrir a tela
-  useEffect(() => {
     if (navigation) {
       loadUserProfile();
     }
-  }, [navigation, loadUserProfile]);
+  }, [navigation]);
 
   // Atualizar formData quando user mudar
   useEffect(() => {
@@ -303,9 +303,9 @@ export default function EditProfileScreen({navigation}) {
       if (response.ok) {
         // Atualizar usuário no contexto
         const userData = responseData.user || responseData;
-        if (updateUser && userData) {
+        if (updateUser && typeof updateUser === 'function' && userData) {
           updateUser(userData);
-        } else if (setUser && userData) {
+        } else if (setUser && typeof setUser === 'function' && userData) {
           setUser(userData);
           await AsyncStorage.setItem('user_data', JSON.stringify(userData));
         } else {
