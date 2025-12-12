@@ -15,28 +15,48 @@ import {
   Modal,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import remoteLogger, {logInfo, logError, logDebug, captureError} from '../services/RemoteLogger';
 import { API_BASE_PATH } from '../config/apiConfig';
 import {useAuth} from '../services/AuthService';
 
+// Importação segura do RemoteLogger
+let remoteLogger = null;
+let logInfo, logError, logDebug, captureError;
+try {
+  const logger = require('../services/RemoteLogger');
+  remoteLogger = logger.default || logger;
+  logInfo = logger.logInfo || (() => {});
+  logError = logger.logError || (() => {});
+  logDebug = logger.logDebug || (() => {});
+  captureError = logger.captureError || (() => {});
+} catch (e) {
+  console.warn('RemoteLogger não disponível:', e);
+  logInfo = () => {};
+  logError = () => {};
+  logDebug = () => {};
+  captureError = () => {};
+}
+
 export default function DebugScreen({navigation}) {
-  const {user} = useAuth();
+  if (!navigation) {
+    return (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <Text>Erro: Navegação não disponível</Text>
+      </View>
+    );
+  }
+
+  let user;
+  try {
+    const authContext = useAuth();
+    user = authContext?.user || null;
+  } catch (error) {
+    console.error('Erro ao obter usuário:', error);
+    user = null;
+  }
   
   // Verificar se o usuário é administrador
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
   
-  // Se não for admin, redirecionar
-  useEffect(() => {
-    if (!isAdmin) {
-      Alert.alert('Acesso Negado', 'Esta área é restrita apenas para administradores.', [
-        {text: 'OK', onPress: () => navigation.goBack()},
-      ]);
-    }
-  }, [isAdmin, navigation]);
-  
-  if (!isAdmin) {
-    return null; // Não renderizar nada se não for admin
-  }
   const [logs, setLogs] = useState([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
@@ -44,21 +64,42 @@ export default function DebugScreen({navigation}) {
   const [filterLevel, setFilterLevel] = useState('all');
   const scrollViewRef = useRef(null);
 
+  // Se não for admin, redirecionar
+  useEffect(() => {
+    if (!isAdmin) {
+      Alert.alert('Acesso Negado', 'Esta área é restrita apenas para administradores.', [
+        {text: 'OK', onPress: () => {
+          if (navigation && navigation.goBack) {
+            navigation.goBack();
+          }
+        }},
+      ]);
+    }
+  }, [isAdmin, navigation]);
+  
+  if (!isAdmin) {
+    return null;
+  }
+
   useEffect(() => {
     // Atualizar logs a cada segundo
     const interval = setInterval(() => {
       try {
-        const localLogs = remoteLogger?.getLocalLogs ? remoteLogger.getLocalLogs() : [];
-        // Filtrar logs se necessário
-        const filteredLogs = filterLevel === 'all' 
-          ? localLogs 
-          : localLogs.filter(log => log.level === filterLevel);
-        setLogs(filteredLogs);
+        if (remoteLogger && typeof remoteLogger.getLocalLogs === 'function') {
+          const localLogs = remoteLogger.getLocalLogs();
+          // Filtrar logs se necessário
+          const filteredLogs = filterLevel === 'all' 
+            ? localLogs 
+            : localLogs.filter(log => log && log.level === filterLevel);
+          setLogs(filteredLogs || []);
+        } else {
+          setLogs([]);
+        }
       } catch (error) {
         console.error('Erro ao buscar logs:', error);
         setLogs([]);
       }
-    }, 1000); // Atualizar a cada segundo
+    }, 2000); // Atualizar a cada 2 segundos para não sobrecarregar
 
     return () => clearInterval(interval);
   }, [filterLevel]);
@@ -71,7 +112,7 @@ export default function DebugScreen({navigation}) {
 
   const clearLogs = () => {
     try {
-      if (remoteLogger?.clearLogs) {
+      if (remoteLogger && typeof remoteLogger.clearLogs === 'function') {
         remoteLogger.clearLogs();
       }
       setLogs([]);
@@ -83,10 +124,15 @@ export default function DebugScreen({navigation}) {
   };
 
   const testLog = () => {
-    logInfo('🧪 Teste de log', {timestamp: new Date().toISOString()});
-    logDebug('Debug test', {test: true});
-    logError('Teste de erro', new Error('Este é um erro de teste'));
-    Alert.alert('Log de Teste', 'Logs de teste foram adicionados!');
+    try {
+      if (logInfo) logInfo('🧪 Teste de log', {timestamp: new Date().toISOString()});
+      if (logDebug) logDebug('Debug test', {test: true});
+      if (logError) logError('Teste de erro', new Error('Este é um erro de teste'));
+      Alert.alert('Log de Teste', 'Logs de teste foram adicionados!');
+    } catch (error) {
+      console.error('Erro ao criar log de teste:', error);
+      Alert.alert('Erro', 'Não foi possível criar log de teste');
+    }
   };
 
   const testError = () => {
@@ -94,11 +140,17 @@ export default function DebugScreen({navigation}) {
       // Simular um erro
       throw new Error('Erro de teste para verificar captura');
     } catch (error) {
-      captureError(error, {
-        context: 'Teste manual de erro',
-        screen: 'DebugScreen',
-      });
-      Alert.alert('Erro de Teste', 'Um erro de teste foi capturado e logado!');
+      try {
+        if (captureError) {
+          captureError(error, {
+            context: 'Teste manual de erro',
+            screen: 'DebugScreen',
+          });
+        }
+        Alert.alert('Erro de Teste', 'Um erro de teste foi capturado e logado!');
+      } catch (e) {
+        console.error('Erro ao capturar erro de teste:', e);
+      }
     }
   };
 

@@ -38,7 +38,28 @@ const isValidCPF = (cpf) => {
 };
 
 export default function EditProfileScreen({navigation}) {
-  const {user, updateUser} = useAuth();
+  if (!navigation) {
+    return (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <Text>Erro: Navegação não disponível</Text>
+      </View>
+    );
+  }
+
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error('Erro ao obter contexto de autenticação:', error);
+    return (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <Text>Erro ao carregar dados do usuário</Text>
+      </View>
+    );
+  }
+
+  const user = authContext?.user || null;
+  const updateUser = authContext?.updateUser || null;
   
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -54,8 +75,6 @@ export default function EditProfileScreen({navigation}) {
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
-    if (!navigation) return;
-    
     const loadUserProfile = async () => {
       try {
         setLoadingProfile(true);
@@ -76,7 +95,7 @@ export default function EditProfileScreen({navigation}) {
 
         if (response.ok) {
           const userData = await response.json();
-          if (userData && updateUser) {
+          if (userData && updateUser && typeof updateUser === 'function') {
             updateUser(userData);
           }
         }
@@ -286,7 +305,7 @@ export default function EditProfileScreen({navigation}) {
       if (response.ok) {
         // Atualizar usuário no contexto
         const userData = responseData.user || responseData;
-        if (updateUser && userData) {
+        if (updateUser && typeof updateUser === 'function' && userData) {
           updateUser(userData);
         }
         
