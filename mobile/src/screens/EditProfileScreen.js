@@ -38,10 +38,7 @@ const isValidCPF = (cpf) => {
 };
 
 export default function EditProfileScreen({navigation}) {
-  const authContext = useAuth();
-  const user = authContext?.user || null;
-  const setUser = authContext?.setUser || null;
-  const updateUser = authContext?.updateUser || null;
+  const {user, updateUser} = useAuth();
   
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -57,6 +54,8 @@ export default function EditProfileScreen({navigation}) {
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
+    if (!navigation) return;
+    
     const loadUserProfile = async () => {
       try {
         setLoadingProfile(true);
@@ -77,22 +76,8 @@ export default function EditProfileScreen({navigation}) {
 
         if (response.ok) {
           const userData = await response.json();
-          
-          if (userData) {
-            if (updateUser && typeof updateUser === 'function') {
-              try {
-                updateUser(userData);
-              } catch (error) {
-                console.error('Erro ao chamar updateUser:', error);
-              }
-            } else if (setUser && typeof setUser === 'function') {
-              try {
-                setUser(userData);
-                await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-              } catch (error) {
-                console.error('Erro ao chamar setUser:', error);
-              }
-            }
+          if (userData && updateUser) {
+            updateUser(userData);
           }
         }
       } catch (error) {
@@ -102,10 +87,8 @@ export default function EditProfileScreen({navigation}) {
       }
     };
 
-    if (navigation) {
-      loadUserProfile();
-    }
-  }, [navigation]);
+    loadUserProfile();
+  }, []);
 
   // Atualizar formData quando user mudar
   useEffect(() => {
@@ -303,13 +286,8 @@ export default function EditProfileScreen({navigation}) {
       if (response.ok) {
         // Atualizar usuário no contexto
         const userData = responseData.user || responseData;
-        if (updateUser && typeof updateUser === 'function' && userData) {
+        if (updateUser && userData) {
           updateUser(userData);
-        } else if (setUser && typeof setUser === 'function' && userData) {
-          setUser(userData);
-          await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-        } else {
-          console.warn('⚠️ Nem updateUser nem setUser estão disponíveis, mas perfil foi atualizado no servidor');
         }
         
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
