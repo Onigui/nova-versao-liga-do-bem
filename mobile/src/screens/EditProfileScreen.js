@@ -85,17 +85,32 @@ function EditProfileScreenContent({navigation}) {
 
         if (response.ok && mountedRef.current) {
           const data = await response.json();
+          console.log('📋 RESPOSTA COMPLETA DA API:', JSON.stringify(data, null, 2));
+          console.log('📋 CPF na resposta:', data.cpf, 'Tipo:', typeof data.cpf);
+          console.log('📋 Todos os campos:', Object.keys(data));
+          
           setUserData(data);
           // Sempre salvar o CPF, mesmo que não seja válido (para exibir)
-          const cpfValue = data.cpf || '';
-          console.log('📋 CPF carregado da API:', cpfValue, 'Tipo:', typeof cpfValue);
+          const cpfValue = data.cpf || data.user?.cpf || '';
+          console.log('📋 CPF que será salvo no formData:', cpfValue);
+          
           setFormData({
-            name: data.name || '',
-            email: data.email || '',
-            phone: data.phone || '',
+            name: data.name || data.user?.name || '',
+            email: data.email || data.user?.email || '',
+            phone: data.phone || data.user?.phone || '',
             cpf: cpfValue,
-            avatar: data.avatar || null,
+            avatar: data.avatar || data.user?.avatar || null,
           });
+          
+          console.log('📋 FormData após setFormData:', {
+            name: data.name || data.user?.name || '',
+            email: data.email || data.user?.email || '',
+            phone: data.phone || data.user?.phone || '',
+            cpf: cpfValue,
+          });
+        } else {
+          const errorText = await response.text();
+          console.error('❌ Erro na resposta da API:', response.status, errorText);
         }
       } catch (error) {
         console.error('Erro ao carregar perfil:', error);

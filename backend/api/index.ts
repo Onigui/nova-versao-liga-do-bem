@@ -1835,7 +1835,9 @@ export default async function handler(req: any, res: any) {
           }
         }
         
-        console.log('📋 GET /api/user/profile: Retornando usuário com CPF:', (user as any).cpf);
+        console.log('📋 GET /api/user/profile: Retornando usuário completo:', JSON.stringify(user, null, 2));
+        console.log('📋 GET /api/user/profile: CPF específico:', (user as any).cpf, 'Tipo:', typeof (user as any).cpf);
+        console.log('📋 GET /api/user/profile: CPF existe?', 'cpf' in user);
         return res.status(200).json(user);
       } catch (error: any) {
         console.error('❌ Erro ao buscar perfil:', error);
