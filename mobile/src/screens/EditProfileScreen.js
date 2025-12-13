@@ -86,13 +86,27 @@ function EditProfileScreenContent({navigation}) {
         if (response.ok && mountedRef.current) {
           const data = await response.json();
           console.log('📋 RESPOSTA COMPLETA DA API:', JSON.stringify(data, null, 2));
-          console.log('📋 CPF na resposta:', data.cpf, 'Tipo:', typeof data.cpf);
+          console.log('📋 CPF na resposta:', data.cpf, 'Tipo:', typeof data.cpf, 'É null?', data.cpf === null, 'É undefined?', data.cpf === undefined);
           console.log('📋 Todos os campos:', Object.keys(data));
           
           setUserData(data);
-          // Sempre salvar o CPF, mesmo que não seja válido (para exibir)
-          const cpfValue = data.cpf || data.user?.cpf || '';
-          console.log('📋 CPF que será salvo no formData:', cpfValue);
+          // Processar CPF - verificar se é null, undefined, ou string vazia
+          let cpfValue = data.cpf || data.user?.cpf || null;
+          
+          // Se CPF for null, undefined, string vazia, ou "null", definir como null
+          if (cpfValue === null || cpfValue === undefined || cpfValue === '' || String(cpfValue).trim() === '' || String(cpfValue).toLowerCase() === 'null') {
+            cpfValue = null;
+          } else {
+            // Limpar e validar CPF
+            const cpfClean = String(cpfValue).replace(/\D/g, '');
+            if (cpfClean === '' || cpfClean === '00000000000' || cpfClean.length !== 11) {
+              cpfValue = null;
+            } else {
+              cpfValue = cpfClean; // Salvar apenas números
+            }
+          }
+          
+          console.log('📋 CPF processado que será salvo no formData:', cpfValue);
           
           setFormData({
             name: data.name || data.user?.name || '',
@@ -102,12 +116,7 @@ function EditProfileScreenContent({navigation}) {
             avatar: data.avatar || data.user?.avatar || null,
           });
           
-          console.log('📋 FormData após setFormData:', {
-            name: data.name || data.user?.name || '',
-            email: data.email || data.user?.email || '',
-            phone: data.phone || data.user?.phone || '',
-            cpf: cpfValue,
-          });
+          console.log('📋 FormData após setFormData - CPF:', formData.cpf);
         } else {
           const errorText = await response.text();
           console.error('❌ Erro na resposta da API:', response.status, errorText);
@@ -130,16 +139,23 @@ function EditProfileScreenContent({navigation}) {
   }, []);
 
   const formatCPF = (value) => {
-    if (!value) return '';
+    if (!value || value === null || value === undefined || value === 'null' || value === 'undefined') {
+      return '';
+    }
     try {
-      const numbers = String(value).replace(/\D/g, '');
-      if (numbers.length <= 11) {
+      const valueStr = String(value).trim();
+      if (valueStr === '' || valueStr === '0' || valueStr === '00000000000' || valueStr === '000.000.000-00') {
+        return '';
+      }
+      const numbers = valueStr.replace(/\D/g, '');
+      if (numbers.length === 11 && numbers !== '00000000000') {
         return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
       }
-      return value;
+      // Se não tiver 11 dígitos ou for todos zeros, retornar vazio
+      return '';
     } catch (error) {
       console.error('Erro ao formatar CPF:', error);
-      return String(value || '');
+      return '';
     }
   };
 
@@ -300,7 +316,7 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={formData?.cpf ? formatCPF(formData.cpf) : ''}
+              value={formData?.cpf && formData.cpf !== null && formData.cpf !== undefined ? formatCPF(formData.cpf) : ''}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
@@ -308,14 +324,14 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.helperText}>
               {formData?.cpf && isValidCPF(formData.cpf)
                 ? 'CPF não pode ser alterado após o cadastro'
-                : formData?.cpf
+                : formData?.cpf && formData.cpf !== null && formData.cpf !== undefined
                 ? `CPF cadastrado (formato pode estar incorreto): ${formData.cpf}`
                 : 'CPF não cadastrado. Entre em contato com o suporte.'}
             </Text>
             {/* Debug: mostrar valor bruto do CPF em desenvolvimento */}
             {__DEV__ && (
               <Text style={{fontSize: 10, color: '#999', marginTop: 4}}>
-                Debug: CPF raw = {JSON.stringify(formData?.cpf)}
+                Debug: CPF raw = {JSON.stringify(formData?.cpf)}, formatado = {formatCPF(formData?.cpf)}
               </Text>
             )}
           </View>
