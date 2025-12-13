@@ -1806,13 +1806,36 @@ export default async function handler(req: any, res: any) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
-        // Garantir que cpf seja null se não existir ou for inválido
-        if (!('cpf' in user)) {
-          (user as any).cpf = null;
-        } else if (!user.cpf || user.cpf.trim() === '' || user.cpf === '00000000000') {
-          (user as any).cpf = null;
+        // Garantir que cpf seja retornado se existir (não forçar null)
+        // Apenas limpar se for realmente inválido (todos zeros ou vazio)
+        if ('cpf' in user) {
+          const cpfValue = user.cpf;
+          if (cpfValue && typeof cpfValue === 'string') {
+            const cpfClean = cpfValue.replace(/\D/g, '');
+            // Só definir como null se for realmente inválido (todos zeros ou vazio)
+            if (cpfClean === '' || cpfClean === '00000000000' || cpfClean.length !== 11) {
+              (user as any).cpf = null;
+            } else {
+              // Manter o CPF original (pode estar formatado ou não)
+              (user as any).cpf = cpfValue;
+            }
+          } else if (!cpfValue) {
+            (user as any).cpf = null;
+          }
+        } else {
+          // Se cpf não estiver no select, tentar buscar separadamente
+          try {
+            const userWithCpf = await db.user.findUnique({
+              where: { id: userId },
+              select: { cpf: true }
+            });
+            (user as any).cpf = userWithCpf?.cpf || null;
+          } catch (e) {
+            (user as any).cpf = null;
+          }
         }
         
+        console.log('📋 GET /api/user/profile: Retornando usuário com CPF:', (user as any).cpf);
         return res.status(200).json(user);
       } catch (error: any) {
         console.error('❌ Erro ao buscar perfil:', error);

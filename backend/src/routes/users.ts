@@ -12,6 +12,21 @@ router.get('/profile', authenticate, async (req: any, res) => {
       where: { id: req.user.id },
       include: {
         membership: true
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        cpf: true,
+        avatar: true,
+        notificationsEnabled: true,
+        locationEnabled: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        membership: true
       }
     });
 
@@ -19,6 +34,7 @@ router.get('/profile', authenticate, async (req: any, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
+    console.log('📋 GET /user/profile: CPF do usuário:', user.cpf);
     res.json(user);
   } catch (error) {
     console.error('Get profile error:', error);
