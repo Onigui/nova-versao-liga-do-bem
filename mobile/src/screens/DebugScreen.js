@@ -76,17 +76,50 @@ export default function DebugScreen({navigation}) {
     try {
       setLoading(true);
       
+      // Tentar carregar logs do RemoteLogger
       if (remoteLogger && typeof remoteLogger.getLocalLogs === 'function') {
-        const localLogs = remoteLogger.getLocalLogs();
-        if (Array.isArray(localLogs)) {
-          // Limitar a 100 logs para não sobrecarregar
-          const limitedLogs = localLogs.slice(-100);
-          setLogs(limitedLogs);
-        } else {
+        try {
+          const localLogs = remoteLogger.getLocalLogs();
+          if (Array.isArray(localLogs)) {
+            // Limitar a 200 logs para não sobrecarregar
+            const limitedLogs = localLogs.slice(-200);
+            setLogs(limitedLogs);
+          } else {
+            setLogs([]);
+          }
+        } catch (loggerError) {
+          console.error('Erro ao obter logs do RemoteLogger:', loggerError);
           setLogs([]);
         }
       } else {
         setLogs([]);
+      }
+      
+      // Também tentar carregar logs salvos no AsyncStorage como backup
+      try {
+        AsyncStorage.getItem('app_logs').then(storedLogs => {
+          if (storedLogs && mounted) {
+            try {
+              const parsed = JSON.parse(storedLogs);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                // Combinar com logs atuais, removendo duplicatas
+                setLogs(prev => {
+                  const combined = [...prev, ...parsed];
+                  const unique = combined.filter((log, index, self) => 
+                    index === self.findIndex(l => l.timestamp === log.timestamp && l.message === log.message)
+                  );
+                  return unique.slice(-200);
+                });
+              }
+            } catch (e) {
+              console.warn('Erro ao parsear logs do storage:', e);
+            }
+          }
+        }).catch(e => {
+          console.warn('Erro ao carregar logs do storage:', e);
+        });
+      } catch (e) {
+        // Ignorar erros do AsyncStorage
       }
     } catch (error) {
       console.error('Erro ao carregar logs:', error);

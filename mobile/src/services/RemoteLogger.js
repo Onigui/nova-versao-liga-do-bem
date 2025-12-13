@@ -4,21 +4,50 @@
  */
 
 import { API_BASE_PATH } from '../config/apiConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 class RemoteLogger {
   constructor() {
     try {
       this.logs = [];
-      this.maxLogs = 100; // Manter últimos 100 logs em memória
+      this.maxLogs = 200; // Manter últimos 200 logs em memória
       this.sendInterval = 30000; // Enviar logs a cada 30 segundos
       this.isEnabled = true;
       this.intervalId = null;
+      this.storageKey = 'app_logs';
+      // Carregar logs salvos do storage
+      this.loadStoredLogs();
       // Não iniciar envio automático na inicialização para evitar problemas
       // this.startSending();
     } catch (error) {
       console.error('Erro ao inicializar RemoteLogger:', error);
       this.logs = [];
       this.isEnabled = false;
+    }
+  }
+
+  // Carregar logs salvos do AsyncStorage
+  async loadStoredLogs() {
+    try {
+      const stored = await AsyncStorage.getItem(this.storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          this.logs = parsed.slice(-this.maxLogs);
+        }
+      }
+    } catch (error) {
+      console.warn('Erro ao carregar logs do storage:', error);
+    }
+  }
+
+  // Salvar logs no AsyncStorage
+  async saveLogsToStorage() {
+    try {
+      const logsToSave = this.logs.slice(-100); // Salvar últimos 100 no storage
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(logsToSave));
+    } catch (error) {
+      console.warn('Erro ao salvar logs no storage:', error);
     }
   }
 
@@ -73,6 +102,11 @@ class RemoteLogger {
     if (this.logs.length > this.maxLogs) {
       this.logs.shift();
     }
+
+    // Salvar no storage (async, não bloquear)
+    this.saveLogsToStorage().catch(e => {
+      // Ignorar erros de salvamento
+    });
 
     // Log local também
     if (level === 'error') {

@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -9,24 +9,12 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Platform,
-  PermissionsAndroid,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-// Importação condicional do image picker
-let launchImageLibrary = null;
-let launchCamera = null;
-try {
-  const imagePicker = require('react-native-image-picker');
-  launchImageLibrary = imagePicker.launchImageLibrary;
-  launchCamera = imagePicker.launchCamera;
-} catch (e) {
-  console.warn('react-native-image-picker não instalado. Instale com: npm install react-native-image-picker');
-}
-import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Função helper para validar se CPF é válido
 const isValidCPF = (cpf) => {
@@ -37,22 +25,12 @@ const isValidCPF = (cpf) => {
   return numbers.length === 11 && numbers !== '00000000000';
 };
 
-export default function EditProfileScreen({navigation}) {
-  // Usar useAuth de forma segura - se falhar, vamos carregar do AsyncStorage
-  let user = null;
-  let updateUser = null;
-  
-  try {
-    const authContext = useAuth();
-    user = authContext?.user || null;
-    updateUser = authContext?.updateUser || null;
-  } catch (error) {
-    console.warn('useAuth não disponível, carregando do AsyncStorage:', error.message);
-  }
-  
+// Componente interno protegido
+function EditProfileScreenContent({navigation}) {
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const mountedRef = useRef(true);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -64,34 +42,34 @@ export default function EditProfileScreen({navigation}) {
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
     
     const loadUserProfile = async () => {
       try {
-        if (!mounted) return;
+        if (!mountedRef.current) return;
         setLoadingProfile(true);
         
-        // Buscar dados da API ou do storage
         const token = await AsyncStorage.getItem('auth_token');
         if (!token) {
           // Tentar carregar do storage se não tiver token
           try {
             const storedUser = await AsyncStorage.getItem('user_data');
-            if (storedUser && mounted) {
-              const userData = JSON.parse(storedUser);
-              const cpfValue = isValidCPF(userData.cpf) ? userData.cpf : '';
+            if (storedUser && mountedRef.current) {
+              const parsedUser = JSON.parse(storedUser);
+              setUserData(parsedUser);
+              const cpfValue = isValidCPF(parsedUser.cpf) ? parsedUser.cpf : '';
               setFormData({
-                name: userData.name || '',
-                email: userData.email || '',
-                phone: userData.phone || '',
+                name: parsedUser.name || '',
+                email: parsedUser.email || '',
+                phone: parsedUser.phone || '',
                 cpf: cpfValue,
-                avatar: userData.avatar || null,
+                avatar: parsedUser.avatar || null,
               });
             }
           } catch (storageError) {
-            console.warn('Erro ao carregar do AsyncStorage:', storageError);
+            console.error('Erro ao carregar do AsyncStorage:', storageError);
           }
-          if (mounted) setLoadingProfile(false);
+          if (mountedRef.current) setLoadingProfile(false);
           return;
         }
         
@@ -104,30 +82,23 @@ export default function EditProfileScreen({navigation}) {
           },
         });
 
-        if (response.ok && mounted) {
-          const userData = await response.json();
-          const cpfValue = isValidCPF(userData.cpf) ? userData.cpf : '';
+        if (response.ok && mountedRef.current) {
+          const data = await response.json();
+          setUserData(data);
+          const cpfValue = isValidCPF(data.cpf) ? data.cpf : '';
           setFormData({
-            name: userData.name || '',
-            email: userData.email || '',
-            phone: userData.phone || '',
+            name: data.name || '',
+            email: data.email || '',
+            phone: data.phone || '',
             cpf: cpfValue,
-            avatar: userData.avatar || null,
+            avatar: data.avatar || null,
           });
-          
-          // Atualizar contexto se disponível
-          try {
-            if (updateUser && typeof updateUser === 'function') {
-              updateUser(userData);
-            }
-          } catch (e) {
-            console.warn('Não foi possível atualizar contexto:', e);
-          }
         }
       } catch (error) {
         console.error('Erro ao carregar perfil:', error);
+        Alert.alert('Erro', 'Não foi possível carregar os dados do perfil. Tente novamente.');
       } finally {
-        if (mounted) {
+        if (mountedRef.current) {
           setLoadingProfile(false);
         }
       }
@@ -136,29 +107,9 @@ export default function EditProfileScreen({navigation}) {
     loadUserProfile();
     
     return () => {
-      mounted = false;
+      mountedRef.current = false;
     };
   }, []);
-
-  // Atualizar formData quando user mudar (apenas se já tiver carregado)
-  useEffect(() => {
-    if (loadingProfile) return; // Não atualizar enquanto está carregando
-    
-    if (user) {
-      try {
-        const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
-        setFormData({
-          name: user.name || '',
-          email: user.email || '',
-          phone: user.phone || '',
-          cpf: cpfValue,
-          avatar: user.avatar || null,
-        });
-      } catch (error) {
-        console.error('Erro ao atualizar formData:', error);
-      }
-    }
-  }, [user, loadingProfile]);
 
   const formatCPF = (value) => {
     if (!value) return '';
@@ -174,150 +125,25 @@ export default function EditProfileScreen({navigation}) {
     }
   };
 
-  const requestCameraPermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: 'Permissão de Câmera',
-            message: 'O app precisa de acesso à câmera para tirar fotos',
-            buttonNeutral: 'Perguntar depois',
-            buttonNegative: 'Cancelar',
-            buttonPositive: 'OK',
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.warn(err);
-        return false;
-      }
-    }
-    return true;
-  };
-
   const handleImagePicker = () => {
     Alert.alert(
       'Em breve',
-      'A funcionalidade de upload de foto estará disponível em breve. Por enquanto, entre em contato com o suporte para atualizar sua foto de perfil.',
+      'A funcionalidade de upload de foto estará disponível em breve.',
       [{text: 'OK'}],
     );
   };
 
-  // Função comentada até instalar react-native-image-picker e react-native-fs
-  /*
-  const handleImageResponse = async (response: any) => {
-    if (response.didCancel || response.errorCode) {
-      if (response.errorCode) {
-        Alert.alert('Erro', 'Erro ao selecionar imagem');
-      }
-      return;
-    }
-
-    const asset = response.assets?.[0];
-    if (!asset?.uri) {
-      return;
-    }
-
-    setUploadingAvatar(true);
-    try {
-      // Converter imagem para base64 usando fetch (React Native)
-      // No React Native, podemos ler o arquivo diretamente
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-      
-      // Converter blob para base64 usando uma abordagem compatível com React Native
-      const base64 = await new Promise((resolve, reject) => {
-        try {
-          // Usar FileReader se disponível (algumas versões do RN têm polyfill)
-          if (typeof FileReader !== 'undefined') {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64String = reader.result;
-              // Remover o prefixo data:image/...;base64, se existir
-              const base64Data = base64String && base64String.includes(',') 
-                ? base64String.split(',')[1] 
-                : base64String;
-              resolve(base64Data);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          } else {
-            // Fallback: usar uma abordagem alternativa
-            // Para React Native puro, podemos usar react-native-fs ou outra biblioteca
-            // Por enquanto, vamos tentar ler como texto e converter
-            reject(new Error('FileReader não disponível. Instale react-native-fs para upload de imagens.'));
-          }
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      // Enviar para o backend
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        Alert.alert('Erro', 'Você precisa estar logado');
-        return;
-      }
-
-      const uploadResponse = await fetch(`${API_BASE_PATH}/user/avatar/upload`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          imageBase64: base64,
-        }),
-      });
-
-      const uploadData = await uploadResponse.json();
-
-      if (uploadResponse.ok && uploadData.avatarUrl) {
-        // Atualizar formData e user
-        setFormData({...formData, avatar: uploadData.avatarUrl});
-        if (updateUser) {
-          updateUser({...user, avatar: uploadData.avatarUrl});
-        }
-        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
-      } else {
-        Alert.alert('Erro', uploadData.error || 'Erro ao fazer upload da foto');
-      }
-    } catch (error) {
-      console.error('Erro ao fazer upload:', error);
-      Alert.alert('Erro', 'Não foi possível fazer upload da foto');
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-  */
-
   const handleSave = async () => {
+    if (!mountedRef.current) return;
+    
     try {
-      if (!formData || !formData.name || !formData.name.trim()) {
-        Alert.alert('Erro', 'O nome é obrigatório');
-        return;
-      }
-
-      if (!navigation) {
-        Alert.alert('Erro', 'Navegação não disponível');
-        return;
-      }
-
       setLoading(true);
+      
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
-        Alert.alert('Erro', 'Você precisa estar logado para atualizar o perfil');
-        if (navigation && navigation.goBack) {
-          navigation.goBack();
-        }
+        Alert.alert('Erro', 'Você precisa estar logado para atualizar o perfil.');
         return;
       }
-
-      console.log('🔄 Enviando atualização de perfil...', {
-        name: formData.name.trim(),
-        phone: formData.phone ? formData.phone.trim() : null,
-      });
 
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
         method: 'PUT',
@@ -326,21 +152,18 @@ export default function EditProfileScreen({navigation}) {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: formData.name.trim(),
-          phone: formData.phone ? formData.phone.trim() : null,
-          // CPF não é enviado - não pode ser alterado após cadastro
-          avatar: formData.avatar || null,
+          name: formData.name,
+          phone: formData.phone,
         }),
       });
 
       const responseData = await response.json();
 
-      if (response.ok) {
-        // Atualizar usuário no contexto
-        const userData = responseData.user || responseData;
-        if (updateUser && typeof updateUser === 'function' && userData) {
-          updateUser(userData);
-        }
+      if (response.ok && mountedRef.current) {
+        // Atualizar dados locais
+        const updatedUser = {...userData, ...responseData.user};
+        setUserData(updatedUser);
+        await AsyncStorage.setItem('user_data', JSON.stringify(updatedUser));
         
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {text: 'OK', onPress: () => {
@@ -350,14 +173,15 @@ export default function EditProfileScreen({navigation}) {
           }},
         ]);
       } else {
-        console.error('❌ Erro ao atualizar perfil:', response.status, responseData);
         Alert.alert('Erro', responseData.error || responseData.message || 'Erro ao atualizar perfil');
       }
     } catch (error) {
-      console.error('❌ Erro ao atualizar perfil:', error);
+      console.error('Erro ao atualizar perfil:', error);
       Alert.alert('Erro', `Não foi possível atualizar o perfil: ${error.message || 'Erro desconhecido'}`);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -407,17 +231,10 @@ export default function EditProfileScreen({navigation}) {
             )}
           </View>
           <TouchableOpacity
-            style={[styles.changeAvatarButton, uploadingAvatar && styles.changeAvatarButtonDisabled]}
-            onPress={handleImagePicker}
-            disabled={uploadingAvatar}>
-            {uploadingAvatar ? (
-              <ActivityIndicator size="small" color="#8B5CF6" />
-            ) : (
-              <>
-                <Ionicons name="camera" size={20} color="#8B5CF6" />
-                <Text style={styles.changeAvatarText}>Alterar Foto</Text>
-              </>
-            )}
+            style={styles.changeAvatarButton}
+            onPress={handleImagePicker}>
+            <Ionicons name="camera" size={20} color="#8B5CF6" />
+            <Text style={styles.changeAvatarText}>Alterar Foto</Text>
           </TouchableOpacity>
         </View>
 
@@ -429,9 +246,7 @@ export default function EditProfileScreen({navigation}) {
               style={styles.input}
               value={formData?.name || ''}
               onChangeText={(text) => {
-                if (formData) {
-                  setFormData({...formData, name: text});
-                }
+                setFormData(prev => ({...prev, name: text}));
               }}
               placeholder="Seu nome completo"
               placeholderTextColor="#9CA3AF"
@@ -455,9 +270,7 @@ export default function EditProfileScreen({navigation}) {
               style={styles.input}
               value={formData?.phone || ''}
               onChangeText={(text) => {
-                if (formData) {
-                  setFormData({...formData, phone: text});
-                }
+                setFormData(prev => ({...prev, phone: text}));
               }}
               placeholder="(00) 00000-0000"
               placeholderTextColor="#9CA3AF"
@@ -476,8 +289,8 @@ export default function EditProfileScreen({navigation}) {
             />
             <Text style={styles.helperText}>
               {formData && formData.cpf && isValidCPF(formData.cpf)
-                ? 'CPF não pode ser alterado após o cadastro para prevenir fraudes'
-                : 'CPF não cadastrado. Entre em contato com o suporte para adicionar seu CPF.'}
+                ? 'CPF não pode ser alterado após o cadastro'
+                : 'CPF não cadastrado. Entre em contato com o suporte.'}
             </Text>
           </View>
         </View>
@@ -505,26 +318,38 @@ export default function EditProfileScreen({navigation}) {
   );
 }
 
+// Componente principal com ErrorBoundary
+export default function EditProfileScreen({navigation}) {
+  return (
+    <ErrorBoundary>
+      <EditProfileScreenContent navigation={navigation} />
+    </ErrorBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: 24,
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
-    marginBottom: 16,
+    padding: 8,
+    marginRight: 8,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   content: {
-    padding: 24,
+    padding: 20,
   },
   avatarSection: {
     alignItems: 'center',
@@ -537,7 +362,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#E5E7EB',
   },
   avatarPlaceholder: {
     width: 120,
@@ -551,16 +375,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 8,
     paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
   },
   changeAvatarText: {
-    color: '#8B5CF6',
     fontSize: 14,
     fontWeight: '600',
-  },
-  changeAvatarButtonDisabled: {
-    opacity: 0.6,
+    color: '#8B5CF6',
   },
   formSection: {
     marginBottom: 24,
@@ -576,8 +399,8 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
     color: '#1F2937',
     borderWidth: 1,
@@ -598,7 +421,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveButtonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   saveButtonGradient: {
     flexDirection: 'row',
@@ -613,4 +436,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
