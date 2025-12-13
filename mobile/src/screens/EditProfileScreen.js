@@ -85,41 +85,69 @@ function EditProfileScreenContent({navigation}) {
 
         if (response.ok && mountedRef.current) {
           const data = await response.json();
-          console.log('📋 RESPOSTA COMPLETA DA API:', JSON.stringify(data, null, 2));
-          console.log('📋 CPF na resposta:', data.cpf, 'Tipo:', typeof data.cpf, 'É null?', data.cpf === null, 'É undefined?', data.cpf === undefined);
-          console.log('📋 Todos os campos:', Object.keys(data));
+          
+          // LOGS DETALHADOS PARA DEBUG
+          const logInfo = require('../services/RemoteLogger').logInfo || console.log;
+          const logError = require('../services/RemoteLogger').logError || console.error;
+          
+          logInfo('🔍 EDIT PROFILE - Resposta da API recebida', {
+            hasData: !!data,
+            dataKeys: Object.keys(data || {}),
+            cpfRaw: data?.cpf,
+            cpfType: typeof data?.cpf,
+            cpfIsNull: data?.cpf === null,
+            cpfIsUndefined: data?.cpf === undefined,
+            fullData: data
+          });
           
           setUserData(data);
           // Processar CPF - verificar se é null, undefined, ou string vazia
           let cpfValue = data.cpf || data.user?.cpf || null;
           
+          logInfo('🔍 EDIT PROFILE - CPF antes do processamento', {
+            cpfValue,
+            cpfType: typeof cpfValue,
+            isNull: cpfValue === null,
+            isUndefined: cpfValue === undefined,
+            isEmpty: cpfValue === ''
+          });
+          
           // Se CPF for null, undefined, string vazia, ou "null", definir como null
           if (cpfValue === null || cpfValue === undefined || cpfValue === '' || String(cpfValue).trim() === '' || String(cpfValue).toLowerCase() === 'null') {
             cpfValue = null;
+            logInfo('🔍 EDIT PROFILE - CPF definido como NULL (inválido)');
           } else {
             // Limpar e validar CPF
             const cpfClean = String(cpfValue).replace(/\D/g, '');
+            logInfo('🔍 EDIT PROFILE - CPF após limpeza', { cpfClean, length: cpfClean.length });
+            
             if (cpfClean === '' || cpfClean === '00000000000' || cpfClean.length !== 11) {
               cpfValue = null;
+              logError('❌ EDIT PROFILE - CPF inválido após validação', { cpfClean, length: cpfClean.length });
             } else {
               cpfValue = cpfClean; // Salvar apenas números
+              logInfo('✅ EDIT PROFILE - CPF válido processado', { cpfValue });
             }
           }
           
-          console.log('📋 CPF processado que será salvo no formData:', cpfValue);
-          
-          setFormData({
+          const newFormData = {
             name: data.name || data.user?.name || '',
             email: data.email || data.user?.email || '',
             phone: data.phone || data.user?.phone || '',
             cpf: cpfValue,
             avatar: data.avatar || data.user?.avatar || null,
-          });
+          };
           
-          console.log('📋 FormData após setFormData - CPF:', formData.cpf);
+          logInfo('🔍 EDIT PROFILE - FormData que será salvo', newFormData);
+          
+          setFormData(newFormData);
         } else {
           const errorText = await response.text();
-          console.error('❌ Erro na resposta da API:', response.status, errorText);
+          const logError = require('../services/RemoteLogger').logError || console.error;
+          logError('❌ EDIT PROFILE - Erro na resposta da API', {
+            status: response.status,
+            errorText
+          });
         }
       } catch (error) {
         console.error('Erro ao carregar perfil:', error);

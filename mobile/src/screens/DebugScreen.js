@@ -298,7 +298,13 @@ export default function DebugScreen({navigation}) {
           <ActivityIndicator size="large" color="#8B5CF6" />
         </View>
       ) : (
-        <ScrollView style={styles.logsContainer} contentContainerStyle={styles.logsContent}>
+        <ScrollView 
+          style={styles.logsContainer} 
+          contentContainerStyle={styles.logsContent}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={20}>
           {logs.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />
@@ -308,13 +314,22 @@ export default function DebugScreen({navigation}) {
               </Text>
             </View>
           ) : (
-            logs.map((log, index) => {
+            logs.slice(0, 50).map((log, index) => {
               if (!log || !log.message) return null;
               
               try {
+                // Truncar dados muito grandes para evitar travamentos
+                let displayData = log.data;
+                if (displayData) {
+                  const dataStr = typeof displayData === 'string' ? displayData : JSON.stringify(displayData);
+                  if (dataStr.length > 500) {
+                    displayData = dataStr.substring(0, 500) + '... (truncado)';
+                  }
+                }
+                
                 return (
                   <View
-                    key={index}
+                    key={`log-${index}-${log.timestamp}`}
                     style={[styles.logEntry, {borderLeftColor: getLogColor(log.level || 'info')}]}>
                     <View style={styles.logHeader}>
                       <View
@@ -323,10 +338,10 @@ export default function DebugScreen({navigation}) {
                       </View>
                       <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
                     </View>
-                    <Text style={styles.logMessage}>{log.message || 'Log sem mensagem'}</Text>
-                    {log.data && (
+                    <Text style={styles.logMessage} numberOfLines={5}>{log.message || 'Log sem mensagem'}</Text>
+                    {displayData && (
                       <Text style={styles.logData} numberOfLines={3}>
-                        {typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}
+                        {typeof displayData === 'string' ? displayData : JSON.stringify(displayData, null, 2)}
                       </Text>
                     )}
                   </View>
