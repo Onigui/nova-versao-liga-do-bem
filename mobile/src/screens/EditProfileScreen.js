@@ -309,9 +309,15 @@ function EditProfileScreenContent({navigation}) {
               {formData?.cpf && isValidCPF(formData.cpf)
                 ? 'CPF não pode ser alterado após o cadastro'
                 : formData?.cpf
-                ? 'CPF cadastrado (formato pode estar incorreto)'
+                ? `CPF cadastrado (formato pode estar incorreto): ${formData.cpf}`
                 : 'CPF não cadastrado. Entre em contato com o suporte.'}
             </Text>
+            {/* Debug: mostrar valor bruto do CPF em desenvolvimento */}
+            {__DEV__ && (
+              <Text style={{fontSize: 10, color: '#999', marginTop: 4}}>
+                Debug: CPF raw = {JSON.stringify(formData?.cpf)}
+              </Text>
+            )}
           </View>
         </View>
 
