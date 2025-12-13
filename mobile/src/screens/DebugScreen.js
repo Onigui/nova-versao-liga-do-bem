@@ -161,7 +161,7 @@ export default function DebugScreen({navigation}) {
 
   const testConfig = async () => {
     try {
-      logInfo('🔄 Testando carregamento de configurações...');
+      if (logInfo) logInfo('🔄 Testando carregamento de configurações...');
       const response = await fetch(`${API_BASE_PATH}/app/config`, {
         method: 'GET',
         headers: {
@@ -172,19 +172,19 @@ export default function DebugScreen({navigation}) {
 
       if (response.ok) {
         const config = await response.json();
-        logInfo('✅ Configurações carregadas com sucesso', config);
+        if (logInfo) logInfo('✅ Configurações carregadas com sucesso', config);
         Alert.alert(
           'Sucesso',
           `Configurações carregadas!\n\nLogo: ${config['app.logoUrl'] ? 'Configurado' : 'Não configurado'}\nNome: ${config['app.name'] || 'Padrão'}`,
         );
       } else {
         const errorText = await response.text();
-        logError('❌ Erro ao carregar configurações', {status: response.status, error: errorText});
+        if (logError) logError('❌ Erro ao carregar configurações', {status: response.status, error: errorText});
         Alert.alert('Erro', `Status: ${response.status}\n${errorText}`);
       }
     } catch (error) {
-      logError('❌ Erro na requisição', error);
-      Alert.alert('Erro', error.message);
+      if (logError) logError('❌ Erro na requisição', error);
+      Alert.alert('Erro', error.message || 'Erro desconhecido');
     }
   };
 
@@ -204,8 +204,14 @@ export default function DebugScreen({navigation}) {
   };
 
   const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('pt-BR');
+    try {
+      if (!timestamp) return '--:--:--';
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return '--:--:--';
+      return date.toLocaleTimeString('pt-BR');
+    } catch (error) {
+      return '--:--:--';
+    }
   };
 
   return (
@@ -285,35 +291,42 @@ export default function DebugScreen({navigation}) {
             </Text>
           </View>
         ) : (
-          logs.map((log, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.logEntry}
-              onPress={() => viewLogDetail(log)}>
-              <View style={styles.logHeader}>
-                <View
-                  style={[styles.logLevelBadge, {backgroundColor: getLogColor(log.level)}]}>
-                  <Text style={styles.logLevelText}>{log.level.toUpperCase()}</Text>
-                </View>
-                <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
-                {(log.stackTrace || log.data) && (
-                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={{marginLeft: 'auto'}} />
-                )}
-              </View>
-              <Text style={styles.logMessage}>{log.message}</Text>
-              {log.data && (
-                <Text style={styles.logData} numberOfLines={2}>
-                  {typeof log.data === 'string' ? log.data : JSON.stringify(log.data)}
-                </Text>
-              )}
-              {log.stackTrace && (
-                <View style={styles.stackTraceBadge}>
-                  <Ionicons name="code" size={12} color="#EF4444" />
-                  <Text style={styles.stackTraceText}>Stack Trace disponível</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))
+          logs.filter(log => log && log.message).map((log, index) => {
+            try {
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.logEntry}
+                  onPress={() => viewLogDetail(log)}>
+                  <View style={styles.logHeader}>
+                    <View
+                      style={[styles.logLevelBadge, {backgroundColor: getLogColor(log.level || 'info')}]}>
+                      <Text style={styles.logLevelText}>{(log.level || 'info').toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.logTime}>{log.timestamp ? formatTime(log.timestamp) : '--:--:--'}</Text>
+                    {(log.stackTrace || log.data) && (
+                      <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={{marginLeft: 'auto'}} />
+                    )}
+                  </View>
+                  <Text style={styles.logMessage}>{log.message || 'Log sem mensagem'}</Text>
+                  {log.data && (
+                    <Text style={styles.logData} numberOfLines={2}>
+                      {typeof log.data === 'string' ? log.data : JSON.stringify(log.data)}
+                    </Text>
+                  )}
+                  {log.stackTrace && (
+                    <View style={styles.stackTraceBadge}>
+                      <Ionicons name="code" size={12} color="#EF4444" />
+                      <Text style={styles.stackTraceText}>Stack Trace disponível</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            } catch (error) {
+              console.error('Erro ao renderizar log:', error);
+              return null;
+            }
+          })
         )}
       </ScrollView>
 

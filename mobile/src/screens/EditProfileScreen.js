@@ -38,28 +38,17 @@ const isValidCPF = (cpf) => {
 };
 
 export default function EditProfileScreen({navigation}) {
-  if (!navigation) {
-    return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <Text>Erro: Navegação não disponível</Text>
-      </View>
-    );
-  }
-
-  let authContext;
+  // Usar useAuth de forma segura - se falhar, vamos carregar do AsyncStorage
+  let user = null;
+  let updateUser = null;
+  
   try {
-    authContext = useAuth();
+    const authContext = useAuth();
+    user = authContext?.user || null;
+    updateUser = authContext?.updateUser || null;
   } catch (error) {
-    console.error('Erro ao obter contexto de autenticação:', error);
-    return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <Text>Erro ao carregar dados do usuário</Text>
-      </View>
-    );
+    console.warn('useAuth não disponível, carregando do AsyncStorage:', error.message);
   }
-
-  const user = authContext?.user || null;
-  const updateUser = authContext?.updateUser || null;
   
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -79,6 +68,22 @@ export default function EditProfileScreen({navigation}) {
       try {
         setLoadingProfile(true);
         
+        // Primeiro, tentar carregar do AsyncStorage se não tiver no contexto
+        if (!user) {
+          try {
+            const storedUser = await AsyncStorage.getItem('user_data');
+            if (storedUser) {
+              const userData = JSON.parse(storedUser);
+              if (updateUser && typeof updateUser === 'function') {
+                updateUser(userData);
+              }
+            }
+          } catch (storageError) {
+            console.warn('Erro ao carregar do AsyncStorage:', storageError);
+          }
+        }
+        
+        // Buscar dados atualizados da API
         const token = await AsyncStorage.getItem('auth_token');
         if (!token) {
           setLoadingProfile(false);
@@ -109,22 +114,39 @@ export default function EditProfileScreen({navigation}) {
     loadUserProfile();
   }, []);
 
-  // Atualizar formData quando user mudar
+  // Atualizar formData quando user mudar ou quando carregar do storage
   useEffect(() => {
-    if (user) {
+    const updateFormData = async () => {
       try {
-        const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
-        setFormData({
-          name: user.name || '',
-          email: user.email || '',
-          phone: user.phone || '',
-          cpf: cpfValue,
-          avatar: user.avatar || null,
-        });
+        // Se não tiver user do contexto, tentar carregar do AsyncStorage
+        let currentUser = user;
+        if (!currentUser) {
+          try {
+            const storedUser = await AsyncStorage.getItem('user_data');
+            if (storedUser) {
+              currentUser = JSON.parse(storedUser);
+            }
+          } catch (e) {
+            console.warn('Não foi possível carregar do storage:', e);
+          }
+        }
+
+        if (currentUser) {
+          const cpfValue = isValidCPF(currentUser.cpf) ? currentUser.cpf : '';
+          setFormData({
+            name: currentUser.name || '',
+            email: currentUser.email || '',
+            phone: currentUser.phone || '',
+            cpf: cpfValue,
+            avatar: currentUser.avatar || null,
+          });
+        }
       } catch (error) {
         console.error('Erro ao atualizar formData:', error);
       }
-    }
+    };
+
+    updateFormData();
   }, [user]);
 
   const formatCPF = (value) => {
@@ -328,19 +350,20 @@ export default function EditProfileScreen({navigation}) {
     }
   };
 
-  if (loadingProfile) {
+  if (!navigation) {
     return (
-      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
-        <Text style={{marginTop: 16, color: '#6B7280'}}>Carregando perfil...</Text>
+      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF'}]}>
+        <Ionicons name="alert-circle" size={48} color="#EF4444" />
+        <Text style={{marginTop: 16, color: '#EF4444', fontSize: 16, fontWeight: '600'}}>Erro: Navegação não disponível</Text>
       </View>
     );
   }
 
-  if (!navigation) {
+  if (loadingProfile) {
     return (
-      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
-        <Text style={{color: '#EF4444'}}>Erro: Navegação não disponível</Text>
+      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF'}]}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={{marginTop: 16, color: '#6B7280', fontSize: 16}}>Carregando perfil...</Text>
       </View>
     );
   }
