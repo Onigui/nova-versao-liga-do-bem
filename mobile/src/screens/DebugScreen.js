@@ -15,6 +15,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
 import {useAuth} from '../services/AuthService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Importação segura do RemoteLogger
 let remoteLogger = null;
