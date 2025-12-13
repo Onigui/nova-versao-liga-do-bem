@@ -52,23 +52,24 @@ function EditProfileScreenContent({navigation}) {
         const token = await AsyncStorage.getItem('auth_token');
         if (!token) {
           // Tentar carregar do storage se não tiver token
-          try {
-            const storedUser = await AsyncStorage.getItem('user_data');
-            if (storedUser && mountedRef.current) {
-              const parsedUser = JSON.parse(storedUser);
-              setUserData(parsedUser);
-              const cpfValue = isValidCPF(parsedUser.cpf) ? parsedUser.cpf : '';
-              setFormData({
-                name: parsedUser.name || '',
-                email: parsedUser.email || '',
-                phone: parsedUser.phone || '',
-                cpf: cpfValue,
-                avatar: parsedUser.avatar || null,
-              });
+            try {
+              const storedUser = await AsyncStorage.getItem('user_data');
+              if (storedUser && mountedRef.current) {
+                const parsedUser = JSON.parse(storedUser);
+                setUserData(parsedUser);
+                // Sempre salvar o CPF, mesmo que não seja válido (para exibir)
+                const cpfValue = parsedUser.cpf || '';
+                setFormData({
+                  name: parsedUser.name || '',
+                  email: parsedUser.email || '',
+                  phone: parsedUser.phone || '',
+                  cpf: cpfValue,
+                  avatar: parsedUser.avatar || null,
+                });
+              }
+            } catch (storageError) {
+              console.error('Erro ao carregar do AsyncStorage:', storageError);
             }
-          } catch (storageError) {
-            console.error('Erro ao carregar do AsyncStorage:', storageError);
-          }
           if (mountedRef.current) setLoadingProfile(false);
           return;
         }
@@ -85,7 +86,9 @@ function EditProfileScreenContent({navigation}) {
         if (response.ok && mountedRef.current) {
           const data = await response.json();
           setUserData(data);
-          const cpfValue = isValidCPF(data.cpf) ? data.cpf : '';
+          // Sempre salvar o CPF, mesmo que não seja válido (para exibir)
+          const cpfValue = data.cpf || '';
+          console.log('📋 CPF carregado da API:', cpfValue, 'Tipo:', typeof cpfValue);
           setFormData({
             name: data.name || '',
             email: data.email || '',
@@ -282,14 +285,16 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={formData && formData.cpf && isValidCPF(formData.cpf) ? formatCPF(formData.cpf) : ''}
+              value={formData?.cpf ? formatCPF(formData.cpf) : ''}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
             />
             <Text style={styles.helperText}>
-              {formData && formData.cpf && isValidCPF(formData.cpf)
+              {formData?.cpf && isValidCPF(formData.cpf)
                 ? 'CPF não pode ser alterado após o cadastro'
+                : formData?.cpf
+                ? 'CPF cadastrado (formato pode estar incorreto)'
                 : 'CPF não cadastrado. Entre em contato com o suporte.'}
             </Text>
           </View>
