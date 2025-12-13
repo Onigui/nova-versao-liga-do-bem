@@ -64,32 +64,38 @@ export default function EditProfileScreen({navigation}) {
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
+    let mounted = true;
+    
     const loadUserProfile = async () => {
       try {
+        if (!mounted) return;
         setLoadingProfile(true);
         
-        // Primeiro, tentar carregar do AsyncStorage se não tiver no contexto
-        if (!user) {
+        // Buscar dados da API ou do storage
+        const token = await AsyncStorage.getItem('auth_token');
+        if (!token) {
+          // Tentar carregar do storage se não tiver token
           try {
             const storedUser = await AsyncStorage.getItem('user_data');
-            if (storedUser) {
+            if (storedUser && mounted) {
               const userData = JSON.parse(storedUser);
-              if (updateUser && typeof updateUser === 'function') {
-                updateUser(userData);
-              }
+              const cpfValue = isValidCPF(userData.cpf) ? userData.cpf : '';
+              setFormData({
+                name: userData.name || '',
+                email: userData.email || '',
+                phone: userData.phone || '',
+                cpf: cpfValue,
+                avatar: userData.avatar || null,
+              });
             }
           } catch (storageError) {
             console.warn('Erro ao carregar do AsyncStorage:', storageError);
           }
-        }
-        
-        // Buscar dados atualizados da API
-        const token = await AsyncStorage.getItem('auth_token');
-        if (!token) {
-          setLoadingProfile(false);
+          if (mounted) setLoadingProfile(false);
           return;
         }
         
+        // Buscar dados atualizados da API
         const response = await fetch(`${API_BASE_PATH}/user/profile`, {
           method: 'GET',
           headers: {
@@ -98,56 +104,61 @@ export default function EditProfileScreen({navigation}) {
           },
         });
 
-        if (response.ok) {
+        if (response.ok && mounted) {
           const userData = await response.json();
-          if (userData && updateUser && typeof updateUser === 'function') {
-            updateUser(userData);
+          const cpfValue = isValidCPF(userData.cpf) ? userData.cpf : '';
+          setFormData({
+            name: userData.name || '',
+            email: userData.email || '',
+            phone: userData.phone || '',
+            cpf: cpfValue,
+            avatar: userData.avatar || null,
+          });
+          
+          // Atualizar contexto se disponível
+          try {
+            if (updateUser && typeof updateUser === 'function') {
+              updateUser(userData);
+            }
+          } catch (e) {
+            console.warn('Não foi possível atualizar contexto:', e);
           }
         }
       } catch (error) {
         console.error('Erro ao carregar perfil:', error);
       } finally {
-        setLoadingProfile(false);
+        if (mounted) {
+          setLoadingProfile(false);
+        }
       }
     };
 
     loadUserProfile();
+    
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Atualizar formData quando user mudar ou quando carregar do storage
+  // Atualizar formData quando user mudar (apenas se já tiver carregado)
   useEffect(() => {
-    const updateFormData = async () => {
+    if (loadingProfile) return; // Não atualizar enquanto está carregando
+    
+    if (user) {
       try {
-        // Se não tiver user do contexto, tentar carregar do AsyncStorage
-        let currentUser = user;
-        if (!currentUser) {
-          try {
-            const storedUser = await AsyncStorage.getItem('user_data');
-            if (storedUser) {
-              currentUser = JSON.parse(storedUser);
-            }
-          } catch (e) {
-            console.warn('Não foi possível carregar do storage:', e);
-          }
-        }
-
-        if (currentUser) {
-          const cpfValue = isValidCPF(currentUser.cpf) ? currentUser.cpf : '';
-          setFormData({
-            name: currentUser.name || '',
-            email: currentUser.email || '',
-            phone: currentUser.phone || '',
-            cpf: cpfValue,
-            avatar: currentUser.avatar || null,
-          });
-        }
+        const cpfValue = isValidCPF(user.cpf) ? user.cpf : '';
+        setFormData({
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          cpf: cpfValue,
+          avatar: user.avatar || null,
+        });
       } catch (error) {
         console.error('Erro ao atualizar formData:', error);
       }
-    };
-
-    updateFormData();
-  }, [user]);
+    }
+  }, [user, loadingProfile]);
 
   const formatCPF = (value) => {
     if (!value) return '';

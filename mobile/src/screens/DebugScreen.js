@@ -1,6 +1,5 @@
 /**
- * Tela de Debug - Mostra logs do app
- * Acesse via navegação ou adicione um botão secreto
+ * Tela de Debug - Versão Simplificada e Segura
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -10,9 +9,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
-  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
@@ -20,95 +18,85 @@ import {useAuth} from '../services/AuthService';
 
 // Importação segura do RemoteLogger
 let remoteLogger = null;
-let logInfo, logError, logDebug, captureError;
 try {
   const logger = require('../services/RemoteLogger');
   remoteLogger = logger.default || logger;
-  logInfo = logger.logInfo || (() => {});
-  logError = logger.logError || (() => {});
-  logDebug = logger.logDebug || (() => {});
-  captureError = logger.captureError || (() => {});
 } catch (e) {
-  console.warn('RemoteLogger não disponível:', e);
-  logInfo = () => {};
-  logError = () => {};
-  logDebug = () => {};
-  captureError = () => {};
+  console.warn('RemoteLogger não disponível');
 }
 
 export default function DebugScreen({navigation}) {
-  if (!navigation) {
-    return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <Text>Erro: Navegação não disponível</Text>
-      </View>
-    );
-  }
-
-  let user;
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(true);
+  
+  // Obter usuário de forma segura
+  let user = null;
   try {
     const authContext = useAuth();
     user = authContext?.user || null;
   } catch (error) {
-    console.error('Erro ao obter usuário:', error);
-    user = null;
+    console.warn('Erro ao obter usuário:', error.message);
   }
   
-  // Verificar se o usuário é administrador
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
   
-  const [logs, setLogs] = useState([]);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [showLogDetail, setShowLogDetail] = useState(false);
-  const [filterLevel, setFilterLevel] = useState('all');
-  const scrollViewRef = useRef(null);
-
-  // Se não for admin, redirecionar
+  // Verificar acesso e redirecionar se necessário
   useEffect(() => {
-    if (!isAdmin) {
+    if (!isAdmin && navigation) {
       Alert.alert('Acesso Negado', 'Esta área é restrita apenas para administradores.', [
         {text: 'OK', onPress: () => {
-          if (navigation && navigation.goBack) {
-            navigation.goBack();
+          try {
+            if (navigation.goBack) navigation.goBack();
+          } catch (e) {
+            console.error('Erro ao voltar:', e);
           }
         }},
       ]);
     }
+    return () => {
+      setMounted(false);
+    };
   }, [isAdmin, navigation]);
   
   if (!isAdmin) {
     return null;
   }
 
+  // Carregar logs uma vez ao montar
   useEffect(() => {
-    // Atualizar logs a cada segundo
-    const interval = setInterval(() => {
-      try {
-        if (remoteLogger && typeof remoteLogger.getLocalLogs === 'function') {
-          const localLogs = remoteLogger.getLocalLogs();
-          // Filtrar logs se necessário
-          const filteredLogs = filterLevel === 'all' 
-            ? localLogs 
-            : localLogs.filter(log => log && log.level === filterLevel);
-          setLogs(filteredLogs || []);
+    if (mounted) {
+      loadLogs();
+    }
+  }, [mounted]);
+
+  const loadLogs = () => {
+    if (!mounted) return;
+    
+    try {
+      setLoading(true);
+      
+      if (remoteLogger && typeof remoteLogger.getLocalLogs === 'function') {
+        const localLogs = remoteLogger.getLocalLogs();
+        if (Array.isArray(localLogs)) {
+          // Limitar a 100 logs para não sobrecarregar
+          const limitedLogs = localLogs.slice(-100);
+          setLogs(limitedLogs);
         } else {
           setLogs([]);
         }
-      } catch (error) {
-        console.error('Erro ao buscar logs:', error);
+      } else {
         setLogs([]);
       }
-    }, 2000); // Atualizar a cada 2 segundos para não sobrecarregar
-
-    return () => clearInterval(interval);
-  }, [filterLevel]);
-
-  useEffect(() => {
-    if (autoScroll && scrollViewRef.current && logs.length > 0) {
-      scrollViewRef.current.scrollToEnd({animated: true});
+    } catch (error) {
+      console.error('Erro ao carregar logs:', error);
+      setLogs([]);
+    } finally {
+      if (mounted) {
+        setLoading(false);
+      }
     }
-  }, [logs, autoScroll]);
+  };
 
   const clearLogs = () => {
     try {
@@ -116,52 +104,29 @@ export default function DebugScreen({navigation}) {
         remoteLogger.clearLogs();
       }
       setLogs([]);
-      Alert.alert('Logs Limpos', 'Todos os logs foram removidos.');
+      Alert.alert('Sucesso', 'Logs limpos com sucesso.');
     } catch (error) {
       console.error('Erro ao limpar logs:', error);
-      setLogs([]);
+      Alert.alert('Erro', 'Não foi possível limpar os logs.');
     }
   };
 
   const testLog = () => {
     try {
-      if (logInfo) logInfo('🧪 Teste de log', {timestamp: new Date().toISOString()});
-      if (logDebug) logDebug('Debug test', {test: true});
-      if (logError) logError('Teste de erro', new Error('Este é um erro de teste'));
-      Alert.alert('Log de Teste', 'Logs de teste foram adicionados!');
+      console.log('🧪 Teste de log manual');
+      if (remoteLogger && typeof remoteLogger.logInfo === 'function') {
+        remoteLogger.logInfo('🧪 Teste de log', {timestamp: new Date().toISOString()});
+      }
+      Alert.alert('Sucesso', 'Log de teste adicionado! Use "Atualizar" para ver.');
     } catch (error) {
       console.error('Erro ao criar log de teste:', error);
-      Alert.alert('Erro', 'Não foi possível criar log de teste');
+      Alert.alert('Erro', 'Não foi possível criar log de teste.');
     }
-  };
-
-  const testError = () => {
-    try {
-      // Simular um erro
-      throw new Error('Erro de teste para verificar captura');
-    } catch (error) {
-      try {
-        if (captureError) {
-          captureError(error, {
-            context: 'Teste manual de erro',
-            screen: 'DebugScreen',
-          });
-        }
-        Alert.alert('Erro de Teste', 'Um erro de teste foi capturado e logado!');
-      } catch (e) {
-        console.error('Erro ao capturar erro de teste:', e);
-      }
-    }
-  };
-
-  const viewLogDetail = (log) => {
-    setSelectedLog(log);
-    setShowLogDetail(true);
   };
 
   const testConfig = async () => {
     try {
-      if (logInfo) logInfo('🔄 Testando carregamento de configurações...');
+      setLoading(true);
       const response = await fetch(`${API_BASE_PATH}/app/config`, {
         method: 'GET',
         headers: {
@@ -172,19 +137,29 @@ export default function DebugScreen({navigation}) {
 
       if (response.ok) {
         const config = await response.json();
-        if (logInfo) logInfo('✅ Configurações carregadas com sucesso', config);
         Alert.alert(
           'Sucesso',
-          `Configurações carregadas!\n\nLogo: ${config['app.logoUrl'] ? 'Configurado' : 'Não configurado'}\nNome: ${config['app.name'] || 'Padrão'}`,
+          `Configurações carregadas!\n\nNome: ${config['app.name'] || 'Padrão'}\nLogo: ${config['app.logoUrl'] ? 'Configurado' : 'Não configurado'}`,
         );
       } else {
         const errorText = await response.text();
-        if (logError) logError('❌ Erro ao carregar configurações', {status: response.status, error: errorText});
-        Alert.alert('Erro', `Status: ${response.status}\n${errorText}`);
+        Alert.alert('Erro', `Status: ${response.status}\n${errorText.substring(0, 200)}`);
       }
     } catch (error) {
-      if (logError) logError('❌ Erro na requisição', error);
       Alert.alert('Erro', error.message || 'Erro desconhecido');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    try {
+      if (!timestamp) return '--:--:--';
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return '--:--:--';
+      return date.toLocaleTimeString('pt-BR');
+    } catch (error) {
+      return '--:--:--';
     }
   };
 
@@ -203,14 +178,13 @@ export default function DebugScreen({navigation}) {
     }
   };
 
-  const formatTime = (timestamp) => {
+  const handleBack = () => {
     try {
-      if (!timestamp) return '--:--:--';
-      const date = new Date(timestamp);
-      if (isNaN(date.getTime())) return '--:--:--';
-      return date.toLocaleTimeString('pt-BR');
+      if (navigation && navigation.goBack) {
+        navigation.goBack();
+      }
     } catch (error) {
-      return '--:--:--';
+      console.error('Erro ao voltar:', error);
     }
   };
 
@@ -218,19 +192,26 @@ export default function DebugScreen({navigation}) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Debug & Logs</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={testConfig} style={styles.actionButton}>
-            <Ionicons name="refresh" size={20} color="#FFFFFF" />
+          <TouchableOpacity 
+            onPress={loadLogs} 
+            style={styles.actionButton}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="refresh" size={20} color="#FFFFFF" />
+            )}
           </TouchableOpacity>
           <TouchableOpacity onPress={testLog} style={styles.actionButton}>
             <Ionicons name="bug" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={testError} style={styles.actionButton}>
-            <Ionicons name="alert-circle" size={20} color="#FFFFFF" />
+          <TouchableOpacity onPress={testConfig} style={styles.actionButton}>
+            <Ionicons name="settings" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity onPress={clearLogs} style={styles.actionButton}>
             <Ionicons name="trash" size={20} color="#FFFFFF" />
@@ -240,87 +221,56 @@ export default function DebugScreen({navigation}) {
 
       {/* Controls */}
       <View style={styles.controls}>
-        <View style={styles.controlsRow}>
-          <TouchableOpacity
-            onPress={() => setAutoScroll(!autoScroll)}
-            style={[styles.toggleButton, autoScroll && styles.toggleButtonActive]}>
-            <Ionicons
-              name={autoScroll ? 'lock-closed' : 'lock-open'}
-              size={16}
-              color={autoScroll ? '#10B981' : '#6B7280'}
-            />
-            <Text style={styles.toggleText}>
-              {autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF'}
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.logCount}>{logs.length} logs</Text>
-        </View>
-        
-        {/* Filter buttons */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-          {['all', 'error', 'warn', 'info', 'debug'].map(level => (
-            <TouchableOpacity
-              key={level}
-              onPress={() => setFilterLevel(level)}
-              style={[
-                styles.filterButton,
-                filterLevel === level && styles.filterButtonActive,
-              ]}>
-              <Text style={[
-                styles.filterButtonText,
-                filterLevel === level && styles.filterButtonTextActive,
-              ]}>
-                {level.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <Text style={styles.logCount}>{logs.length} logs encontrados</Text>
+        <TouchableOpacity onPress={loadLogs} style={styles.refreshButton}>
+          <Ionicons name="refresh-circle" size={20} color="#8B5CF6" />
+          <Text style={styles.refreshButtonText}>Atualizar</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Logs */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.logsContainer}
-        contentContainerStyle={styles.logsContent}>
-        {logs.length === 0 ? (
+      <ScrollView style={styles.logsContainer} contentContainerStyle={styles.logsContent}>
+        {loading && logs.length === 0 ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color="#8B5CF6" />
+            <Text style={styles.emptyText}>Carregando logs...</Text>
+          </View>
+        ) : logs.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />
             <Text style={styles.emptyText}>Nenhum log ainda</Text>
             <Text style={styles.emptySubtext}>
               Os logs aparecerão aqui quando o app executar ações
             </Text>
+            <TouchableOpacity onPress={testLog} style={styles.testButton}>
+              <Text style={styles.testButtonText}>Criar Log de Teste</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           logs.filter(log => log && log.message).map((log, index) => {
             try {
+              const level = log.level || 'info';
+              const message = log.message || 'Log sem mensagem';
+              const timestamp = log.timestamp ? formatTime(log.timestamp) : '--:--:--';
+              
               return (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.logEntry}
-                  onPress={() => viewLogDetail(log)}>
+                <View key={index} style={styles.logEntry}>
                   <View style={styles.logHeader}>
                     <View
-                      style={[styles.logLevelBadge, {backgroundColor: getLogColor(log.level || 'info')}]}>
-                      <Text style={styles.logLevelText}>{(log.level || 'info').toUpperCase()}</Text>
+                      style={[styles.logLevelBadge, {backgroundColor: getLogColor(level)}]}>
+                      <Text style={styles.logLevelText}>{level.toUpperCase()}</Text>
                     </View>
-                    <Text style={styles.logTime}>{log.timestamp ? formatTime(log.timestamp) : '--:--:--'}</Text>
-                    {(log.stackTrace || log.data) && (
-                      <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={{marginLeft: 'auto'}} />
-                    )}
+                    <Text style={styles.logTime}>{timestamp}</Text>
                   </View>
-                  <Text style={styles.logMessage}>{log.message || 'Log sem mensagem'}</Text>
+                  <Text style={styles.logMessage}>{message}</Text>
                   {log.data && (
-                    <Text style={styles.logData} numberOfLines={2}>
-                      {typeof log.data === 'string' ? log.data : JSON.stringify(log.data)}
+                    <Text style={styles.logData} numberOfLines={3}>
+                      {typeof log.data === 'string' 
+                        ? log.data 
+                        : JSON.stringify(log.data).substring(0, 200)}
                     </Text>
                   )}
-                  {log.stackTrace && (
-                    <View style={styles.stackTraceBadge}>
-                      <Ionicons name="code" size={12} color="#EF4444" />
-                      <Text style={styles.stackTraceText}>Stack Trace disponível</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                </View>
               );
             } catch (error) {
               console.error('Erro ao renderizar log:', error);
@@ -329,67 +279,6 @@ export default function DebugScreen({navigation}) {
           })
         )}
       </ScrollView>
-
-      {/* Modal de detalhes do log */}
-      <Modal
-        visible={showLogDetail}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowLogDetail(false)}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Detalhes do Log</Text>
-            <TouchableOpacity
-              onPress={() => setShowLogDetail(false)}
-              style={styles.modalCloseButton}>
-              <Ionicons name="close" size={24} color="#1F2937" />
-            </TouchableOpacity>
-          </View>
-          
-          {selectedLog && (
-            <ScrollView style={styles.modalContent}>
-              <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>Nível:</Text>
-                <View style={[styles.logLevelBadge, {backgroundColor: getLogColor(selectedLog.level)}]}>
-                  <Text style={styles.logLevelText}>{selectedLog.level.toUpperCase()}</Text>
-                </View>
-              </View>
-
-              <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>Mensagem:</Text>
-                <Text style={styles.detailValue}>{selectedLog.message}</Text>
-              </View>
-
-              <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>Timestamp:</Text>
-                <Text style={styles.detailValue}>{selectedLog.timestamp}</Text>
-              </View>
-
-              {selectedLog.data && (
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Dados:</Text>
-                  <ScrollView style={styles.detailDataContainer}>
-                    <Text style={styles.detailDataText}>
-                      {typeof selectedLog.data === 'string' 
-                        ? selectedLog.data 
-                        : JSON.stringify(selectedLog.data, null, 2)}
-                    </Text>
-                  </ScrollView>
-                </View>
-              )}
-
-              {selectedLog.stackTrace && (
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Stack Trace:</Text>
-                  <ScrollView style={styles.detailDataContainer}>
-                    <Text style={styles.detailDataText}>{selectedLog.stackTrace}</Text>
-                  </ScrollView>
-                </View>
-              )}
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -424,6 +313,8 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 8,
+    minWidth: 36,
+    alignItems: 'center',
   },
   controls: {
     flexDirection: 'row',
@@ -434,26 +325,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  toggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-  },
-  toggleButtonActive: {
-    backgroundColor: '#ECFDF5',
-  },
-  toggleText: {
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '500',
-  },
   logCount: {
     fontSize: 14,
     color: '#6B7280',
     fontWeight: '500',
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  refreshButtonText: {
+    fontSize: 14,
+    color: '#8B5CF6',
+    fontWeight: '600',
   },
   logsContainer: {
     flex: 1,
@@ -477,6 +366,19 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 8,
     textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  testButton: {
+    marginTop: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 8,
+  },
+  testButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
   },
   logEntry: {
     backgroundColor: '#FFFFFF',
@@ -518,103 +420,4 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     marginTop: 4,
   },
-  stackTraceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    padding: 6,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 6,
-    gap: 4,
-  },
-  stackTraceText: {
-    fontSize: 11,
-    color: '#EF4444',
-    fontWeight: '600',
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 12,
-  },
-  filterContainer: {
-    marginTop: 8,
-  },
-  filterButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    marginRight: 8,
-  },
-  filterButtonActive: {
-    backgroundColor: '#8B5CF6',
-  },
-  filterButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  filterButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  modalCloseButton: {
-    padding: 8,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  detailSection: {
-    marginBottom: 24,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-  },
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  detailValue: {
-    fontSize: 14,
-    color: '#1F2937',
-    fontFamily: 'monospace',
-  },
-  detailDataContainer: {
-    maxHeight: 300,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-  },
-  detailDataText: {
-    fontSize: 11,
-    color: '#1F2937',
-    fontFamily: 'monospace',
-  },
 });
-
