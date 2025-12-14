@@ -25,18 +25,39 @@ const isValidCPF = (cpf) => {
   return numbers.length === 11 && numbers !== '00000000000';
 };
 
+// Função para formatar CPF
+const formatCPF = (value) => {
+  if (!value || value === null || value === undefined || value === 'null' || value === 'undefined') {
+    return '';
+  }
+  try {
+    const valueStr = String(value).trim();
+    if (valueStr === '' || valueStr === '0' || valueStr === '00000000000' || valueStr === '000.000.000-00') {
+      return '';
+    }
+    const numbers = valueStr.replace(/\D/g, '');
+    if (numbers.length === 11 && numbers !== '00000000000') {
+      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return '';
+  } catch (error) {
+    console.error('Erro ao formatar CPF:', error);
+    return '';
+  }
+};
+
 // Componente interno protegido
 function EditProfileScreenContent({navigation}) {
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [userData, setUserData] = useState(null);
+  const [error, setError] = useState(null);
   const mountedRef = useRef(true);
   
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    cpf: '',
+    cpf: null,
     avatar: null,
   });
 
@@ -48,33 +69,33 @@ function EditProfileScreenContent({navigation}) {
       try {
         if (!mountedRef.current) return;
         setLoadingProfile(true);
+        setError(null);
         
         const token = await AsyncStorage.getItem('auth_token');
         if (!token) {
+          console.warn('⚠️ Token não encontrado, tentando carregar do storage');
           // Tentar carregar do storage se não tiver token
-            try {
-              const storedUser = await AsyncStorage.getItem('user_data');
-              if (storedUser && mountedRef.current) {
-                const parsedUser = JSON.parse(storedUser);
-                setUserData(parsedUser);
-                // Sempre salvar o CPF, mesmo que não seja válido (para exibir)
-                const cpfValue = parsedUser.cpf || '';
-                setFormData({
-                  name: parsedUser.name || '',
-                  email: parsedUser.email || '',
-                  phone: parsedUser.phone || '',
-                  cpf: cpfValue,
-                  avatar: parsedUser.avatar || null,
-                });
-              }
-            } catch (storageError) {
-              console.error('Erro ao carregar do AsyncStorage:', storageError);
+          try {
+            const storedUser = await AsyncStorage.getItem('user_data');
+            if (storedUser && mountedRef.current) {
+              const parsedUser = JSON.parse(storedUser);
+              setFormData({
+                name: parsedUser.name || '',
+                email: parsedUser.email || '',
+                phone: parsedUser.phone || '',
+                cpf: parsedUser.cpf || null,
+                avatar: parsedUser.avatar || null,
+              });
             }
+          } catch (storageError) {
+            console.error('Erro ao carregar do AsyncStorage:', storageError);
+          }
           if (mountedRef.current) setLoadingProfile(false);
           return;
         }
         
         // Buscar dados atualizados da API
+        console.log('🔄 Carregando perfil do usuário...');
         const response = await fetch(`${API_BASE_PATH}/user/profile`, {
           method: 'GET',
           headers: {
@@ -83,75 +104,69 @@ function EditProfileScreenContent({navigation}) {
           },
         });
 
-        if (response.ok && mountedRef.current) {
-          const data = await response.json();
-          
-          // LOGS DETALHADOS PARA DEBUG
-          const logInfo = require('../services/RemoteLogger').logInfo || console.log;
-          const logError = require('../services/RemoteLogger').logError || console.error;
-          
-          logInfo('🔍 EDIT PROFILE - Resposta da API recebida', {
-            hasData: !!data,
-            dataKeys: Object.keys(data || {}),
-            cpfRaw: data?.cpf,
-            cpfType: typeof data?.cpf,
-            cpfIsNull: data?.cpf === null,
-            cpfIsUndefined: data?.cpf === undefined,
-            fullData: data
-          });
-          
-          setUserData(data);
-          // Processar CPF - verificar se é null, undefined, ou string vazia
-          let cpfValue = data.cpf || data.user?.cpf || null;
-          
-          logInfo('🔍 EDIT PROFILE - CPF antes do processamento', {
-            cpfValue,
-            cpfType: typeof cpfValue,
-            isNull: cpfValue === null,
-            isUndefined: cpfValue === undefined,
-            isEmpty: cpfValue === ''
-          });
-          
-          // Se CPF for null, undefined, string vazia, ou "null", definir como null
-          if (cpfValue === null || cpfValue === undefined || cpfValue === '' || String(cpfValue).trim() === '' || String(cpfValue).toLowerCase() === 'null') {
-            cpfValue = null;
-            logInfo('🔍 EDIT PROFILE - CPF definido como NULL (inválido)');
-          } else {
-            // Limpar e validar CPF
-            const cpfClean = String(cpfValue).replace(/\D/g, '');
-            logInfo('🔍 EDIT PROFILE - CPF após limpeza', { cpfClean, length: cpfClean.length });
-            
-            if (cpfClean === '' || cpfClean === '00000000000' || cpfClean.length !== 11) {
-              cpfValue = null;
-              logError('❌ EDIT PROFILE - CPF inválido após validação', { cpfClean, length: cpfClean.length });
-            } else {
-              cpfValue = cpfClean; // Salvar apenas números
-              logInfo('✅ EDIT PROFILE - CPF válido processado', { cpfValue });
-            }
-          }
-          
-          const newFormData = {
-            name: data.name || data.user?.name || '',
-            email: data.email || data.user?.email || '',
-            phone: data.phone || data.user?.phone || '',
-            cpf: cpfValue,
-            avatar: data.avatar || data.user?.avatar || null,
-          };
-          
-          logInfo('🔍 EDIT PROFILE - FormData que será salvo', newFormData);
-          
-          setFormData(newFormData);
-        } else {
+        console.log('📡 Resposta da API:', response.status, response.statusText);
+
+        if (!response.ok) {
           const errorText = await response.text();
-          const logError = require('../services/RemoteLogger').logError || console.error;
-          logError('❌ EDIT PROFILE - Erro na resposta da API', {
-            status: response.status,
-            errorText
-          });
+          console.error('❌ Erro na resposta da API:', response.status, errorText);
+          throw new Error(`Erro ${response.status}: ${errorText || 'Erro desconhecido'}`);
         }
+
+        const data = await response.json();
+        console.log('✅ Dados recebidos da API:', {
+          hasData: !!data,
+          keys: Object.keys(data || {}),
+          name: data?.name,
+          email: data?.email,
+          phone: data?.phone,
+          cpf: data?.cpf,
+          cpfType: typeof data?.cpf,
+        });
+        
+        if (!mountedRef.current) return;
+
+        // Processar dados - SIMPLIFICADO: usar dados diretamente da API
+        const processedData = {
+          name: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          cpf: data.cpf || null, // Manter null se não existir
+          avatar: data.avatar || null,
+        };
+
+        console.log('📝 Dados processados para formulário:', processedData);
+        
+        setFormData(processedData);
+        
+        // Salvar também no AsyncStorage para cache
+        try {
+          await AsyncStorage.setItem('user_data', JSON.stringify(data));
+        } catch (storageError) {
+          console.warn('⚠️ Erro ao salvar no AsyncStorage:', storageError);
+        }
+        
       } catch (error) {
-        console.error('Erro ao carregar perfil:', error);
-        Alert.alert('Erro', 'Não foi possível carregar os dados do perfil. Tente novamente.');
+        console.error('❌ Erro ao carregar perfil:', error);
+        if (mountedRef.current) {
+          setError(error.message || 'Não foi possível carregar os dados do perfil');
+          // Tentar carregar do cache como fallback
+          try {
+            const storedUser = await AsyncStorage.getItem('user_data');
+            if (storedUser) {
+              const parsedUser = JSON.parse(storedUser);
+              setFormData({
+                name: parsedUser.name || '',
+                email: parsedUser.email || '',
+                phone: parsedUser.phone || '',
+                cpf: parsedUser.cpf || null,
+                avatar: parsedUser.avatar || null,
+              });
+              setError(null); // Limpar erro se conseguiu carregar do cache
+            }
+          } catch (cacheError) {
+            console.error('Erro ao carregar do cache:', cacheError);
+          }
+        }
       } finally {
         if (mountedRef.current) {
           setLoadingProfile(false);
@@ -166,27 +181,6 @@ function EditProfileScreenContent({navigation}) {
     };
   }, []);
 
-  const formatCPF = (value) => {
-    if (!value || value === null || value === undefined || value === 'null' || value === 'undefined') {
-      return '';
-    }
-    try {
-      const valueStr = String(value).trim();
-      if (valueStr === '' || valueStr === '0' || valueStr === '00000000000' || valueStr === '000.000.000-00') {
-        return '';
-      }
-      const numbers = valueStr.replace(/\D/g, '');
-      if (numbers.length === 11 && numbers !== '00000000000') {
-        return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-      }
-      // Se não tiver 11 dígitos ou for todos zeros, retornar vazio
-      return '';
-    } catch (error) {
-      console.error('Erro ao formatar CPF:', error);
-      return '';
-    }
-  };
-
   const handleImagePicker = () => {
     Alert.alert(
       'Em breve',
@@ -200,12 +194,15 @@ function EditProfileScreenContent({navigation}) {
     
     try {
       setLoading(true);
+      setError(null);
       
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
         Alert.alert('Erro', 'Você precisa estar logado para atualizar o perfil.');
         return;
       }
+
+      console.log('💾 Salvando perfil...', { name: formData.name, phone: formData.phone });
 
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
         method: 'PUT',
@@ -222,10 +219,25 @@ function EditProfileScreenContent({navigation}) {
       const responseData = await response.json();
 
       if (response.ok && mountedRef.current) {
-        // Atualizar dados locais
-        const updatedUser = {...userData, ...responseData.user};
-        setUserData(updatedUser);
-        await AsyncStorage.setItem('user_data', JSON.stringify(updatedUser));
+        console.log('✅ Perfil atualizado com sucesso:', responseData);
+        
+        // Atualizar dados locais com a resposta da API
+        const updatedUser = responseData.user || responseData;
+        setFormData(prev => ({
+          ...prev,
+          name: updatedUser.name || prev.name,
+          phone: updatedUser.phone || prev.phone,
+        }));
+        
+        // Salvar no AsyncStorage
+        try {
+          const currentUserData = await AsyncStorage.getItem('user_data');
+          const userData = currentUserData ? JSON.parse(currentUserData) : {};
+          const mergedData = { ...userData, ...updatedUser };
+          await AsyncStorage.setItem('user_data', JSON.stringify(mergedData));
+        } catch (storageError) {
+          console.warn('⚠️ Erro ao salvar no AsyncStorage:', storageError);
+        }
         
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {text: 'OK', onPress: () => {
@@ -235,11 +247,16 @@ function EditProfileScreenContent({navigation}) {
           }},
         ]);
       } else {
-        Alert.alert('Erro', responseData.error || responseData.message || 'Erro ao atualizar perfil');
+        const errorMsg = responseData.error || responseData.message || 'Erro ao atualizar perfil';
+        console.error('❌ Erro ao atualizar perfil:', errorMsg);
+        setError(errorMsg);
+        Alert.alert('Erro', errorMsg);
       }
     } catch (error) {
-      console.error('Erro ao atualizar perfil:', error);
-      Alert.alert('Erro', `Não foi possível atualizar o perfil: ${error.message || 'Erro desconhecido'}`);
+      console.error('❌ Erro ao atualizar perfil:', error);
+      const errorMsg = error.message || 'Erro desconhecido';
+      setError(errorMsg);
+      Alert.alert('Erro', `Não foi possível atualizar o perfil: ${errorMsg}`);
     } finally {
       if (mountedRef.current) {
         setLoading(false);
@@ -279,6 +296,12 @@ function EditProfileScreenContent({navigation}) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Editar Perfil</Text>
       </LinearGradient>
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <View style={styles.content}>
         {/* Avatar Section */}
@@ -344,7 +367,7 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={formData?.cpf && formData.cpf !== null && formData.cpf !== undefined ? formatCPF(formData.cpf) : ''}
+              value={formData?.cpf ? formatCPF(formData.cpf) : ''}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
@@ -352,16 +375,8 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.helperText}>
               {formData?.cpf && isValidCPF(formData.cpf)
                 ? 'CPF não pode ser alterado após o cadastro'
-                : formData?.cpf && formData.cpf !== null && formData.cpf !== undefined
-                ? `CPF cadastrado (formato pode estar incorreto): ${formData.cpf}`
                 : 'CPF não cadastrado. Entre em contato com o suporte.'}
             </Text>
-            {/* Debug: mostrar valor bruto do CPF em desenvolvimento */}
-            {__DEV__ && (
-              <Text style={{fontSize: 10, color: '#999', marginTop: 4}}>
-                Debug: CPF raw = {JSON.stringify(formData?.cpf)}, formatado = {formatCPF(formData?.cpf)}
-              </Text>
-            )}
           </View>
         </View>
 
@@ -417,6 +432,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    margin: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
   },
   content: {
     padding: 20,

@@ -1740,11 +1740,13 @@ export default async function handler(req: any, res: any) {
     if (path === '/api/user/profile' && method === 'GET') {
       const db = getPrisma();
       if (!db) {
+        console.error('❌ GET /api/user/profile: Database not configured');
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
         const token = req.headers?.authorization?.replace('Bearer ', '') || null;
         if (!token) {
+          console.error('❌ GET /api/user/profile: Token não fornecido');
           return res.status(401).json({ error: 'Token de autenticação necessário' });
         }
         
@@ -1752,8 +1754,14 @@ export default async function handler(req: any, res: any) {
         try {
           const decoded: any = jwt.verify(token, JWT_SECRET);
           userId = decoded.userId || decoded.id;
-        } catch (e) {
-          return res.status(401).json({ error: 'Token inválido' });
+          if (!userId) {
+            console.error('❌ GET /api/user/profile: userId não encontrado no token', decoded);
+            return res.status(401).json({ error: 'Token inválido - userId não encontrado' });
+          }
+          console.log('✅ GET /api/user/profile: Token válido, userId:', userId);
+        } catch (e: any) {
+          console.error('❌ GET /api/user/profile: Erro ao verificar token', e.message);
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
         }
         
         // Buscar usuário COM CPF - usar select para garantir campos corretos
@@ -1776,29 +1784,40 @@ export default async function handler(req: any, res: any) {
             }
           });
           
-          console.log('🔍 GET /api/user/profile: CPF do Prisma:', user?.cpf, 'Tipo:', typeof user?.cpf);
+          console.log('🔍 GET /api/user/profile: Usuário encontrado:', {
+            id: user?.id,
+            email: user?.email,
+            name: user?.name,
+            cpf: user?.cpf,
+            cpfType: typeof user?.cpf,
+          });
           
         } catch (error: any) {
           // Se coluna CPF não existir, buscar sem ela
           if (error.message?.includes('cpf') || error.code === 'P2021') {
             console.warn('⚠️ Coluna cpf não existe, buscando sem ela');
-            user = await db.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                phone: true,
-                avatar: true,
-                notificationsEnabled: true,
-                locationEnabled: true,
-                role: true,
-                createdAt: true,
-                updatedAt: true,
+            try {
+              user = await db.user.findUnique({
+                where: { id: userId },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  phone: true,
+                  avatar: true,
+                  notificationsEnabled: true,
+                  locationEnabled: true,
+                  role: true,
+                  createdAt: true,
+                  updatedAt: true,
+                }
+              });
+              if (user) {
+                (user as any).cpf = null;
               }
-            });
-            if (user) {
-              (user as any).cpf = null;
+            } catch (retryError: any) {
+              console.error('❌ GET /api/user/profile: Erro ao buscar usuário (retry):', retryError);
+              throw retryError;
             }
           } else {
             console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
@@ -1807,26 +1826,34 @@ export default async function handler(req: any, res: any) {
         }
         
         if (!user) {
+          console.error('❌ GET /api/user/profile: Usuário não encontrado, userId:', userId);
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
         // Serializar datas corretamente e garantir que todos os campos sejam JSON-safe
         const userResponse = {
           id: user.id,
-          email: user.email,
-          name: user.name,
+          email: user.email || '',
+          name: user.name || '',
           phone: user.phone || null,
           avatar: user.avatar || null,
           notificationsEnabled: user.notificationsEnabled ?? true,
           locationEnabled: user.locationEnabled ?? true,
-          role: user.role,
-          createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
-          updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : user.updatedAt,
-          cpf: user.cpf || null,
+          role: user.role || 'MEMBER',
+          createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : (user.createdAt || new Date().toISOString()),
+          updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : (user.updatedAt || new Date().toISOString()),
+          cpf: user.cpf || null, // Retornar null se não existir, não string vazia
         };
         
-        // Log do CPF
-        console.log('📋 GET /api/user/profile: CPF retornado:', userResponse.cpf);
+        // Log do CPF e resposta completa
+        console.log('📋 GET /api/user/profile: Resposta preparada:', {
+          id: userResponse.id,
+          email: userResponse.email,
+          name: userResponse.name,
+          phone: userResponse.phone,
+          cpf: userResponse.cpf,
+          cpfType: typeof userResponse.cpf,
+        });
         
         // Retornar usuário serializado
         return res.status(200).json(userResponse);
@@ -1835,7 +1862,8 @@ export default async function handler(req: any, res: any) {
         console.error('❌ Erro detalhado:', {
           message: error?.message,
           code: error?.code,
-          stack: error?.stack,
+          name: error?.name,
+          stack: error?.stack?.substring(0, 200),
         });
         return res.status(500).json({ 
           error: 'Erro interno do servidor',
