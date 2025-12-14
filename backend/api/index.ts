@@ -1756,51 +1756,65 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token inválido' });
         }
         
-        // Buscar usuário (tentar buscar cpf se coluna existir)
+        // Buscar usuário COM CPF - usar select para garantir campos corretos
         let user: any;
         try {
-          // Buscar usuário COM CPF - usar findUnique sem select para pegar todos os campos
           user = await db.user.findUnique({
-            where: { id: userId }
+            where: { id: userId },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              avatar: true,
+              notificationsEnabled: true,
+              locationEnabled: true,
+              role: true,
+              createdAt: true,
+              updatedAt: true,
+              cpf: true, // Incluir CPF explicitamente
+            }
           });
           
-          console.log('🔍 GET /api/user/profile: Usuário completo do Prisma:', JSON.stringify(user, null, 2));
-          console.log('🔍 GET /api/user/profile: CPF direto do Prisma:', user?.cpf, 'Tipo:', typeof user?.cpf);
+          console.log('🔍 GET /api/user/profile: CPF do Prisma:', user?.cpf, 'Tipo:', typeof user?.cpf);
           
         } catch (error: any) {
-          console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
-          throw error;
+          // Se coluna CPF não existir, buscar sem ela
+          if (error.message?.includes('cpf') || error.code === 'P2021') {
+            console.warn('⚠️ Coluna cpf não existe, buscando sem ela');
+            user = await db.user.findUnique({
+              where: { id: userId },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                phone: true,
+                avatar: true,
+                notificationsEnabled: true,
+                locationEnabled: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+              }
+            });
+            if (user) {
+              (user as any).cpf = null;
+            }
+          } else {
+            console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
+            throw error;
+          }
         }
         
         if (!user) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
-        // Log do CPF ANTES de qualquer processamento
-        console.log('📋 GET /api/user/profile: CPF DIRETO DO BANCO:', user.cpf, 'Tipo:', typeof user.cpf, 'É null?', user.cpf === null, 'É undefined?', user.cpf === undefined);
+        // Log do CPF
+        console.log('📋 GET /api/user/profile: CPF retornado:', user.cpf);
         
-        // FIX: Retornar CPF exatamente como está no banco de dados
-        // NÃO MODIFICAR O CPF - retornar exatamente como está no banco
-        // A validação e limpeza do CPF deve ser feita no frontend, não aqui
-        // Se o CPF existe no banco, deve ser retornado como está
-        const userResponse: any = {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          phone: user.phone || null,
-          avatar: user.avatar || null,
-          notificationsEnabled: user.notificationsEnabled ?? true,
-          locationEnabled: user.locationEnabled ?? true,
-          role: user.role,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          cpf: user.cpf || null, // Retornar CPF exatamente como está no banco
-        };
-        
-        console.log('✅ GET /api/user/profile: CPF no response:', userResponse.cpf);
-        console.log('✅ GET /api/user/profile: Response completo:', JSON.stringify(userResponse, null, 2));
-        
-        return res.status(200).json(userResponse);
+        // Retornar usuário - CPF já está incluído no select
+        return res.status(200).json(user);
       } catch (error: any) {
         console.error('❌ Erro ao buscar perfil:', error);
         return res.status(500).json({ error: 'Erro interno do servidor' });
