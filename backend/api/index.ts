@@ -1810,14 +1810,37 @@ export default async function handler(req: any, res: any) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
-        // Log do CPF
-        console.log('📋 GET /api/user/profile: CPF retornado:', user.cpf);
+        // Serializar datas corretamente e garantir que todos os campos sejam JSON-safe
+        const userResponse = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          phone: user.phone || null,
+          avatar: user.avatar || null,
+          notificationsEnabled: user.notificationsEnabled ?? true,
+          locationEnabled: user.locationEnabled ?? true,
+          role: user.role,
+          createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
+          updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : user.updatedAt,
+          cpf: user.cpf || null,
+        };
         
-        // Retornar usuário - CPF já está incluído no select
-        return res.status(200).json(user);
+        // Log do CPF
+        console.log('📋 GET /api/user/profile: CPF retornado:', userResponse.cpf);
+        
+        // Retornar usuário serializado
+        return res.status(200).json(userResponse);
       } catch (error: any) {
         console.error('❌ Erro ao buscar perfil:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor' });
+        console.error('❌ Erro detalhado:', {
+          message: error?.message,
+          code: error?.code,
+          stack: error?.stack,
+        });
+        return res.status(500).json({ 
+          error: 'Erro interno do servidor',
+          details: process.env.NODE_ENV === 'development' ? error?.message : undefined
+        });
       }
     }
 
