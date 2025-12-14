@@ -1806,39 +1806,21 @@ export default async function handler(req: any, res: any) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
-        // Garantir que cpf seja retornado se existir (não forçar null)
-        // Apenas limpar se for realmente inválido (todos zeros ou vazio)
-        if ('cpf' in user) {
-          const cpfValue = user.cpf;
-          if (cpfValue && typeof cpfValue === 'string') {
-            const cpfClean = cpfValue.replace(/\D/g, '');
-            // Só definir como null se for realmente inválido (todos zeros ou vazio)
-            if (cpfClean === '' || cpfClean === '00000000000' || cpfClean.length !== 11) {
-              (user as any).cpf = null;
-            } else {
-              // Manter o CPF original (pode estar formatado ou não)
-              (user as any).cpf = cpfValue;
-            }
-          } else if (!cpfValue) {
-            (user as any).cpf = null;
-          }
+        // Log do CPF ANTES de qualquer processamento
+        console.log('📋 GET /api/user/profile: CPF DIRETO DO BANCO:', user.cpf, 'Tipo:', typeof user.cpf, 'É null?', user.cpf === null);
+        
+        // NÃO MODIFICAR O CPF - retornar exatamente como está no banco
+        // A validação e limpeza do CPF deve ser feita no frontend, não aqui
+        // Se o CPF existe no banco, deve ser retornado como está
+        if (user.cpf === null || user.cpf === undefined) {
+          console.log('⚠️ GET /api/user/profile: CPF é null/undefined no banco');
+          (user as any).cpf = null;
         } else {
-          // Se cpf não estiver no select, tentar buscar separadamente
-          try {
-            const userWithCpf = await db.user.findUnique({
-              where: { id: userId },
-              select: { cpf: true }
-            });
-            (user as any).cpf = userWithCpf?.cpf || null;
-          } catch (e) {
-            (user as any).cpf = null;
-          }
+          // CPF existe - retornar como está (mesmo que seja "11111111111" ou outro valor)
+          console.log('✅ GET /api/user/profile: CPF existe no banco, retornando:', user.cpf);
+          (user as any).cpf = user.cpf; // Manter exatamente como está no banco
         }
         
-        // Log detalhado do CPF antes de retornar
-        const cpfValue = (user as any).cpf;
-        console.log('📋 GET /api/user/profile: CPF ANTES do processamento:', cpfValue, 'Tipo:', typeof cpfValue, 'É null?', cpfValue === null, 'É undefined?', cpfValue === undefined);
-        console.log('📋 GET /api/user/profile: CPF DEPOIS do processamento:', (user as any).cpf);
         console.log('📋 GET /api/user/profile: Retornando usuário - CPF será:', (user as any).cpf);
         return res.status(200).json(user);
       } catch (error: any) {
