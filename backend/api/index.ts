@@ -1759,47 +1759,17 @@ export default async function handler(req: any, res: any) {
         // Buscar usuário (tentar buscar cpf se coluna existir)
         let user: any;
         try {
+          // Buscar usuário COM CPF - usar findUnique sem select para pegar todos os campos
           user = await db.user.findUnique({
-            where: { id: userId },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              avatar: true,
-              notificationsEnabled: true,
-              locationEnabled: true,
-              role: true,
-              createdAt: true,
-              updatedAt: true,
-              cpf: true, // Tentar buscar CPF
-            }
+            where: { id: userId }
           });
+          
+          console.log('🔍 GET /api/user/profile: Usuário completo do Prisma:', JSON.stringify(user, null, 2));
+          console.log('🔍 GET /api/user/profile: CPF direto do Prisma:', user?.cpf, 'Tipo:', typeof user?.cpf);
+          
         } catch (error: any) {
-          // Se colunas não existirem, buscar sem elas
-          if (error.message?.includes('cpf') || error.message?.includes('notificationsEnabled') || error.message?.includes('locationEnabled') || error.code === 'P2021') {
-            console.warn('⚠️ Algumas colunas não existem ainda, buscando usuário sem elas');
-            user = await db.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                phone: true,
-                avatar: true,
-                role: true,
-                createdAt: true,
-                updatedAt: true,
-              }
-            });
-            if (user) {
-              (user as any).cpf = null;
-              (user as any).notificationsEnabled = true; // Default
-              (user as any).locationEnabled = true; // Default
-            }
-          } else {
-            throw error;
-          }
+          console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
+          throw error;
         }
         
         if (!user) {
@@ -1807,23 +1777,30 @@ export default async function handler(req: any, res: any) {
         }
         
         // Log do CPF ANTES de qualquer processamento
-        console.log('📋 GET /api/user/profile: CPF DIRETO DO BANCO:', user.cpf, 'Tipo:', typeof user.cpf, 'É null?', user.cpf === null);
+        console.log('📋 GET /api/user/profile: CPF DIRETO DO BANCO:', user.cpf, 'Tipo:', typeof user.cpf, 'É null?', user.cpf === null, 'É undefined?', user.cpf === undefined);
         
         // FIX: Retornar CPF exatamente como está no banco de dados
         // NÃO MODIFICAR O CPF - retornar exatamente como está no banco
         // A validação e limpeza do CPF deve ser feita no frontend, não aqui
         // Se o CPF existe no banco, deve ser retornado como está
-        if (user.cpf === null || user.cpf === undefined) {
-          console.log('⚠️ GET /api/user/profile: CPF é null/undefined no banco');
-          (user as any).cpf = null;
-        } else {
-          // CPF existe - retornar como está (mesmo que seja "11111111111" ou outro valor)
-          console.log('✅ GET /api/user/profile: CPF existe no banco, retornando:', user.cpf);
-          (user as any).cpf = String(user.cpf); // Garantir que seja string
-        }
+        const userResponse: any = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          phone: user.phone || null,
+          avatar: user.avatar || null,
+          notificationsEnabled: user.notificationsEnabled ?? true,
+          locationEnabled: user.locationEnabled ?? true,
+          role: user.role,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          cpf: user.cpf || null, // Retornar CPF exatamente como está no banco
+        };
         
-        console.log('📋 GET /api/user/profile: Retornando usuário - CPF será:', (user as any).cpf);
-        return res.status(200).json(user);
+        console.log('✅ GET /api/user/profile: CPF no response:', userResponse.cpf);
+        console.log('✅ GET /api/user/profile: Response completo:', JSON.stringify(userResponse, null, 2));
+        
+        return res.status(200).json(userResponse);
       } catch (error: any) {
         console.error('❌ Erro ao buscar perfil:', error);
         return res.status(500).json({ error: 'Erro interno do servidor' });
