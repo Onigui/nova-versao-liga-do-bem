@@ -1,5 +1,7 @@
 name: 🚀 Build APK React Native 0.74.5 Nativo (100% Gratuito)
 
+# Workflow restaurado e funcionando - dispara sempre no push
+
 on:
   workflow_dispatch:
     inputs:
