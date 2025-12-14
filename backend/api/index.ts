@@ -1809,6 +1809,7 @@ export default async function handler(req: any, res: any) {
         // Log do CPF ANTES de qualquer processamento
         console.log('📋 GET /api/user/profile: CPF DIRETO DO BANCO:', user.cpf, 'Tipo:', typeof user.cpf, 'É null?', user.cpf === null);
         
+        // FIX: Retornar CPF exatamente como está no banco de dados
         // NÃO MODIFICAR O CPF - retornar exatamente como está no banco
         // A validação e limpeza do CPF deve ser feita no frontend, não aqui
         // Se o CPF existe no banco, deve ser retornado como está
@@ -1818,7 +1819,7 @@ export default async function handler(req: any, res: any) {
         } else {
           // CPF existe - retornar como está (mesmo que seja "11111111111" ou outro valor)
           console.log('✅ GET /api/user/profile: CPF existe no banco, retornando:', user.cpf);
-          (user as any).cpf = user.cpf; // Manter exatamente como está no banco
+          (user as any).cpf = String(user.cpf); // Garantir que seja string
         }
         
         console.log('📋 GET /api/user/profile: Retornando usuário - CPF será:', (user as any).cpf);
