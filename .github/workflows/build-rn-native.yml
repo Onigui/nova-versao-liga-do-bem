@@ -14,9 +14,8 @@ on:
   push:
     branches:
       - master
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/build-rn-native.yml'
+      - main
+    # Sempre dispara no push - remove restrição de paths para garantir builds
 
 jobs:
   build:

@@ -5,7 +5,9 @@ on:
     branches:
       - master
       - main
-    # Sempre dispara no push, mas pode ser filtrado depois se necessário
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android-build.yml'
   workflow_dispatch:
     inputs:
       version:
