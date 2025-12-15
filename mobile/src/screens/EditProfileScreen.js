@@ -15,6 +15,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { logInfo, logError, logDebug } from '../services/RemoteLogger';
 
 // Função helper para validar se CPF é válido
 const isValidCPF = (cpf) => {
@@ -114,6 +115,7 @@ function EditProfileScreenContent({navigation}) {
         
         // Buscar dados atualizados da API
         console.log('🔄 Carregando perfil do usuário...');
+        logInfo('🔄 EDIT PROFILE - Carregando perfil do usuário');
         const response = await fetch(`${API_BASE_PATH}/user/profile`, {
           method: 'GET',
           headers: {
@@ -142,29 +144,50 @@ function EditProfileScreenContent({navigation}) {
           cpfRaw: JSON.stringify(data?.cpf),
         });
         
+        logInfo('✅ EDIT PROFILE - Dados recebidos da API', {
+          hasData: !!data,
+          name: data?.name,
+          email: data?.email,
+          phone: data?.phone,
+          cpf: data?.cpf,
+          cpfType: typeof data?.cpf,
+        });
+        
         if (!mountedRef.current) return;
 
         // Processar CPF - limpar valores inválidos
         let cpfValue = data.cpf;
+        logDebug('🔍 EDIT PROFILE - CPF antes do processamento', { cpfValue, type: typeof cpfValue });
+        
         if (cpfValue !== null && cpfValue !== undefined) {
           const cpfStr = String(cpfValue).trim();
+          logDebug('🔍 EDIT PROFILE - CPF como string', { cpfStr, length: cpfStr.length });
+          
           // Se CPF for apenas zeros ou vazio, definir como null
           if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
             cpfValue = null;
             console.log('⚠️ CPF inválido (zeros) recebido da API, convertendo para null');
+            logError('⚠️ EDIT PROFILE - CPF inválido (zeros) recebido da API, convertendo para null', { cpfOriginal: cpfStr });
           } else {
             // Limpar formatação e manter apenas números
             const cpfNumbers = cpfStr.replace(/\D/g, '');
+            logDebug('🔍 EDIT PROFILE - CPF após limpeza de formatação', { cpfNumbers, length: cpfNumbers.length });
+            
             if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
               cpfValue = null;
               console.log('⚠️ CPF inválido após limpeza, convertendo para null');
+              logError('⚠️ EDIT PROFILE - CPF inválido após limpeza, convertendo para null', { cpfNumbers, length: cpfNumbers.length });
             } else {
               cpfValue = cpfNumbers; // Manter apenas números
+              logInfo('✅ EDIT PROFILE - CPF válido processado', { cpfValue });
             }
           }
+        } else {
+          logDebug('🔍 EDIT PROFILE - CPF é null ou undefined', { cpfValue });
         }
         
         console.log('📝 CPF processado:', { antes: data?.cpf, depois: cpfValue });
+        logInfo('📝 EDIT PROFILE - CPF processado', { antes: data?.cpf, depois: cpfValue });
 
         // Processar dados - SIMPLIFICADO: usar dados diretamente da API
         const processedData = {
@@ -432,7 +455,7 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={formData?.cpf ? formatCPF(formData.cpf) : ''}
+              value={formData?.cpf && formData.cpf !== null && formData.cpf !== undefined ? formatCPF(formData.cpf) : ''}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
