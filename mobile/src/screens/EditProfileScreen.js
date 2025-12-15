@@ -142,15 +142,21 @@ function EditProfileScreenContent({navigation}) {
           cpf: data?.cpf,
           cpfType: typeof data?.cpf,
           cpfRaw: JSON.stringify(data?.cpf),
+          cpfIsNull: data?.cpf === null,
+          cpfIsUndefined: data?.cpf === undefined,
         });
         
-        logInfo('✅ EDIT PROFILE - Dados recebidos da API', {
+        logInfo('✅ EDIT PROFILE - Dados recebidos da API (RESPOSTA COMPLETA)', {
           hasData: !!data,
           name: data?.name,
           email: data?.email,
           phone: data?.phone,
           cpf: data?.cpf,
           cpfType: typeof data?.cpf,
+          cpfRaw: JSON.stringify(data?.cpf),
+          cpfIsNull: data?.cpf === null,
+          cpfIsUndefined: data?.cpf === undefined,
+          cpfLength: data?.cpf ? String(data.cpf).length : 0,
         });
         
         if (!mountedRef.current) return;

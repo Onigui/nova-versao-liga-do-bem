@@ -1795,12 +1795,16 @@ export default async function handler(req: any, res: any) {
             }
           });
           
-          console.log('🔍 GET /api/user/profile: Usuário encontrado:', {
+          console.log('🔍 GET /api/user/profile: Usuário encontrado DIRETO DO BANCO:', {
             id: user?.id,
             email: user?.email,
             name: user?.name,
             cpf: user?.cpf,
             cpfType: typeof user?.cpf,
+            cpfRaw: JSON.stringify(user?.cpf),
+            cpfIsNull: user?.cpf === null,
+            cpfIsUndefined: user?.cpf === undefined,
+            cpfLength: user?.cpf ? String(user.cpf).length : 0,
           });
           
         } catch (error: any) {
@@ -1844,8 +1848,22 @@ export default async function handler(req: any, res: any) {
         // Processar CPF - limpar valores inválidos (zeros)
         let cpfValue = user.cpf;
         let shouldUpdateCpf = false;
-        if (cpfValue) {
+        
+        console.log('🔍 GET /api/user/profile: INÍCIO do processamento de CPF:', {
+          cpfOriginal: cpfValue,
+          cpfType: typeof cpfValue,
+          cpfIsNull: cpfValue === null,
+          cpfIsUndefined: cpfValue === undefined,
+        });
+        
+        if (cpfValue !== null && cpfValue !== undefined) {
           const cpfStr = String(cpfValue).trim();
+          console.log('🔍 GET /api/user/profile: CPF como string:', {
+            cpfStr,
+            length: cpfStr.length,
+            isOnlyZeros: cpfStr === '00000000000' || cpfStr === '000.000.000-00',
+          });
+          
           // Se CPF for apenas zeros ou vazio, retornar null
           if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
             cpfValue = null;
@@ -1854,15 +1872,31 @@ export default async function handler(req: any, res: any) {
           } else {
             // Limpar formatação e manter apenas números
             const cpfNumbers = cpfStr.replace(/\D/g, '');
+            console.log('🔍 GET /api/user/profile: CPF após limpeza de formatação:', {
+              cpfNumbers,
+              length: cpfNumbers.length,
+              isOnlyZeros: cpfNumbers === '00000000000',
+              isValidLength: cpfNumbers.length === 11,
+            });
+            
             if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
               cpfValue = null;
               shouldUpdateCpf = true; // Marcar para limpar no banco
               console.log('⚠️ GET /api/user/profile: CPF inválido após limpeza, convertendo para null e limpando no banco');
             } else {
               cpfValue = cpfNumbers; // Retornar apenas números
+              console.log('✅ GET /api/user/profile: CPF válido processado:', { cpfValue });
             }
           }
+        } else {
+          console.log('🔍 GET /api/user/profile: CPF é null ou undefined, mantendo como está');
         }
+        
+        console.log('🔍 GET /api/user/profile: FIM do processamento de CPF:', {
+          cpfFinal: cpfValue,
+          cpfType: typeof cpfValue,
+          shouldUpdateCpf,
+        });
         
         // Se CPF era inválido, limpar no banco de dados também
         if (shouldUpdateCpf) {
