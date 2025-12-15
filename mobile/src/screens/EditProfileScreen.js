@@ -75,21 +75,39 @@ function EditProfileScreenContent({navigation}) {
         if (!token) {
           console.warn('⚠️ Token não encontrado, tentando carregar do storage');
           // Tentar carregar do storage se não tiver token
-          try {
-            const storedUser = await AsyncStorage.getItem('user_data');
-            if (storedUser && mountedRef.current) {
-              const parsedUser = JSON.parse(storedUser);
-              setFormData({
-                name: parsedUser.name || '',
-                email: parsedUser.email || '',
-                phone: parsedUser.phone || '',
-                cpf: parsedUser.cpf || null,
-                avatar: parsedUser.avatar || null,
-              });
+            try {
+              const storedUser = await AsyncStorage.getItem('user_data');
+              if (storedUser && mountedRef.current) {
+                const parsedUser = JSON.parse(storedUser);
+                // Processar CPF do storage também (limpar zeros)
+                let storedCpf = parsedUser.cpf;
+                if (storedCpf !== null && storedCpf !== undefined) {
+                  const cpfStr = String(storedCpf).trim();
+                  if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+                    storedCpf = null;
+                    console.log('⚠️ CPF inválido no storage, limpando');
+                  } else {
+                    const cpfNumbers = cpfStr.replace(/\D/g, '');
+                    if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
+                      storedCpf = null;
+                      console.log('⚠️ CPF inválido no storage após limpeza');
+                    } else {
+                      storedCpf = cpfNumbers;
+                    }
+                  }
+                }
+                setFormData({
+                  name: parsedUser.name || '',
+                  email: parsedUser.email || '',
+                  phone: parsedUser.phone || '',
+                  cpf: storedCpf, // CPF processado do storage
+                  avatar: parsedUser.avatar || null,
+                });
+                console.log('✅ Dados carregados do storage (com CPF processado):', { cpf: storedCpf });
+              }
+            } catch (storageError) {
+              console.error('Erro ao carregar do AsyncStorage:', storageError);
             }
-          } catch (storageError) {
-            console.error('Erro ao carregar do AsyncStorage:', storageError);
-          }
           if (mountedRef.current) setLoadingProfile(false);
           return;
         }
@@ -161,9 +179,15 @@ function EditProfileScreenContent({navigation}) {
         
         setFormData(processedData);
         
-        // Salvar também no AsyncStorage para cache
+        // Salvar dados PROCESSADOS no AsyncStorage (com CPF limpo)
+        // IMPORTANTE: Salvar processedData, não data bruto, para evitar cache de CPF inválido
         try {
-          await AsyncStorage.setItem('user_data', JSON.stringify(data));
+          const dataToCache = {
+            ...data,
+            cpf: cpfValue, // Usar CPF processado (null se inválido)
+          };
+          await AsyncStorage.setItem('user_data', JSON.stringify(dataToCache));
+          console.log('✅ Dados salvos no cache (com CPF processado):', { cpf: dataToCache.cpf });
         } catch (storageError) {
           console.warn('⚠️ Erro ao salvar no AsyncStorage:', storageError);
         }
@@ -177,14 +201,32 @@ function EditProfileScreenContent({navigation}) {
             const storedUser = await AsyncStorage.getItem('user_data');
             if (storedUser) {
               const parsedUser = JSON.parse(storedUser);
+              // Processar CPF do cache também (limpar zeros)
+              let cachedCpf = parsedUser.cpf;
+              if (cachedCpf !== null && cachedCpf !== undefined) {
+                const cpfStr = String(cachedCpf).trim();
+                if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+                  cachedCpf = null;
+                  console.log('⚠️ CPF inválido no cache, limpando');
+                } else {
+                  const cpfNumbers = cpfStr.replace(/\D/g, '');
+                  if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
+                    cachedCpf = null;
+                    console.log('⚠️ CPF inválido no cache após limpeza');
+                  } else {
+                    cachedCpf = cpfNumbers;
+                  }
+                }
+              }
               setFormData({
                 name: parsedUser.name || '',
                 email: parsedUser.email || '',
                 phone: parsedUser.phone || '',
-                cpf: parsedUser.cpf || null,
+                cpf: cachedCpf, // CPF processado do cache
                 avatar: parsedUser.avatar || null,
               });
               setError(null); // Limpar erro se conseguiu carregar do cache
+              console.log('✅ Dados carregados do cache (com CPF processado):', { cpf: cachedCpf });
             }
           } catch (cacheError) {
             console.error('Erro ao carregar do cache:', cacheError);
