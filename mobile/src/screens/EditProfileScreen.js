@@ -82,20 +82,27 @@ function EditProfileScreenContent({navigation}) {
                 const parsedUser = JSON.parse(storedUser);
                 // Processar CPF do storage também (limpar zeros)
                 let storedCpf = parsedUser.cpf;
-                if (storedCpf !== null && storedCpf !== undefined) {
+                // IMPORTANTE: Tratar explicitamente "0" como inválido também
+                if (storedCpf === '0' || storedCpf === 0) {
+                  storedCpf = null;
+                  console.log('⚠️ CPF é "0" no storage (inválido), convertendo para null');
+                } else if (storedCpf !== null && storedCpf !== undefined) {
                   const cpfStr = String(storedCpf).trim();
-                  if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+                  if (cpfStr === '' || cpfStr === '0' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
                     storedCpf = null;
                     console.log('⚠️ CPF inválido no storage, limpando');
                   } else {
                     const cpfNumbers = cpfStr.replace(/\D/g, '');
-                    if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
+                    if (cpfNumbers === '' || cpfNumbers === '0' || cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
                       storedCpf = null;
                       console.log('⚠️ CPF inválido no storage após limpeza');
                     } else {
                       storedCpf = cpfNumbers;
                     }
                   }
+                } else {
+                  // Garantir que seja null explicitamente (não undefined)
+                  storedCpf = null;
                 }
                 setFormData({
                   name: parsedUser.name || '',
@@ -165,12 +172,17 @@ function EditProfileScreenContent({navigation}) {
         let cpfValue = data.cpf;
         logDebug('🔍 EDIT PROFILE - CPF antes do processamento', { cpfValue, type: typeof cpfValue });
         
-        if (cpfValue !== null && cpfValue !== undefined) {
+        // IMPORTANTE: Tratar explicitamente "0" como inválido também
+        if (cpfValue === '0' || cpfValue === 0) {
+          cpfValue = null;
+          console.log('⚠️ CPF é "0" (inválido), convertendo para null');
+          logError('⚠️ EDIT PROFILE - CPF é "0" (inválido), convertendo para null');
+        } else if (cpfValue !== null && cpfValue !== undefined) {
           const cpfStr = String(cpfValue).trim();
           logDebug('🔍 EDIT PROFILE - CPF como string', { cpfStr, length: cpfStr.length });
           
           // Se CPF for apenas zeros ou vazio, definir como null
-          if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+          if (cpfStr === '' || cpfStr === '0' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
             cpfValue = null;
             console.log('⚠️ CPF inválido (zeros) recebido da API, convertendo para null');
             logError('⚠️ EDIT PROFILE - CPF inválido (zeros) recebido da API, convertendo para null', { cpfOriginal: cpfStr });
@@ -179,7 +191,7 @@ function EditProfileScreenContent({navigation}) {
             const cpfNumbers = cpfStr.replace(/\D/g, '');
             logDebug('🔍 EDIT PROFILE - CPF após limpeza de formatação', { cpfNumbers, length: cpfNumbers.length });
             
-            if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
+            if (cpfNumbers === '' || cpfNumbers === '0' || cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
               cpfValue = null;
               console.log('⚠️ CPF inválido após limpeza, convertendo para null');
               logError('⚠️ EDIT PROFILE - CPF inválido após limpeza, convertendo para null', { cpfNumbers, length: cpfNumbers.length });
@@ -190,6 +202,8 @@ function EditProfileScreenContent({navigation}) {
           }
         } else {
           logDebug('🔍 EDIT PROFILE - CPF é null ou undefined', { cpfValue });
+          // Garantir que seja null explicitamente (não undefined)
+          cpfValue = null;
         }
         
         console.log('📝 CPF processado:', { antes: data?.cpf, depois: cpfValue });
@@ -252,20 +266,27 @@ function EditProfileScreenContent({navigation}) {
               const parsedUser = JSON.parse(storedUser);
               // Processar CPF do cache também (limpar zeros)
               let cachedCpf = parsedUser.cpf;
-              if (cachedCpf !== null && cachedCpf !== undefined) {
+              // IMPORTANTE: Tratar explicitamente "0" como inválido também
+              if (cachedCpf === '0' || cachedCpf === 0) {
+                cachedCpf = null;
+                console.log('⚠️ CPF é "0" no cache (inválido), convertendo para null');
+              } else if (cachedCpf !== null && cachedCpf !== undefined) {
                 const cpfStr = String(cachedCpf).trim();
-                if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+                if (cpfStr === '' || cpfStr === '0' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
                   cachedCpf = null;
                   console.log('⚠️ CPF inválido no cache, limpando');
                 } else {
                   const cpfNumbers = cpfStr.replace(/\D/g, '');
-                  if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
+                  if (cpfNumbers === '' || cpfNumbers === '0' || cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
                     cachedCpf = null;
                     console.log('⚠️ CPF inválido no cache após limpeza');
                   } else {
                     cachedCpf = cpfNumbers;
                   }
                 }
+              } else {
+                // Garantir que seja null explicitamente (não undefined)
+                cachedCpf = null;
               }
               setFormData({
                 name: parsedUser.name || '',
@@ -485,12 +506,28 @@ function EditProfileScreenContent({navigation}) {
               value={(() => {
                 // Log direto do valor que será exibido
                 const cpfValue = formData?.cpf;
-                const formatted = cpfValue && cpfValue !== null && cpfValue !== undefined ? formatCPF(cpfValue) : '';
+                
+                // IMPORTANTE: Garantir que null/undefined/0 não sejam convertidos para "0"
+                // Se o CPF for null, undefined, "0", "00000000000", ou vazio, retornar string vazia
+                if (!cpfValue || cpfValue === null || cpfValue === undefined || 
+                    cpfValue === '0' || cpfValue === '00000000000' || 
+                    String(cpfValue).trim() === '' || String(cpfValue).trim() === '0') {
+                  console.log('🎯 CAMPO CPF - Valor inválido/null, retornando string vazia:', {
+                    cpfValue,
+                    cpfType: typeof cpfValue,
+                  });
+                  logInfo('🎯 EDIT PROFILE - CPF inválido/null, campo ficará vazio', {
+                    raw: cpfValue,
+                    type: typeof cpfValue,
+                  });
+                  return ''; // String vazia para mostrar placeholder
+                }
+                
+                // Se CPF for válido, formatar
+                const formatted = formatCPF(cpfValue);
                 console.log('🎯 CAMPO CPF - Valor exato:', {
                   formDataCpf: cpfValue,
                   formDataCpfType: typeof cpfValue,
-                  formDataCpfIsNull: cpfValue === null,
-                  formDataCpfIsUndefined: cpfValue === undefined,
                   formattedValue: formatted,
                   willShowPlaceholder: formatted === '',
                 });
@@ -499,7 +536,7 @@ function EditProfileScreenContent({navigation}) {
                   formatted: formatted,
                   willShowPlaceholder: formatted === '',
                 });
-                return formatted;
+                return formatted || ''; // Garantir que sempre retorne string (nunca null/undefined)
               })()}
               editable={false}
               placeholder="000.000.000-00"
