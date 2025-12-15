@@ -1775,58 +1775,79 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token inválido ou expirado' });
         }
         
-        // Buscar usuário COM CPF - usar select para garantir campos corretos
+        // Buscar usuário COM CPF - PRIMEIRO tentar SEM select para ver TODOS os campos
         let user: any;
         try {
-          // PRIMEIRO: Tentar buscar SEM select para ver TODOS os campos
-          console.log('🔍 GET /api/user/profile: Buscando usuário no banco, userId:', userId);
+          console.log('🔍 GET /api/user/profile: Buscando usuário no banco SEM select (para ver todos os campos), userId:', userId);
           
-          user = await db.user.findUnique({
-            where: { id: userId },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              avatar: true,
-              notificationsEnabled: true,
-              locationEnabled: true,
-              role: true,
-              createdAt: true,
-              updatedAt: true,
-              cpf: true, // Incluir CPF explicitamente
-            }
-          });
-          
-          // Log CRÍTICO: Verificar se o CPF existe no objeto retornado
-          console.log('🔍 GET /api/user/profile: Usuário encontrado DIRETO DO BANCO:', {
-            id: user?.id,
-            email: user?.email,
-            name: user?.name,
-            cpf: user?.cpf,
-            cpfType: typeof user?.cpf,
-            cpfRaw: JSON.stringify(user?.cpf),
-            cpfIsNull: user?.cpf === null,
-            cpfIsUndefined: user?.cpf === undefined,
-            cpfLength: user?.cpf ? String(user.cpf).length : 0,
-            hasCpfProperty: 'cpf' in (user || {}),
-            allKeys: user ? Object.keys(user) : [],
-          });
-          
-          // TENTAR BUSCAR DIRETAMENTE O CPF DO BANCO SEM SELECT
+          // PRIMEIRO: Tentar buscar SEM select para ver TODOS os campos, incluindo CPF
           try {
-            const userRaw = await db.user.findUnique({
+            user = await db.user.findUnique({
               where: { id: userId },
             });
-            console.log('🔍 GET /api/user/profile: Usuário RAW (sem select):', {
-              id: userRaw?.id,
-              cpf: userRaw?.cpf,
-              cpfType: typeof userRaw?.cpf,
-              cpfRaw: JSON.stringify(userRaw?.cpf),
-              hasCpfProperty: 'cpf' in (userRaw || {}),
+            
+            console.log('🔍 GET /api/user/profile: Usuário encontrado SEM select:', {
+              id: user?.id,
+              email: user?.email,
+              name: user?.name,
+              cpf: user?.cpf,
+              cpfType: typeof user?.cpf,
+              cpfRaw: JSON.stringify(user?.cpf),
+              cpfIsNull: user?.cpf === null,
+              cpfIsUndefined: user?.cpf === undefined,
+              hasCpfProperty: 'cpf' in (user || {}),
+              allKeys: user ? Object.keys(user) : [],
             });
-          } catch (rawError: any) {
-            console.warn('⚠️ GET /api/user/profile: Erro ao buscar usuário RAW:', rawError.message);
+            
+            // Se conseguiu buscar sem select, usar esse resultado
+            // Mas precisamos extrair apenas os campos que queremos retornar
+            if (user) {
+              user = {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                phone: user.phone,
+                avatar: user.avatar,
+                notificationsEnabled: user.notificationsEnabled ?? true,
+                locationEnabled: user.locationEnabled ?? true,
+                role: user.role,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
+                cpf: user.cpf, // CPF vem direto do banco
+              };
+            }
+          } catch (noSelectError: any) {
+            // Se buscar sem select der erro (por causa de relacionamentos), usar select explícito
+            console.warn('⚠️ GET /api/user/profile: Erro ao buscar sem select, tentando com select explícito:', noSelectError.message);
+            
+            user = await db.user.findUnique({
+              where: { id: userId },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                phone: true,
+                avatar: true,
+                notificationsEnabled: true,
+                locationEnabled: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+                cpf: true, // Incluir CPF explicitamente
+              }
+            });
+            
+            console.log('🔍 GET /api/user/profile: Usuário encontrado COM select:', {
+              id: user?.id,
+              email: user?.email,
+              name: user?.name,
+              cpf: user?.cpf,
+              cpfType: typeof user?.cpf,
+              cpfRaw: JSON.stringify(user?.cpf),
+              cpfIsNull: user?.cpf === null,
+              cpfIsUndefined: user?.cpf === undefined,
+              hasCpfProperty: 'cpf' in (user || {}),
+            });
           }
           
         } catch (error: any) {
@@ -1877,36 +1898,6 @@ export default async function handler(req: any, res: any) {
           cpfIsUndefined: cpfValue === undefined,
           cpfRaw: JSON.stringify(cpfValue),
         });
-
-        // FALBACK DE SEGURANÇA:
-        // Se ainda assim estiver null/undefined, tentar buscar diretamente via SQL cru
-        if (cpfValue === null || cpfValue === undefined || cpfValue === '') {
-          try {
-            // Buscar diretamente na tabela "users" por e-mail para garantir que estamos vendo o mesmo dado do painel
-            const rawResult: any[] = await (db as any).$queryRaw`
-              SELECT cpf
-              FROM "users"
-              WHERE email = ${user.email}
-              LIMIT 1
-            `;
-
-            const rawCpf = rawResult && rawResult.length > 0 ? rawResult[0]?.cpf : null;
-
-            console.log('🔍 GET /api/user/profile: Resultado da consulta RAW de CPF:', {
-              email: user.email,
-              rawResult,
-              rawCpf,
-              rawCpfType: typeof rawCpf,
-            });
-
-            if (rawCpf && typeof rawCpf === 'string' && rawCpf.trim() !== '') {
-              cpfValue = rawCpf;
-              console.log('✅ GET /api/user/profile: CPF obtido via consulta RAW:', cpfValue);
-            }
-          } catch (rawCpfError: any) {
-            console.warn('⚠️ GET /api/user/profile: Erro ao buscar CPF via consulta RAW:', rawCpfError?.message);
-          }
-        }
         
         // Se CPF existe, limpar formatação e retornar apenas números
         if (cpfValue !== null && cpfValue !== undefined && cpfValue !== '') {
