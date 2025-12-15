@@ -1778,28 +1778,16 @@ export default async function handler(req: any, res: any) {
         // Buscar usuário COM CPF - usar select para garantir campos corretos
         let user: any;
         try {
-          // PRIMEIRO: Tentar buscar SEM select para ver TODOS os campos
-          console.log('🔍 GET /api/user/profile: Buscando usuário no banco, userId:', userId);
+          // Buscar usuário SEM select para garantir que TODOS os campos venham, incluindo CPF
+          console.log('🔍 GET /api/user/profile: Buscando usuário no banco (SEM select), userId:', userId);
           
           user = await db.user.findUnique({
             where: { id: userId },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              avatar: true,
-              notificationsEnabled: true,
-              locationEnabled: true,
-              role: true,
-              createdAt: true,
-              updatedAt: true,
-              cpf: true, // Incluir CPF explicitamente
-            }
+            // SEM select - traz TODOS os campos do modelo User
           });
           
           // Log CRÍTICO: Verificar se o CPF existe no objeto retornado
-          console.log('🔍 GET /api/user/profile: Usuário encontrado DIRETO DO BANCO:', {
+          console.log('🔍 GET /api/user/profile: Usuário encontrado DIRETO DO BANCO (SEM select):', {
             id: user?.id,
             email: user?.email,
             name: user?.name,
@@ -1813,53 +1801,9 @@ export default async function handler(req: any, res: any) {
             allKeys: user ? Object.keys(user) : [],
           });
           
-          // TENTAR BUSCAR DIRETAMENTE O CPF DO BANCO SEM SELECT
-          try {
-            const userRaw = await db.user.findUnique({
-              where: { id: userId },
-            });
-            console.log('🔍 GET /api/user/profile: Usuário RAW (sem select):', {
-              id: userRaw?.id,
-              cpf: userRaw?.cpf,
-              cpfType: typeof userRaw?.cpf,
-              cpfRaw: JSON.stringify(userRaw?.cpf),
-              hasCpfProperty: 'cpf' in (userRaw || {}),
-            });
-          } catch (rawError: any) {
-            console.warn('⚠️ GET /api/user/profile: Erro ao buscar usuário RAW:', rawError.message);
-          }
-          
         } catch (error: any) {
-          // Se coluna CPF não existir, buscar sem ela
-          if (error.message?.includes('cpf') || error.code === 'P2021') {
-            console.warn('⚠️ Coluna cpf não existe, buscando sem ela');
-            try {
-              user = await db.user.findUnique({
-                where: { id: userId },
-                select: {
-                  id: true,
-                  email: true,
-                  name: true,
-                  phone: true,
-                  avatar: true,
-                  notificationsEnabled: true,
-                  locationEnabled: true,
-                  role: true,
-                  createdAt: true,
-                  updatedAt: true,
-                }
-              });
-              if (user) {
-                (user as any).cpf = null;
-              }
-            } catch (retryError: any) {
-              console.error('❌ GET /api/user/profile: Erro ao buscar usuário (retry):', retryError);
-              throw retryError;
-            }
-          } else {
-            console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
-            throw error;
-          }
+          console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
+          throw error;
         }
         
         if (!user) {
