@@ -714,21 +714,22 @@ export default async function handler(req: any, res: any) {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Create user com CPF
+        // Create user com CPF - tentar criar com todos os campos, mas tratar erros de colunas inexistentes
         const userData: any = {
           email,
           name,
           phone: phone || null,
           password: hashedPassword,
-          role: 'MEMBER'
+          role: 'MEMBER',
+          cpf: cpfClean,
+          // Tentar incluir campos opcionais, mas serão removidos se não existirem
+          notificationsEnabled: true,
+          locationEnabled: true,
         };
-
-        // Adicionar CPF ao userData
-        userData.cpf = cpfClean;
 
         console.log('🔄 Criando usuário com dados:', { email, name, hasCpf: !!cpfClean });
 
-        // Tentar criar usuário com CPF
+        // Tentar criar usuário com todos os campos
         let user;
         try {
           user = await db.user.create({
@@ -745,23 +746,33 @@ export default async function handler(req: any, res: any) {
           });
           console.log('✅ Usuário criado com sucesso:', user.id);
         } catch (error: any) {
-          // Se erro for relacionado a coluna cpf não existir, criar sem cpf
-          if (error.message?.includes('cpf') || error.code === 'P2021') {
-            console.warn('⚠️ Coluna cpf não existe ainda, criando usuário sem cpf');
-            const { cpf: _, ...userDataWithoutCpf } = userData;
-            user = await db.user.create({
-              data: userDataWithoutCpf,
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                phone: true,
-                role: true,
-                createdAt: true
-              }
-            });
-            (user as any).cpf = null;
-            console.log('✅ Usuário criado sem CPF (coluna não existe):', user.id);
+          // Se erro for relacionado a colunas não existirem, criar sem elas
+          if (error.message?.includes('cpf') || error.message?.includes('notificationsEnabled') || error.message?.includes('locationEnabled') || error.code === 'P2021') {
+            console.warn('⚠️ Algumas colunas não existem ainda, criando usuário sem elas');
+            // Remover campos que não existem
+            const { cpf: _, notificationsEnabled: __, locationEnabled: ___, ...userDataWithoutNewFields } = userData;
+            
+            try {
+              user = await db.user.create({
+                data: userDataWithoutNewFields,
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  phone: true,
+                  role: true,
+                  createdAt: true
+                }
+              });
+              // Adicionar campos como null/default na resposta
+              (user as any).cpf = null;
+              (user as any).notificationsEnabled = true;
+              (user as any).locationEnabled = true;
+              console.log('✅ Usuário criado sem campos novos (colunas não existem):', user.id);
+            } catch (retryError: any) {
+              console.error('❌ Erro ao criar usuário (retry):', retryError);
+              throw retryError;
+            }
           } else {
             console.error('❌ Erro ao criar usuário:', error);
             throw error;

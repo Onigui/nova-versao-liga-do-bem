@@ -199,6 +199,23 @@ function EditProfileScreenContent({navigation}) {
         };
 
         console.log('📝 Dados processados para formulário:', processedData);
+        logInfo('📝 EDIT PROFILE - Dados processados para formulário', {
+          name: processedData.name,
+          email: processedData.email,
+          phone: processedData.phone,
+          cpf: processedData.cpf,
+          cpfType: typeof processedData.cpf,
+          cpfIsNull: processedData.cpf === null,
+          cpfIsUndefined: processedData.cpf === undefined,
+        });
+        
+        // Log detalhado do valor que será exibido no campo
+        const cpfDisplayValue = processedData.cpf && processedData.cpf !== null && processedData.cpf !== undefined ? formatCPF(processedData.cpf) : '';
+        logDebug('🔍 EDIT PROFILE - Valor que será exibido no campo CPF', {
+          cpfRaw: processedData.cpf,
+          cpfFormatted: cpfDisplayValue,
+          willShowPlaceholder: cpfDisplayValue === '',
+        });
         
         setFormData(processedData);
         
