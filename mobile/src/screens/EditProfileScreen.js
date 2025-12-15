@@ -196,11 +196,13 @@ function EditProfileScreenContent({navigation}) {
         logInfo('📝 EDIT PROFILE - CPF processado', { antes: data?.cpf, depois: cpfValue });
 
         // Processar dados - SIMPLIFICADO: usar dados diretamente da API
+        // Inclui também o CPF BRUTO vindo da API para debug visual
         const processedData = {
           name: data.name || '',
           email: data.email || '',
           phone: data.phone || '',
           cpf: cpfValue, // CPF já processado (null se inválido)
+          cpfRawFromApi: data.cpf, // CPF exatamente como veio da API (para debug)
           avatar: data.avatar || null,
         };
 
@@ -231,6 +233,7 @@ function EditProfileScreenContent({navigation}) {
           const dataToCache = {
             ...data,
             cpf: cpfValue, // Usar CPF processado (null se inválido)
+            cpfRawFromApi: data.cpf,
           };
           await AsyncStorage.setItem('user_data', JSON.stringify(dataToCache));
           console.log('✅ Dados salvos no cache (com CPF processado):', { cpf: dataToCache.cpf });
@@ -269,6 +272,7 @@ function EditProfileScreenContent({navigation}) {
                 email: parsedUser.email || '',
                 phone: parsedUser.phone || '',
                 cpf: cachedCpf, // CPF processado do cache
+                cpfRawFromApi: parsedUser.cpf, // manter original para debug
                 avatar: parsedUser.avatar || null,
               });
               setError(null); // Limpar erro se conseguiu carregar do cache
@@ -505,6 +509,10 @@ function EditProfileScreenContent({navigation}) {
               {formData?.cpf && isValidCPF(formData.cpf)
                 ? 'CPF não pode ser alterado após o cadastro'
                 : 'CPF não cadastrado. Entre em contato com o suporte.'}
+            </Text>
+            {/* DEBUG VISUAL: mostrar sempre o CPF bruto vindo da API / storage */}
+            <Text style={[styles.helperText, { fontSize: 10 }]}>
+              Debug CPF bruto (API/storage): {JSON.stringify(formData?.cpfRawFromApi)}
             </Text>
           </View>
         </View>
