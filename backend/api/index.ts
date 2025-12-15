@@ -1775,102 +1775,89 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token inválido ou expirado' });
         }
         
-        // Buscar usuário COM CPF - PRIMEIRO tentar SEM select para ver TODOS os campos
+        // Buscar usuário COM CPF - Usar select explícito para garantir que CPF seja retornado
         let user: any;
         try {
-          console.log('🔍 GET /api/user/profile: Buscando usuário no banco SEM select (para ver todos os campos), userId:', userId);
+          console.log('🔍 GET /api/user/profile: Buscando usuário no banco, userId:', userId);
           
-          // PRIMEIRO: Tentar buscar SEM select para ver TODOS os campos, incluindo CPF
-          try {
-            user = await db.user.findUnique({
-              where: { id: userId },
-            });
-            
-            console.log('🔍 GET /api/user/profile: Usuário encontrado SEM select:', {
-              id: user?.id,
-              email: user?.email,
-              name: user?.name,
-              cpf: user?.cpf,
-              cpfType: typeof user?.cpf,
-              cpfRaw: JSON.stringify(user?.cpf),
-              cpfIsNull: user?.cpf === null,
-              cpfIsUndefined: user?.cpf === undefined,
-              hasCpfProperty: 'cpf' in (user || {}),
-              allKeys: user ? Object.keys(user) : [],
-            });
-            
-            // Se conseguiu buscar sem select, usar esse resultado
-            // Mas precisamos extrair apenas os campos que queremos retornar
-            if (user) {
-              // IMPORTANTE: Log do CPF ANTES de extrair para debug
-              console.log('🔍 GET /api/user/profile: CPF ANTES de extrair do objeto user:', {
-                cpfRaw: user.cpf,
-                cpfType: typeof user.cpf,
-                cpfIsNull: user.cpf === null,
-                cpfIsUndefined: user.cpf === undefined,
-                cpfEqualsZero: user.cpf === '0' || user.cpf === 0,
-                cpfString: String(user.cpf),
-              });
-              
-              // Extrair CPF e tratar "0" explicitamente
-              let extractedCpf = user.cpf;
-              if (extractedCpf === '0' || extractedCpf === 0 || String(extractedCpf).trim() === '0') {
-                extractedCpf = null;
-                console.log('⚠️ GET /api/user/profile: CPF é "0" ao extrair, convertendo para null');
-              }
-              
-              user = {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                phone: user.phone,
-                avatar: user.avatar,
-                notificationsEnabled: user.notificationsEnabled ?? true,
-                locationEnabled: user.locationEnabled ?? true,
-                role: user.role,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
-                cpf: extractedCpf, // CPF extraído e tratado
-              };
-              
-              console.log('🔍 GET /api/user/profile: CPF DEPOIS de extrair:', {
-                cpf: user.cpf,
-                cpfType: typeof user.cpf,
-                cpfIsNull: user.cpf === null,
-              });
+          // PRIMEIRO: Buscar com select explícito incluindo CPF
+          user = await db.user.findUnique({
+            where: { id: userId },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              avatar: true,
+              notificationsEnabled: true,
+              locationEnabled: true,
+              role: true,
+              createdAt: true,
+              updatedAt: true,
+              cpf: true, // Incluir CPF explicitamente
             }
-          } catch (noSelectError: any) {
-            // Se buscar sem select der erro (por causa de relacionamentos), usar select explícito
-            console.warn('⚠️ GET /api/user/profile: Erro ao buscar sem select, tentando com select explícito:', noSelectError.message);
-            
-            user = await db.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                phone: true,
-                avatar: true,
-                notificationsEnabled: true,
-                locationEnabled: true,
-                role: true,
-                createdAt: true,
-                updatedAt: true,
-                cpf: true, // Incluir CPF explicitamente
+          });
+          
+          console.log('🔍 GET /api/user/profile: Usuário encontrado COM select:', {
+            id: user?.id,
+            email: user?.email,
+            name: user?.name,
+            cpf: user?.cpf,
+            cpfType: typeof user?.cpf,
+            cpfRaw: JSON.stringify(user?.cpf),
+            cpfIsNull: user?.cpf === null,
+            cpfIsUndefined: user?.cpf === undefined,
+            cpfEqualsZero: user?.cpf === '0' || user?.cpf === 0,
+            hasCpfProperty: 'cpf' in (user || {}),
+          });
+          
+          // VERIFICAÇÃO CRÍTICA: Se CPF vier null ou "0", fazer query SQL direta para verificar
+          if (!user || user.cpf === null || user.cpf === undefined || user.cpf === '0' || user.cpf === 0) {
+            console.log('⚠️ GET /api/user/profile: CPF é null/undefined/"0" no Prisma, fazendo query SQL direta para verificar...');
+            try {
+              const sqlResult: any[] = await db.$queryRaw`
+                SELECT id, email, name, cpf
+                FROM "users"
+                WHERE id = ${userId}
+                LIMIT 1
+              `;
+              
+              if (sqlResult && sqlResult.length > 0) {
+                const sqlUser = sqlResult[0];
+                console.log('🔍 GET /api/user/profile: Resultado da query SQL direta:', {
+                  id: sqlUser.id,
+                  email: sqlUser.email,
+                  name: sqlUser.name,
+                  cpf: sqlUser.cpf,
+                  cpfType: typeof sqlUser.cpf,
+                  cpfRaw: JSON.stringify(sqlUser.cpf),
+                  cpfIsNull: sqlUser.cpf === null,
+                  cpfIsUndefined: sqlUser.cpf === undefined,
+                  cpfEqualsZero: sqlUser.cpf === '0' || sqlUser.cpf === 0,
+                });
+                
+                // Se SQL retornou CPF válido, usar esse valor
+                if (sqlUser.cpf && sqlUser.cpf !== null && sqlUser.cpf !== undefined && 
+                    sqlUser.cpf !== '0' && sqlUser.cpf !== 0 && String(sqlUser.cpf).trim() !== '0') {
+                  console.log('✅ GET /api/user/profile: CPF encontrado via SQL direta, usando esse valor:', sqlUser.cpf);
+                  if (user) {
+                    user.cpf = sqlUser.cpf;
+                  } else {
+                    // Se user não existir, criar objeto mínimo
+                    user = {
+                      id: sqlUser.id,
+                      email: sqlUser.email,
+                      name: sqlUser.name,
+                      cpf: sqlUser.cpf,
+                    };
+                  }
+                } else {
+                  console.log('⚠️ GET /api/user/profile: CPF também é null/"0" na query SQL direta');
+                }
               }
-            });
-            
-            console.log('🔍 GET /api/user/profile: Usuário encontrado COM select:', {
-              id: user?.id,
-              email: user?.email,
-              name: user?.name,
-              cpf: user?.cpf,
-              cpfType: typeof user?.cpf,
-              cpfRaw: JSON.stringify(user?.cpf),
-              cpfIsNull: user?.cpf === null,
-              cpfIsUndefined: user?.cpf === undefined,
-              hasCpfProperty: 'cpf' in (user || {}),
-            });
+            } catch (sqlError: any) {
+              console.warn('⚠️ GET /api/user/profile: Erro ao fazer query SQL direta:', sqlError.message);
+            }
           }
           
         } catch (error: any) {
