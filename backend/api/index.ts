@@ -1778,32 +1778,54 @@ export default async function handler(req: any, res: any) {
         // Buscar usuário COM CPF - usar select para garantir campos corretos
         let user: any;
         try {
-          // Buscar usuário SEM select para garantir que TODOS os campos venham, incluindo CPF
-          console.log('🔍 GET /api/user/profile: Buscando usuário no banco (SEM select), userId:', userId);
-          
           user = await db.user.findUnique({
             where: { id: userId },
-            // SEM select - traz TODOS os campos do modelo User
-          });
-          
-          // Log CRÍTICO: Verificar se o CPF existe no objeto retornado
-          console.log('🔍 GET /api/user/profile: Usuário encontrado DIRETO DO BANCO (SEM select):', {
-            id: user?.id,
-            email: user?.email,
-            name: user?.name,
-            cpf: user?.cpf,
-            cpfType: typeof user?.cpf,
-            cpfRaw: JSON.stringify(user?.cpf),
-            cpfIsNull: user?.cpf === null,
-            cpfIsUndefined: user?.cpf === undefined,
-            cpfLength: user?.cpf ? String(user.cpf).length : 0,
-            hasCpfProperty: 'cpf' in (user || {}),
-            allKeys: user ? Object.keys(user) : [],
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              avatar: true,
+              notificationsEnabled: true,
+              locationEnabled: true,
+              role: true,
+              createdAt: true,
+              updatedAt: true,
+              cpf: true, // Incluir CPF explicitamente
+            }
           });
           
         } catch (error: any) {
-          console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
-          throw error;
+          // Se coluna CPF não existir, buscar sem ela
+          if (error.message?.includes('cpf') || error.code === 'P2021') {
+            console.warn('⚠️ Coluna cpf não existe, buscando sem ela');
+            try {
+              user = await db.user.findUnique({
+                where: { id: userId },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  phone: true,
+                  avatar: true,
+                  notificationsEnabled: true,
+                  locationEnabled: true,
+                  role: true,
+                  createdAt: true,
+                  updatedAt: true,
+                }
+              });
+              if (user) {
+                (user as any).cpf = null;
+              }
+            } catch (retryError: any) {
+              console.error('❌ GET /api/user/profile: Erro ao buscar usuário (retry):', retryError);
+              throw retryError;
+            }
+          } else {
+            console.error('❌ GET /api/user/profile: Erro ao buscar usuário:', error);
+            throw error;
+          }
         }
         
         if (!user) {
