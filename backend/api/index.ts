@@ -1830,6 +1830,26 @@ export default async function handler(req: any, res: any) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
+        // Processar CPF - limpar valores inválidos (zeros)
+        let cpfValue = user.cpf;
+        if (cpfValue) {
+          const cpfStr = String(cpfValue).trim();
+          // Se CPF for apenas zeros ou vazio, retornar null
+          if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+            cpfValue = null;
+            console.log('⚠️ GET /api/user/profile: CPF inválido (zeros) encontrado, convertendo para null');
+          } else {
+            // Limpar formatação e manter apenas números
+            const cpfNumbers = cpfStr.replace(/\D/g, '');
+            if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
+              cpfValue = null;
+              console.log('⚠️ GET /api/user/profile: CPF inválido após limpeza, convertendo para null');
+            } else {
+              cpfValue = cpfNumbers; // Retornar apenas números
+            }
+          }
+        }
+        
         // Serializar datas corretamente e garantir que todos os campos sejam JSON-safe
         const userResponse = {
           id: user.id,
@@ -1842,7 +1862,7 @@ export default async function handler(req: any, res: any) {
           role: user.role || 'MEMBER',
           createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : (user.createdAt || new Date().toISOString()),
           updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : (user.updatedAt || new Date().toISOString()),
-          cpf: user.cpf || null, // Retornar null se não existir, não string vazia
+          cpf: cpfValue, // Retornar CPF processado (null se inválido)
         };
         
         // Log do CPF e resposta completa

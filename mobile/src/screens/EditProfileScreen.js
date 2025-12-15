@@ -121,16 +121,39 @@ function EditProfileScreenContent({navigation}) {
           phone: data?.phone,
           cpf: data?.cpf,
           cpfType: typeof data?.cpf,
+          cpfRaw: JSON.stringify(data?.cpf),
         });
         
         if (!mountedRef.current) return;
+
+        // Processar CPF - limpar valores inválidos
+        let cpfValue = data.cpf;
+        if (cpfValue !== null && cpfValue !== undefined) {
+          const cpfStr = String(cpfValue).trim();
+          // Se CPF for apenas zeros ou vazio, definir como null
+          if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+            cpfValue = null;
+            console.log('⚠️ CPF inválido (zeros) recebido da API, convertendo para null');
+          } else {
+            // Limpar formatação e manter apenas números
+            const cpfNumbers = cpfStr.replace(/\D/g, '');
+            if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
+              cpfValue = null;
+              console.log('⚠️ CPF inválido após limpeza, convertendo para null');
+            } else {
+              cpfValue = cpfNumbers; // Manter apenas números
+            }
+          }
+        }
+        
+        console.log('📝 CPF processado:', { antes: data?.cpf, depois: cpfValue });
 
         // Processar dados - SIMPLIFICADO: usar dados diretamente da API
         const processedData = {
           name: data.name || '',
           email: data.email || '',
           phone: data.phone || '',
-          cpf: data.cpf || null, // Manter null se não existir
+          cpf: cpfValue, // CPF já processado (null se inválido)
           avatar: data.avatar || null,
         };
 
