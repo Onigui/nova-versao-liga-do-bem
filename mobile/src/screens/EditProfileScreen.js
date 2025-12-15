@@ -478,7 +478,25 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              value={formData?.cpf && formData.cpf !== null && formData.cpf !== undefined ? formatCPF(formData.cpf) : ''}
+              value={(() => {
+                // Log direto do valor que será exibido
+                const cpfValue = formData?.cpf;
+                const formatted = cpfValue && cpfValue !== null && cpfValue !== undefined ? formatCPF(cpfValue) : '';
+                console.log('🎯 CAMPO CPF - Valor exato:', {
+                  formDataCpf: cpfValue,
+                  formDataCpfType: typeof cpfValue,
+                  formDataCpfIsNull: cpfValue === null,
+                  formDataCpfIsUndefined: cpfValue === undefined,
+                  formattedValue: formatted,
+                  willShowPlaceholder: formatted === '',
+                });
+                logInfo('🎯 EDIT PROFILE - Valor exibido no campo CPF', {
+                  raw: cpfValue,
+                  formatted: formatted,
+                  willShowPlaceholder: formatted === '',
+                });
+                return formatted;
+              })()}
               editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"

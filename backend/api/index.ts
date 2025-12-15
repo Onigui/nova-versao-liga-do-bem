@@ -1845,7 +1845,7 @@ export default async function handler(req: any, res: any) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
         
-        // Processar CPF - limpar valores inválidos (zeros)
+        // Processar CPF - NÃO LIMPAR VALORES VÁLIDOS, apenas limpar zeros
         let cpfValue = user.cpf;
         let shouldUpdateCpf = false;
         
@@ -1854,39 +1854,45 @@ export default async function handler(req: any, res: any) {
           cpfType: typeof cpfValue,
           cpfIsNull: cpfValue === null,
           cpfIsUndefined: cpfValue === undefined,
+          cpfRaw: JSON.stringify(cpfValue),
         });
         
+        // IMPORTANTE: Só processar se CPF não for null/undefined
         if (cpfValue !== null && cpfValue !== undefined) {
           const cpfStr = String(cpfValue).trim();
           console.log('🔍 GET /api/user/profile: CPF como string:', {
             cpfStr,
             length: cpfStr.length,
             isOnlyZeros: cpfStr === '00000000000' || cpfStr === '000.000.000-00',
+            is11111111111: cpfStr === '11111111111' || cpfStr.replace(/\D/g, '') === '11111111111',
           });
           
-          // Se CPF for apenas zeros ou vazio, retornar null
-          if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
+          // Limpar formatação primeiro
+          const cpfNumbers = cpfStr.replace(/\D/g, '');
+          console.log('🔍 GET /api/user/profile: CPF após limpeza de formatação:', {
+            cpfNumbers,
+            length: cpfNumbers.length,
+            isOnlyZeros: cpfNumbers === '00000000000',
+            is11111111111: cpfNumbers === '11111111111',
+          });
+          
+          // Só limpar se for APENAS zeros ou vazio
+          if (cpfNumbers === '' || cpfNumbers === '00000000000') {
             cpfValue = null;
             shouldUpdateCpf = true; // Marcar para limpar no banco
             console.log('⚠️ GET /api/user/profile: CPF inválido (zeros) encontrado, convertendo para null e limpando no banco');
+          } else if (cpfNumbers.length !== 11) {
+            // Se não tem 11 dígitos, manter como está mas logar aviso
+            console.warn('⚠️ GET /api/user/profile: CPF não tem 11 dígitos, mas mantendo valor original:', cpfNumbers);
+            cpfValue = cpfNumbers; // Manter valor mesmo se não tiver 11 dígitos
           } else {
-            // Limpar formatação e manter apenas números
-            const cpfNumbers = cpfStr.replace(/\D/g, '');
-            console.log('🔍 GET /api/user/profile: CPF após limpeza de formatação:', {
-              cpfNumbers,
+            // CPF válido (tem 11 dígitos e não é só zeros)
+            cpfValue = cpfNumbers; // Retornar apenas números
+            console.log('✅ GET /api/user/profile: CPF válido processado:', { 
+              cpfValue,
+              original: cpfStr,
               length: cpfNumbers.length,
-              isOnlyZeros: cpfNumbers === '00000000000',
-              isValidLength: cpfNumbers.length === 11,
             });
-            
-            if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
-              cpfValue = null;
-              shouldUpdateCpf = true; // Marcar para limpar no banco
-              console.log('⚠️ GET /api/user/profile: CPF inválido após limpeza, convertendo para null e limpando no banco');
-            } else {
-              cpfValue = cpfNumbers; // Retornar apenas números
-              console.log('✅ GET /api/user/profile: CPF válido processado:', { cpfValue });
-            }
           }
         } else {
           console.log('🔍 GET /api/user/profile: CPF é null ou undefined, mantendo como está');

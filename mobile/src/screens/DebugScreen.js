@@ -113,10 +113,21 @@ export default function DebugScreen({navigation}) {
       // Tentar carregar logs do RemoteLogger de forma segura
       let localLogs = [];
       try {
+        // Primeiro tentar usar a instância direta
         if (remoteLogger && typeof remoteLogger.getLocalLogs === 'function') {
           localLogs = remoteLogger.getLocalLogs() || [];
-        } else if (typeof getLocalLogs === 'function') {
-          localLogs = getLocalLogs() || [];
+        } 
+        // Se não funcionar, tentar importar novamente
+        else {
+          try {
+            const logger = require('../services/RemoteLogger');
+            const loggerInstance = logger.default || logger;
+            if (loggerInstance && typeof loggerInstance.getLocalLogs === 'function') {
+              localLogs = loggerInstance.getLocalLogs() || [];
+            }
+          } catch (reimportError) {
+            console.warn('Erro ao reimportar RemoteLogger:', reimportError);
+          }
         }
       } catch (loggerError) {
         console.error('Erro ao obter logs do RemoteLogger:', loggerError);
