@@ -1877,6 +1877,36 @@ export default async function handler(req: any, res: any) {
           cpfIsUndefined: cpfValue === undefined,
           cpfRaw: JSON.stringify(cpfValue),
         });
+
+        // FALBACK DE SEGURANÇA:
+        // Se ainda assim estiver null/undefined, tentar buscar diretamente via SQL cru
+        if (cpfValue === null || cpfValue === undefined || cpfValue === '') {
+          try {
+            // Buscar diretamente na tabela "users" por e-mail para garantir que estamos vendo o mesmo dado do painel
+            const rawResult: any[] = await (db as any).$queryRaw`
+              SELECT cpf
+              FROM "users"
+              WHERE email = ${user.email}
+              LIMIT 1
+            `;
+
+            const rawCpf = rawResult && rawResult.length > 0 ? rawResult[0]?.cpf : null;
+
+            console.log('🔍 GET /api/user/profile: Resultado da consulta RAW de CPF:', {
+              email: user.email,
+              rawResult,
+              rawCpf,
+              rawCpfType: typeof rawCpf,
+            });
+
+            if (rawCpf && typeof rawCpf === 'string' && rawCpf.trim() !== '') {
+              cpfValue = rawCpf;
+              console.log('✅ GET /api/user/profile: CPF obtido via consulta RAW:', cpfValue);
+            }
+          } catch (rawCpfError: any) {
+            console.warn('⚠️ GET /api/user/profile: Erro ao buscar CPF via consulta RAW:', rawCpfError?.message);
+          }
+        }
         
         // Se CPF existe, limpar formatação e retornar apenas números
         if (cpfValue !== null && cpfValue !== undefined && cpfValue !== '') {
