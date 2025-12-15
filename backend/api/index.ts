@@ -1802,6 +1802,23 @@ export default async function handler(req: any, res: any) {
             // Se conseguiu buscar sem select, usar esse resultado
             // Mas precisamos extrair apenas os campos que queremos retornar
             if (user) {
+              // IMPORTANTE: Log do CPF ANTES de extrair para debug
+              console.log('🔍 GET /api/user/profile: CPF ANTES de extrair do objeto user:', {
+                cpfRaw: user.cpf,
+                cpfType: typeof user.cpf,
+                cpfIsNull: user.cpf === null,
+                cpfIsUndefined: user.cpf === undefined,
+                cpfEqualsZero: user.cpf === '0' || user.cpf === 0,
+                cpfString: String(user.cpf),
+              });
+              
+              // Extrair CPF e tratar "0" explicitamente
+              let extractedCpf = user.cpf;
+              if (extractedCpf === '0' || extractedCpf === 0 || String(extractedCpf).trim() === '0') {
+                extractedCpf = null;
+                console.log('⚠️ GET /api/user/profile: CPF é "0" ao extrair, convertendo para null');
+              }
+              
               user = {
                 id: user.id,
                 email: user.email,
@@ -1813,8 +1830,14 @@ export default async function handler(req: any, res: any) {
                 role: user.role,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
-                cpf: user.cpf, // CPF vem direto do banco
+                cpf: extractedCpf, // CPF extraído e tratado
               };
+              
+              console.log('🔍 GET /api/user/profile: CPF DEPOIS de extrair:', {
+                cpf: user.cpf,
+                cpfType: typeof user.cpf,
+                cpfIsNull: user.cpf === null,
+              });
             }
           } catch (noSelectError: any) {
             // Se buscar sem select der erro (por causa de relacionamentos), usar select explícito
@@ -1897,10 +1920,17 @@ export default async function handler(req: any, res: any) {
           cpfIsNull: cpfValue === null,
           cpfIsUndefined: cpfValue === undefined,
           cpfRaw: JSON.stringify(cpfValue),
+          cpfEqualsZero: cpfValue === '0' || cpfValue === 0,
+          cpfEqualsZeroString: String(cpfValue) === '0',
         });
         
-        // Se CPF existe, limpar formatação e retornar apenas números
-        if (cpfValue !== null && cpfValue !== undefined && cpfValue !== '') {
+        // IMPORTANTE: Tratar explicitamente "0" como inválido ANTES de qualquer processamento
+        if (cpfValue === '0' || cpfValue === 0 || String(cpfValue).trim() === '0') {
+          console.log('⚠️ GET /api/user/profile: CPF é "0" (inválido), convertendo para null imediatamente');
+          cpfValue = null;
+        }
+        // Se CPF existe e não é "0", limpar formatação e retornar apenas números
+        else if (cpfValue !== null && cpfValue !== undefined && cpfValue !== '') {
           const cpfStr = String(cpfValue).trim();
           const cpfNumbers = cpfStr.replace(/\D/g, ''); // Remove tudo que não é dígito
           
@@ -1908,10 +1938,12 @@ export default async function handler(req: any, res: any) {
             original: cpfStr,
             apenasNumeros: cpfNumbers,
             length: cpfNumbers.length,
+            isZero: cpfNumbers === '0',
+            isAllZeros: cpfNumbers === '00000000000',
           });
           
-          // Se após limpar formatação ficou vazio ou só zeros, retornar null
-          if (cpfNumbers === '' || cpfNumbers === '00000000000') {
+          // Se após limpar formatação ficou vazio, só zeros, ou apenas "0", retornar null
+          if (cpfNumbers === '' || cpfNumbers === '0' || cpfNumbers === '00000000000') {
             cpfValue = null;
             console.log('⚠️ GET /api/user/profile: CPF inválido (vazio ou só zeros), retornando null');
           } else {
@@ -1928,6 +1960,12 @@ export default async function handler(req: any, res: any) {
           cpfValue,
           cpfType: typeof cpfValue,
         });
+        
+        // GARANTIR que cpfValue nunca seja "0" na resposta final
+        if (cpfValue === '0' || cpfValue === 0 || String(cpfValue).trim() === '0') {
+          console.log('⚠️ GET /api/user/profile: CPF ainda é "0" na resposta final, forçando null');
+          cpfValue = null;
+        }
         
         // Serializar datas corretamente e garantir que todos os campos sejam JSON-safe
         const userResponse = {
