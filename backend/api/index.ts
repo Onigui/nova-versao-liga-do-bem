@@ -1778,6 +1778,9 @@ export default async function handler(req: any, res: any) {
         // Buscar usuário COM CPF - usar select para garantir campos corretos
         let user: any;
         try {
+          // PRIMEIRO: Tentar buscar SEM select para ver TODOS os campos
+          console.log('🔍 GET /api/user/profile: Buscando usuário no banco, userId:', userId);
+          
           user = await db.user.findUnique({
             where: { id: userId },
             select: {
@@ -1795,6 +1798,7 @@ export default async function handler(req: any, res: any) {
             }
           });
           
+          // Log CRÍTICO: Verificar se o CPF existe no objeto retornado
           console.log('🔍 GET /api/user/profile: Usuário encontrado DIRETO DO BANCO:', {
             id: user?.id,
             email: user?.email,
@@ -1805,7 +1809,25 @@ export default async function handler(req: any, res: any) {
             cpfIsNull: user?.cpf === null,
             cpfIsUndefined: user?.cpf === undefined,
             cpfLength: user?.cpf ? String(user.cpf).length : 0,
+            hasCpfProperty: 'cpf' in (user || {}),
+            allKeys: user ? Object.keys(user) : [],
           });
+          
+          // TENTAR BUSCAR DIRETAMENTE O CPF DO BANCO SEM SELECT
+          try {
+            const userRaw = await db.user.findUnique({
+              where: { id: userId },
+            });
+            console.log('🔍 GET /api/user/profile: Usuário RAW (sem select):', {
+              id: userRaw?.id,
+              cpf: userRaw?.cpf,
+              cpfType: typeof userRaw?.cpf,
+              cpfRaw: JSON.stringify(userRaw?.cpf),
+              hasCpfProperty: 'cpf' in (userRaw || {}),
+            });
+          } catch (rawError: any) {
+            console.warn('⚠️ GET /api/user/profile: Erro ao buscar usuário RAW:', rawError.message);
+          }
           
         } catch (error: any) {
           // Se coluna CPF não existir, buscar sem ela
