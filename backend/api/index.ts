@@ -1832,21 +1832,38 @@ export default async function handler(req: any, res: any) {
         
         // Processar CPF - limpar valores inválidos (zeros)
         let cpfValue = user.cpf;
+        let shouldUpdateCpf = false;
         if (cpfValue) {
           const cpfStr = String(cpfValue).trim();
           // Se CPF for apenas zeros ou vazio, retornar null
           if (cpfStr === '' || cpfStr === '00000000000' || cpfStr === '000.000.000-00') {
             cpfValue = null;
-            console.log('⚠️ GET /api/user/profile: CPF inválido (zeros) encontrado, convertendo para null');
+            shouldUpdateCpf = true; // Marcar para limpar no banco
+            console.log('⚠️ GET /api/user/profile: CPF inválido (zeros) encontrado, convertendo para null e limpando no banco');
           } else {
             // Limpar formatação e manter apenas números
             const cpfNumbers = cpfStr.replace(/\D/g, '');
             if (cpfNumbers === '00000000000' || cpfNumbers.length !== 11) {
               cpfValue = null;
-              console.log('⚠️ GET /api/user/profile: CPF inválido após limpeza, convertendo para null');
+              shouldUpdateCpf = true; // Marcar para limpar no banco
+              console.log('⚠️ GET /api/user/profile: CPF inválido após limpeza, convertendo para null e limpando no banco');
             } else {
               cpfValue = cpfNumbers; // Retornar apenas números
             }
+          }
+        }
+        
+        // Se CPF era inválido, limpar no banco de dados também
+        if (shouldUpdateCpf) {
+          try {
+            await db.user.update({
+              where: { id: userId },
+              data: { cpf: null }
+            });
+            console.log('✅ GET /api/user/profile: CPF inválido limpo do banco de dados');
+          } catch (updateError: any) {
+            console.warn('⚠️ GET /api/user/profile: Erro ao limpar CPF inválido do banco:', updateError.message);
+            // Não falhar a requisição se não conseguir limpar
           }
         }
         
