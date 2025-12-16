@@ -64,9 +64,6 @@ function EditProfileScreenContent({navigation}) {
   
   // Estado local para o valor do campo CPF (permite edição sem resetar)
   const [cpfInputValue, setCpfInputValue] = useState('');
-  
-  // Estado local para o valor do campo CPF (permite edição sem resetar)
-  const [cpfInputValue, setCpfInputValue] = useState('');
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
@@ -118,9 +115,16 @@ function EditProfileScreenContent({navigation}) {
                   avatar: parsedUser.avatar || null,
                 });
                 // Atualizar também o estado local do campo CPF
+                // IMPORTANTE: Não chamar formatCPF para valores parciais/inválidos
                 if (storedCpf && storedCpf !== null && storedCpf !== undefined && 
                     storedCpf !== '0' && storedCpf !== '00000000000') {
-                  setCpfInputValue(formatCPF(storedCpf));
+                  const cpfStr = String(storedCpf).replace(/\D/g, '');
+                  // Só formatar se tiver exatamente 11 dígitos válidos
+                  if (cpfStr.length === 11 && cpfStr !== '00000000000') {
+                    setCpfInputValue(formatCPF(cpfStr) || '');
+                  } else {
+                    setCpfInputValue('');
+                  }
                 } else {
                   setCpfInputValue('');
                 }
@@ -255,9 +259,17 @@ function EditProfileScreenContent({navigation}) {
         setFormData(processedData);
         
         // Atualizar também o estado local do campo CPF para exibição
+        // IMPORTANTE: Não chamar formatCPF para valores parciais/inválidos, pois retorna string vazia
         if (cpfValue && cpfValue !== null && cpfValue !== undefined && 
             cpfValue !== '0' && cpfValue !== '00000000000') {
-          setCpfInputValue(formatCPF(cpfValue));
+          const cpfStr = String(cpfValue).replace(/\D/g, '');
+          // Só formatar se tiver exatamente 11 dígitos válidos
+          if (cpfStr.length === 11 && cpfStr !== '00000000000') {
+            setCpfInputValue(formatCPF(cpfStr) || '');
+          } else {
+            // Para valores parciais ou inválidos, mostrar vazio (não tentar formatar)
+            setCpfInputValue('');
+          }
         } else {
           setCpfInputValue('');
         }
@@ -318,9 +330,16 @@ function EditProfileScreenContent({navigation}) {
                 avatar: parsedUser.avatar || null,
               });
               // Atualizar também o estado local do campo CPF
+              // IMPORTANTE: Não chamar formatCPF para valores parciais/inválidos
               if (cachedCpf && cachedCpf !== null && cachedCpf !== undefined && 
                   cachedCpf !== '0' && cachedCpf !== '00000000000') {
-                setCpfInputValue(formatCPF(cachedCpf));
+                const cpfStr = String(cachedCpf).replace(/\D/g, '');
+                // Só formatar se tiver exatamente 11 dígitos válidos
+                if (cpfStr.length === 11 && cpfStr !== '00000000000') {
+                  setCpfInputValue(formatCPF(cpfStr) || '');
+                } else {
+                  setCpfInputValue('');
+                }
               } else {
                 setCpfInputValue('');
               }
@@ -533,40 +552,31 @@ function EditProfileScreenContent({navigation}) {
               style={styles.input}
               value={cpfInputValue}
               onChangeText={(text) => {
-                // Remover formatação para trabalhar apenas com números
+                // Extrair apenas números do input
                 const cpfNumbers = text.replace(/\D/g, '');
                 
                 // Limitar a 11 dígitos
                 const limitedCpf = cpfNumbers.slice(0, 11);
                 
-                // Atualizar estado local para exibição (permite digitação sem resetar)
-                if (limitedCpf.length === 0) {
-                  setCpfInputValue('');
-                } else {
-                  // Formatar enquanto digita
-                  const formatted = limitedCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-                  // Se não tem 11 dígitos ainda, formatar parcialmente
-                  let partialFormatted = limitedCpf;
-                  if (limitedCpf.length > 3) {
-                    partialFormatted = limitedCpf.replace(/(\d{3})(\d+)/, '$1.$2');
-                  }
-                  if (limitedCpf.length > 6) {
-                    partialFormatted = partialFormatted.replace(/(\d{3}\.\d{3})(\d+)/, '$1.$2');
-                  }
-                  if (limitedCpf.length > 9) {
-                    partialFormatted = partialFormatted.replace(/(\d{3}\.\d{3}\.\d{3})(\d+)/, '$1-$2');
-                  }
-                  setCpfInputValue(partialFormatted.length === 14 ? formatted : partialFormatted);
-                }
-                
                 // Atualizar formData com números apenas
                 setFormData(prev => ({...prev, cpf: limitedCpf || null}));
                 
-                console.log('🎯 CAMPO CPF - Usuário digitou:', {
-                  text,
+                // Atualizar estado de exibição:
+                // - Se tiver 11 dígitos completos, formatar
+                // - Caso contrário, mostrar números brutos (permite digitação sem resetar)
+                if (limitedCpf.length === 11 && limitedCpf !== '00000000000') {
+                  const formatted = formatCPF(limitedCpf);
+                  setCpfInputValue(formatted || limitedCpf);
+                } else {
+                  // Mostrar números brutos durante digitação
+                  setCpfInputValue(limitedCpf);
+                }
+                
+                logDebug('🎯 CAMPO CPF - Usuário digitou', {
+                  textInput: text,
                   cpfNumbers: limitedCpf,
-                  cpfInputValue: cpfInputValue,
-                  newCpfInputValue: limitedCpf.length === 0 ? '' : (limitedCpf.length === 11 ? formatCPF(limitedCpf) : limitedCpf),
+                  length: limitedCpf.length,
+                  displayValue: limitedCpf.length === 11 ? formatCPF(limitedCpf) : limitedCpf,
                 });
               }}
               placeholder="000.000.000-00"
