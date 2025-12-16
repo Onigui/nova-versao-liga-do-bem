@@ -2029,57 +2029,6 @@ export default async function handler(req: any, res: any) {
         
         const { name, phone, cpf, avatar } = body;
         
-        // BLOQUEAR ALTERAÇÃO DE CPF - CPF não pode ser alterado após cadastro
-        if (cpf !== undefined) {
-          // Buscar usuário atual para verificar se já tem CPF
-          const currentUser = await db.user.findUnique({
-            where: { id: userId },
-            select: {
-              cpf: true,
-            }
-          });
-
-          if (currentUser) {
-            const currentCpf = currentUser.cpf;
-            const newCpf = cpf ? cpf.replace(/\D/g, '') : null;
-
-            // Se usuário já tem CPF e está tentando alterar, bloquear
-            if (currentCpf && newCpf && currentCpf !== newCpf) {
-              return res.status(403).json({ 
-                error: 'CPF não pode ser alterado após o cadastro. Esta medida previne fraudes.' 
-              });
-            }
-
-            // Se usuário não tem CPF e está tentando adicionar, permitir (caso de migração)
-            // Mas validar formato
-            if (!currentCpf && newCpf) {
-              if (newCpf.length !== 11) {
-                return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
-              }
-
-              // Verificar se CPF já está em uso por outro usuário
-              try {
-                const existingUser = await db.user.findFirst({
-                  where: {
-                    cpf: newCpf,
-                    id: { not: userId }
-                  }
-                });
-                
-                if (existingUser) {
-                  return res.status(400).json({ error: 'CPF já cadastrado para outro usuário' });
-                }
-              } catch (error: any) {
-                if (error.message?.includes('cpf') || error.code === 'P2021') {
-                  console.warn('⚠️ Coluna cpf não existe ainda, pulando verificação');
-                } else {
-                  throw error;
-                }
-              }
-            }
-          }
-        }
-        
         const updateData: any = {};
         if (name && name.trim()) {
           updateData.name = name.trim();
@@ -2087,22 +2036,47 @@ export default async function handler(req: any, res: any) {
         if (phone !== undefined) {
           updateData.phone = phone ? phone.trim() : null;
         }
-        // CPF só pode ser adicionado se usuário não tiver CPF ainda (migração)
-        // Nunca pode ser alterado se já existir
+        
+        // Processar CPF: permitir adicionar ou atualizar se enviado
         if (cpf !== undefined) {
-          const currentUser = await db.user.findUnique({
-            where: { id: userId },
-            select: { cpf: true }
-          });
+          const cpfClean = cpf ? String(cpf).replace(/\D/g, '') : null;
           
-          // Só permitir adicionar CPF se não existir ainda
-          if (!currentUser?.cpf && cpf) {
-            const cpfClean = cpf.replace(/\D/g, '');
-            if (cpfClean.length === 11) {
-              updateData.cpf = cpfClean;
+          // Validar formato se CPF foi fornecido
+          if (cpfClean && cpfClean.length !== 11) {
+            console.warn('⚠️ PUT /api/user/profile: CPF inválido (não tem 11 dígitos):', cpfClean);
+            return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
+          } else if (cpfClean && cpfClean === '00000000000') {
+            console.warn('⚠️ PUT /api/user/profile: CPF inválido (só zeros)');
+            return res.status(400).json({ error: 'CPF inválido' });
+          } else if (cpfClean) {
+            // Verificar se CPF já está em uso por outro usuário
+            try {
+              const existingUser = await db.user.findFirst({
+                where: {
+                  cpf: cpfClean,
+                  id: { not: userId }
+                }
+              });
+              
+              if (existingUser) {
+                console.warn('⚠️ PUT /api/user/profile: CPF já cadastrado para outro usuário');
+                return res.status(400).json({ error: 'CPF já cadastrado para outro usuário' });
+              }
+            } catch (error: any) {
+              if (error.message?.includes('cpf') || error.code === 'P2021') {
+                console.warn('⚠️ Coluna cpf não existe ainda, pulando verificação de duplicidade');
+              } else {
+                throw error;
+              }
             }
+            
+            // CPF válido e não duplicado: adicionar ao updateData
+            updateData.cpf = cpfClean;
+            console.log('✅ PUT /api/user/profile: CPF será atualizado:', cpfClean);
+          } else if (cpf === null || cpf === '') {
+            // Se enviado como null ou vazio, não atualizar (manter o que está no banco)
+            console.log('ℹ️ PUT /api/user/profile: CPF não fornecido ou vazio, mantendo valor atual');
           }
-          // Se já tem CPF, não fazer nada (não atualizar)
         }
         if (avatar !== undefined) {
           updateData.avatar = avatar ? avatar.trim() : null;

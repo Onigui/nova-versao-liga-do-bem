@@ -385,7 +385,22 @@ function EditProfileScreenContent({navigation}) {
         return;
       }
 
-      console.log('💾 Salvando perfil...', { name: formData.name, phone: formData.phone });
+      // Preparar CPF para envio (usar cpfInputValue se disponível, senão formData.cpf)
+      const cpfToSend = cpfInputValue ? cpfInputValue.replace(/\D/g, '') : (formData.cpf ? String(formData.cpf).replace(/\D/g, '') : null);
+      
+      console.log('💾 Salvando perfil...', { 
+        name: formData.name, 
+        phone: formData.phone,
+        cpf: cpfToSend,
+        cpfInputValue: cpfInputValue,
+        formDataCpf: formData.cpf,
+      });
+      logInfo('💾 EDIT PROFILE - Salvando perfil', {
+        name: formData.name,
+        phone: formData.phone,
+        cpf: cpfToSend,
+        cpfLength: cpfToSend ? cpfToSend.length : 0,
+      });
 
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
         method: 'PUT',
@@ -396,6 +411,7 @@ function EditProfileScreenContent({navigation}) {
         body: JSON.stringify({
           name: formData.name,
           phone: formData.phone,
+          cpf: cpfToSend, // Enviar CPF para o backend
         }),
       });
 
@@ -403,23 +419,61 @@ function EditProfileScreenContent({navigation}) {
 
       if (response.ok && mountedRef.current) {
         console.log('✅ Perfil atualizado com sucesso:', responseData);
+        logInfo('✅ EDIT PROFILE - Perfil atualizado com sucesso', {
+          responseData: responseData,
+          userCpf: responseData.user?.cpf,
+        });
         
         // Atualizar dados locais com a resposta da API
         const updatedUser = responseData.user || responseData;
+        
+        // Processar CPF retornado
+        let updatedCpf = updatedUser.cpf;
+        if (updatedCpf && updatedCpf !== null && updatedCpf !== undefined) {
+          const cpfStr = String(updatedCpf).replace(/\D/g, '');
+          if (cpfStr.length === 11 && cpfStr !== '00000000000') {
+            updatedCpf = cpfStr;
+          } else {
+            updatedCpf = null;
+          }
+        } else {
+          updatedCpf = null;
+        }
+        
         setFormData(prev => ({
           ...prev,
           name: updatedUser.name || prev.name,
           phone: updatedUser.phone || prev.phone,
+          cpf: updatedCpf, // Atualizar CPF também
         }));
+        
+        // Atualizar também o estado do campo CPF para exibição
+        if (updatedCpf && updatedCpf !== null && updatedCpf !== undefined && updatedCpf !== '0' && updatedCpf !== '00000000000') {
+          const cpfStr = String(updatedCpf).replace(/\D/g, '');
+          if (cpfStr.length === 11) {
+            setCpfInputValue(formatCPF(cpfStr) || '');
+          } else {
+            setCpfInputValue(updatedCpf);
+          }
+        } else {
+          setCpfInputValue('');
+        }
         
         // Salvar no AsyncStorage
         try {
           const currentUserData = await AsyncStorage.getItem('user_data');
           const userData = currentUserData ? JSON.parse(currentUserData) : {};
-          const mergedData = { ...userData, ...updatedUser };
+          const mergedData = { 
+            ...userData, 
+            ...updatedUser,
+            cpf: updatedCpf, // Garantir que o CPF processado seja salvo
+          };
           await AsyncStorage.setItem('user_data', JSON.stringify(mergedData));
+          console.log('✅ Dados salvos no AsyncStorage (com CPF):', { cpf: updatedCpf });
+          logInfo('✅ EDIT PROFILE - Dados salvos no AsyncStorage', { cpf: updatedCpf });
         } catch (storageError) {
           console.warn('⚠️ Erro ao salvar no AsyncStorage:', storageError);
+          logError('⚠️ EDIT PROFILE - Erro ao salvar no AsyncStorage', storageError);
         }
         
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
