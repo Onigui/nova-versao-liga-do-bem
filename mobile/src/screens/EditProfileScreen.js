@@ -502,7 +502,7 @@ function EditProfileScreenContent({navigation}) {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>CPF</Text>
             <TextInput
-              style={[styles.input, styles.inputDisabled]}
+              style={styles.input}
               value={(() => {
                 // Log direto do valor que será exibido
                 const cpfValue = formData?.cpf;
@@ -538,13 +538,18 @@ function EditProfileScreenContent({navigation}) {
                 });
                 return formatted || ''; // Garantir que sempre retorne string (nunca null/undefined)
               })()}
-              editable={false}
+              onChangeText={(text) => {
+                // Permitir edição temporariamente para testar
+                const cpfNumbers = text.replace(/\D/g, '');
+                setFormData(prev => ({...prev, cpf: cpfNumbers}));
+              }}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
             />
             <Text style={styles.helperText}>
               {formData?.cpf && isValidCPF(formData.cpf)
-                ? 'CPF não pode ser alterado após o cadastro'
+                ? 'CPF carregado do banco de dados'
                 : 'CPF não cadastrado. Entre em contato com o suporte.'}
             </Text>
             {/* DEBUG VISUAL: mostrar sempre o CPF bruto vindo da API / storage */}
