@@ -742,6 +742,7 @@ export default async function handler(req: any, res: any) {
           }
 
           // Criar usuário usando SQL direto - apenas com colunas que existem
+          // IMPORTANTE: role é um enum, precisa fazer cast
           if (cpfExists && cpfClean) {
             await db.$executeRaw`
               INSERT INTO "users" (
@@ -761,7 +762,7 @@ export default async function handler(req: any, res: any) {
                 ${name}, 
                 ${phone || null}, 
                 ${hashedPassword}, 
-                ${'MEMBER'}, 
+                ${'MEMBER'}::"UserRole", 
                 ${true}, 
                 NOW(), 
                 NOW(),
@@ -786,7 +787,7 @@ export default async function handler(req: any, res: any) {
                 ${name}, 
                 ${phone || null}, 
                 ${hashedPassword}, 
-                ${'MEMBER'}, 
+                ${'MEMBER'}::"UserRole", 
                 ${true}, 
                 NOW(), 
                 NOW()
