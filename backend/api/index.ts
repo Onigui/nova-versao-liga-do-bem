@@ -744,14 +744,36 @@ export default async function handler(req: any, res: any) {
           });
           console.log('✅ Usuário criado com sucesso:', user.id);
         } catch (error: any) {
-          // Se erro for relacionado a coluna cpf não existir, criar sem ela
-          if (error.message?.includes('cpf') || error.code === 'P2021') {
-            console.warn('⚠️ Coluna cpf não existe ainda, criando usuário sem CPF');
-            const { cpf: _, ...userDataWithoutCpf } = userData;
+          console.error('❌ Erro ao criar usuário:', error);
+          console.error('❌ Detalhes do erro:', {
+            code: error.code,
+            message: error.message,
+            meta: error.meta,
+          });
+          
+          // Se erro for relacionado a colunas que não existem no banco
+          const errorMessage = error.message || '';
+          const hasColumnError = 
+            errorMessage.includes('notificationsEnabled') || 
+            errorMessage.includes('locationEnabled') || 
+            errorMessage.includes('cpf') ||
+            error.code === 'P2021';
+          
+          if (hasColumnError) {
+            console.warn('⚠️ Algumas colunas não existem no banco, criando usuário apenas com campos básicos');
+            
+            // Criar apenas com campos que definitivamente existem
+            const basicUserData: any = {
+              email,
+              name,
+              phone: phone || null,
+              password: hashedPassword,
+              role: 'MEMBER',
+            };
             
             try {
               user = await db.user.create({
-                data: userDataWithoutCpf,
+                data: basicUserData,
                 select: {
                   id: true,
                   email: true,
@@ -761,15 +783,21 @@ export default async function handler(req: any, res: any) {
                   createdAt: true
                 }
               });
-              // Adicionar CPF como null na resposta
+              
+              // Adicionar campos opcionais como null na resposta
               (user as any).cpf = null;
-              console.log('✅ Usuário criado sem CPF (coluna não existe):', user.id);
+              console.log('✅ Usuário criado com campos básicos (algumas colunas não existem):', user.id);
             } catch (retryError: any) {
-              console.error('❌ Erro ao criar usuário (retry):', retryError);
+              console.error('❌ Erro ao criar usuário (retry com campos básicos):', retryError);
+              console.error('❌ Detalhes do erro (retry):', {
+                code: retryError.code,
+                message: retryError.message,
+                meta: retryError.meta,
+              });
               throw retryError;
             }
           } else {
-            console.error('❌ Erro ao criar usuário:', error);
+            // Outro tipo de erro, propagar
             throw error;
           }
         }
