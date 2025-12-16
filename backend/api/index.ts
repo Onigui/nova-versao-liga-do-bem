@@ -2362,55 +2362,68 @@ export default async function handler(req: any, res: any) {
         
         // Verificar se Cloudinary está configurado
         const cloudinaryInstance = getCloudinary();
-        if (!cloudinaryInstance) {
-          // Se Cloudinary não estiver configurado, retornar erro ou usar URL direta
-          return res.status(503).json({ 
-            error: 'Serviço de upload de imagens não configurado. Configure Cloudinary nas variáveis de ambiente.' 
-          });
+        let avatarUrl: string;
+        
+        if (cloudinaryInstance) {
+          // Upload para Cloudinary (método preferido)
+          try {
+            const uploadResult = await new Promise((resolve, reject) => {
+              cloudinaryInstance.uploader.upload(
+                imageBase64,
+                {
+                  folder: 'liga-do-bem/avatars',
+                  public_id: `avatar_${userId}_${Date.now()}`,
+                  overwrite: true,
+                  resource_type: 'image',
+                  transformation: [
+                    { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+                    { quality: 'auto' },
+                  ],
+                },
+                (error: any, result: any) => {
+                  if (error) reject(error);
+                  else resolve(result);
+                }
+              );
+            });
+            
+            avatarUrl = (uploadResult as any).secure_url;
+            console.log('✅ Avatar enviado para Cloudinary:', avatarUrl);
+          } catch (uploadError: any) {
+            console.error('❌ Erro ao fazer upload para Cloudinary:', uploadError);
+            return res.status(500).json({ 
+              error: 'Erro ao fazer upload da imagem',
+              details: uploadError.message 
+            });
+          }
+        } else {
+          // Fallback: salvar como data URI base64 (temporário até configurar Cloudinary)
+          console.warn('⚠️ Cloudinary não configurado, usando fallback base64');
+          
+          // Garantir que o base64 tenha o prefixo data:image
+          let base64Data = imageBase64;
+          if (!base64Data.startsWith('data:')) {
+            // Tentar detectar o tipo da imagem pelo conteúdo
+            // Por padrão, assumir JPEG se não conseguir detectar
+            const imageType = 'image/jpeg';
+            base64Data = `data:${imageType};base64,${base64Data}`;
+          }
+          
+          avatarUrl = base64Data;
+          console.log('✅ Avatar salvo como data URI (fallback)');
         }
         
-        // Upload para Cloudinary
-        try {
-          const uploadResult = await new Promise((resolve, reject) => {
-            cloudinaryInstance.uploader.upload(
-              imageBase64,
-              {
-                folder: 'liga-do-bem/avatars',
-                public_id: `avatar_${userId}_${Date.now()}`,
-                overwrite: true,
-                resource_type: 'image',
-                transformation: [
-                  { width: 400, height: 400, crop: 'fill', gravity: 'face' },
-                  { quality: 'auto' },
-                ],
-              },
-              (error: any, result: any) => {
-                if (error) reject(error);
-                else resolve(result);
-              }
-            );
-          });
-          
-          const avatarUrl = (uploadResult as any).secure_url;
-          
-          // Atualizar avatar do usuário no banco
-          await db.user.update({
-            where: { id: userId },
-            data: { avatar: avatarUrl },
-          });
-          
-          return res.status(200).json({
-            success: true,
-            avatarUrl: avatarUrl,
-            message: 'Avatar atualizado com sucesso',
-          });
-        } catch (uploadError: any) {
-          console.error('❌ Erro ao fazer upload para Cloudinary:', uploadError);
-          return res.status(500).json({ 
-            error: 'Erro ao fazer upload da imagem',
-            details: uploadError.message 
-          });
-        }
+        // Atualizar avatar do usuário no banco
+        await db.user.update({
+          where: { id: userId },
+          data: { avatar: avatarUrl },
+        });
+        
+        return res.status(200).json({
+          success: true,
+          avatarUrl: avatarUrl,
+          message: 'Avatar atualizado com sucesso',
+        });
       } catch (error: any) {
         console.error('❌ Erro ao fazer upload de avatar:', error);
         return res.status(500).json({ error: 'Erro interno do servidor' });
