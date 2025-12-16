@@ -716,21 +716,89 @@ export default async function handler(req: any, res: any) {
 
         console.log('🔄 Criando usuário com dados:', { email, name, hasCpf: !!cpfClean });
 
-        // Criar usuário APENAS com campos básicos que definitivamente existem
-        // Não incluir CPF, notificationsEnabled, locationEnabled na criação inicial
-        const basicUserData: any = {
-          email,
-          name,
-          phone: phone || null,
-          password: hashedPassword,
-          role: 'MEMBER',
-        };
+        // Gerar ID único (usando cuid ou uuid)
+        const userId = require('crypto').randomUUID();
 
-        // Criar usuário primeiro com campos básicos
-        let user;
+        // Criar usuário usando SQL direto para ter controle total sobre as colunas
+        // Isso evita que o Prisma tente usar colunas que não existem no banco
         try {
-          user = await db.user.create({
-            data: basicUserData,
+          // Verificar se coluna CPF existe antes de tentar inserir
+          let cpfExists = false;
+          
+          if (cpfClean) {
+            try {
+              // Tentar verificar se a coluna CPF existe
+              await db.$queryRaw`SELECT "cpf" FROM "users" LIMIT 1`;
+              cpfExists = true;
+              console.log('✅ Coluna CPF existe, será incluída na criação');
+            } catch (cpfCheckError: any) {
+              if (cpfCheckError.message?.includes('column') && cpfCheckError.message?.includes('does not exist')) {
+                console.warn('⚠️ Coluna CPF não existe, criando usuário sem CPF');
+                cpfExists = false;
+              } else {
+                throw cpfCheckError;
+              }
+            }
+          }
+
+          // Criar usuário usando SQL direto - apenas com colunas que existem
+          if (cpfExists && cpfClean) {
+            await db.$executeRaw`
+              INSERT INTO "users" (
+                "id", 
+                "email", 
+                "name", 
+                "phone", 
+                "password", 
+                "role", 
+                "isActive", 
+                "createdAt", 
+                "updatedAt",
+                "cpf"
+              ) VALUES (
+                ${userId}, 
+                ${email}, 
+                ${name}, 
+                ${phone || null}, 
+                ${hashedPassword}, 
+                ${'MEMBER'}, 
+                ${true}, 
+                NOW(), 
+                NOW(),
+                ${cpfClean}
+              )
+            `;
+          } else {
+            await db.$executeRaw`
+              INSERT INTO "users" (
+                "id", 
+                "email", 
+                "name", 
+                "phone", 
+                "password", 
+                "role", 
+                "isActive", 
+                "createdAt", 
+                "updatedAt"
+              ) VALUES (
+                ${userId}, 
+                ${email}, 
+                ${name}, 
+                ${phone || null}, 
+                ${hashedPassword}, 
+                ${'MEMBER'}, 
+                ${true}, 
+                NOW(), 
+                NOW()
+              )
+            `;
+          }
+
+          console.log('✅ Usuário criado com SQL direto:', userId);
+
+          // Buscar o usuário criado usando Prisma (apenas campos que existem)
+          const user = await db.user.findUnique({
+            where: { id: userId },
             select: {
               id: true,
               email: true,
@@ -740,9 +808,26 @@ export default async function handler(req: any, res: any) {
               createdAt: true
             }
           });
-          console.log('✅ Usuário criado com campos básicos:', user.id);
+
+          if (!user) {
+            throw new Error('Usuário criado mas não foi possível recuperá-lo');
+          }
+
+          // Adicionar CPF na resposta se foi salvo
+          (user as any).cpf = (cpfExists && cpfClean) ? cpfClean : null;
+          
+          return res.status(201).json({
+            message: 'Usuário criado com sucesso',
+            user,
+            token: generateToken({
+              userId: user.id,
+              email: user.email,
+              role: user.role
+            })
+          });
+
         } catch (error: any) {
-          console.error('❌ Erro ao criar usuário:', error);
+          console.error('❌ Erro ao criar usuário com SQL direto:', error);
           console.error('❌ Detalhes do erro:', {
             code: error.code,
             message: error.message,
@@ -750,47 +835,6 @@ export default async function handler(req: any, res: any) {
           });
           throw error;
         }
-
-        // Após criar o usuário, tentar atualizar o CPF separadamente (se a coluna existir)
-        if (cpfClean && user) {
-          try {
-            // Tentar atualizar CPF usando SQL direto para evitar problemas com Prisma
-            await db.$executeRaw`
-              UPDATE "users" 
-              SET "cpf" = ${cpfClean}
-              WHERE "id" = ${user.id}
-            `;
-            console.log('✅ CPF atualizado com sucesso para usuário:', user.id);
-            (user as any).cpf = cpfClean;
-          } catch (cpfError: any) {
-            // Se der erro ao atualizar CPF, pode ser que a coluna não exista
-            if (cpfError.message?.includes('column') && cpfError.message?.includes('does not exist')) {
-              console.warn('⚠️ Coluna CPF não existe no banco, pulando atualização de CPF');
-              (user as any).cpf = null;
-            } else {
-              console.error('❌ Erro ao atualizar CPF:', cpfError);
-              // Não falhar o cadastro por causa do CPF, apenas logar o erro
-              (user as any).cpf = null;
-            }
-          }
-        } else {
-          (user as any).cpf = null;
-        }
-
-        // Generate JWT
-        const token = generateToken({
-          userId: user.id,
-          email: user.email,
-          role: user.role
-        });
-
-        console.log('✅ User registered:', user.id);
-
-        return res.status(201).json({
-          message: 'Usuário criado com sucesso',
-          user,
-          token
-        });
       } catch (error: any) {
         console.error('❌ Register error:', error);
         return res.status(500).json({ error: error?.message || 'Erro interno do servidor' });
