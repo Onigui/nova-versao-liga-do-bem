@@ -61,6 +61,12 @@ function EditProfileScreenContent({navigation}) {
     cpf: null,
     avatar: null,
   });
+  
+  // Estado local para o valor do campo CPF (permite edição sem resetar)
+  const [cpfInputValue, setCpfInputValue] = useState('');
+  
+  // Estado local para o valor do campo CPF (permite edição sem resetar)
+  const [cpfInputValue, setCpfInputValue] = useState('');
 
   // Carregar perfil do usuário ao abrir a tela
   useEffect(() => {
@@ -111,6 +117,13 @@ function EditProfileScreenContent({navigation}) {
                   cpf: storedCpf, // CPF processado do storage
                   avatar: parsedUser.avatar || null,
                 });
+                // Atualizar também o estado local do campo CPF
+                if (storedCpf && storedCpf !== null && storedCpf !== undefined && 
+                    storedCpf !== '0' && storedCpf !== '00000000000') {
+                  setCpfInputValue(formatCPF(storedCpf));
+                } else {
+                  setCpfInputValue('');
+                }
                 console.log('✅ Dados carregados do storage (com CPF processado):', { cpf: storedCpf });
               }
             } catch (storageError) {
@@ -241,6 +254,14 @@ function EditProfileScreenContent({navigation}) {
         
         setFormData(processedData);
         
+        // Atualizar também o estado local do campo CPF para exibição
+        if (cpfValue && cpfValue !== null && cpfValue !== undefined && 
+            cpfValue !== '0' && cpfValue !== '00000000000') {
+          setCpfInputValue(formatCPF(cpfValue));
+        } else {
+          setCpfInputValue('');
+        }
+        
         // Salvar dados PROCESSADOS no AsyncStorage (com CPF limpo)
         // IMPORTANTE: Salvar processedData, não data bruto, para evitar cache de CPF inválido
         try {
@@ -296,6 +317,13 @@ function EditProfileScreenContent({navigation}) {
                 cpfRawFromApi: parsedUser.cpf, // manter original para debug
                 avatar: parsedUser.avatar || null,
               });
+              // Atualizar também o estado local do campo CPF
+              if (cachedCpf && cachedCpf !== null && cachedCpf !== undefined && 
+                  cachedCpf !== '0' && cachedCpf !== '00000000000') {
+                setCpfInputValue(formatCPF(cachedCpf));
+              } else {
+                setCpfInputValue('');
+              }
               setError(null); // Limpar erro se conseguiu carregar do cache
               console.log('✅ Dados carregados do cache (com CPF processado):', { cpf: cachedCpf });
             }
@@ -503,45 +531,43 @@ function EditProfileScreenContent({navigation}) {
             <Text style={styles.label}>CPF</Text>
             <TextInput
               style={styles.input}
-              value={(() => {
-                // Log direto do valor que será exibido
-                const cpfValue = formData?.cpf;
+              value={cpfInputValue}
+              onChangeText={(text) => {
+                // Remover formatação para trabalhar apenas com números
+                const cpfNumbers = text.replace(/\D/g, '');
                 
-                // IMPORTANTE: Garantir que null/undefined/0 não sejam convertidos para "0"
-                // Se o CPF for null, undefined, "0", "00000000000", ou vazio, retornar string vazia
-                if (!cpfValue || cpfValue === null || cpfValue === undefined || 
-                    cpfValue === '0' || cpfValue === '00000000000' || 
-                    String(cpfValue).trim() === '' || String(cpfValue).trim() === '0') {
-                  console.log('🎯 CAMPO CPF - Valor inválido/null, retornando string vazia:', {
-                    cpfValue,
-                    cpfType: typeof cpfValue,
-                  });
-                  logInfo('🎯 EDIT PROFILE - CPF inválido/null, campo ficará vazio', {
-                    raw: cpfValue,
-                    type: typeof cpfValue,
-                  });
-                  return ''; // String vazia para mostrar placeholder
+                // Limitar a 11 dígitos
+                const limitedCpf = cpfNumbers.slice(0, 11);
+                
+                // Atualizar estado local para exibição (permite digitação sem resetar)
+                if (limitedCpf.length === 0) {
+                  setCpfInputValue('');
+                } else {
+                  // Formatar enquanto digita
+                  const formatted = limitedCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                  // Se não tem 11 dígitos ainda, formatar parcialmente
+                  let partialFormatted = limitedCpf;
+                  if (limitedCpf.length > 3) {
+                    partialFormatted = limitedCpf.replace(/(\d{3})(\d+)/, '$1.$2');
+                  }
+                  if (limitedCpf.length > 6) {
+                    partialFormatted = partialFormatted.replace(/(\d{3}\.\d{3})(\d+)/, '$1.$2');
+                  }
+                  if (limitedCpf.length > 9) {
+                    partialFormatted = partialFormatted.replace(/(\d{3}\.\d{3}\.\d{3})(\d+)/, '$1-$2');
+                  }
+                  setCpfInputValue(partialFormatted.length === 14 ? formatted : partialFormatted);
                 }
                 
-                // Se CPF for válido, formatar
-                const formatted = formatCPF(cpfValue);
-                console.log('🎯 CAMPO CPF - Valor exato:', {
-                  formDataCpf: cpfValue,
-                  formDataCpfType: typeof cpfValue,
-                  formattedValue: formatted,
-                  willShowPlaceholder: formatted === '',
+                // Atualizar formData com números apenas
+                setFormData(prev => ({...prev, cpf: limitedCpf || null}));
+                
+                console.log('🎯 CAMPO CPF - Usuário digitou:', {
+                  text,
+                  cpfNumbers: limitedCpf,
+                  cpfInputValue: cpfInputValue,
+                  newCpfInputValue: limitedCpf.length === 0 ? '' : (limitedCpf.length === 11 ? formatCPF(limitedCpf) : limitedCpf),
                 });
-                logInfo('🎯 EDIT PROFILE - Valor exibido no campo CPF', {
-                  raw: cpfValue,
-                  formatted: formatted,
-                  willShowPlaceholder: formatted === '',
-                });
-                return formatted || ''; // Garantir que sempre retorne string (nunca null/undefined)
-              })()}
-              onChangeText={(text) => {
-                // Permitir edição temporariamente para testar
-                const cpfNumbers = text.replace(/\D/g, '');
-                setFormData(prev => ({...prev, cpf: cpfNumbers}));
               }}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
