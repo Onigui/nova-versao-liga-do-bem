@@ -1781,22 +1781,53 @@ export default async function handler(req: any, res: any) {
           console.log('🔍 GET /api/user/profile: Buscando usuário no banco, userId:', userId);
           
           // PRIMEIRO: Buscar com select explícito incluindo CPF
-          user = await db.user.findUnique({
-            where: { id: userId },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              avatar: true,
-              notificationsEnabled: true,
-              locationEnabled: true,
-              role: true,
-              createdAt: true,
-              updatedAt: true,
-              cpf: true, // Incluir CPF explicitamente
+          // Tentar buscar com todas as colunas, mas tratar erro se algumas não existirem
+          try {
+            user = await db.user.findUnique({
+              where: { id: userId },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                phone: true,
+                avatar: true,
+                notificationsEnabled: true,
+                locationEnabled: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+                cpf: true, // Incluir CPF explicitamente
+              }
+            });
+          } catch (selectError: any) {
+            // Se colunas notificationsEnabled/locationEnabled não existirem, buscar sem elas
+            if (selectError.message?.includes('notificationsEnabled') || 
+                selectError.message?.includes('locationEnabled') || 
+                selectError.code === 'P2021') {
+              console.warn('⚠️ Colunas notificationsEnabled/locationEnabled não existem, buscando sem elas');
+              user = await db.user.findUnique({
+                where: { id: userId },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  phone: true,
+                  avatar: true,
+                  role: true,
+                  createdAt: true,
+                  updatedAt: true,
+                  cpf: true,
+                }
+              });
+              // Adicionar valores padrão
+              if (user) {
+                (user as any).notificationsEnabled = true;
+                (user as any).locationEnabled = true;
+              }
+            } else {
+              throw selectError;
             }
-          });
+          }
           
           console.log('🔍 GET /api/user/profile: Usuário encontrado COM select:', {
             id: user?.id,
@@ -1861,9 +1892,12 @@ export default async function handler(req: any, res: any) {
           }
           
         } catch (error: any) {
-          // Se coluna CPF não existir, buscar sem ela
-          if (error.message?.includes('cpf') || error.code === 'P2021') {
-            console.warn('⚠️ Coluna cpf não existe, buscando sem ela');
+          // Se coluna CPF ou outras colunas não existirem, buscar sem elas
+          if (error.message?.includes('cpf') || 
+              error.message?.includes('notificationsEnabled') || 
+              error.message?.includes('locationEnabled') || 
+              error.code === 'P2021') {
+            console.warn('⚠️ Algumas colunas não existem, buscando sem elas');
             try {
               user = await db.user.findUnique({
                 where: { id: userId },
@@ -1873,15 +1907,16 @@ export default async function handler(req: any, res: any) {
                   name: true,
                   phone: true,
                   avatar: true,
-                  notificationsEnabled: true,
-                  locationEnabled: true,
                   role: true,
                   createdAt: true,
                   updatedAt: true,
                 }
               });
+              // Adicionar valores padrão para colunas que não existem
               if (user) {
                 (user as any).cpf = null;
+                (user as any).notificationsEnabled = true;
+                (user as any).locationEnabled = true;
               }
             } catch (retryError: any) {
               console.error('❌ GET /api/user/profile: Erro ao buscar usuário (retry):', retryError);
@@ -2055,6 +2090,11 @@ export default async function handler(req: any, res: any) {
                 where: {
                   cpf: cpfClean,
                   id: { not: userId }
+                },
+                select: {
+                  id: true,
+                  email: true,
+                  cpf: true,
                 }
               });
               
