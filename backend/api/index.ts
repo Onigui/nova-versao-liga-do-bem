@@ -714,35 +714,33 @@ export default async function handler(req: any, res: any) {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Create user com CPF - criar apenas com campos que existem no banco
-        // Não incluir notificationsEnabled e locationEnabled se não existirem
-        const userData: any = {
+        console.log('🔄 Criando usuário com dados:', { email, name, hasCpf: !!cpfClean });
+
+        // Criar usuário APENAS com campos básicos que definitivamente existem
+        // Não incluir CPF, notificationsEnabled, locationEnabled na criação inicial
+        const basicUserData: any = {
           email,
           name,
           phone: phone || null,
           password: hashedPassword,
           role: 'MEMBER',
-          cpf: cpfClean,
         };
 
-        console.log('🔄 Criando usuário com dados:', { email, name, hasCpf: !!cpfClean });
-
-        // Tentar criar usuário
+        // Criar usuário primeiro com campos básicos
         let user;
         try {
           user = await db.user.create({
-            data: userData,
+            data: basicUserData,
             select: {
               id: true,
               email: true,
               name: true,
               phone: true,
-              cpf: true,
               role: true,
               createdAt: true
             }
           });
-          console.log('✅ Usuário criado com sucesso:', user.id);
+          console.log('✅ Usuário criado com campos básicos:', user.id);
         } catch (error: any) {
           console.error('❌ Erro ao criar usuário:', error);
           console.error('❌ Detalhes do erro:', {
@@ -750,56 +748,33 @@ export default async function handler(req: any, res: any) {
             message: error.message,
             meta: error.meta,
           });
-          
-          // Se erro for relacionado a colunas que não existem no banco
-          const errorMessage = error.message || '';
-          const hasColumnError = 
-            errorMessage.includes('notificationsEnabled') || 
-            errorMessage.includes('locationEnabled') || 
-            errorMessage.includes('cpf') ||
-            error.code === 'P2021';
-          
-          if (hasColumnError) {
-            console.warn('⚠️ Algumas colunas não existem no banco, criando usuário apenas com campos básicos');
-            
-            // Criar apenas com campos que definitivamente existem
-            const basicUserData: any = {
-              email,
-              name,
-              phone: phone || null,
-              password: hashedPassword,
-              role: 'MEMBER',
-            };
-            
-            try {
-              user = await db.user.create({
-                data: basicUserData,
-                select: {
-                  id: true,
-                  email: true,
-                  name: true,
-                  phone: true,
-                  role: true,
-                  createdAt: true
-                }
-              });
-              
-              // Adicionar campos opcionais como null na resposta
+          throw error;
+        }
+
+        // Após criar o usuário, tentar atualizar o CPF separadamente (se a coluna existir)
+        if (cpfClean && user) {
+          try {
+            // Tentar atualizar CPF usando SQL direto para evitar problemas com Prisma
+            await db.$executeRaw`
+              UPDATE "users" 
+              SET "cpf" = ${cpfClean}
+              WHERE "id" = ${user.id}
+            `;
+            console.log('✅ CPF atualizado com sucesso para usuário:', user.id);
+            (user as any).cpf = cpfClean;
+          } catch (cpfError: any) {
+            // Se der erro ao atualizar CPF, pode ser que a coluna não exista
+            if (cpfError.message?.includes('column') && cpfError.message?.includes('does not exist')) {
+              console.warn('⚠️ Coluna CPF não existe no banco, pulando atualização de CPF');
               (user as any).cpf = null;
-              console.log('✅ Usuário criado com campos básicos (algumas colunas não existem):', user.id);
-            } catch (retryError: any) {
-              console.error('❌ Erro ao criar usuário (retry com campos básicos):', retryError);
-              console.error('❌ Detalhes do erro (retry):', {
-                code: retryError.code,
-                message: retryError.message,
-                meta: retryError.meta,
-              });
-              throw retryError;
+            } else {
+              console.error('❌ Erro ao atualizar CPF:', cpfError);
+              // Não falhar o cadastro por causa do CPF, apenas logar o erro
+              (user as any).cpf = null;
             }
-          } else {
-            // Outro tipo de erro, propagar
-            throw error;
           }
+        } else {
+          (user as any).cpf = null;
         }
 
         // Generate JWT
