@@ -2072,18 +2072,35 @@ export default async function handler(req: any, res: any) {
           updateData.phone = phone ? phone.trim() : null;
         }
         
-        // Processar CPF: permitir adicionar ou atualizar se enviado
+        // Processar CPF: bloquear alteração se já existe, permitir apenas se for null
         if (cpf !== undefined) {
+          // Buscar CPF atual do usuário
+          const currentUser = await db.user.findUnique({
+            where: { id: userId },
+            select: { cpf: true }
+          });
+          
           const cpfClean = cpf ? String(cpf).replace(/\D/g, '') : null;
           
-          // Validar formato se CPF foi fornecido
-          if (cpfClean && cpfClean.length !== 11) {
-            console.warn('⚠️ PUT /api/user/profile: CPF inválido (não tem 11 dígitos):', cpfClean);
-            return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
-          } else if (cpfClean && cpfClean === '00000000000') {
-            console.warn('⚠️ PUT /api/user/profile: CPF inválido (só zeros)');
-            return res.status(400).json({ error: 'CPF inválido' });
-          } else if (cpfClean) {
+          // Se o usuário já tem CPF cadastrado, bloquear alteração
+          if (currentUser?.cpf && cpfClean && currentUser.cpf !== cpfClean) {
+            console.warn('⚠️ PUT /api/user/profile: Tentativa de alterar CPF existente bloqueada');
+            return res.status(403).json({
+              error: 'CPF não pode ser alterado após o cadastro. Esta medida previne fraudes.'
+            });
+          }
+          
+          // Se o usuário não tem CPF, permitir cadastrar (apenas se for válido)
+          if (!currentUser?.cpf && cpfClean) {
+            // Validar formato
+            if (cpfClean.length !== 11) {
+              console.warn('⚠️ PUT /api/user/profile: CPF inválido (não tem 11 dígitos):', cpfClean);
+              return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
+            } else if (cpfClean === '00000000000') {
+              console.warn('⚠️ PUT /api/user/profile: CPF inválido (só zeros)');
+              return res.status(400).json({ error: 'CPF inválido' });
+            }
+            
             // Verificar se CPF já está em uso por outro usuário
             try {
               const existingUser = await db.user.findFirst({
@@ -2093,8 +2110,6 @@ export default async function handler(req: any, res: any) {
                 },
                 select: {
                   id: true,
-                  email: true,
-                  cpf: true,
                 }
               });
               
@@ -2112,7 +2127,7 @@ export default async function handler(req: any, res: any) {
             
             // CPF válido e não duplicado: adicionar ao updateData
             updateData.cpf = cpfClean;
-            console.log('✅ PUT /api/user/profile: CPF será atualizado:', cpfClean);
+            console.log('✅ PUT /api/user/profile: CPF será cadastrado:', cpfClean);
           } else if (cpf === null || cpf === '') {
             // Se enviado como null ou vazio, não atualizar (manter o que está no banco)
             console.log('ℹ️ PUT /api/user/profile: CPF não fornecido ou vazio, mantendo valor atual');

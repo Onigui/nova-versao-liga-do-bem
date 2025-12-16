@@ -18,8 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { logInfo, logError, logDebug } from '../services/RemoteLogger';
 // Importar image picker - usar require para evitar erro se não estiver instalado
-let launchImageLibrary: any;
-let launchCamera: any;
+let launchImageLibrary;
+let launchCamera;
 try {
   const imagePicker = require('react-native-image-picker');
   launchImageLibrary = imagePicker.launchImageLibrary;
@@ -411,7 +411,7 @@ function EditProfileScreenContent({navigation}) {
       includeBase64: true, // Incluir base64 para enviar ao backend
     };
 
-    launchCamera(options, (response: any) => {
+    launchCamera(options, (response) => {
       if (response.didCancel) {
         console.log('Usuário cancelou a câmera');
       } else if (response.errorMessage) {
@@ -438,7 +438,7 @@ function EditProfileScreenContent({navigation}) {
       includeBase64: true, // Incluir base64 para enviar ao backend
     };
 
-    launchImageLibrary(options, (response: any) => {
+    launchImageLibrary(options, (response) => {
       if (response.didCancel) {
         console.log('Usuário cancelou a seleção');
       } else if (response.errorMessage) {
@@ -451,7 +451,7 @@ function EditProfileScreenContent({navigation}) {
     });
   };
 
-  const handleImageSelected = async (asset: any) => {
+  const handleImageSelected = async (asset) => {
     if (!mountedRef.current) return;
 
     try {
@@ -536,7 +536,7 @@ function EditProfileScreenContent({navigation}) {
         setError(errorMsg);
         Alert.alert('Erro', errorMsg);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Erro ao processar foto:', error);
       const errorMsg = error.message || 'Erro desconhecido';
       logError('❌ EDIT PROFILE - Erro ao processar foto', errorMsg);
