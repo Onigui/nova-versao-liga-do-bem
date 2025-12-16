@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -27,9 +27,40 @@ export default function ProfileScreen({navigation}) {
   });
   const [loadingStats, setLoadingStats] = useState(true);
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || null);
   
   // Verificar se o usuário é administrador
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
+
+  // Função para carregar perfil atualizado
+  const loadUserProfile = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_PATH}/user/profile`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Atualizar avatar local
+        if (data.avatar) {
+          setAvatarUrl(data.avatar);
+        }
+        // Atualizar usuário no contexto
+        if (updateUser) {
+          updateUser(data);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar perfil:', error);
+    }
+  }, [updateUser]);
 
   useEffect(() => {
     if (user) {
@@ -41,12 +72,28 @@ export default function ProfileScreen({navigation}) {
       if (user.locationEnabled !== undefined) {
         setLocationEnabled(user.locationEnabled);
       }
+      // Atualizar avatar do usuário
+      if (user.avatar) {
+        setAvatarUrl(user.avatar);
+      } else {
+        setAvatarUrl(null);
+      }
     } else {
       setLoadingStats(false);
     }
   }, [user]);
 
-  const savePreferences = async (notifications: boolean, location: boolean) => {
+  // Listener para quando a tela recebe foco (volta da tela de edição)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Recarregar perfil quando voltar da tela de edição
+      loadUserProfile();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadUserProfile]);
+
+  const savePreferences = async (notifications, location) => {
     try {
       setSavingPreferences(true);
       const token = await AsyncStorage.getItem('auth_token');
@@ -81,12 +128,12 @@ export default function ProfileScreen({navigation}) {
     }
   };
 
-  const handleNotificationsToggle = (value: boolean) => {
+  const handleNotificationsToggle = (value) => {
     setNotificationsEnabled(value);
     savePreferences(value, locationEnabled);
   };
 
-  const handleLocationToggle = (value: boolean) => {
+  const handleLocationToggle = (value) => {
     setLocationEnabled(value);
     savePreferences(notificationsEnabled, value);
   };
@@ -195,10 +242,23 @@ export default function ProfileScreen({navigation}) {
       <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <View style={styles.profileInfo}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={40} color="#FFFFFF" />
-            </View>
-            <TouchableOpacity style={styles.editAvatarButton}>
+            {avatarUrl ? (
+              <Image 
+                source={{uri: avatarUrl}} 
+                style={styles.avatarImage}
+                onError={() => {
+                  console.warn('Erro ao carregar avatar, usando placeholder');
+                  setAvatarUrl(null);
+                }}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={40} color="#FFFFFF" />
+              </View>
+            )}
+            <TouchableOpacity 
+              style={styles.editAvatarButton}
+              onPress={() => navigation.navigate('EditProfile')}>
               <Ionicons name="camera" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -371,6 +431,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
