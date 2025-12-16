@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -16,6 +17,16 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { logInfo, logError, logDebug } from '../services/RemoteLogger';
+// Importar image picker - usar require para evitar erro se não estiver instalado
+let launchImageLibrary: any;
+let launchCamera: any;
+try {
+  const imagePicker = require('react-native-image-picker');
+  launchImageLibrary = imagePicker.launchImageLibrary;
+  launchCamera = imagePicker.launchCamera;
+} catch (e) {
+  console.warn('react-native-image-picker não está instalado. Instale com: npm install react-native-image-picker');
+}
 
 // Função helper para validar se CPF é válido
 const isValidCPF = (cpf) => {
@@ -366,10 +377,176 @@ function EditProfileScreenContent({navigation}) {
 
   const handleImagePicker = () => {
     Alert.alert(
-      'Em breve',
-      'A funcionalidade de upload de foto estará disponível em breve.',
-      [{text: 'OK'}],
+      'Alterar Foto de Perfil',
+      'Escolha uma opção',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Câmera',
+          onPress: () => openCamera(),
+        },
+        {
+          text: 'Galeria',
+          onPress: () => openImageLibrary(),
+        },
+      ],
+      {cancelable: true},
     );
+  };
+
+  const openCamera = () => {
+    if (!launchCamera) {
+      Alert.alert('Erro', 'Biblioteca de seleção de imagem não está instalada. Por favor, instale react-native-image-picker.');
+      return;
+    }
+
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      includeBase64: true, // Incluir base64 para enviar ao backend
+    };
+
+    launchCamera(options, (response: any) => {
+      if (response.didCancel) {
+        console.log('Usuário cancelou a câmera');
+      } else if (response.errorMessage) {
+        console.error('Erro na câmera:', response.errorMessage);
+        Alert.alert('Erro', 'Não foi possível abrir a câmera. Verifique as permissões.');
+        logError('Erro ao abrir câmera', response.errorMessage);
+      } else if (response.assets && response.assets[0]) {
+        handleImageSelected(response.assets[0]);
+      }
+    });
+  };
+
+  const openImageLibrary = () => {
+    if (!launchImageLibrary) {
+      Alert.alert('Erro', 'Biblioteca de seleção de imagem não está instalada. Por favor, instale react-native-image-picker.');
+      return;
+    }
+
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      includeBase64: true, // Incluir base64 para enviar ao backend
+    };
+
+    launchImageLibrary(options, (response: any) => {
+      if (response.didCancel) {
+        console.log('Usuário cancelou a seleção');
+      } else if (response.errorMessage) {
+        console.error('Erro na galeria:', response.errorMessage);
+        Alert.alert('Erro', 'Não foi possível abrir a galeria.');
+        logError('Erro ao abrir galeria', response.errorMessage);
+      } else if (response.assets && response.assets[0]) {
+        handleImageSelected(response.assets[0]);
+      }
+    });
+  };
+
+  const handleImageSelected = async (asset: any) => {
+    if (!mountedRef.current) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        Alert.alert('Erro', 'Você precisa estar logado para atualizar a foto.');
+        return;
+      }
+
+      console.log('📤 Preparando upload da foto...', {
+        uri: asset.uri,
+        type: asset.type,
+        name: asset.fileName,
+      });
+      logInfo('📤 EDIT PROFILE - Preparando upload da foto de perfil');
+
+      // O backend espera imageBase64 no body
+      // react-native-image-picker com includeBase64: true já retorna base64
+      if (!asset.base64) {
+        throw new Error('Imagem não contém dados base64. Certifique-se de que includeBase64 está habilitado.');
+      }
+
+      // Preparar dados para envio (remover prefixo data:image/...;base64, se existir)
+      let base64Data = asset.base64;
+      if (base64Data.includes(',')) {
+        base64Data = base64Data.split(',')[1];
+      }
+
+      const requestBody = {
+        imageBase64: base64Data,
+      };
+
+      console.log('📤 Fazendo upload da foto...');
+      logInfo('📤 EDIT PROFILE - Fazendo upload da foto de perfil');
+
+      const response = await fetch(`${API_BASE_PATH}/user/avatar/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseData = await response.json();
+
+      if (response.ok && mountedRef.current) {
+        console.log('✅ Foto atualizada com sucesso:', responseData);
+        logInfo('✅ EDIT PROFILE - Foto atualizada com sucesso', {
+          avatarUrl: responseData.avatarUrl,
+        });
+
+        // Atualizar estado local com nova URL do avatar
+        const avatarUrl = responseData.avatarUrl || responseData.avatar;
+        setFormData(prev => ({
+          ...prev,
+          avatar: avatarUrl,
+        }));
+
+        // Atualizar AsyncStorage
+        try {
+          const currentUserData = await AsyncStorage.getItem('user_data');
+          const userData = currentUserData ? JSON.parse(currentUserData) : {};
+          const updatedUserData = {
+            ...userData,
+            avatar: avatarUrl,
+          };
+          await AsyncStorage.setItem('user_data', JSON.stringify(updatedUserData));
+          console.log('✅ Avatar salvo no AsyncStorage');
+        } catch (storageError) {
+          console.warn('⚠️ Erro ao salvar avatar no AsyncStorage:', storageError);
+        }
+
+        Alert.alert('Sucesso', 'Foto de perfil atualizada com sucesso!');
+      } else {
+        const errorMsg = responseData.error || responseData.message || 'Erro ao atualizar foto';
+        console.error('❌ Erro ao atualizar foto:', errorMsg);
+        logError('❌ EDIT PROFILE - Erro ao atualizar foto', errorMsg);
+        setError(errorMsg);
+        Alert.alert('Erro', errorMsg);
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao processar foto:', error);
+      const errorMsg = error.message || 'Erro desconhecido';
+      logError('❌ EDIT PROFILE - Erro ao processar foto', errorMsg);
+      setError(errorMsg);
+      Alert.alert('Erro', `Não foi possível atualizar a foto: ${errorMsg}`);
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -603,48 +780,17 @@ function EditProfileScreenContent({navigation}) {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>CPF</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, styles.inputDisabled]}
               value={cpfInputValue}
-              onChangeText={(text) => {
-                // Extrair apenas números do input
-                const cpfNumbers = text.replace(/\D/g, '');
-                
-                // Limitar a 11 dígitos
-                const limitedCpf = cpfNumbers.slice(0, 11);
-                
-                // Atualizar formData com números apenas
-                setFormData(prev => ({...prev, cpf: limitedCpf || null}));
-                
-                // Atualizar estado de exibição:
-                // - Se tiver 11 dígitos completos, formatar
-                // - Caso contrário, mostrar números brutos (permite digitação sem resetar)
-                if (limitedCpf.length === 11 && limitedCpf !== '00000000000') {
-                  const formatted = formatCPF(limitedCpf);
-                  setCpfInputValue(formatted || limitedCpf);
-                } else {
-                  // Mostrar números brutos durante digitação
-                  setCpfInputValue(limitedCpf);
-                }
-                
-                logDebug('🎯 CAMPO CPF - Usuário digitou', {
-                  textInput: text,
-                  cpfNumbers: limitedCpf,
-                  length: limitedCpf.length,
-                  displayValue: limitedCpf.length === 11 ? formatCPF(limitedCpf) : limitedCpf,
-                });
-              }}
+              editable={false}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
               keyboardType="numeric"
             />
             <Text style={styles.helperText}>
               {formData?.cpf && isValidCPF(formData.cpf)
-                ? 'CPF carregado do banco de dados'
+                ? 'CPF carregado do banco de dados. Não pode ser alterado.'
                 : 'CPF não cadastrado. Entre em contato com o suporte.'}
-            </Text>
-            {/* DEBUG VISUAL: mostrar sempre o CPF bruto vindo da API / storage */}
-            <Text style={[styles.helperText, { fontSize: 10 }]}>
-              Debug CPF bruto (API/storage): {JSON.stringify(formData?.cpfRawFromApi)}
             </Text>
           </View>
         </View>
