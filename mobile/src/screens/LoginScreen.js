@@ -22,12 +22,11 @@ import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
 
 export default function LoginScreen({navigation}) {
-  const {login, continueAsGuest} = useAuth();
+  const {login} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [guestLoading, setGuestLoading] = useState(false);
   const [loginConfig, setLoginConfig] = useState({
     logoUrl: null,
     appName: APP_CONFIG.appName,
@@ -147,21 +146,6 @@ export default function LoginScreen({navigation}) {
     }
   };
 
-  const handleGuestAccess = async () => {
-    setGuestLoading(true);
-    try {
-      const result = await continueAsGuest();
-      if (!result.success) {
-        Alert.alert('Erro', 'Não foi possível continuar como visitante');
-      }
-      // Se success = true, o AuthProvider já atualiza o estado e o usuário será redirecionado automaticamente
-    } catch (error) {
-      console.error('Erro ao continuar como visitante:', error);
-      Alert.alert('Erro', 'Não foi possível continuar como visitante');
-    } finally {
-      setGuestLoading(false);
-    }
-  };
 
   return (
     <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
@@ -340,26 +324,6 @@ export default function LoginScreen({navigation}) {
               </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Guest Access */}
-          <TouchableOpacity
-            onPress={handleGuestAccess}
-            style={[
-              styles.guestAccess,
-              guestLoading && styles.guestAccessDisabled,
-            ]}
-            disabled={guestLoading}>
-            {guestLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.guestAccessText}>
-                  Continuar como visitante
-                </Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </>
-            )}
-          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -509,20 +473,5 @@ const styles = StyleSheet.create({
   registerLinkTextBold: {
     color: '#8B5CF6',
     fontWeight: '600',
-  },
-  guestAccess: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-    gap: 8,
-  },
-  guestAccessDisabled: {
-    opacity: 0.6,
-  },
-  guestAccessText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
   },
 });
