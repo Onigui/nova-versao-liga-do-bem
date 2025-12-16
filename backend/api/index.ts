@@ -2430,14 +2430,56 @@ export default async function handler(req: any, res: any) {
           console.log('✅ Avatar salvo como data URI (fallback)');
         }
         
+        // Verificar se o usuário existe antes de atualizar
+        console.log('🔍 Verificando se usuário existe:', userId);
+        const userExists = await db.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true }
+        });
+        
+        if (!userExists) {
+          console.error('❌ Usuário não encontrado:', userId);
+          return res.status(404).json({ 
+            error: 'Usuário não encontrado',
+            details: `Usuário com ID ${userId} não existe no banco de dados`
+          });
+        }
+        
+        console.log('✅ Usuário encontrado:', userExists.email);
+        
         // Atualizar avatar do usuário no banco
         try {
-          await db.user.update({
-            where: { id: userId },
-            data: { avatar: avatarUrl },
+          // Limitar tamanho do avatarUrl para evitar problemas (PostgreSQL TEXT pode ser muito grande, mas vamos limitar para segurança)
+          const maxAvatarLength = 10 * 1024 * 1024; // 10MB (muito generoso, mas seguro)
+          if (avatarUrl.length > maxAvatarLength) {
+            console.error('❌ Avatar URL muito grande:', avatarUrl.length, 'caracteres');
+            return res.status(413).json({ 
+              error: 'Imagem muito grande. Por favor, use uma imagem menor ou configure Cloudinary.',
+              details: `Tamanho: ${(avatarUrl.length / 1024).toFixed(2)} KB. Limite: ${(maxAvatarLength / 1024).toFixed(2)} KB.`
+            });
+          }
+          
+          console.log('💾 Tentando atualizar avatar no banco...', {
+            userId,
+            avatarUrlLength: avatarUrl.length,
+            avatarUrlPreview: avatarUrl.substring(0, 50) + '...'
           });
           
-          console.log('✅ Avatar atualizado no banco de dados para usuário:', userId);
+          const updatedUser = await db.user.update({
+            where: { id: userId },
+            data: { avatar: avatarUrl },
+            select: {
+              id: true,
+              email: true,
+              avatar: true
+            }
+          });
+          
+          console.log('✅ Avatar atualizado no banco de dados com sucesso:', {
+            userId: updatedUser.id,
+            email: updatedUser.email,
+            avatarLength: updatedUser.avatar?.length || 0
+          });
           
           return res.status(200).json({
             success: true,
@@ -2446,23 +2488,41 @@ export default async function handler(req: any, res: any) {
           });
         } catch (dbError: any) {
           console.error('❌ Erro ao atualizar avatar no banco:', dbError);
-          console.error('❌ Detalhes do erro:', {
+          console.error('❌ Detalhes completos do erro:', {
             code: dbError.code,
             message: dbError.message,
             meta: dbError.meta,
+            stack: dbError.stack?.substring(0, 500), // Primeiros 500 chars do stack
           });
           
-          // Verificar se é erro de tamanho do campo
-          if (dbError.message?.includes('value too long') || dbError.message?.includes('string too long')) {
+          // Verificar tipos específicos de erro
+          if (dbError.code === 'P2025') {
+            return res.status(404).json({ 
+              error: 'Usuário não encontrado',
+              details: 'O usuário não existe no banco de dados'
+            });
+          }
+          
+          if (dbError.message?.includes('value too long') || 
+              dbError.message?.includes('string too long') ||
+              dbError.message?.includes('exceeds maximum')) {
             return res.status(413).json({ 
               error: 'Imagem muito grande. Por favor, use uma imagem menor ou configure Cloudinary.',
               details: 'O tamanho máximo permitido foi excedido. Configure Cloudinary nas variáveis de ambiente para suportar imagens maiores.'
             });
           }
           
+          if (dbError.message?.includes('column') && dbError.message?.includes('does not exist')) {
+            return res.status(500).json({ 
+              error: 'Erro de configuração do banco de dados',
+              details: 'O campo avatar não existe na tabela. Execute as migrações do Prisma.'
+            });
+          }
+          
           return res.status(500).json({ 
             error: 'Erro ao salvar avatar no banco de dados',
-            details: dbError.message || 'Erro desconhecido'
+            details: dbError.message || 'Erro desconhecido',
+            code: dbError.code || 'UNKNOWN'
           });
         }
       } catch (error: any) {
