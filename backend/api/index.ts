@@ -2409,24 +2409,69 @@ export default async function handler(req: any, res: any) {
             base64Data = `data:${imageType};base64,${base64Data}`;
           }
           
+          // Verificar tamanho do base64 (limite de ~1MB para evitar problemas)
+          // Calcular tamanho aproximado: base64 é ~33% maior que o binário original
+          const base64Length = base64Data.length;
+          // Estimar tamanho aproximado (base64 tem overhead de ~33%)
+          const estimatedSize = (base64Length * 3) / 4;
+          const maxSize = 1024 * 1024; // 1MB
+          
+          console.log(`📊 Tamanho estimado do base64: ${(estimatedSize / 1024).toFixed(2)} KB (${base64Length} caracteres)`);
+          
+          if (estimatedSize > maxSize) {
+            console.error('❌ Imagem muito grande para salvar como base64:', estimatedSize, 'bytes estimados');
+            return res.status(413).json({ 
+              error: 'Imagem muito grande. Por favor, use uma imagem menor ou configure Cloudinary.',
+              details: `Tamanho estimado da imagem: ${(estimatedSize / 1024).toFixed(2)} KB. Limite: ${(maxSize / 1024).toFixed(2)} KB. Configure Cloudinary nas variáveis de ambiente para suportar imagens maiores.`
+            });
+          }
+          
           avatarUrl = base64Data;
           console.log('✅ Avatar salvo como data URI (fallback)');
         }
         
         // Atualizar avatar do usuário no banco
-        await db.user.update({
-          where: { id: userId },
-          data: { avatar: avatarUrl },
-        });
-        
-        return res.status(200).json({
-          success: true,
-          avatarUrl: avatarUrl,
-          message: 'Avatar atualizado com sucesso',
-        });
+        try {
+          await db.user.update({
+            where: { id: userId },
+            data: { avatar: avatarUrl },
+          });
+          
+          console.log('✅ Avatar atualizado no banco de dados para usuário:', userId);
+          
+          return res.status(200).json({
+            success: true,
+            avatarUrl: avatarUrl,
+            message: 'Avatar atualizado com sucesso',
+          });
+        } catch (dbError: any) {
+          console.error('❌ Erro ao atualizar avatar no banco:', dbError);
+          console.error('❌ Detalhes do erro:', {
+            code: dbError.code,
+            message: dbError.message,
+            meta: dbError.meta,
+          });
+          
+          // Verificar se é erro de tamanho do campo
+          if (dbError.message?.includes('value too long') || dbError.message?.includes('string too long')) {
+            return res.status(413).json({ 
+              error: 'Imagem muito grande. Por favor, use uma imagem menor ou configure Cloudinary.',
+              details: 'O tamanho máximo permitido foi excedido. Configure Cloudinary nas variáveis de ambiente para suportar imagens maiores.'
+            });
+          }
+          
+          return res.status(500).json({ 
+            error: 'Erro ao salvar avatar no banco de dados',
+            details: dbError.message || 'Erro desconhecido'
+          });
+        }
       } catch (error: any) {
         console.error('❌ Erro ao fazer upload de avatar:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor' });
+        console.error('❌ Stack trace:', error.stack);
+        return res.status(500).json({ 
+          error: 'Erro interno do servidor',
+          details: error.message || 'Erro desconhecido'
+        });
       }
     }
 
