@@ -2082,16 +2082,20 @@ export default async function handler(req: any, res: any) {
           
           const cpfClean = cpf ? String(cpf).replace(/\D/g, '') : null;
           
-          // Se o usuário já tem CPF cadastrado, bloquear alteração
-          if (currentUser?.cpf && cpfClean && currentUser.cpf !== cpfClean) {
+          // Se o CPF enviado é o mesmo que já está no banco, não fazer nada (permitir)
+          if (currentUser?.cpf && cpfClean && currentUser.cpf === cpfClean) {
+            console.log('ℹ️ PUT /api/user/profile: CPF não alterado, mantendo valor atual:', cpfClean);
+            // Não adicionar ao updateData, manter o valor atual
+          }
+          // Se o usuário já tem CPF cadastrado e está tentando alterar, bloquear
+          else if (currentUser?.cpf && cpfClean && currentUser.cpf !== cpfClean) {
             console.warn('⚠️ PUT /api/user/profile: Tentativa de alterar CPF existente bloqueada');
             return res.status(403).json({
               error: 'CPF não pode ser alterado após o cadastro. Esta medida previne fraudes.'
             });
           }
-          
           // Se o usuário não tem CPF, permitir cadastrar (apenas se for válido)
-          if (!currentUser?.cpf && cpfClean) {
+          else if (!currentUser?.cpf && cpfClean) {
             // Validar formato
             if (cpfClean.length !== 11) {
               console.warn('⚠️ PUT /api/user/profile: CPF inválido (não tem 11 dígitos):', cpfClean);
@@ -2128,10 +2132,13 @@ export default async function handler(req: any, res: any) {
             // CPF válido e não duplicado: adicionar ao updateData
             updateData.cpf = cpfClean;
             console.log('✅ PUT /api/user/profile: CPF será cadastrado:', cpfClean);
-          } else if (cpf === null || cpf === '') {
+          } else if (cpf === null || cpf === '' || !cpfClean) {
             // Se enviado como null ou vazio, não atualizar (manter o que está no banco)
             console.log('ℹ️ PUT /api/user/profile: CPF não fornecido ou vazio, mantendo valor atual');
           }
+        } else {
+          // CPF não foi enviado no body, não fazer nada
+          console.log('ℹ️ PUT /api/user/profile: CPF não foi enviado, mantendo valor atual');
         }
         if (avatar !== undefined) {
           updateData.avatar = avatar ? avatar.trim() : null;

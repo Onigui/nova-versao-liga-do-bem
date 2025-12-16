@@ -563,7 +563,11 @@ function EditProfileScreenContent({navigation}) {
       }
 
       // Preparar CPF para envio (usar cpfInputValue se disponível, senão formData.cpf)
-      const cpfToSend = cpfInputValue ? cpfInputValue.replace(/\D/g, '') : (formData.cpf ? String(formData.cpf).replace(/\D/g, '') : null);
+      // IMPORTANTE: Não enviar CPF se o campo está bloqueado (editable={false})
+      // O CPF só deve ser enviado se o usuário não tiver CPF ainda (para cadastrar)
+      const cpfToSend = formData.cpf && formData.cpf !== null && formData.cpf !== '0' && formData.cpf !== '00000000000' 
+        ? String(formData.cpf).replace(/\D/g, '') 
+        : null;
       
       console.log('💾 Salvando perfil...', { 
         name: formData.name, 
@@ -571,13 +575,27 @@ function EditProfileScreenContent({navigation}) {
         cpf: cpfToSend,
         cpfInputValue: cpfInputValue,
         formDataCpf: formData.cpf,
+        willSendCpf: !!cpfToSend,
       });
       logInfo('💾 EDIT PROFILE - Salvando perfil', {
         name: formData.name,
         phone: formData.phone,
         cpf: cpfToSend,
         cpfLength: cpfToSend ? cpfToSend.length : 0,
+        willSendCpf: !!cpfToSend,
       });
+
+      // Preparar body - só incluir CPF se existir e for válido
+      const requestBody = {
+        name: formData.name,
+        phone: formData.phone,
+      };
+      
+      // Só enviar CPF se o usuário não tiver CPF cadastrado ainda (para permitir cadastro inicial)
+      // Se já tiver CPF, não enviar para evitar conflitos no backend
+      if (cpfToSend && cpfToSend.length === 11 && cpfToSend !== '00000000000') {
+        requestBody.cpf = cpfToSend;
+      }
 
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
         method: 'PUT',
@@ -585,11 +603,7 @@ function EditProfileScreenContent({navigation}) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          name: formData.name,
-          phone: formData.phone,
-          cpf: cpfToSend, // Enviar CPF para o backend
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const responseData = await response.json();
