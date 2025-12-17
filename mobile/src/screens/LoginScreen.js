@@ -20,6 +20,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 import UpdateService from '../services/UpdateService';
 import UpdateModal from '../components/UpdateModal';
+import BiometricService from '../services/BiometricService';
 
 const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
 
@@ -42,6 +43,11 @@ export default function LoginScreen({navigation}) {
     icon: null,
     iconEmoji: '🐾',
   });
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometryType, setBiometryType] = useState('Biometria');
   
   // Tentar carregar assets locais
   useEffect(() => {
@@ -123,7 +129,29 @@ export default function LoginScreen({navigation}) {
   useEffect(() => {
     loadLoginConfig();
     checkForUpdates();
+    checkBiometric();
   }, []);
+
+  const checkBiometric = async () => {
+    try {
+      const { available, biometryType: type } = await BiometricService.isAvailable();
+      setBiometricAvailable(available);
+      
+      if (type === 'FaceID') {
+        setBiometryType('Face ID');
+      } else if (type === 'TouchID') {
+        setBiometryType('Touch ID');
+      } else if (type === 'Biometrics') {
+        setBiometryType(Platform.OS === 'ios' ? 'Face ID' : 'Impressão Digital');
+      }
+
+      const enabled = await BiometricService.isEnabled();
+      setBiometricEnabled(enabled);
+    } catch (error) {
+      console.error('Erro ao verificar biometria:', error);
+      setBiometricAvailable(false);
+    }
+  };
 
   const checkForUpdates = async () => {
     try {
@@ -148,6 +176,32 @@ export default function LoginScreen({navigation}) {
       const result = await login(email, password);
       if (!result.success) {
         Alert.alert('Erro', result.error || 'Email ou senha incorretos');
+      } else {
+        // Após login bem-sucedido, oferecer para habilitar biometria se disponível
+        if (biometricAvailable && !biometricEnabled) {
+          Alert.alert(
+            'Login Biométrico',
+            `Deseja habilitar ${biometryType} para fazer login mais rápido?`,
+            [
+              {
+                text: 'Não',
+                style: 'cancel',
+              },
+              {
+                text: 'Sim',
+                onPress: async () => {
+                  const biometricResult = await BiometricService.enableBiometric(email, password);
+                  if (biometricResult.success) {
+                    setBiometricEnabled(true);
+                    Alert.alert('Sucesso', `${biometryType} habilitado com sucesso!`);
+                  } else {
+                    Alert.alert('Erro', biometricResult.error || 'Não foi possível habilitar biometria');
+                  }
+                },
+              },
+            ],
+          );
+        }
       }
       // Se success = true, o AuthProvider já atualiza o estado e o usuário será redirecionado automaticamente
     } catch (error) {
@@ -156,6 +210,26 @@ export default function LoginScreen({navigation}) {
         'Erro',
         'Não foi possível fazer login. Verifique sua conexão e tente novamente.',
       );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setLoading(true);
+    try {
+      const result = await BiometricService.authenticate();
+      if (result.success) {
+        const loginResult = await login(result.email, result.password);
+        if (!loginResult.success) {
+          Alert.alert('Erro', loginResult.error || 'Erro ao fazer login');
+        }
+      } else {
+        Alert.alert('Erro', result.error || 'Autenticação biométrica falhou');
+      }
+    } catch (error) {
+      console.error('Erro no login biométrico:', error);
+      Alert.alert('Erro', 'Não foi possível fazer login biométrico');
     } finally {
       setLoading(false);
     }
@@ -301,6 +375,37 @@ export default function LoginScreen({navigation}) {
               <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
             </TouchableOpacity>
 
+            {/* Biometric Login Button (se habilitado) */}
+            {biometricEnabled && biometricAvailable && (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.biometricButton,
+                    loading && styles.biometricButtonDisabled,
+                  ]}
+                  onPress={handleBiometricLogin}
+                  disabled={loading}>
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    style={styles.biometricButtonGradient}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 0}}>
+                    <Ionicons name="finger-print" size={24} color="#FFFFFF" />
+                    <Text style={styles.biometricButtonText}>
+                      Entrar com {biometryType}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {/* Divider */}
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>ou</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+              </>
+            )}
+
             {/* Login Button */}
             <TouchableOpacity
               style={[
@@ -322,12 +427,14 @@ export default function LoginScreen({navigation}) {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ou</Text>
-              <View style={styles.dividerLine} />
-            </View>
+            {/* Divider (se biometria não estiver habilitada) */}
+            {(!biometricEnabled || !biometricAvailable) && (
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>ou</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            )}
 
             {/* Register Link */}
             <TouchableOpacity
@@ -467,6 +574,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  biometricButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  biometricButtonDisabled: {
+    opacity: 0.7,
+  },
+  biometricButtonGradient: {
+    height: 54,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  biometricButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
