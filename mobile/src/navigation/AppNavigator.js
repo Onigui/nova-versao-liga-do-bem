@@ -98,7 +98,7 @@ export function MainTabs() {
       <Tab.Screen 
         name="Cartão" 
         component={MembershipCardScreen} 
-        options={{ title: 'Meu Cartão' }}
+        options={{ title: 'Cartão' }}
       />
       <Tab.Screen 
         name="Parceiros" 

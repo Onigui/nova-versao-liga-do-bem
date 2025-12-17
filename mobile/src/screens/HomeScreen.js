@@ -291,7 +291,7 @@ export default function HomeScreen({navigation}) {
         <View style={styles.quickActions}>
           <QuickAction
             icon="card"
-            title="Meu Cartão"
+            title="Cartão"
             subtitle="Acesse seu cartão de membro"
             color="#8B5CF6"
             onPress={() => navigation.navigate('Cartão')}
