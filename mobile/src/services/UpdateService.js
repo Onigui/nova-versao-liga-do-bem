@@ -168,48 +168,60 @@ class UpdateService {
         throw new Error('Arquivo APK não encontrado');
       }
 
-      // Método mais simples e seguro: usar RNFetchBlob.android.actionViewIntent
-      // com tratamento de erro robusto
+      // Método mais seguro: usar Linking que é mais estável e não causa crash
+      // Linking.openURL com file:// funciona bem no Android
       try {
-        // Usar actionViewIntent que é o método recomendado
-        await RNFetchBlob.android.actionViewIntent(
-          filePath,
-          'application/vnd.android.package-archive',
-        );
-        console.log('✅ Intent de instalação enviado com sucesso');
-      } catch (intentError) {
-        console.warn('⚠️ Erro ao usar actionViewIntent, tentando Linking:', intentError);
+        // Construir URI file://
+        const fileUri = `file://${filePath}`;
+        console.log('📱 Tentando abrir APK via Linking:', fileUri);
         
-        // Fallback 1: Tentar com Linking usando file://
+        // Usar Linking.openURL diretamente (mais confiável que actionViewIntent)
+        await Linking.openURL(fileUri);
+        console.log('✅ APK aberto via Linking com sucesso');
+        return; // Sucesso
+      } catch (linkingError) {
+        console.warn('⚠️ Erro ao usar Linking com file://, tentando actionViewIntent:', linkingError);
+        
+        // Fallback: tentar actionViewIntent (mas envolver em try-catch robusto)
         try {
-          const fileUri = `file://${filePath}`;
-          const canOpen = await Linking.canOpenURL(fileUri);
-          if (canOpen) {
-            await Linking.openURL(fileUri);
-            console.log('✅ APK aberto via Linking');
-          } else {
-            throw new Error('Linking não consegue abrir o arquivo');
-          }
-        } catch (linkingError) {
-          console.warn('⚠️ Erro ao usar Linking:', linkingError);
+          // Chamar actionViewIntent de forma segura
+          // Usar setTimeout para garantir que não causa crash síncrono
+          await new Promise((resolveIntent, rejectIntent) => {
+            setTimeout(() => {
+              try {
+                const result = RNFetchBlob.android.actionViewIntent(
+                  filePath,
+                  'application/vnd.android.package-archive',
+                );
+                
+                // Se retornar Promise
+                if (result && typeof result.then === 'function') {
+                  result.then(() => {
+                    console.log('✅ Intent de instalação enviado com sucesso');
+                    resolveIntent();
+                  }).catch(rejectIntent);
+                } else {
+                  // Se não retornar Promise, assumir sucesso
+                  console.log('✅ Intent de instalação enviado (sem Promise)');
+                  resolveIntent();
+                }
+              } catch (syncError) {
+                rejectIntent(syncError);
+              }
+            }, 50);
+          });
           
-          // Fallback 2: Tentar com content:// URI (Android 7.0+)
-          try {
-            // Construir URI content:// usando FileProvider
-            const fileName = filePath.split('/').pop();
-            const contentUri = `content://com.ligadobem.botucatu.fileprovider/external_files/${fileName}`;
-            await Linking.openURL(contentUri);
-            console.log('✅ APK aberto via content:// URI');
-          } catch (contentError) {
-            console.error('❌ Todos os métodos falharam:', contentError);
-            throw new Error(
-              'Não foi possível abrir o instalador automaticamente.\n\n' +
-              'O APK foi baixado com sucesso. Por favor:\n' +
-              '1. Abra o gerenciador de arquivos\n' +
-              '2. Vá até a pasta Downloads\n' +
-              '3. Toque no arquivo APK para instalar'
-            );
-          }
+          console.log('✅ APK aberto via actionViewIntent com sucesso');
+          return; // Sucesso
+        } catch (intentError) {
+          console.error('❌ Erro ao usar actionViewIntent:', intentError);
+          throw new Error(
+            'Não foi possível abrir o instalador automaticamente.\n\n' +
+            'O APK foi baixado com sucesso. Por favor:\n' +
+            '1. Abra o gerenciador de arquivos\n' +
+            '2. Vá até a pasta Downloads\n' +
+            '3. Toque no arquivo APK para instalar'
+          );
         }
       }
     } catch (error) {
@@ -217,6 +229,7 @@ class UpdateService {
       throw error;
     }
   }
+
 
   showUpdateDialog(updateInfo, onUpdate, onLater) {
     const { latestVersion, isMandatory, releaseNotes } = updateInfo;

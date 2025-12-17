@@ -39,34 +39,44 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       setInstalling(true);
 
       // Instalar APK com tratamento de erro robusto
-      try {
-        await UpdateService.installAPK(filePath);
-        // Se chegou aqui, a instalação foi iniciada com sucesso
-        // O app será fechado pelo sistema Android durante a instalação
-        setInstalling(false);
-        if (onUpdateComplete) {
-          onUpdateComplete();
-        }
-      } catch (installError) {
-        console.error('Erro na instalação:', installError);
-        setInstalling(false);
-        // Mostrar alerta com instruções
-        Alert.alert(
-          'Instalação Manual Necessária',
-          installError.message || 'Não foi possível abrir o instalador automaticamente.\n\nO APK foi baixado. Por favor, instale manualmente.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Fechar modal mas manter o app aberto
-                if (!updateInfo.isMandatory) {
-                  onDismiss();
-                }
+      // Usar setTimeout para garantir que o estado seja atualizado antes de abrir Intent
+      setTimeout(async () => {
+        try {
+          await UpdateService.installAPK(filePath);
+          // Se chegou aqui, a instalação foi iniciada com sucesso
+          // O app será fechado pelo sistema Android durante a instalação
+          // Por isso não atualizamos o estado aqui
+          console.log('✅ Instalação iniciada com sucesso');
+          
+          // Dar um pequeno delay antes de chamar onUpdateComplete
+          // para garantir que o Intent foi processado
+          setTimeout(() => {
+            setInstalling(false);
+            if (onUpdateComplete) {
+              onUpdateComplete();
+            }
+          }, 500);
+        } catch (installError) {
+          console.error('Erro na instalação:', installError);
+          setInstalling(false);
+          // Mostrar alerta com instruções
+          Alert.alert(
+            'Instalação Manual Necessária',
+            installError.message || 'Não foi possível abrir o instalador automaticamente.\n\nO APK foi baixado. Por favor, instale manualmente.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  // Fechar modal mas manter o app aberto
+                  if (!updateInfo.isMandatory) {
+                    onDismiss();
+                  }
+                },
               },
-            },
-          ],
-        );
-      }
+            ],
+          );
+        }
+      }, 200); // Delay de 200ms para evitar crash
     } catch (error) {
       console.error('Erro no processo de atualização:', error);
       setDownloading(false);
