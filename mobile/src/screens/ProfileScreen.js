@@ -224,8 +224,7 @@ export default function ProfileScreen({navigation}) {
       icon: 'help-circle-outline',
       title: 'Ajuda & Suporte',
       subtitle: 'Tire suas dúvidas',
-      onPress: () =>
-        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () => navigation.navigate('Info'),
     },
     {
       icon: 'shield-checkmark-outline',

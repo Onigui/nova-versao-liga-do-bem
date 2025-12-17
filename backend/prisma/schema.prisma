@@ -514,3 +514,19 @@ enum ConfigType {
   BOOLEAN
   JSON
 }
+
+// Modelo de informações de ajuda e suporte
+model HelpInfo {
+  id          String    @id @default(cuid())
+  category    String    // Ex: "liga-do-bem", "canil-municipal", "denuncias", "orgaos-publicos"
+  title       String    // Título da seção
+  description String?   // Descrição opcional
+  items       Json      // Array de itens com título, telefone, endereço, etc.
+  order       Int       @default(0) // Ordem de exibição
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([category])
+  @@map("help_info")
+}

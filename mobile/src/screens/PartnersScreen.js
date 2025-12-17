@@ -32,12 +32,17 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-export default function PartnersScreen({navigation}) {
+export default function PartnersScreen({navigation, route}) {
   const [partners, setPartners] = useState([]);
   const [filteredPartners, setFilteredPartners] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  // Se vier filtro via route params, usar ele, senão 'all'
+  const filterFromRoute = route?.params?.filter;
+  const initialCategory = filterFromRoute === 'veterinario' || filterFromRoute === 'veterinária' 
+    ? 'veterinária' 
+    : 'all';
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [userLocation, setUserLocation] = useState(null);
 
   const requestLocationPermission = useCallback(async () => {

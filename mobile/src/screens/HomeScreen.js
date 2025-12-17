@@ -345,6 +345,13 @@ export default function HomeScreen({navigation}) {
             color="#F59E0B"
             onPress={() => navigation.navigate('Notifications')}
           />
+          <QuickAction
+            icon="information-circle"
+            title="Informações"
+            subtitle="Ajuda e contatos úteis"
+            color="#6366F1"
+            onPress={() => navigation.navigate('Info')}
+          />
         </View>
       </View>
 

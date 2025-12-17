@@ -1607,6 +1607,36 @@ export default async function handler(req: any, res: any) {
     // APP CONFIGURATION ENDPOINTS
     // ==========================================
 
+    // GET help info (public - for mobile app)
+    if (path === '/api/app/help-info' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const helpInfos = await db.helpInfo.findMany({
+          where: { isActive: true },
+          orderBy: { order: 'asc' },
+          select: {
+            id: true,
+            category: true,
+            title: true,
+            description: true,
+            items: true,
+            order: true,
+          }
+        });
+        return res.status(200).json({ helpInfos });
+      } catch (error: any) {
+        console.error('❌ Error loading help info:', error);
+        // Se a tabela não existir ainda, retornar array vazio
+        if (error.message?.includes('does not exist') || error.code === 'P2021') {
+          return res.status(200).json({ helpInfos: [] });
+        }
+        return res.status(500).json({ error: 'Error loading help information' });
+      }
+    }
+
     // GET app configuration (public endpoint for mobile app)
     if (path === '/api/app/config' && method === 'GET') {
       const db = getPrisma();
@@ -1765,6 +1795,196 @@ export default async function handler(req: any, res: any) {
       } catch (error: any) {
         console.error('❌ Error updating app config:', error);
         return res.status(500).json({ error: 'Error updating configuration' });
+      }
+    }
+
+    // ============ HELP INFO ENDPOINTS (ADMIN) ============
+    
+    // GET all help info (admin)
+    if (path === '/api/admin/help-info' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const helpInfos = await db.helpInfo.findMany({
+          orderBy: { order: 'asc' },
+        });
+        return res.status(200).json({ helpInfos });
+      } catch (error: any) {
+        console.error('❌ Error loading help info:', error);
+        return res.status(500).json({ error: 'Error loading help information' });
+      }
+    }
+
+    // POST help info (admin)
+    if (path === '/api/admin/help-info' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const { category, title, description, items, order, isActive } = body;
+        if (!category || !title || !items) {
+          return res.status(400).json({ error: 'Category, title and items are required' });
+        }
+
+        const helpInfo = await db.helpInfo.create({
+          data: {
+            category,
+            title,
+            description: description || null,
+            items: items,
+            order: order || 0,
+            isActive: isActive !== undefined ? isActive : true,
+          },
+        });
+
+        return res.status(201).json({ helpInfo });
+      } catch (error: any) {
+        console.error('❌ Error creating help info:', error);
+        if (error.code === 'P2002') {
+          return res.status(400).json({ error: 'Category already exists' });
+        }
+        return res.status(500).json({ error: 'Error creating help information' });
+      }
+    }
+
+    // PUT help info (admin)
+    if (path.startsWith('/api/admin/help-info/') && method === 'PUT') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const id = path.split('/api/admin/help-info/')[1];
+        const { category, title, description, items, order, isActive } = body;
+
+        const helpInfo = await db.helpInfo.update({
+          where: { id },
+          data: {
+            ...(category && { category }),
+            ...(title && { title }),
+            ...(description !== undefined && { description }),
+            ...(items && { items }),
+            ...(order !== undefined && { order }),
+            ...(isActive !== undefined && { isActive }),
+          },
+        });
+
+        return res.status(200).json({ helpInfo });
+      } catch (error: any) {
+        console.error('❌ Error updating help info:', error);
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'Help info not found' });
+        }
+        return res.status(500).json({ error: 'Error updating help information' });
+      }
+    }
+
+    // DELETE help info (admin)
+    if (path.startsWith('/api/admin/help-info/') && method === 'DELETE') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const id = path.split('/api/admin/help-info/')[1];
+        await db.helpInfo.delete({
+          where: { id },
+        });
+
+        return res.status(200).json({ message: 'Help info deleted successfully' });
+      } catch (error: any) {
+        console.error('❌ Error deleting help info:', error);
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'Help info not found' });
+        }
+        return res.status(500).json({ error: 'Error deleting help information' });
       }
     }
 
