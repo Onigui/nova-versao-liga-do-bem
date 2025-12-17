@@ -1988,6 +1988,495 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // ============ PETS ENDPOINTS ============
+    
+    // GET user pets
+    if (path === '/api/user/pets' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const pets = await db.pet.findMany({
+          where: { userId },
+          include: {
+            vaccinations: {
+              orderBy: { applicationDate: 'desc' },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        return res.status(200).json({ pets });
+      } catch (error: any) {
+        console.error('❌ Error loading pets:', error);
+        if (error.message?.includes('does not exist') || error.code === 'P2021') {
+          return res.status(200).json({ pets: [] });
+        }
+        return res.status(500).json({ error: 'Error loading pets' });
+      }
+    }
+
+    // POST user pet
+    if (path === '/api/user/pets' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const { name, species, breed, birthDate, photo, gender, color, weight, microchip, notes } = body;
+        if (!name || !species) {
+          return res.status(400).json({ error: 'Nome e espécie são obrigatórios' });
+        }
+
+        const pet = await db.pet.create({
+          data: {
+            userId,
+            name,
+            species,
+            breed: breed || null,
+            birthDate: birthDate ? new Date(birthDate) : null,
+            photo: photo || null,
+            gender: gender || null,
+            color: color || null,
+            weight: weight || null,
+            microchip: microchip || null,
+            notes: notes || null,
+          },
+          include: {
+            vaccinations: true,
+          },
+        });
+
+        return res.status(201).json({ pet });
+      } catch (error: any) {
+        console.error('❌ Error creating pet:', error);
+        return res.status(500).json({ error: 'Error creating pet' });
+      }
+    }
+
+    // GET user pet by id
+    if (path.startsWith('/api/user/pets/') && method === 'GET' && !path.includes('/vaccinations')) {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const petId = path.split('/api/user/pets/')[1];
+        const pet = await db.pet.findFirst({
+          where: { id: petId, userId },
+          include: {
+            vaccinations: {
+              orderBy: { applicationDate: 'desc' },
+            },
+          },
+        });
+
+        if (!pet) {
+          return res.status(404).json({ error: 'Pet não encontrado' });
+        }
+
+        return res.status(200).json({ pet });
+      } catch (error: any) {
+        console.error('❌ Error loading pet:', error);
+        return res.status(500).json({ error: 'Error loading pet' });
+      }
+    }
+
+    // PUT user pet
+    if (path.startsWith('/api/user/pets/') && method === 'PUT' && !path.includes('/vaccinations')) {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const petId = path.split('/api/user/pets/')[1];
+        const { name, species, breed, birthDate, photo, gender, color, weight, microchip, notes } = body;
+
+        const pet = await db.pet.update({
+          where: { id: petId },
+          data: {
+            ...(name && { name }),
+            ...(species && { species }),
+            ...(breed !== undefined && { breed }),
+            ...(birthDate !== undefined && { birthDate: birthDate ? new Date(birthDate) : null }),
+            ...(photo !== undefined && { photo }),
+            ...(gender !== undefined && { gender }),
+            ...(color !== undefined && { color }),
+            ...(weight !== undefined && { weight }),
+            ...(microchip !== undefined && { microchip }),
+            ...(notes !== undefined && { notes }),
+          },
+          include: {
+            vaccinations: {
+              orderBy: { applicationDate: 'desc' },
+            },
+          },
+        });
+
+        // Verificar se o pet pertence ao usuário
+        if (pet.userId !== userId) {
+          return res.status(403).json({ error: 'Acesso negado' });
+        }
+
+        return res.status(200).json({ pet });
+      } catch (error: any) {
+        console.error('❌ Error updating pet:', error);
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'Pet não encontrado' });
+        }
+        return res.status(500).json({ error: 'Error updating pet' });
+      }
+    }
+
+    // DELETE user pet
+    if (path.startsWith('/api/user/pets/') && method === 'DELETE' && !path.includes('/vaccinations')) {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const petId = path.split('/api/user/pets/')[1];
+        const pet = await db.pet.findFirst({
+          where: { id: petId, userId },
+        });
+
+        if (!pet) {
+          return res.status(404).json({ error: 'Pet não encontrado' });
+        }
+
+        await db.pet.delete({
+          where: { id: petId },
+        });
+
+        return res.status(200).json({ message: 'Pet deletado com sucesso' });
+      } catch (error: any) {
+        console.error('❌ Error deleting pet:', error);
+        return res.status(500).json({ error: 'Error deleting pet' });
+      }
+    }
+
+    // ============ VACCINATIONS ENDPOINTS ============
+    
+    // GET pet vaccinations
+    if (path.startsWith('/api/user/pets/') && path.endsWith('/vaccinations') && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const petId = path.split('/api/user/pets/')[1].replace('/vaccinations', '');
+        const pet = await db.pet.findFirst({
+          where: { id: petId, userId },
+        });
+
+        if (!pet) {
+          return res.status(404).json({ error: 'Pet não encontrado' });
+        }
+
+        const vaccinations = await db.vaccination.findMany({
+          where: { petId },
+          orderBy: { applicationDate: 'desc' },
+        });
+
+        return res.status(200).json({ vaccinations });
+      } catch (error: any) {
+        console.error('❌ Error loading vaccinations:', error);
+        if (error.message?.includes('does not exist') || error.code === 'P2021') {
+          return res.status(200).json({ vaccinations: [] });
+        }
+        return res.status(500).json({ error: 'Error loading vaccinations' });
+      }
+    }
+
+    // POST pet vaccination
+    if (path.startsWith('/api/user/pets/') && path.endsWith('/vaccinations') && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const petId = path.split('/api/user/pets/')[1].replace('/vaccinations', '');
+        const pet = await db.pet.findFirst({
+          where: { id: petId, userId },
+        });
+
+        if (!pet) {
+          return res.status(404).json({ error: 'Pet não encontrado' });
+        }
+
+        const { 
+          vaccineName, 
+          vaccineType, 
+          applicationDate, 
+          nextDoseDate, 
+          batchNumber, 
+          veterinarian, 
+          veterinarianCRMV, 
+          clinicName, 
+          clinicId, 
+          notes 
+        } = body;
+
+        if (!vaccineName || !applicationDate) {
+          return res.status(400).json({ error: 'Nome da vacina e data de aplicação são obrigatórios' });
+        }
+
+        const vaccination = await db.vaccination.create({
+          data: {
+            petId,
+            vaccineName,
+            vaccineType: vaccineType || null,
+            applicationDate: new Date(applicationDate),
+            nextDoseDate: nextDoseDate ? new Date(nextDoseDate) : null,
+            batchNumber: batchNumber || null,
+            veterinarian: veterinarian || null,
+            veterinarianCRMV: veterinarianCRMV || null,
+            clinicName: clinicName || null,
+            clinicId: clinicId || null,
+            notes: notes || null,
+          },
+        });
+
+        return res.status(201).json({ vaccination });
+      } catch (error: any) {
+        console.error('❌ Error creating vaccination:', error);
+        return res.status(500).json({ error: 'Error creating vaccination' });
+      }
+    }
+
+    // PUT vaccination
+    if (path.startsWith('/api/user/pets/') && path.includes('/vaccinations/') && method === 'PUT') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const pathParts = path.split('/api/user/pets/')[1].split('/');
+        const petId = pathParts[0];
+        const vaccinationId = pathParts[2];
+
+        const pet = await db.pet.findFirst({
+          where: { id: petId, userId },
+        });
+
+        if (!pet) {
+          return res.status(404).json({ error: 'Pet não encontrado' });
+        }
+
+        const { 
+          vaccineName, 
+          vaccineType, 
+          applicationDate, 
+          nextDoseDate, 
+          batchNumber, 
+          veterinarian, 
+          veterinarianCRMV, 
+          clinicName, 
+          clinicId, 
+          notes 
+        } = body;
+
+        const vaccination = await db.vaccination.update({
+          where: { id: vaccinationId },
+          data: {
+            ...(vaccineName && { vaccineName }),
+            ...(vaccineType !== undefined && { vaccineType }),
+            ...(applicationDate && { applicationDate: new Date(applicationDate) }),
+            ...(nextDoseDate !== undefined && { nextDoseDate: nextDoseDate ? new Date(nextDoseDate) : null }),
+            ...(batchNumber !== undefined && { batchNumber }),
+            ...(veterinarian !== undefined && { veterinarian }),
+            ...(veterinarianCRMV !== undefined && { veterinarianCRMV }),
+            ...(clinicName !== undefined && { clinicName }),
+            ...(clinicId !== undefined && { clinicId }),
+            ...(notes !== undefined && { notes }),
+          },
+        });
+
+        return res.status(200).json({ vaccination });
+      } catch (error: any) {
+        console.error('❌ Error updating vaccination:', error);
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'Vacinação não encontrada' });
+        }
+        return res.status(500).json({ error: 'Error updating vaccination' });
+      }
+    }
+
+    // DELETE vaccination
+    if (path.startsWith('/api/user/pets/') && path.includes('/vaccinations/') && method === 'DELETE') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+        
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        } catch (e: any) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+
+        const pathParts = path.split('/api/user/pets/')[1].split('/');
+        const petId = pathParts[0];
+        const vaccinationId = pathParts[2];
+
+        const pet = await db.pet.findFirst({
+          where: { id: petId, userId },
+        });
+
+        if (!pet) {
+          return res.status(404).json({ error: 'Pet não encontrado' });
+        }
+
+        await db.vaccination.delete({
+          where: { id: vaccinationId },
+        });
+
+        return res.status(200).json({ message: 'Vacinação deletada com sucesso' });
+      } catch (error: any) {
+        console.error('❌ Error deleting vaccination:', error);
+        return res.status(500).json({ error: 'Error deleting vaccination' });
+      }
+    }
+
     // POST logs from mobile app
     if (path === '/api/logs' && method === 'POST') {
       try {

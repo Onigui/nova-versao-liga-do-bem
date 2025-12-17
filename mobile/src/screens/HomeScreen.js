@@ -346,6 +346,13 @@ export default function HomeScreen({navigation}) {
             onPress={() => navigation.navigate('Notifications')}
           />
           <QuickAction
+            icon="medical"
+            title="Cartão de Vacinas"
+            subtitle="Gerencie vacinações dos pets"
+            color="#10B981"
+            onPress={() => navigation.navigate('PetsList')}
+          />
+          <QuickAction
             icon="information-circle"
             title="Informações"
             subtitle="Ajuda e contatos úteis"

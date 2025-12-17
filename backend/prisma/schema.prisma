@@ -38,6 +38,7 @@ model User {
   eventRegistrations EventRegistration[]
   payments        Payment[]
   transactions    Transaction[]
+  pets            Pet[]
 
   @@map("users")
 }
@@ -440,6 +441,53 @@ model DeviceToken {
   updatedAt DateTime @updatedAt
 
   @@map("device_tokens")
+}
+
+// Modelo de pets dos usuários
+model Pet {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  species     String   // Cão, Gato, etc.
+  breed       String?  // Raça
+  birthDate   DateTime? // Data de nascimento
+  photo       String?  // URL da foto
+  gender      String?  // Macho, Fêmea
+  color       String?  // Cor do pelo
+  weight      Float?   // Peso em kg
+  microchip   String?  // Número do microchip
+  notes       String?  // Observações gerais
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  vaccinations Vaccination[]
+
+  @@map("pets")
+}
+
+// Modelo de vacinações dos pets
+model Vaccination {
+  id              String   @id @default(cuid())
+  petId           String
+  pet             Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vaccineName     String   // Nome da vacina (ex: V10, Antirrábica)
+  vaccineType     String?  // Tipo (ex: Polivalente, Antirrábica)
+  applicationDate DateTime // Data de aplicação
+  nextDoseDate    DateTime? // Data da próxima dose
+  batchNumber     String?  // Número do lote
+  veterinarian    String?  // Nome do veterinário
+  veterinarianCRMV String? // CRMV do veterinário (para validação futura)
+  clinicName      String?  // Nome da clínica
+  clinicId        String?  // ID da clínica parceira (para integração futura)
+  notes           String?  // Observações
+  isVerified      Boolean  @default(false) // Se foi carimbada por veterinário parceiro
+  verifiedAt      DateTime? // Data da verificação
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("vaccinations")
 }
 
 // Modelo de transparência financeira

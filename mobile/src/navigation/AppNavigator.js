@@ -32,6 +32,10 @@ import MyDonationsScreen from '../screens/MyDonationsScreen';
 import MyAdoptionsScreen from '../screens/MyAdoptionsScreen';
 import MyEventsScreen from '../screens/MyEventsScreen';
 import InfoScreen from '../screens/InfoScreen';
+import PetsListScreen from '../screens/PetsListScreen';
+import VaccinationCardScreen from '../screens/VaccinationCardScreen';
+import AddPetScreen from '../screens/AddPetScreen';
+import AddVaccinationScreen from '../screens/AddVaccinationScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -292,6 +296,41 @@ export function AppStack() {
       <Stack.Screen 
         name="Info" 
         component={InfoScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="PetsList" 
+        component={PetsListScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="VaccinationCard" 
+        component={VaccinationCardScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="AddPet" 
+        component={AddPetScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="EditPet" 
+        component={AddPetScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="AddVaccination" 
+        component={AddVaccinationScreen}
         options={{
           headerShown: false,
         }}
