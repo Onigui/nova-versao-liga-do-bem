@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import NotificationService from './src/services/NotificationService';
 import UpdateService from './src/services/UpdateService';
 import UpdateModal from './src/components/UpdateModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Navigation
 import { AuthStack, AppStack } from './src/navigation/AppNavigator';
@@ -124,6 +125,29 @@ export default function App() {
     }
   };
 
+  const checkForUpdates = async () => {
+    try {
+      const info = await UpdateService.checkForUpdates();
+      if (info && info.hasUpdate) {
+        setUpdateInfo(info);
+        // Só mostrar modal se não estiver bloqueado (bloqueado mostra imediatamente)
+        if (info.isBlocked) {
+          setShowUpdateModal(true);
+        } else {
+          // Para atualizações não obrigatórias, verificar se já foi mostrado hoje
+          const lastUpdateCheck = await AsyncStorage.getItem('lastUpdateCheck');
+          const today = new Date().toDateString();
+          if (lastUpdateCheck !== today) {
+            setShowUpdateModal(true);
+            await AsyncStorage.setItem('lastUpdateCheck', today);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar atualizações:', error);
+    }
+  };
+
   try {
     return (
       <ErrorBoundary>
@@ -134,6 +158,15 @@ export default function App() {
                 <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
                 <RootNavigator />
               </NavigationContainer>
+              <UpdateModal
+                visible={showUpdateModal}
+                updateInfo={updateInfo}
+                onDismiss={() => setShowUpdateModal(false)}
+                onUpdateComplete={() => {
+                  setShowUpdateModal(false);
+                  // App será reiniciado após instalação
+                }}
+              />
             </AuthProvider>
           </PaperProvider>
         </GestureHandlerRootView>
@@ -151,6 +184,15 @@ export default function App() {
                 <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
                 <RootNavigator />
               </NavigationContainer>
+              <UpdateModal
+                visible={showUpdateModal}
+                updateInfo={updateInfo}
+                onDismiss={() => setShowUpdateModal(false)}
+                onUpdateComplete={() => {
+                  setShowUpdateModal(false);
+                  // App será reiniciado após instalação
+                }}
+              />
             </AuthProvider>
           </PaperProvider>
         </GestureHandlerRootView>
