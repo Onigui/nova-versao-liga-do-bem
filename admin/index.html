@@ -2518,6 +2518,78 @@
             window.location.href = 'login.html';
         }
 
+        // Função para mostrar notificações
+        function showNotification(message, type = 'success') {
+            // Criar elemento de notificação se não existir
+            let notificationContainer = document.getElementById('notification-container');
+            if (!notificationContainer) {
+                notificationContainer = document.createElement('div');
+                notificationContainer.id = 'notification-container';
+                notificationContainer.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;';
+                document.body.appendChild(notificationContainer);
+            }
+
+            const notification = document.createElement('div');
+            const bgColor = type === 'success' ? '#10B981' : type === 'error' ? '#EF4444' : '#3B82F6';
+            notification.style.cssText = `
+                background: ${bgColor};
+                color: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 300px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.innerHTML = `
+                <span style="font-size: 1.5rem;">${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
+                <span>${message}</span>
+            `;
+
+            notificationContainer.appendChild(notification);
+
+            // Remover após 5 segundos
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // Adicionar animações CSS se não existirem
+        if (!document.getElementById('notification-styles')) {
+            const style = document.createElement('style');
+            style.id = 'notification-styles';
+            style.textContent = `
+                @keyframes slideIn {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                @keyframes slideOut {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
         // Mostrar informações do usuário
         function showUserInfo() {
             const user = localStorage.getItem('admin_user');
@@ -6033,19 +6105,32 @@
 
         async function loadHelpInfo() {
             try {
+                const token = localStorage.getItem('admin_token');
                 const response = await fetch(`${API_BASE_URL}/api/admin/help-info`, {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                        'Authorization': `Bearer ${token}`,
+                        'x-admin-token': token,
+                        'Content-Type': 'application/json'
                     }
                 });
                 if (response.ok) {
-                    helpInfoList = await response.json();
+                    const data = await response.json();
+                    helpInfoList = data.helpInfos || data || [];
                     renderHelpInfoTable();
                 } else {
-                    console.error('Erro ao carregar informações de ajuda');
+                    let errorMessage = 'Erro ao carregar informações de ajuda';
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.error || errorMessage;
+                    } catch (e) {
+                        errorMessage = `Erro ${response.status}: ${response.statusText}`;
+                    }
+                    console.error('Erro ao carregar informações de ajuda:', errorMessage);
+                    showNotification(errorMessage, 'error');
                 }
             } catch (error) {
                 console.error('Erro ao carregar informações de ajuda:', error);
+                showNotification('Erro ao carregar informações de ajuda', 'error');
             }
         }
 
@@ -6213,19 +6298,32 @@
 
         async function loadAppVersions() {
             try {
+                const token = localStorage.getItem('admin_token');
                 const response = await fetch(`${API_BASE_URL}/api/admin/app/versions`, {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                        'Authorization': `Bearer ${token}`,
+                        'x-admin-token': token,
+                        'Content-Type': 'application/json'
                     }
                 });
                 if (response.ok) {
-                    appVersionsList = await response.json();
+                    const data = await response.json();
+                    appVersionsList = data.versions || data || [];
                     renderAppVersionsTable();
                 } else {
-                    console.error('Erro ao carregar versões do app');
+                    let errorMessage = 'Erro ao carregar versões do app';
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.error || errorMessage;
+                    } catch (e) {
+                        errorMessage = `Erro ${response.status}: ${response.statusText}`;
+                    }
+                    console.error('Erro ao carregar versões do app:', errorMessage);
+                    showNotification(errorMessage, 'error');
                 }
             } catch (error) {
                 console.error('Erro ao carregar versões do app:', error);
+                showNotification('Erro ao carregar versões do app', 'error');
             }
         }
 
