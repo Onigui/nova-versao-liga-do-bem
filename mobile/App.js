@@ -125,29 +125,6 @@ export default function App() {
     }
   };
 
-  const checkForUpdates = async () => {
-    try {
-      const info = await UpdateService.checkForUpdates();
-      if (info && info.hasUpdate) {
-        setUpdateInfo(info);
-        // Só mostrar modal se não estiver bloqueado (bloqueado mostra imediatamente)
-        if (info.isBlocked) {
-          setShowUpdateModal(true);
-        } else {
-          // Para atualizações não obrigatórias, verificar se já foi mostrado hoje
-          const lastUpdateCheck = await AsyncStorage.getItem('lastUpdateCheck');
-          const today = new Date().toDateString();
-          if (lastUpdateCheck !== today) {
-            setShowUpdateModal(true);
-            await AsyncStorage.setItem('lastUpdateCheck', today);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao verificar atualizações:', error);
-    }
-  };
-
   try {
     return (
       <ErrorBoundary>
