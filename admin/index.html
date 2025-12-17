@@ -669,6 +669,18 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="#help-support" class="nav-link" onclick="showSection('help-support')">
+                        <span class="nav-icon">ℹ️</span>
+                        Ajuda & Suporte
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#app-versions" class="nav-link" onclick="showSection('app-versions')">
+                        <span class="nav-icon">📱</span>
+                        Versões do App
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="#settings" class="nav-link" onclick="showSection('settings')">
                         <span class="nav-icon">⚙️</span>
                         Configurações
@@ -1732,6 +1744,87 @@
                 </div>
             </section>
 
+            <!-- Seção de Ajuda & Suporte -->
+            <section id="help-support-section" class="content-section">
+                <div class="header">
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Ajuda & Suporte</h1>
+                            <p class="header-subtitle">Gerencie informações de ajuda e contatos úteis para os membros</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary" onclick="openHelpInfoModal()">
+                                <span>➕</span>
+                                Adicionar Informação
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="help-info-table">
+                        <thead>
+                            <tr>
+                                <th>Categoria</th>
+                                <th>Título</th>
+                                <th>Descrição</th>
+                                <th>Ordem</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="help-info-tbody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-gray);">
+                                    Carregando informações...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Seção de Versões do App -->
+            <section id="app-versions-section" class="content-section">
+                <div class="header">
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Versões do Aplicativo</h1>
+                            <p class="header-subtitle">Gerencie versões e atualizações do app mobile</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary" onclick="openAppVersionModal()">
+                                <span>➕</span>
+                                Nova Versão
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="app-versions-table">
+                        <thead>
+                            <tr>
+                                <th>Versão</th>
+                                <th>Código</th>
+                                <th>Plataforma</th>
+                                <th>Obrigatória</th>
+                                <th>Ativa</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="app-versions-tbody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-gray);">
+                                    Carregando versões...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <section id="settings-section" class="content-section">
                 <div class="header">
                     <h1 class="header-title">Configurações Gerais</h1>
@@ -2480,6 +2573,10 @@
                     loadEvents();
                 } else if (sectionId === 'app-config') {
                     loadAppConfig();
+                } else if (sectionId === 'help-support') {
+                    loadHelpInfo();
+                } else if (sectionId === 'app-versions') {
+                    loadAppVersions();
                 }
             }
             
@@ -5929,6 +6026,391 @@
             printWindow.document.close();
             printWindow.print();
         }
+
+        // ========== FUNÇÕES DE AJUDA & SUPORTE ==========
+        let helpInfoList = [];
+        let editingHelpInfo = null;
+
+        async function loadHelpInfo() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/help-info`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    }
+                });
+                if (response.ok) {
+                    helpInfoList = await response.json();
+                    renderHelpInfoTable();
+                } else {
+                    console.error('Erro ao carregar informações de ajuda');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar informações de ajuda:', error);
+            }
+        }
+
+        function renderHelpInfoTable() {
+            const tbody = document.getElementById('help-info-tbody');
+            if (helpInfoList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-gray);">Nenhuma informação cadastrada</td></tr>';
+                return;
+            }
+            tbody.innerHTML = helpInfoList.map(info => `
+                <tr>
+                    <td>${info.category}</td>
+                    <td>${info.title}</td>
+                    <td>${info.description || '-'}</td>
+                    <td>${info.order}</td>
+                    <td><span class="badge ${info.isActive ? 'badge-success' : 'badge-danger'}">${info.isActive ? 'Ativo' : 'Inativo'}</span></td>
+                    <td>
+                        <button class="btn-icon" onclick="editHelpInfo('${info.id}')" title="Editar">✏️</button>
+                        <button class="btn-icon" onclick="deleteHelpInfo('${info.id}')" title="Excluir">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openHelpInfoModal(infoId = null) {
+            editingHelpInfo = infoId;
+            const modal = document.getElementById('helpInfoModal') || createHelpInfoModal();
+            modal.style.display = 'flex';
+            if (infoId) {
+                const info = helpInfoList.find(i => i.id === infoId);
+                if (info) {
+                    document.getElementById('helpInfoForm').category.value = info.category;
+                    document.getElementById('helpInfoForm').title.value = info.title;
+                    document.getElementById('helpInfoForm').description.value = info.description || '';
+                    document.getElementById('helpInfoForm').order.value = info.order;
+                    document.getElementById('helpInfoForm').isActive.checked = info.isActive;
+                    document.getElementById('helpInfoForm').items.value = JSON.stringify(info.items || [], null, 2);
+                }
+            } else {
+                document.getElementById('helpInfoForm').reset();
+                document.getElementById('helpInfoForm').items.value = '[]';
+            }
+        }
+
+        function createHelpInfoModal() {
+            const modal = document.createElement('div');
+            modal.id = 'helpInfoModal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal" style="max-width: 700px;">
+                    <div class="modal-header">
+                        <h3 class="modal-title">${editingHelpInfo ? 'Editar' : 'Adicionar'} Informação de Ajuda</h3>
+                        <button class="modal-close" onclick="closeModal('helpInfoModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="helpInfoForm" onsubmit="saveHelpInfo(event)">
+                            <div class="form-group">
+                                <label class="form-label">Categoria *</label>
+                                <input type="text" class="form-input" name="category" required placeholder="Ex: liga-do-bem, canil-municipal">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Título *</label>
+                                <input type="text" class="form-input" name="title" required placeholder="Ex: Liga do Bem">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Descrição</label>
+                                <textarea class="form-input" name="description" rows="3" placeholder="Descrição opcional"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Ordem de Exibição</label>
+                                <input type="number" class="form-input" name="order" value="0" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Itens (JSON) *</label>
+                                <textarea class="form-input" name="items" rows="10" required placeholder='[{"title": "Telefone", "subtitle": "(14) 99999-9999", "phone": "(14) 99999-9999", "icon": "call"}]'></textarea>
+                                <small style="color: var(--text-gray);">Formato JSON com array de itens (telefone, endereço, email, etc.)</small>
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" name="isActive" checked style="margin-right: 8px;">
+                                    Ativo
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('helpInfoModal')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" form="helpInfoForm">Salvar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            return modal;
+        }
+
+        async function saveHelpInfo(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = {
+                category: form.category.value,
+                title: form.title.value,
+                description: form.description.value || null,
+                order: parseInt(form.order.value) || 0,
+                isActive: form.isActive.checked,
+                items: JSON.parse(form.items.value)
+            };
+
+            try {
+                const url = editingHelpInfo 
+                    ? `${API_BASE_URL}/api/admin/help-info/${editingHelpInfo}`
+                    : `${API_BASE_URL}/api/admin/help-info`;
+                const method = editingHelpInfo ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    closeModal('helpInfoModal');
+                    await loadHelpInfo();
+                    showNotification('Informação salva com sucesso!', 'success');
+                } else {
+                    const error = await response.json();
+                    showNotification(error.error || 'Erro ao salvar informação', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar informação:', error);
+                showNotification('Erro ao salvar informação', 'error');
+            }
+        }
+
+        async function deleteHelpInfo(id) {
+            if (!confirm('Tem certeza que deseja excluir esta informação?')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/help-info/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    }
+                });
+                if (response.ok) {
+                    await loadHelpInfo();
+                    showNotification('Informação excluída com sucesso!', 'success');
+                } else {
+                    showNotification('Erro ao excluir informação', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao excluir informação:', error);
+                showNotification('Erro ao excluir informação', 'error');
+            }
+        }
+
+        function editHelpInfo(id) {
+            openHelpInfoModal(id);
+        }
+
+        // ========== FUNÇÕES DE VERSÕES DO APP ==========
+        let appVersionsList = [];
+        let editingAppVersion = null;
+
+        async function loadAppVersions() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/app/versions`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    }
+                });
+                if (response.ok) {
+                    appVersionsList = await response.json();
+                    renderAppVersionsTable();
+                } else {
+                    console.error('Erro ao carregar versões do app');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar versões do app:', error);
+            }
+        }
+
+        function renderAppVersionsTable() {
+            const tbody = document.getElementById('app-versions-tbody');
+            if (appVersionsList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-gray);">Nenhuma versão cadastrada</td></tr>';
+                return;
+            }
+            tbody.innerHTML = appVersionsList.map(version => {
+                const date = new Date(version.createdAt);
+                return `
+                    <tr>
+                        <td>${version.version}</td>
+                        <td>${version.versionCode}</td>
+                        <td>${version.platform || 'android'}</td>
+                        <td><span class="badge ${version.isMandatory ? 'badge-warning' : 'badge-secondary'}">${version.isMandatory ? 'Sim' : 'Não'}</span></td>
+                        <td><span class="badge ${version.isActive ? 'badge-success' : 'badge-danger'}">${version.isActive ? 'Ativa' : 'Inativa'}</span></td>
+                        <td>${date.toLocaleDateString('pt-BR')}</td>
+                        <td>
+                            <button class="btn-icon" onclick="editAppVersion('${version.id}')" title="Editar">✏️</button>
+                            <button class="btn-icon" onclick="deleteAppVersion('${version.id}')" title="Excluir">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openAppVersionModal(versionId = null) {
+            editingAppVersion = versionId;
+            const modal = document.getElementById('appVersionModal') || createAppVersionModal();
+            modal.style.display = 'flex';
+            if (versionId) {
+                const version = appVersionsList.find(v => v.id === versionId);
+                if (version) {
+                    document.getElementById('appVersionForm').version.value = version.version;
+                    document.getElementById('appVersionForm').versionCode.value = version.versionCode;
+                    document.getElementById('appVersionForm').platform.value = version.platform || 'android';
+                    document.getElementById('appVersionForm').minVersion.value = version.minVersion || '';
+                    document.getElementById('appVersionForm').apkUrl.value = version.apkUrl || '';
+                    document.getElementById('appVersionForm').releaseNotes.value = version.releaseNotes || '';
+                    document.getElementById('appVersionForm').isMandatory.checked = version.isMandatory;
+                    document.getElementById('appVersionForm').isActive.checked = version.isActive;
+                }
+            } else {
+                document.getElementById('appVersionForm').reset();
+            }
+        }
+
+        function createAppVersionModal() {
+            const modal = document.createElement('div');
+            modal.id = 'appVersionModal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal" style="max-width: 700px;">
+                    <div class="modal-header">
+                        <h3 class="modal-title">${editingAppVersion ? 'Editar' : 'Nova'} Versão do App</h3>
+                        <button class="modal-close" onclick="closeModal('appVersionModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="appVersionForm" onsubmit="saveAppVersion(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Versão *</label>
+                                    <input type="text" class="form-input" name="version" required placeholder="Ex: 1.2.3">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Código da Versão *</label>
+                                    <input type="number" class="form-input" name="versionCode" required placeholder="Ex: 123" min="1">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Plataforma *</label>
+                                <select class="form-input" name="platform" required>
+                                    <option value="android">Android</option>
+                                    <option value="ios">iOS</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Versão Mínima (Bloqueia versões antigas)</label>
+                                <input type="text" class="form-input" name="minVersion" placeholder="Ex: 1.2.0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">URL do APK *</label>
+                                <input type="url" class="form-input" name="apkUrl" required placeholder="https://exemplo.com/app.apk">
+                                <small style="color: var(--text-gray);">URL para download do APK</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Notas da Versão</label>
+                                <textarea class="form-input" name="releaseNotes" rows="5" placeholder="Descreva as novidades desta versão..."></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" name="isMandatory" style="margin-right: 8px;">
+                                        Atualização Obrigatória
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" name="isActive" checked style="margin-right: 8px;">
+                                        Versão Ativa
+                                    </label>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('appVersionModal')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" form="appVersionForm">Salvar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            return modal;
+        }
+
+        async function saveAppVersion(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = {
+                version: form.version.value,
+                versionCode: parseInt(form.versionCode.value),
+                platform: form.platform.value,
+                minVersion: form.minVersion.value || null,
+                apkUrl: form.apkUrl.value,
+                releaseNotes: form.releaseNotes.value || null,
+                isMandatory: form.isMandatory.checked,
+                isActive: form.isActive.checked
+            };
+
+            try {
+                const url = editingAppVersion 
+                    ? `${API_BASE_URL}/api/admin/app/versions/${editingAppVersion}`
+                    : `${API_BASE_URL}/api/admin/app/versions`;
+                const method = editingAppVersion ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    closeModal('appVersionModal');
+                    await loadAppVersions();
+                    showNotification('Versão salva com sucesso!', 'success');
+                } else {
+                    const error = await response.json();
+                    showNotification(error.error || 'Erro ao salvar versão', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar versão:', error);
+                showNotification('Erro ao salvar versão', 'error');
+            }
+        }
+
+        async function deleteAppVersion(id) {
+            if (!confirm('Tem certeza que deseja excluir esta versão?')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/app/versions/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    }
+                });
+                if (response.ok) {
+                    await loadAppVersions();
+                    showNotification('Versão excluída com sucesso!', 'success');
+                } else {
+                    showNotification('Erro ao excluir versão', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao excluir versão:', error);
+                showNotification('Erro ao excluir versão', 'error');
+            }
+        }
+
+        function editAppVersion(id) {
+            openAppVersionModal(id);
+        }
+
     </script>
 </body>
 </html>
