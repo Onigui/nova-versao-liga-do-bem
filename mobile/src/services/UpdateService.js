@@ -2,7 +2,7 @@ import { Alert, Linking, Platform } from 'react-native';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFetchBlob from 'rn-fetch-blob';
-import { PermissionsAndroid } from 'react-native';
+import { PermissionsAndroid, NativeModules } from 'react-native';
 
 // Importar versão do app.json dinamicamente
 // Nota: Em React Native, require pode não funcionar em runtime
@@ -168,43 +168,51 @@ class UpdateService {
         throw new Error('Arquivo APK não encontrado');
       }
 
-      // Método mais seguro: usar actionViewIntent SEM await para evitar crash
-      // Chamar de forma não-bloqueante
+      // SOLUÇÃO: Chamar actionViewIntent de forma que não cause crash
+      // Usando InteractionManager para garantir que está depois de todas as animações
+      const { InteractionManager } = require('react-native');
+      
       return new Promise((resolve, reject) => {
-        // Usar setTimeout para garantir que não bloqueia a UI
-        setTimeout(() => {
-          try {
-            // Chamar actionViewIntent de forma síncrona mas protegida
-            // Este método não retorna Promise, então não podemos await
-            RNFetchBlob.android.actionViewIntent(
-              filePath,
-              'application/vnd.android.package-archive',
-            );
-            
-            console.log('✅ Intent de instalação enviado');
-            
-            // Resolver após um pequeno delay para garantir que o Intent foi processado
-            setTimeout(() => {
-              resolve();
-            }, 300);
-          } catch (error) {
-            console.error('❌ Erro ao chamar actionViewIntent:', error);
-            // Se falhar, tentar com Linking
-            this._tryLinkingFallback(filePath)
-              .then(resolve)
-              .catch(() => {
-                reject(new Error(
-                  'Não foi possível abrir o instalador automaticamente.\n\n' +
-                  'O APK foi baixado com sucesso em:\n' +
-                  filePath.split('/').pop() + '\n\n' +
-                  'Por favor:\n' +
-                  '1. Abra o gerenciador de arquivos\n' +
-                  '2. Vá até a pasta Downloads\n' +
-                  '3. Toque no arquivo APK para instalar'
-                ));
-              });
-          }
-        }, 100);
+        // Aguardar todas as interações e animações terminarem
+        InteractionManager.runAfterInteractions(() => {
+          // Adicionar um pequeno delay extra
+          setTimeout(() => {
+            try {
+              console.log('📱 Chamando actionViewIntent...');
+              
+              // Chamar actionViewIntent - este método é void e não retorna Promise
+              // Por isso não podemos await, apenas chamar e confiar
+              RNFetchBlob.android.actionViewIntent(
+                filePath,
+                'application/vnd.android.package-archive',
+              );
+              
+              console.log('✅ Intent enviado (sem erro síncrono)');
+              
+              // Resolver após um delay para dar tempo do Intent ser processado
+              // Se houver crash nativo, ele ocorrerá antes disso, mas pelo menos
+              // tentamos capturar qualquer erro JavaScript
+              setTimeout(() => {
+                resolve();
+              }, 1000);
+              
+            } catch (error) {
+              // Este catch só pega erros JavaScript, não erros nativos
+              console.error('❌ Erro JavaScript ao instalar APK:', error);
+              // Tentar fallback
+              this._tryLinkingFallback(filePath)
+                .then(resolve)
+                .catch(() => {
+                  reject(new Error(
+                    'Não foi possível abrir o instalador.\n\n' +
+                    'O APK foi baixado em:\n' +
+                    'Downloads/' + filePath.split('/').pop() + '\n\n' +
+                    'Por favor, abra o gerenciador de arquivos e instale manualmente.'
+                  ));
+                });
+            }
+          }, 200);
+        });
       });
     } catch (error) {
       console.error('❌ Erro ao instalar APK:', error);
