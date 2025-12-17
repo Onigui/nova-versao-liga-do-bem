@@ -18,6 +18,8 @@ import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_CONFIG } from '../config/appConfig';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
+import UpdateService from '../services/UpdateService';
+import UpdateModal from '../components/UpdateModal';
 
 const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
 
@@ -120,7 +122,20 @@ export default function LoginScreen({navigation}) {
 
   useEffect(() => {
     loadLoginConfig();
+    checkForUpdates();
   }, []);
+
+  const checkForUpdates = async () => {
+    try {
+      const info = await UpdateService.checkForUpdates();
+      if (info && info.hasUpdate) {
+        setUpdateInfo(info);
+        setShowUpdateModal(true);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar atualizações:', error);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -326,6 +341,14 @@ export default function LoginScreen({navigation}) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <UpdateModal
+        visible={showUpdateModal}
+        updateInfo={updateInfo}
+        onDismiss={() => setShowUpdateModal(false)}
+        onUpdateComplete={() => {
+          setShowUpdateModal(false);
+        }}
+      />
     </LinearGradient>
   );
 }

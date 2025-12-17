@@ -9,10 +9,12 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {launchImageLibrary} from 'react-native-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -24,8 +26,9 @@ export default function AddPetScreen({navigation, route}) {
   const [species, setSpecies] = useState(pet?.species || '');
   const [breed, setBreed] = useState(pet?.breed || '');
   const [birthDate, setBirthDate] = useState(
-    pet?.birthDate ? new Date(pet.birthDate).toISOString().split('T')[0] : '',
+    pet?.birthDate ? new Date(pet.birthDate) : null,
   );
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState(pet?.gender || '');
   const [color, setColor] = useState(pet?.color || '');
   const [weight, setWeight] = useState(pet?.weight ? String(pet.weight) : '');
@@ -101,7 +104,7 @@ export default function AddPetScreen({navigation, route}) {
         name: name.trim(),
         species: species.trim(),
         breed: breed.trim() || null,
-        birthDate: birthDate || null,
+        birthDate: birthDate ? birthDate.toISOString().split('T')[0] : null,
         gender: gender.trim() || null,
         color: color.trim() || null,
         weight: weight ? parseFloat(weight) : null,
@@ -210,13 +213,30 @@ export default function AddPetScreen({navigation, route}) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Data de Nascimento</Text>
-            <TextInput
+            <TouchableOpacity
               style={styles.input}
-              value={birthDate}
-              onChangeText={setBirthDate}
-              placeholder="DD/MM/AAAA ou AAAA-MM-DD"
-              placeholderTextColor="#9CA3AF"
-            />
+              onPress={() => setShowDatePicker(true)}>
+              <Text style={birthDate ? styles.inputText : styles.inputPlaceholder}>
+                {birthDate
+                  ? birthDate.toLocaleDateString('pt-BR')
+                  : 'Toque para selecionar a data'}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={birthDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(Platform.OS === 'ios');
+                  if (selectedDate) {
+                    setBirthDate(selectedDate);
+                  }
+                }}
+                maximumDate={new Date()}
+              />
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -410,6 +430,17 @@ const styles = StyleSheet.create({
     color: '#111827',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inputText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  inputPlaceholder: {
+    fontSize: 16,
+    color: '#9CA3AF',
   },
   textArea: {
     height: 100,

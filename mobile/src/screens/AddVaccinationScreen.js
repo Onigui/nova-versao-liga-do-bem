@@ -8,9 +8,11 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -22,14 +24,16 @@ export default function AddVaccinationScreen({navigation, route}) {
   const [vaccineType, setVaccineType] = useState(vaccination?.vaccineType || '');
   const [applicationDate, setApplicationDate] = useState(
     vaccination?.applicationDate
-      ? new Date(vaccination.applicationDate).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0],
+      ? new Date(vaccination.applicationDate)
+      : new Date(),
   );
+  const [showApplicationDatePicker, setShowApplicationDatePicker] = useState(false);
   const [nextDoseDate, setNextDoseDate] = useState(
     vaccination?.nextDoseDate
-      ? new Date(vaccination.nextDoseDate).toISOString().split('T')[0]
-      : '',
+      ? new Date(vaccination.nextDoseDate)
+      : null,
   );
+  const [showNextDoseDatePicker, setShowNextDoseDatePicker] = useState(false);
   const [batchNumber, setBatchNumber] = useState(vaccination?.batchNumber || '');
   const [veterinarian, setVeterinarian] = useState(vaccination?.veterinarian || '');
   const [veterinarianCRMV, setVeterinarianCRMV] = useState(vaccination?.veterinarianCRMV || '');
@@ -51,8 +55,8 @@ export default function AddVaccinationScreen({navigation, route}) {
       const vaccinationData = {
         vaccineName: vaccineName.trim(),
         vaccineType: vaccineType.trim() || null,
-        applicationDate,
-        nextDoseDate: nextDoseDate || null,
+        applicationDate: applicationDate.toISOString().split('T')[0],
+        nextDoseDate: nextDoseDate ? nextDoseDate.toISOString().split('T')[0] : null,
         batchNumber: batchNumber.trim() || null,
         veterinarian: veterinarian.trim() || null,
         veterinarianCRMV: veterinarianCRMV.trim() || null,
@@ -138,26 +142,56 @@ export default function AddVaccinationScreen({navigation, route}) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Data de Aplicação *</Text>
-            <TextInput
+            <TouchableOpacity
               style={styles.input}
-              value={applicationDate}
-              onChangeText={setApplicationDate}
-              placeholder="AAAA-MM-DD"
-              placeholderTextColor="#9CA3AF"
-            />
-            <Text style={styles.helperText}>Formato: AAAA-MM-DD (ex: 2024-12-16)</Text>
+              onPress={() => setShowApplicationDatePicker(true)}>
+              <Text style={styles.inputText}>
+                {applicationDate.toLocaleDateString('pt-BR')}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+            </TouchableOpacity>
+            {showApplicationDatePicker && (
+              <DateTimePicker
+                value={applicationDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  setShowApplicationDatePicker(Platform.OS === 'ios');
+                  if (selectedDate) {
+                    setApplicationDate(selectedDate);
+                  }
+                }}
+                maximumDate={new Date()}
+              />
+            )}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Próxima Dose</Text>
-            <TextInput
+            <TouchableOpacity
               style={styles.input}
-              value={nextDoseDate}
-              onChangeText={setNextDoseDate}
-              placeholder="AAAA-MM-DD"
-              placeholderTextColor="#9CA3AF"
-            />
-            <Text style={styles.helperText}>Formato: AAAA-MM-DD (ex: 2025-12-16)</Text>
+              onPress={() => setShowNextDoseDatePicker(true)}>
+              <Text style={nextDoseDate ? styles.inputText : styles.inputPlaceholder}>
+                {nextDoseDate
+                  ? nextDoseDate.toLocaleDateString('pt-BR')
+                  : 'Toque para selecionar a data'}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+            </TouchableOpacity>
+            {showNextDoseDatePicker && (
+              <DateTimePicker
+                value={nextDoseDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  setShowNextDoseDatePicker(Platform.OS === 'ios');
+                  if (selectedDate) {
+                    setNextDoseDate(selectedDate);
+                  }
+                }}
+                minimumDate={applicationDate}
+              />
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -291,6 +325,17 @@ const styles = StyleSheet.create({
     color: '#111827',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inputText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  inputPlaceholder: {
+    fontSize: 16,
+    color: '#9CA3AF',
   },
   textArea: {
     height: 100,

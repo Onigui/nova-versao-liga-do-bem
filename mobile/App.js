@@ -5,9 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import NotificationService from './src/services/NotificationService';
-import UpdateService from './src/services/UpdateService';
-import UpdateModal from './src/components/UpdateModal';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Removido: UpdateService e UpdateModal movidos para LoginScreen
 
 // Navigation
 import { AuthStack, AppStack } from './src/navigation/AppNavigator';
@@ -37,12 +35,10 @@ function RootNavigator() {
 }
 
 export default function App() {
-  const [updateInfo, setUpdateInfo] = useState(null);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  // Removido: updateInfo e showUpdateModal movidos para LoginScreen
 
   useEffect(() => {
-    // Verificar atualizações ao iniciar o app
-    checkForUpdates();
+    // Removido: Verificação de atualizações agora é feita na tela de login
     // Configurar captura global de erros (se disponível)
     try {
       const ErrorUtils = require('react-native').ErrorUtils;
@@ -102,28 +98,7 @@ export default function App() {
     };
   }, []);
 
-  const checkForUpdates = async () => {
-    try {
-      const info = await UpdateService.checkForUpdates();
-      if (info && info.hasUpdate) {
-        setUpdateInfo(info);
-        // Só mostrar modal se não estiver bloqueado (bloqueado mostra imediatamente)
-        if (info.isBlocked) {
-          setShowUpdateModal(true);
-        } else {
-          // Para atualizações não obrigatórias, verificar se já foi mostrado hoje
-          const lastUpdateCheck = await AsyncStorage.getItem('lastUpdateCheck');
-          const today = new Date().toDateString();
-          if (lastUpdateCheck !== today) {
-            setShowUpdateModal(true);
-            await AsyncStorage.setItem('lastUpdateCheck', today);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao verificar atualizações:', error);
-    }
-  };
+  // Removido: checkForUpdates movido para LoginScreen
 
   try {
     return (
@@ -135,15 +110,7 @@ export default function App() {
                 <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
                 <RootNavigator />
               </NavigationContainer>
-              <UpdateModal
-                visible={showUpdateModal}
-                updateInfo={updateInfo}
-                onDismiss={() => setShowUpdateModal(false)}
-                onUpdateComplete={() => {
-                  setShowUpdateModal(false);
-                  // App será reiniciado após instalação
-                }}
-              />
+              {/* UpdateModal movido para LoginScreen */}
             </AuthProvider>
           </PaperProvider>
         </GestureHandlerRootView>
@@ -161,15 +128,7 @@ export default function App() {
                 <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
                 <RootNavigator />
               </NavigationContainer>
-              <UpdateModal
-                visible={showUpdateModal}
-                updateInfo={updateInfo}
-                onDismiss={() => setShowUpdateModal(false)}
-                onUpdateComplete={() => {
-                  setShowUpdateModal(false);
-                  // App será reiniciado após instalação
-                }}
-              />
+              {/* UpdateModal movido para LoginScreen */}
             </AuthProvider>
           </PaperProvider>
         </GestureHandlerRootView>

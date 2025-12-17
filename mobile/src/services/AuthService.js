@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationService from './NotificationService';
 import { API_BASE_PATH } from '../config/apiConfig';
@@ -20,6 +21,22 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     loadStoredAuth();
+    
+    // Logout automático quando o app é fechado completamente
+    // Fazer logout sempre que o app vai para background (força login ao retornar)
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // Fazer logout imediatamente quando o app vai para background
+        // Isso força o usuário a fazer login novamente ao retornar
+        logout();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription?.remove();
+    };
   }, []);
 
   const loadStoredAuth = async () => {

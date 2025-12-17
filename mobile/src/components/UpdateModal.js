@@ -135,7 +135,11 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
                 <TouchableOpacity
                   style={[styles.buttonPrimary, updateInfo.isMandatory && styles.buttonPrimaryFull]}
                   onPress={handleUpdate}>
-                  <Text style={styles.buttonPrimaryText}>Atualizar Agora</Text>
+                  <LinearGradient
+                    colors={['#8B5CF6', '#7C3AED']}
+                    style={styles.buttonPrimaryGradient}>
+                    <Text style={styles.buttonPrimaryText}>Atualizar Agora</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             )}
@@ -263,12 +267,16 @@ const styles = StyleSheet.create({
   buttonPrimaryFull: {
     flex: 1,
   },
+  buttonPrimaryGradient: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   buttonPrimaryText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
-    padding: 16,
   },
 });
 

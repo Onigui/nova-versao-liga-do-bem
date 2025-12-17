@@ -39,17 +39,34 @@ class UpdateService {
     }
 
     try {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-        {
-          title: 'Permissão de Armazenamento',
-          message: 'O app precisa de permissão para baixar atualizações',
-          buttonNeutral: 'Perguntar depois',
-          buttonNegative: 'Cancelar',
-          buttonPositive: 'OK',
-        },
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
+      // Para Android 13+ (API 33+), não precisa de WRITE_EXTERNAL_STORAGE
+      if (Platform.Version >= 33) {
+        // Usar REQUEST_INSTALL_PACKAGES para instalar APKs
+        const installPermission = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.REQUEST_INSTALL_PACKAGES,
+          {
+            title: 'Permissão de Instalação',
+            message: 'O app precisa de permissão para instalar atualizações',
+            buttonNeutral: 'Perguntar depois',
+            buttonNegative: 'Cancelar',
+            buttonPositive: 'OK',
+          },
+        );
+        return installPermission === PermissionsAndroid.RESULTS.GRANTED;
+      } else {
+        // Para Android < 13, usar WRITE_EXTERNAL_STORAGE
+        const storagePermission = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Permissão de Armazenamento',
+            message: 'O app precisa de permissão para baixar atualizações',
+            buttonNeutral: 'Perguntar depois',
+            buttonNegative: 'Cancelar',
+            buttonPositive: 'OK',
+          },
+        );
+        return storagePermission === PermissionsAndroid.RESULTS.GRANTED;
+      }
     } catch (err) {
       console.warn('Erro ao solicitar permissão:', err);
       return false;

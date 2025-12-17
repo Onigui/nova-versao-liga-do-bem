@@ -84,7 +84,7 @@ export default function InfoScreen({navigation}) {
   };
 
   const handleVeterinaryPartners = () => {
-    navigation.navigate('Parceiros', { filter: 'veterinária' });
+    navigation.navigate('Parceiros', { initialCategory: 'veterinária' });
   };
 
   const renderItem = (item) => {
@@ -227,10 +227,19 @@ export default function InfoScreen({navigation}) {
 
               {expandedSections[section.id] && (
                 <View style={styles.sectionContent}>
-                  {Array.isArray(section.items) ? (
-                    section.items.map((item, index) => renderItem({...item, id: `${section.id}-${index}`}))
+                  {Array.isArray(section.items) && section.items.length > 0 ? (
+                    section.items.map((item, index) => {
+                      // Garantir que o item tenha pelo menos título ou subtítulo
+                      if (!item.title && !item.subtitle && !item.description) {
+                        return null;
+                      }
+                      return renderItem({...item, id: `${section.id}-${index}`});
+                    }).filter(Boolean)
                   ) : (
-                    <Text style={styles.noItemsText}>Nenhum item disponível</Text>
+                    <View style={styles.emptyItemsContainer}>
+                      <Ionicons name="information-circle-outline" size={32} color="#9CA3AF" />
+                      <Text style={styles.noItemsText}>Nenhum item disponível</Text>
+                    </View>
                   )}
                 </View>
               )}
@@ -430,12 +439,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  emptyItemsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
   noItemsText: {
     fontSize: 14,
     color: '#9CA3AF',
     fontStyle: 'italic',
     textAlign: 'center',
-    padding: 20,
+    marginTop: 12,
   },
   veterinaryButton: {
     borderRadius: 12,
