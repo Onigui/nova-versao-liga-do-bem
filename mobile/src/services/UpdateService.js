@@ -168,64 +168,62 @@ class UpdateService {
         throw new Error('Arquivo APK não encontrado');
       }
 
-      // Método mais seguro: usar Linking que é mais estável e não causa crash
-      // Linking.openURL com file:// funciona bem no Android
-      try {
-        // Construir URI file://
-        const fileUri = `file://${filePath}`;
-        console.log('📱 Tentando abrir APK via Linking:', fileUri);
-        
-        // Usar Linking.openURL diretamente (mais confiável que actionViewIntent)
-        await Linking.openURL(fileUri);
-        console.log('✅ APK aberto via Linking com sucesso');
-        return; // Sucesso
-      } catch (linkingError) {
-        console.warn('⚠️ Erro ao usar Linking com file://, tentando actionViewIntent:', linkingError);
-        
-        // Fallback: tentar actionViewIntent (mas envolver em try-catch robusto)
-        try {
-          // Chamar actionViewIntent de forma segura
-          // Usar setTimeout para garantir que não causa crash síncrono
-          await new Promise((resolveIntent, rejectIntent) => {
+      // Método mais seguro: usar actionViewIntent SEM await para evitar crash
+      // Chamar de forma não-bloqueante
+      return new Promise((resolve, reject) => {
+        // Usar setTimeout para garantir que não bloqueia a UI
+        setTimeout(() => {
+          try {
+            // Chamar actionViewIntent de forma síncrona mas protegida
+            // Este método não retorna Promise, então não podemos await
+            RNFetchBlob.android.actionViewIntent(
+              filePath,
+              'application/vnd.android.package-archive',
+            );
+            
+            console.log('✅ Intent de instalação enviado');
+            
+            // Resolver após um pequeno delay para garantir que o Intent foi processado
             setTimeout(() => {
-              try {
-                const result = RNFetchBlob.android.actionViewIntent(
-                  filePath,
-                  'application/vnd.android.package-archive',
-                );
-                
-                // Se retornar Promise
-                if (result && typeof result.then === 'function') {
-                  result.then(() => {
-                    console.log('✅ Intent de instalação enviado com sucesso');
-                    resolveIntent();
-                  }).catch(rejectIntent);
-                } else {
-                  // Se não retornar Promise, assumir sucesso
-                  console.log('✅ Intent de instalação enviado (sem Promise)');
-                  resolveIntent();
-                }
-              } catch (syncError) {
-                rejectIntent(syncError);
-              }
-            }, 50);
-          });
-          
-          console.log('✅ APK aberto via actionViewIntent com sucesso');
-          return; // Sucesso
-        } catch (intentError) {
-          console.error('❌ Erro ao usar actionViewIntent:', intentError);
-          throw new Error(
-            'Não foi possível abrir o instalador automaticamente.\n\n' +
-            'O APK foi baixado com sucesso. Por favor:\n' +
-            '1. Abra o gerenciador de arquivos\n' +
-            '2. Vá até a pasta Downloads\n' +
-            '3. Toque no arquivo APK para instalar'
-          );
-        }
-      }
+              resolve();
+            }, 300);
+          } catch (error) {
+            console.error('❌ Erro ao chamar actionViewIntent:', error);
+            // Se falhar, tentar com Linking
+            this._tryLinkingFallback(filePath)
+              .then(resolve)
+              .catch(() => {
+                reject(new Error(
+                  'Não foi possível abrir o instalador automaticamente.\n\n' +
+                  'O APK foi baixado com sucesso em:\n' +
+                  filePath.split('/').pop() + '\n\n' +
+                  'Por favor:\n' +
+                  '1. Abra o gerenciador de arquivos\n' +
+                  '2. Vá até a pasta Downloads\n' +
+                  '3. Toque no arquivo APK para instalar'
+                ));
+              });
+          }
+        }, 100);
+      });
     } catch (error) {
       console.error('❌ Erro ao instalar APK:', error);
+      throw error;
+    }
+  }
+
+  async _tryLinkingFallback(filePath) {
+    try {
+      const fileUri = `file://${filePath}`;
+      const canOpen = await Linking.canOpenURL(fileUri);
+      if (canOpen) {
+        await Linking.openURL(fileUri);
+        console.log('✅ APK aberto via Linking');
+        return;
+      }
+      throw new Error('Linking não consegue abrir o arquivo');
+    } catch (error) {
+      console.warn('⚠️ Linking fallback falhou:', error);
       throw error;
     }
   }
