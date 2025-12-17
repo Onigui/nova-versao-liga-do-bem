@@ -38,17 +38,53 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       setDownloading(false);
       setInstalling(true);
 
-      // Instalar APK
-      await UpdateService.installAPK(filePath);
-
-      setInstalling(false);
-      if (onUpdateComplete) {
-        onUpdateComplete();
+      // Instalar APK com tratamento de erro robusto
+      try {
+        await UpdateService.installAPK(filePath);
+        // Se chegou aqui, a instalação foi iniciada com sucesso
+        // O app será fechado pelo sistema Android durante a instalação
+        setInstalling(false);
+        if (onUpdateComplete) {
+          onUpdateComplete();
+        }
+      } catch (installError) {
+        console.error('Erro na instalação:', installError);
+        setInstalling(false);
+        // Mostrar alerta com instruções
+        Alert.alert(
+          'Instalação Manual Necessária',
+          installError.message || 'Não foi possível abrir o instalador automaticamente.\n\nO APK foi baixado. Por favor, instale manualmente.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Fechar modal mas manter o app aberto
+                if (!updateInfo.isMandatory) {
+                  onDismiss();
+                }
+              },
+            },
+          ],
+        );
       }
     } catch (error) {
+      console.error('Erro no processo de atualização:', error);
       setDownloading(false);
       setInstalling(false);
-      Alert.alert('Erro', error.message || 'Erro ao baixar ou instalar atualização');
+      Alert.alert(
+        'Erro ao Baixar Atualização',
+        error.message || 'Não foi possível baixar a atualização. Verifique sua conexão e tente novamente.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (!updateInfo.isMandatory) {
+                onDismiss();
+              }
+            },
+          },
+        ],
+      );
     }
   };
 

@@ -4,14 +4,42 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFetchBlob from 'rn-fetch-blob';
 import { PermissionsAndroid } from 'react-native';
 
-// Versão atual do app (deve ser atualizada manualmente ou via package.json)
-// TODO: Pegar dinamicamente do package.json ou app.json
-const CURRENT_VERSION = '1.2.3';
-const CURRENT_VERSION_CODE = 3; // Incrementar a cada build
+// Importar versão do app.json dinamicamente
+// Nota: Em React Native, require pode não funcionar em runtime
+// Por isso, vamos usar valores do package.json que são incluídos no bundle
+let CURRENT_VERSION = '1.2.3';
+let CURRENT_VERSION_CODE = 5;
+
+// Tentar ler do app.json (pode não funcionar em runtime, mas tentamos)
+try {
+  // Em desenvolvimento, isso funciona
+  const appConfig = require('../../app.json');
+  if (appConfig && appConfig.version) {
+    CURRENT_VERSION = appConfig.version;
+  }
+  if (appConfig && appConfig.versionCode) {
+    CURRENT_VERSION_CODE = appConfig.versionCode;
+  }
+} catch (error) {
+  // Em produção, os valores são definidos no build.gradle
+  // Por isso mantemos os valores padrão que devem corresponder ao build.gradle
+  console.warn('Não foi possível ler app.json em runtime, usando valores padrão:', {
+    version: CURRENT_VERSION,
+    versionCode: CURRENT_VERSION_CODE,
+  });
+}
+
+// IMPORTANTE: Estes valores devem corresponder ao mobile/android/app/build.gradle
+// versionCode e versionName devem ser atualizados manualmente antes de cada build
 
 class UpdateService {
   async checkForUpdates() {
     try {
+      console.log('🔍 Verificando atualizações...', {
+        currentVersion: CURRENT_VERSION,
+        currentVersionCode: CURRENT_VERSION_CODE,
+      });
+
       const response = await fetch(
         `${API_BASE_PATH}/app/version?platform=android&version=${CURRENT_VERSION}&versionCode=${CURRENT_VERSION_CODE}`,
         {
@@ -24,11 +52,23 @@ class UpdateService {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('📱 Resposta da verificação de versão:', data);
+        
+        // Garantir que hasUpdate só seja true se realmente houver atualização
+        if (data.hasUpdate && data.latestVersion) {
+          const latestVersionCode = data.latestVersion.versionCode || 0;
+          // Verificar novamente no cliente para garantir
+          if (latestVersionCode <= CURRENT_VERSION_CODE) {
+            console.log('⚠️ Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...');
+            data.hasUpdate = false;
+          }
+        }
+        
         return data;
       }
       return null;
     } catch (error) {
-      console.error('Erro ao verificar atualizações:', error);
+      console.error('❌ Erro ao verificar atualizações:', error);
       return null;
     }
   }
@@ -119,29 +159,62 @@ class UpdateService {
         throw new Error('Instalação de APK só é suportada no Android');
       }
 
-      // Usar Intent do Android para instalar
-      const { config } = RNFetchBlob;
-      await config({
-        addAndroidDownloads: {
-          useDownloadManager: true,
-          notification: true,
-          title: 'Instalando atualização',
-          description: 'Aguarde enquanto instalamos a nova versão...',
-          mime: 'application/vnd.android.package-archive',
-          mediaScannable: true,
-        },
-      });
+      console.log('📦 Tentando instalar APK:', filePath);
 
-      // Abrir o arquivo APK para instalação
-      await RNFetchBlob.android.actionViewIntent(filePath, 'application/vnd.android.package-archive');
-    } catch (error) {
-      console.error('Erro ao instalar APK:', error);
-      // Fallback: tentar abrir com Linking
-      try {
-        await Linking.openURL(`file://${filePath}`);
-      } catch (linkError) {
-        throw new Error('Não foi possível instalar o APK automaticamente. Por favor, instale manualmente.');
+      // Verificar se o arquivo existe
+      const { fs } = RNFetchBlob;
+      const fileExists = await fs.exists(filePath);
+      if (!fileExists) {
+        throw new Error('Arquivo APK não encontrado');
       }
+
+      // Método mais simples e seguro: usar RNFetchBlob.android.actionViewIntent
+      // com tratamento de erro robusto
+      try {
+        // Usar actionViewIntent que é o método recomendado
+        await RNFetchBlob.android.actionViewIntent(
+          filePath,
+          'application/vnd.android.package-archive',
+        );
+        console.log('✅ Intent de instalação enviado com sucesso');
+      } catch (intentError) {
+        console.warn('⚠️ Erro ao usar actionViewIntent, tentando Linking:', intentError);
+        
+        // Fallback 1: Tentar com Linking usando file://
+        try {
+          const fileUri = `file://${filePath}`;
+          const canOpen = await Linking.canOpenURL(fileUri);
+          if (canOpen) {
+            await Linking.openURL(fileUri);
+            console.log('✅ APK aberto via Linking');
+          } else {
+            throw new Error('Linking não consegue abrir o arquivo');
+          }
+        } catch (linkingError) {
+          console.warn('⚠️ Erro ao usar Linking:', linkingError);
+          
+          // Fallback 2: Tentar com content:// URI (Android 7.0+)
+          try {
+            // Construir URI content:// usando FileProvider
+            const fileName = filePath.split('/').pop();
+            const contentUri = `content://com.ligadobem.botucatu.fileprovider/external_files/${fileName}`;
+            await Linking.openURL(contentUri);
+            console.log('✅ APK aberto via content:// URI');
+          } catch (contentError) {
+            console.error('❌ Todos os métodos falharam:', contentError);
+            throw new Error(
+              'Não foi possível abrir o instalador automaticamente.\n\n' +
+              'O APK foi baixado com sucesso. Por favor:\n' +
+              '1. Abra o gerenciador de arquivos\n' +
+              '2. Vá até a pasta Downloads\n' +
+              '3. Toque no arquivo APK para instalar'
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao instalar APK:', error);
+      throw error;
     }
   }
 

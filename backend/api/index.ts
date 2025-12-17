@@ -2507,6 +2507,7 @@ export default async function handler(req: any, res: any) {
           });
         }
 
+        // Comparação estrita: só há atualização se versionCode for MAIOR
         const hasUpdate = latestVersion.versionCode > currentVersionCode;
         const isMandatory = hasUpdate && latestVersion.isMandatory;
         
@@ -2524,20 +2525,30 @@ export default async function handler(req: any, res: any) {
           }
         }
 
+        // Log para debug
+        console.log('📱 Verificação de versão:', {
+          currentVersion,
+          currentVersionCode,
+          latestVersion: latestVersion.version,
+          latestVersionCode: latestVersion.versionCode,
+          hasUpdate,
+          isMandatory,
+        });
+
         return res.status(200).json({
           hasUpdate,
           isMandatory: isMandatory || isBlocked,
           isBlocked,
           currentVersion,
           currentVersionCode,
-          latestVersion: {
+          latestVersion: hasUpdate ? {
             version: latestVersion.version,
             versionCode: latestVersion.versionCode,
             apkUrl: latestVersion.apkUrl,
             apkSize: latestVersion.apkSize,
             releaseNotes: latestVersion.releaseNotes,
             minVersion: latestVersion.minVersion,
-          },
+          } : null,
         });
       } catch (error: any) {
         console.error('❌ Error loading app version:', error);
