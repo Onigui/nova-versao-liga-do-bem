@@ -578,3 +578,21 @@ model HelpInfo {
   @@unique([category])
   @@map("help_info")
 }
+
+// Modelo de versões do aplicativo para atualizações OTA
+model AppVersion {
+  id            String   @id @default(cuid())
+  version       String   @unique // Ex: "1.0.0"
+  versionCode   Int      @unique // Código numérico da versão (ex: 1, 2, 3)
+  minVersion    String?  // Versão mínima obrigatória (bloqueia versões antigas)
+  apkUrl        String?  // URL do APK para download
+  apkSize       Int?     // Tamanho do APK em bytes
+  releaseNotes  String?  // Notas da versão
+  isMandatory   Boolean  @default(false) // Se a atualização é obrigatória
+  isActive      Boolean  @default(true) // Se está disponível para download
+  platform      String   @default('android') // android, ios
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("app_versions")
+}

@@ -2477,6 +2477,402 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // ============ APP VERSION ENDPOINTS ============
+    
+    // GET current app version (public - for mobile app)
+    if (path === '/api/app/version' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const platform = req.query?.platform || 'android';
+        const currentVersion = req.query?.version || '1.0.0';
+        const currentVersionCode = parseInt(req.query?.versionCode || '1', 10);
+
+        // Buscar versão mais recente disponível
+        const latestVersion = await db.appVersion.findFirst({
+          where: {
+            platform,
+            isActive: true,
+          },
+          orderBy: { versionCode: 'desc' },
+        });
+
+        if (!latestVersion) {
+          return res.status(200).json({
+            hasUpdate: false,
+            currentVersion,
+            currentVersionCode,
+          });
+        }
+
+        const hasUpdate = latestVersion.versionCode > currentVersionCode;
+        const isMandatory = hasUpdate && latestVersion.isMandatory;
+        
+        // Verificar se a versão atual é menor que a mínima obrigatória
+        let isBlocked = false;
+        if (latestVersion.minVersion) {
+          const minVersionCode = await db.appVersion.findFirst({
+            where: {
+              platform,
+              version: latestVersion.minVersion,
+            },
+          });
+          if (minVersionCode && currentVersionCode < minVersionCode.versionCode) {
+            isBlocked = true;
+          }
+        }
+
+        return res.status(200).json({
+          hasUpdate,
+          isMandatory: isMandatory || isBlocked,
+          isBlocked,
+          currentVersion,
+          currentVersionCode,
+          latestVersion: {
+            version: latestVersion.version,
+            versionCode: latestVersion.versionCode,
+            apkUrl: latestVersion.apkUrl,
+            apkSize: latestVersion.apkSize,
+            releaseNotes: latestVersion.releaseNotes,
+            minVersion: latestVersion.minVersion,
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Error loading app version:', error);
+        if (error.message?.includes('does not exist') || error.code === 'P2021') {
+          return res.status(200).json({
+            hasUpdate: false,
+            currentVersion: req.query?.version || '1.0.0',
+            currentVersionCode: parseInt(req.query?.versionCode || '1', 10),
+          });
+        }
+        return res.status(500).json({ error: 'Error loading app version' });
+      }
+    }
+
+    // GET all app versions (admin)
+    if (path === '/api/admin/app/versions' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const platform = req.query?.platform || 'android';
+        const versions = await db.appVersion.findMany({
+          where: { platform },
+          orderBy: { versionCode: 'desc' },
+        });
+
+        return res.status(200).json({ versions });
+      } catch (error: any) {
+        console.error('❌ Error loading app versions:', error);
+        return res.status(500).json({ error: 'Error loading app versions' });
+      }
+    }
+
+    // POST app version (admin)
+    if (path === '/api/admin/app/versions' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const { version, versionCode, minVersion, apkUrl, apkSize, releaseNotes, isMandatory, platform } = body;
+        if (!version || !versionCode) {
+          return res.status(400).json({ error: 'Version and versionCode are required' });
+        }
+
+        // Desativar versões anteriores se esta for obrigatória
+        if (isMandatory) {
+          await db.appVersion.updateMany({
+            where: {
+              platform: platform || 'android',
+              isActive: true,
+            },
+            data: {
+              isActive: false,
+            },
+          });
+        }
+
+        const appVersion = await db.appVersion.create({
+          data: {
+            version,
+            versionCode,
+            minVersion: minVersion || null,
+            apkUrl: apkUrl || null,
+            apkSize: apkSize || null,
+            releaseNotes: releaseNotes || null,
+            isMandatory: isMandatory || false,
+            platform: platform || 'android',
+            isActive: true,
+          },
+        });
+
+        return res.status(201).json({ appVersion });
+      } catch (error: any) {
+        console.error('❌ Error creating app version:', error);
+        if (error.code === 'P2002') {
+          return res.status(400).json({ error: 'Version or versionCode already exists' });
+        }
+        return res.status(500).json({ error: 'Error creating app version' });
+      }
+    }
+
+    // PUT app version (admin)
+    if (path.startsWith('/api/admin/app/versions/') && method === 'PUT' && !path.includes('/upload')) {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const id = path.split('/api/admin/app/versions/')[1];
+        const { version, versionCode, minVersion, apkUrl, apkSize, releaseNotes, isMandatory, isActive, platform } = body;
+
+        const appVersion = await db.appVersion.update({
+          where: { id },
+          data: {
+            ...(version && { version }),
+            ...(versionCode !== undefined && { versionCode }),
+            ...(minVersion !== undefined && { minVersion }),
+            ...(apkUrl !== undefined && { apkUrl }),
+            ...(apkSize !== undefined && { apkSize }),
+            ...(releaseNotes !== undefined && { releaseNotes }),
+            ...(isMandatory !== undefined && { isMandatory }),
+            ...(isActive !== undefined && { isActive }),
+            ...(platform && { platform }),
+          },
+        });
+
+        return res.status(200).json({ appVersion });
+      } catch (error: any) {
+        console.error('❌ Error updating app version:', error);
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'App version not found' });
+        }
+        return res.status(500).json({ error: 'Error updating app version' });
+      }
+    }
+
+    // DELETE app version (admin)
+    if (path.startsWith('/api/admin/app/versions/') && method === 'DELETE' && !path.includes('/upload')) {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const id = path.split('/api/admin/app/versions/')[1];
+        await db.appVersion.delete({
+          where: { id },
+        });
+
+        return res.status(200).json({ message: 'App version deleted successfully' });
+      } catch (error: any) {
+        console.error('❌ Error deleting app version:', error);
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'App version not found' });
+        }
+        return res.status(500).json({ error: 'Error deleting app version' });
+      }
+    }
+
+    // POST upload APK (admin) - recebe base64 e faz upload para Cloudinary ou retorna URL
+    if (path.startsWith('/api/admin/app/versions/') && path.endsWith('/upload') && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const id = path.split('/api/admin/app/versions/')[1].replace('/upload', '');
+        const { apkBase64, apkUrl } = body;
+
+        // Se forneceu URL direta, usar ela
+        if (apkUrl) {
+          const appVersion = await db.appVersion.update({
+            where: { id },
+            data: { apkUrl },
+          });
+          return res.status(200).json({ appVersion, apkUrl });
+        }
+
+        // Se forneceu base64, fazer upload para Cloudinary
+        if (apkBase64) {
+          const cloudinaryInstance = getCloudinary();
+          if (!cloudinaryInstance) {
+            return res.status(503).json({
+              error: 'Cloudinary não configurado. Use apkUrl para fornecer URL direta do APK.',
+            });
+          }
+
+          try {
+            const uploadResult = await new Promise((resolve, reject) => {
+              cloudinaryInstance.uploader.upload(
+                apkBase64,
+                {
+                  folder: 'liga-do-bem/app-versions',
+                  public_id: `app_${id}_${Date.now()}`,
+                  overwrite: true,
+                  resource_type: 'raw', // APK é arquivo raw, não imagem
+                },
+                (error: any, result: any) => {
+                  if (error) reject(error);
+                  else resolve(result);
+                }
+              );
+            });
+
+            const uploadedUrl = (uploadResult as any).secure_url;
+            const fileSize = (uploadResult as any).bytes;
+
+            // Desativar versões anteriores
+            const currentVersion = await db.appVersion.findUnique({ where: { id } });
+            if (currentVersion?.isMandatory) {
+              await db.appVersion.updateMany({
+                where: {
+                  platform: currentVersion.platform,
+                  id: { not: id },
+                  isActive: true,
+                },
+                data: { isActive: false },
+              });
+            }
+
+            const appVersion = await db.appVersion.update({
+              where: { id },
+              data: {
+                apkUrl: uploadedUrl,
+                apkSize: fileSize,
+              },
+            });
+
+            return res.status(200).json({
+              appVersion,
+              apkUrl: uploadedUrl,
+              apkSize: fileSize,
+            });
+          } catch (uploadError: any) {
+            console.error('❌ Erro ao fazer upload do APK:', uploadError);
+            return res.status(500).json({
+              error: 'Erro ao fazer upload do APK',
+              details: uploadError.message,
+            });
+          }
+        }
+
+        return res.status(400).json({ error: 'apkBase64 ou apkUrl é obrigatório' });
+      } catch (error: any) {
+        console.error('❌ Error uploading APK:', error);
+        return res.status(500).json({ error: 'Error uploading APK' });
+      }
+    }
+
     // POST logs from mobile app
     if (path === '/api/logs' && method === 'POST') {
       try {
