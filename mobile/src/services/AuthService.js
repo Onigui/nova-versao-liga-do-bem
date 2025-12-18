@@ -20,6 +20,9 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
 
   useEffect(() => {
+    // Marcar que o app está ativo (para detectar fechamento completo)
+    AsyncStorage.setItem('app_is_active', 'true').catch(() => {});
+    
     loadStoredAuth();
     
     // Sistema de timeout inteligente para logout
@@ -69,6 +72,9 @@ export const AuthProvider = ({ children }) => {
         // App foi realmente para background (home button, etc)
         backgroundTime = Date.now();
         
+        // Manter flag de app ativo (ainda não foi completamente fechado)
+        AsyncStorage.setItem('app_is_active', 'true').catch(() => {});
+        
         // Limpar timeout anterior se existir
         if (timeoutId) {
           clearTimeout(timeoutId);
@@ -77,6 +83,8 @@ export const AuthProvider = ({ children }) => {
         // Criar timeout para logout após inatividade
         timeoutId = setTimeout(() => {
           console.log('⏰ Timeout de inatividade atingido, fazendo logout...');
+          // Marcar que app foi fechado (timeout de inatividade)
+          AsyncStorage.setItem('app_was_closed', 'true').catch(() => {});
           logout();
         }, INACTIVITY_TIMEOUT);
       } else if (nextAppState === 'active') {
@@ -111,6 +119,23 @@ export const AuthProvider = ({ children }) => {
 
   const loadStoredAuth = async () => {
     try {
+      // Verificar se o app foi completamente fechado
+      // Quando o app é completamente fechado, o flag 'app_is_active' não existe
+      const appIsActive = await AsyncStorage.getItem('app_is_active');
+      
+      if (appIsActive !== 'true') {
+        // App foi completamente fechado (flag não existe)
+        console.log('🔒 App foi completamente fechado (flag não encontrado), limpando sessão...');
+        // Limpar sessão
+        await AsyncStorage.removeItem('auth_token');
+        await AsyncStorage.removeItem('user_data');
+        await AsyncStorage.removeItem('app_was_closed');
+        setToken(null);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      
       const storedToken = await AsyncStorage.getItem('auth_token');
       const storedUser = await AsyncStorage.getItem('user_data');
       
@@ -236,6 +261,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('auth_token');
       await AsyncStorage.removeItem('user_data');
       await AsyncStorage.removeItem('guest_mode'); // Limpar caso exista de versões antigas
+      await AsyncStorage.removeItem('app_is_active'); // Limpar flag de app ativo
       setToken(null);
       setUser(null);
     } catch (error) {

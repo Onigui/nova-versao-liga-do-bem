@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import BiometricService from '../services/BiometricService';
 const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
 
 export default function LoginScreen({navigation}) {
-  const {login} = useAuth();
+  const {login, isAuthenticated} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -140,6 +140,18 @@ export default function LoginScreen({navigation}) {
     return unsubscribe;
   }, [navigation]);
 
+  // Solicitar biometria automaticamente quando biometria está habilitada
+  useEffect(() => {
+    if (biometricAvailable && biometricEnabled && !loading && !isAuthenticated) {
+      // Aguardar um pouco para garantir que a tela está totalmente carregada
+      const timer = setTimeout(() => {
+        console.log('🔐 Biometria habilitada, solicitando autenticação automática...');
+        handleBiometricLogin();
+      }, 800); // Aumentar delay para garantir que tudo está carregado
+      return () => clearTimeout(timer);
+    }
+  }, [biometricAvailable, biometricEnabled, loading, isAuthenticated, handleBiometricLogin]);
+
   const checkBiometric = async () => {
     try {
       const { available, biometryType: type } = await BiometricService.isAvailable();
@@ -163,22 +175,33 @@ export default function LoginScreen({navigation}) {
 
   const checkForUpdates = async () => {
     try {
-      console.log('🔍 Verificando atualizações...');
+      console.log('🔍 [LoginScreen] Verificando atualizações após login...');
       const info = await UpdateService.checkForUpdates();
-      console.log('📱 Resultado da verificação:', info);
+      console.log('📱 [LoginScreen] Resultado da verificação:', JSON.stringify(info, null, 2));
       
-      if (info && info.hasUpdate) {
-        console.log('✅ Atualização disponível, mostrando modal...');
+      if (info && info.hasUpdate && info.latestVersion) {
+        console.log('✅ [LoginScreen] Atualização disponível, mostrando modal...', {
+          currentVersion: info.currentVersion,
+          currentVersionCode: info.currentVersionCode,
+          latestVersion: info.latestVersion.version,
+          latestVersionCode: info.latestVersion.versionCode,
+        });
         setUpdateInfo(info);
         // Usar setTimeout para garantir que o modal aparece após navegação
         setTimeout(() => {
+          console.log('📱 [LoginScreen] Abrindo modal de atualização...');
           setShowUpdateModal(true);
-        }, 1000);
+        }, 1500); // Aumentar delay para garantir que a navegação foi concluída
       } else {
-        console.log('ℹ️ Nenhuma atualização disponível');
+        console.log('ℹ️ [LoginScreen] Nenhuma atualização disponível', {
+          hasInfo: !!info,
+          hasUpdate: info?.hasUpdate,
+          hasLatestVersion: !!info?.latestVersion,
+        });
       }
     } catch (error) {
-      console.error('❌ Erro ao verificar atualizações:', error);
+      console.error('❌ [LoginScreen] Erro ao verificar atualizações:', error);
+      console.error('❌ [LoginScreen] Stack trace:', error.stack);
     }
   };
 
@@ -257,7 +280,7 @@ export default function LoginScreen({navigation}) {
     }
   };
 
-  const handleBiometricLogin = async () => {
+  const handleBiometricLogin = useCallback(async () => {
     setLoading(true);
     try {
       const result = await BiometricService.authenticate();
@@ -274,15 +297,21 @@ export default function LoginScreen({navigation}) {
           await checkForUpdates();
         }
       } else {
-        Alert.alert('Erro', result.error || 'Autenticação biométrica falhou');
+        // Não mostrar alerta se o usuário cancelou (comportamento padrão de apps bancários)
+        if (result.error && !result.error.includes('cancel')) {
+          Alert.alert('Erro', result.error || 'Autenticação biométrica falhou');
+        }
       }
     } catch (error) {
       console.error('Erro no login biométrico:', error);
-      Alert.alert('Erro', 'Não foi possível fazer login biométrico');
+      // Não mostrar alerta se o usuário cancelou
+      if (error.message && !error.message.includes('cancel')) {
+        Alert.alert('Erro', 'Não foi possível fazer login biométrico');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [login]);
 
 
   return (

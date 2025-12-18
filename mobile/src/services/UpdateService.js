@@ -64,6 +64,7 @@ class UpdateService {
         headers: {
           'Content-Type': 'application/json',
         },
+        cache: 'no-store', // Forçar buscar sempre da API
       });
 
       console.log('📡 Status da resposta:', response.status, response.statusText);
