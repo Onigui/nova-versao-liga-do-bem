@@ -1809,7 +1809,7 @@
                                 <th>Código</th>
                                 <th>Plataforma</th>
                                 <th>Obrigatória</th>
-                                <th>Ativa</th>
+                                <th>Status</th>
                                 <th>APK</th>
                                 <th>Data</th>
                                 <th>Ações</th>
@@ -6363,11 +6363,6 @@
             editingAppVersion = versionId;
             const modal = document.getElementById('appVersionModal') || createAppVersionModal();
             modal.style.display = 'flex';
-            // Resetar estado de upload
-            clearApkFile();
-            currentVersionIdForUpload = null;
-            document.getElementById('uploadApkButton').style.display = 'none';
-            
             if (versionId) {
                 const version = appVersionsList.find(v => v.id === versionId);
                 if (version) {
@@ -6375,17 +6370,10 @@
                     document.getElementById('appVersionForm').versionCode.value = version.versionCode;
                     document.getElementById('appVersionForm').platform.value = version.platform || 'android';
                     document.getElementById('appVersionForm').minVersion.value = version.minVersion || '';
+                    document.getElementById('appVersionForm').apkUrl.value = version.apkUrl || '';
                     document.getElementById('appVersionForm').releaseNotes.value = version.releaseNotes || '';
                     document.getElementById('appVersionForm').isMandatory.checked = version.isMandatory;
                     document.getElementById('appVersionForm').isActive.checked = version.isActive;
-                    
-                    // Se já tem APK, mostrar info
-                    if (version.apkUrl) {
-                        document.getElementById('apkUrlHidden').value = version.apkUrl;
-                        document.getElementById('apkFileInfo').style.display = 'block';
-                        document.getElementById('apkFileName').textContent = 'APK já hospedado';
-                        document.getElementById('apkFileSize').textContent = version.apkSize ? `(${(version.apkSize / 1024 / 1024).toFixed(2)} MB)` : '';
-                    }
                 }
             } else {
                 document.getElementById('appVersionForm').reset();
@@ -6426,24 +6414,21 @@
                                 <input type="text" class="form-input" name="minVersion" placeholder="Ex: 1.2.0">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">APK do Aplicativo</label>
-                                <div style="margin-bottom: 8px;">
-                                    <input type="file" class="form-input" id="apkFileInput" accept=".apk" onchange="handleApkFileSelect(event)" style="padding: 8px;">
-                                    <small style="color: var(--text-gray); display: block; margin-top: 4px;">
-                                        Selecione o arquivo APK para upload. O arquivo será hospedado automaticamente.
-                                    </small>
-                                    <div id="apkFileInfo" style="margin-top: 8px; padding: 8px; background: #F3F4F6; border-radius: 4px; display: none;">
-                                        <span id="apkFileName"></span>
-                                        <span id="apkFileSize" style="color: var(--text-gray); margin-left: 8px;"></span>
-                                        <button type="button" onclick="clearApkFile()" style="margin-left: 8px; color: #EF4444; background: none; border: none; cursor: pointer;">✕</button>
-                                    </div>
-                                </div>
-                                <div style="margin-top: 8px; padding: 8px; background: #FEF3C7; border-radius: 4px; border-left: 3px solid #F59E0B;">
-                                    <small style="color: #92400E;">
-                                        💡 <strong>Importante:</strong> Primeiro salve a versão, depois faça o upload do APK usando o botão "Upload APK" que aparecerá após salvar.
+                                <label class="form-label">URL do APK *</label>
+                                <input type="url" class="form-input" name="apkUrl" id="apkUrlInput" required placeholder="https://github.com/.../releases/download/.../app.apk">
+                                <small style="color: var(--text-gray); display: block; margin-top: 4px;">
+                                    Cole aqui o link direto do APK gerado pelo GitHub Actions ou qualquer URL de download.
+                                </small>
+                                <div style="margin-top: 8px; padding: 12px; background: #EFF6FF; border-radius: 4px; border-left: 3px solid #3B82F6;">
+                                    <small style="color: #1E40AF;">
+                                        💡 <strong>Como obter o link do GitHub Actions:</strong><br>
+                                        1. Vá até a aba "Actions" do repositório<br>
+                                        2. Clique na build mais recente<br>
+                                        3. Role até "Artifacts"<br>
+                                        4. Clique no APK e copie o link de download<br>
+                                        5. Cole o link aqui
                                     </small>
                                 </div>
-                                <input type="hidden" name="apkUrl" id="apkUrlHidden">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Notas da Versão</label>
@@ -6468,9 +6453,6 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('appVersionModal')">Cancelar</button>
                         <button type="submit" class="btn btn-primary" form="appVersionForm">Salvar Versão</button>
-                        <button type="button" id="uploadApkButton" class="btn btn-success" onclick="uploadApkFile()" style="display: none; margin-left: 8px;">
-                            📤 Upload APK
-                        </button>
                     </div>
                 </div>
             `;
@@ -6478,49 +6460,27 @@
             return modal;
         }
 
-        let selectedApkFile = null;
-        let currentVersionIdForUpload = null;
-
-        function handleApkFileSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            if (!file.name.endsWith('.apk')) {
-                showNotification('Por favor, selecione um arquivo APK válido', 'error');
-                event.target.value = '';
-                return;
-            }
-
-            selectedApkFile = file;
-            const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
-            
-            document.getElementById('apkFileInfo').style.display = 'block';
-            document.getElementById('apkFileName').textContent = file.name;
-            document.getElementById('apkFileSize').textContent = `(${fileSizeMB} MB)`;
-        }
-
-        function clearApkFile() {
-            selectedApkFile = null;
-            document.getElementById('apkFileInput').value = '';
-            document.getElementById('apkFileInfo').style.display = 'none';
-            document.getElementById('uploadApkButton').style.display = 'none';
-        }
 
         async function saveAppVersion(event) {
             event.preventDefault();
             const form = event.target;
             
-            // Remover apkUrl do formData se não foi fornecido (será feito upload depois)
             const formData = {
                 version: form.version.value,
                 versionCode: parseInt(form.versionCode.value),
                 platform: form.platform.value,
                 minVersion: form.minVersion.value || null,
-                apkUrl: null, // Sempre null - será feito upload depois
+                apkUrl: form.apkUrl.value.trim(), // URL direta do GitHub Actions ou qualquer link
                 releaseNotes: form.releaseNotes.value || null,
                 isMandatory: form.isMandatory.checked,
                 isActive: form.isActive.checked
             };
+
+            // Validar URL
+            if (!formData.apkUrl || !formData.apkUrl.startsWith('http')) {
+                showNotification('Por favor, forneça uma URL válida para o APK', 'error');
+                return;
+            }
 
             try {
                 const url = editingAppVersion 
@@ -6539,20 +6499,9 @@
                 });
 
                 if (response.ok) {
-                    const data = await response.json();
-                    const versionId = data.appVersion?.id || editingAppVersion;
-                    
+                    closeModal('appVersionModal');
+                    await loadAppVersions();
                     showNotification('Versão salva com sucesso!', 'success');
-                    
-                    // Se tem arquivo APK selecionado, mostrar botão de upload
-                    if (selectedApkFile && versionId) {
-                        currentVersionIdForUpload = versionId;
-                        document.getElementById('uploadApkButton').style.display = 'inline-block';
-                        showNotification('Agora clique em "Upload APK" para enviar o arquivo', 'info');
-                    } else {
-                        closeModal('appVersionModal');
-                        await loadAppVersions();
-                    }
                 } else {
                     const error = await response.json();
                     showNotification(error.error || 'Erro ao salvar versão', 'error');
@@ -6561,121 +6510,6 @@
                 console.error('Erro ao salvar versão:', error);
                 showNotification('Erro ao salvar versão', 'error');
             }
-        }
-
-        async function uploadApkFile() {
-            if (!selectedApkFile) {
-                showNotification('Nenhum arquivo APK selecionado', 'error');
-                return;
-            }
-
-            if (!currentVersionIdForUpload) {
-                showNotification('Erro: ID da versão não encontrado. Salve a versão novamente.', 'error');
-                return;
-            }
-
-            const uploadButton = document.getElementById('uploadApkButton');
-            uploadButton.disabled = true;
-            uploadButton.textContent = '⏳ Enviando...';
-
-            try {
-                console.log('📤 Iniciando upload do APK...', {
-                    fileName: selectedApkFile.name,
-                    fileSize: selectedApkFile.size,
-                    fileSizeMB: (selectedApkFile.size / 1024 / 1024).toFixed(2)
-                });
-
-                // Passo 1: Obter URL de upload assinada do backend
-                console.log('🔑 Obtendo URL de upload assinada...');
-                const urlResponse = await fetch(`${API_BASE_URL}/api/admin/app/versions/${currentVersionIdForUpload}/upload-url`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
-                        'x-admin-token': localStorage.getItem('admin_token')
-                    }
-                });
-
-                if (!urlResponse.ok) {
-                    throw new Error('Erro ao obter URL de upload');
-                }
-
-                const urlData = await urlResponse.json();
-                console.log('✅ URL de upload obtida:', urlData);
-
-                // Passo 2: Fazer upload direto para Cloudinary usando FormData
-                const formData = new FormData();
-                formData.append('file', selectedApkFile);
-                formData.append('api_key', urlData.apiKey);
-                formData.append('timestamp', urlData.timestamp);
-                formData.append('signature', urlData.signature);
-                formData.append('folder', urlData.folder);
-                formData.append('public_id', urlData.publicId);
-                formData.append('resource_type', 'raw');
-                formData.append('overwrite', 'true');
-
-                console.log('📤 Fazendo upload direto para Cloudinary...');
-                const uploadResponse = await fetch(urlData.uploadUrl, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!uploadResponse.ok) {
-                    const errorText = await uploadResponse.text();
-                    console.error('❌ Erro no upload para Cloudinary:', errorText);
-                    throw new Error('Erro ao fazer upload para Cloudinary');
-                }
-
-                const uploadResult = await uploadResponse.json();
-                console.log('✅ Upload para Cloudinary concluído:', uploadResult);
-
-                // Passo 3: Atualizar versão no banco com a URL do APK
-                console.log('💾 Atualizando versão no banco de dados...');
-                const updateResponse = await fetch(`${API_BASE_URL}/api/admin/app/versions/${currentVersionIdForUpload}/upload`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
-                        'x-admin-token': localStorage.getItem('admin_token')
-                    },
-                    body: JSON.stringify({
-                        apkUrl: uploadResult.secure_url,
-                        apkSize: uploadResult.bytes
-                    })
-                });
-
-                if (updateResponse.ok) {
-                    const data = await updateResponse.json();
-                    console.log('✅ Versão atualizada:', data);
-                    
-                    showNotification('APK enviado e hospedado com sucesso!', 'success');
-                    clearApkFile();
-                    closeModal('appVersionModal');
-                    await loadAppVersions();
-                } else {
-                    const error = await updateResponse.json();
-                    console.error('❌ Erro ao atualizar versão:', error);
-                    showNotification('APK foi enviado, mas houve erro ao atualizar a versão. Tente novamente.', 'error');
-                }
-            } catch (error) {
-                console.error('❌ Erro ao fazer upload:', error);
-                showNotification('Erro ao fazer upload do APK: ' + error.message, 'error');
-            } finally {
-                uploadButton.disabled = false;
-                uploadButton.textContent = '📤 Upload APK';
-            }
-        }
-
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    // Remover o prefixo "data:application/vnd.android.package-archive;base64,"
-                    const base64 = reader.result.split(',')[1];
-                    resolve(base64);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
         }
 
         async function deleteAppVersion(id) {

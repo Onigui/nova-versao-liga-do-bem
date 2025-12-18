@@ -2490,12 +2490,13 @@ export default async function handler(req: any, res: any) {
         const currentVersion = req.query?.version || '1.0.0';
         const currentVersionCode = parseInt(req.query?.versionCode || '1', 10);
 
-        // Buscar versão mais recente disponível COM APK
-        // Sempre retornar a última versão que tem APK hospedado
+        // Buscar versão mais recente disponível COM APK e que está ATIVA
+        // IMPORTANTE: Só retorna versões que estão marcadas como isActive=true
+        // Isso permite controle: apenas versões liberadas pelo admin aparecem
         const latestVersion = await db.appVersion.findFirst({
           where: {
             platform,
-            isActive: true,
+            isActive: true, // Apenas versões ativas (liberadas pelo admin)
             apkUrl: { not: null }, // Apenas versões com APK disponível
           },
           orderBy: { versionCode: 'desc' },
