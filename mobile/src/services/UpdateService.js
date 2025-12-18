@@ -147,7 +147,7 @@ class UpdateService {
   }
 
   async downloadAPK(apkUrl, onProgress) {
-    console.log('📥 Iniciando download do APK...');
+    console.log('📥 Iniciando download do APK em background...');
     console.log('📥 URL:', apkUrl);
     
     try {
@@ -167,14 +167,6 @@ class UpdateService {
       }
       console.log('✅ Permissão concedida');
 
-      // Usar InteractionManager para garantir que a UI está pronta
-      const { InteractionManager } = require('react-native');
-      await new Promise((resolve) => {
-        InteractionManager.runAfterInteractions(() => {
-          setTimeout(resolve, 300); // Delay adicional para garantir estabilidade
-        });
-      });
-
       const { config, fs } = RNFetchBlob;
       const downloads = fs.dirs.DownloadDir;
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;
@@ -183,77 +175,72 @@ class UpdateService {
       console.log('📁 Caminho do arquivo:', filePath);
       console.log('📁 Pasta Downloads:', downloads);
 
-      // Usar DownloadManager do Android (mais seguro e estável)
-      console.log('⚙️ Configurando download usando DownloadManager...');
+      // Usar DownloadManager do Android para download em background
+      console.log('⚙️ Configurando download em background...');
       
-      // Criar configuração mais simples e segura
       const downloadConfig = config({
-        fileCache: false, // Não usar cache para evitar problemas
+        fileCache: false,
         path: filePath,
         addAndroidDownloads: {
-          useDownloadManager: true, // Usar DownloadManager nativo do Android
-          notification: true,
+          useDownloadManager: true, // DownloadManager nativo (funciona em background)
+          notification: true, // Mostra notificação durante download
           title: 'Liga do Bem - Atualização',
           description: 'Baixando nova versão do aplicativo...',
           mime: 'application/vnd.android.package-archive',
           mediaScannable: true,
-          path: filePath, // Caminho explícito
+          path: filePath,
+          // Importante: permitir download em background
+          showNotification: true,
         },
       });
 
-      console.log('🌐 Iniciando requisição HTTP...');
-      
-      // Adicionar delay antes de iniciar o download para evitar crash
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('🌐 Iniciando download...');
       
       const downloadTask = downloadConfig.fetch('GET', apkUrl);
 
-      // Configurar progresso com tratamento de erro
-      let progressHandler = null;
-      try {
-        progressHandler = downloadTask.progress((received, total) => {
-          try {
-            const progress = received / total;
+      // Configurar progresso
+      if (onProgress && typeof onProgress === 'function') {
+        try {
+          downloadTask.progress((received, total) => {
+            const progress = total > 0 ? received / total : 0;
             const percent = Math.round(progress * 100);
             console.log(`📊 Progresso: ${percent}% (${received}/${total} bytes)`);
-            if (onProgress && typeof onProgress === 'function') {
-              // Usar setTimeout para evitar atualizações muito frequentes
-              setTimeout(() => {
-                try {
-                  onProgress(progress);
-                } catch (progressError) {
-                  console.warn('Erro ao atualizar progresso:', progressError);
-                }
-              }, 100);
+            
+            // Atualizar progresso (throttle para não sobrecarregar UI)
+            if (percent % 5 === 0 || progress === 1) {
+              try {
+                onProgress(progress);
+              } catch (progressError) {
+                console.warn('Erro ao atualizar progresso:', progressError);
+              }
             }
-          } catch (progressError) {
-            console.warn('Erro no handler de progresso:', progressError);
-          }
-        });
-      } catch (progressError) {
-        console.warn('Erro ao configurar progresso (continuando mesmo assim):', progressError);
+          });
+        } catch (progressError) {
+          console.warn('Erro ao configurar progresso (continuando mesmo assim):', progressError);
+        }
       }
 
       console.log('⏳ Aguardando conclusão do download...');
       
-      // Aguardar download com timeout
+      // Aguardar download com timeout (10 minutos para arquivos grandes)
       const downloadPromise = downloadTask;
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout no download (5 minutos)')), 5 * 60 * 1000);
+        setTimeout(() => reject(new Error('Timeout no download (10 minutos)')), 10 * 60 * 1000);
       });
       
       const res = await Promise.race([downloadPromise, timeoutPromise]);
       const finalPath = res.path();
-      
+
       console.log('✅ Download concluído!');
       console.log('📁 Arquivo salvo em:', finalPath);
       
       // Verificar se arquivo existe (com retry)
       let fileExists = false;
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 5; i++) {
         try {
           fileExists = await fs.exists(finalPath);
           if (fileExists) break;
+          console.log(`⏳ Aguardando arquivo... (tentativa ${i + 1}/5)`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (checkError) {
           console.warn(`Tentativa ${i + 1} de verificar arquivo falhou:`, checkError);
@@ -267,6 +254,11 @@ class UpdateService {
       const fileInfo = await fs.stat(finalPath);
       console.log('📊 Tamanho do arquivo:', fileInfo.size, 'bytes');
       
+      // Notificar progresso completo
+      if (onProgress && typeof onProgress === 'function') {
+        onProgress(1.0);
+      }
+      
       return finalPath;
     } catch (error) {
       console.error('❌ Erro ao baixar APK:', error);
@@ -276,20 +268,79 @@ class UpdateService {
         console.error('❌ Stack:', error.stack);
       }
       
-      // Log adicional se for erro de rede
-      if (error.message?.includes('Network') || error.message?.includes('fetch')) {
-        console.error('❌ Erro de rede detectado. Verifique a conexão e a URL.');
-      }
-      
       throw error;
     }
   }
 
-  // Método removido - causa crash nativo
-  // A instalação agora é manual pelo usuário
   async installAPK(filePath) {
-    // Este método não é mais usado, mas mantido para compatibilidade
-    throw new Error('Instalação automática desabilitada para evitar crash. Use openDownloadsFolder()');
+    if (Platform.OS !== 'android') {
+      throw new Error('Instalação de APK só é suportada no Android');
+    }
+
+    try {
+      console.log('📦 Iniciando instalação do APK...');
+      console.log('📁 Caminho do arquivo:', filePath);
+
+      // Verificar permissão de instalação
+      const hasInstallPermission = await this.requestStoragePermission();
+      if (!hasInstallPermission) {
+        throw new Error('Permissão de instalação negada');
+      }
+
+      // Usar FileProvider para criar URI segura
+      const { fs } = RNFetchBlob;
+      
+      // Verificar se arquivo existe
+      const fileExists = await fs.exists(filePath);
+      if (!fileExists) {
+        throw new Error('Arquivo APK não encontrado');
+      }
+
+      // Obter package name do AndroidManifest
+      // O package name é com.ligadobem.botucatu conforme build.gradle
+      const packageName = 'com.ligadobem.botucatu';
+      const authority = `${packageName}.fileprovider`;
+      
+      console.log('🔐 Autoridade do FileProvider:', authority);
+
+      // Usar RNFetchBlob para instalar APK via Intent nativo
+      // Isso usa o FileProvider automaticamente
+      try {
+        console.log('📱 Abrindo instalador nativo do Android via RNFetchBlob...');
+        
+        // RNFetchBlob.android.actionViewIntent usa FileProvider automaticamente
+        // e cria o Intent correto para instalar APK
+        await RNFetchBlob.android.actionViewIntent(
+          filePath,
+          'application/vnd.android.package-archive'
+        );
+        
+        console.log('✅ Instalação iniciada com sucesso!');
+      } catch (intentError) {
+        console.warn('⚠️ Erro com actionViewIntent, tentando método alternativo...', intentError);
+        
+        // Método alternativo: usar Linking com file://
+        // Isso funciona em versões mais antigas do Android
+        try {
+          const fileUri = `file://${filePath}`;
+          console.log('📱 Tentando abrir via Linking...', fileUri);
+          
+          const canOpen = await Linking.canOpenURL(fileUri);
+          if (canOpen) {
+            await Linking.openURL(fileUri);
+            console.log('✅ Instalação iniciada via Linking');
+          } else {
+            throw new Error('Não foi possível abrir o arquivo para instalação');
+          }
+        } catch (linkingError) {
+          console.error('❌ Erro com Linking:', linkingError);
+          throw new Error(`Não foi possível iniciar a instalação: ${linkingError.message}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao instalar APK:', error);
+      throw error;
+    }
   }
 
   // Novo método: Abrir pasta Downloads sem tentar instalar APK

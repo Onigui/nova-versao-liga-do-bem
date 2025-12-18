@@ -16,6 +16,10 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import UpdateService from '../services/UpdateService';
 
 export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateComplete}) {
+  const [downloading, setDownloading] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [error, setError] = useState(null);
 
   const handleUpdate = async () => {
     if (!updateInfo?.latestVersion?.apkUrl) {
@@ -36,79 +40,72 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       return;
     }
 
-    // SOLUÇÃO: Abrir no navegador (mais confiável para URLs do GitHub)
-    // O navegador vai gerenciar o download automaticamente
+    setError(null);
+    setDownloadProgress(0);
+    setDownloading(true);
+
     try {
-      console.log('🌐 Abrindo URL no navegador...');
+      console.log('📥 Iniciando download em background...');
       
-      // Para URLs do GitHub, adicionar parâmetro para forçar download
-      let urlToOpen = apkUrl;
-      if (apkUrl.includes('github.com') || apkUrl.includes('githubusercontent.com')) {
-        // URLs do GitHub funcionam melhor quando abertas no navegador
-        // O navegador vai detectar que é um arquivo APK e iniciar o download
-        console.log('📦 URL do GitHub detectada, abrindo no navegador...');
-      }
+      // Fazer download em background
+      const filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
+        setDownloadProgress(progress);
+        console.log(`📊 Progresso do download: ${Math.round(progress * 100)}%`);
+      });
 
-      // Tentar abrir no navegador padrão
-      const canOpen = await Linking.canOpenURL(urlToOpen);
-      console.log('✅ canOpenURL:', canOpen);
+      console.log('✅ Download concluído! Iniciando instalação...');
+      setDownloading(false);
+      setInstalling(true);
 
-      if (canOpen) {
-        try {
-          // Abrir no navegador (mais confiável que tentar download direto)
-          await Linking.openURL(urlToOpen);
-          console.log('✅ URL aberta no navegador com sucesso');
-          
-          Alert.alert(
-            'Download Iniciado',
-            'O download será iniciado no navegador.\n\n' +
-            'Após o download:\n' +
-            '1. Toque na notificação de download\n' +
-            '2. Ou abra o arquivo na pasta Downloads\n' +
-            '3. Clique em "Instalar"',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  // Fechar modal após abrir URL
-                  setTimeout(() => {
-                    if (!updateInfo.isMandatory) {
-                      onDismiss();
-                    }
-                  }, 500);
-                },
-              },
-            ],
-          );
-          return;
-        } catch (openError) {
-          console.error('❌ Erro ao abrir URL no navegador:', openError);
-          // Continuar para fallback
-        }
-      }
+      // Aguardar um pouco para garantir que o arquivo está totalmente salvo
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Fallback: Se não conseguir abrir, oferecer copiar link
+      // Instalar APK automaticamente
+      await UpdateService.installAPK(filePath);
+      
+      console.log('✅ Instalação iniciada!');
+      
+      // Fechar modal e notificar sucesso
       Alert.alert(
-        'Abrir no Navegador',
-        'Não foi possível abrir automaticamente.\n\n' +
-        'Opções:\n' +
-        '1. Copiar o link e colar no navegador\n' +
-        '2. Abrir manualmente no navegador',
+        'Download Concluído!',
+        'A atualização foi baixada com sucesso.\n\n' +
+        'O instalador do Android será aberto automaticamente.\n\n' +
+        'Siga as instruções na tela para instalar a nova versão.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setInstalling(false);
+              if (onUpdateComplete) {
+                onUpdateComplete();
+              }
+              if (!updateInfo.isMandatory) {
+                onDismiss();
+              }
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      console.error('❌ Erro durante atualização:', error);
+      setError(error.message || 'Erro desconhecido');
+      setDownloading(false);
+      setInstalling(false);
+      
+      Alert.alert(
+        'Erro na Atualização',
+        `Não foi possível baixar ou instalar a atualização.\n\n` +
+        `Erro: ${error.message}\n\n` +
+        `Tente novamente ou copie o link para baixar manualmente.`,
         [
           {
             text: 'Copiar Link',
             onPress: async () => {
               try {
                 await Clipboard.setString(apkUrl);
-                Alert.alert(
-                  'Link Copiado!',
-                  'O link foi copiado para a área de transferência.\n\n' +
-                  'Cole no navegador para baixar a atualização.',
-                  [{ text: 'OK' }],
-                );
+                Alert.alert('Sucesso', 'Link copiado! Cole no navegador para baixar.');
               } catch (clipError) {
                 console.error('Erro ao copiar:', clipError);
-                Alert.alert('Erro', 'Não foi possível copiar o link.');
               }
             },
           },
@@ -127,34 +124,6 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
           },
         ],
         { cancelable: !updateInfo.isMandatory },
-      );
-    } catch (error) {
-      console.error('❌ Erro ao processar URL:', error);
-      Alert.alert(
-        'Erro',
-        `Não foi possível abrir a URL.\n\n` +
-        `Por favor, copie o link e cole no navegador:\n\n${apkUrl.substring(0, 60)}...`,
-        [
-          {
-            text: 'Copiar Link',
-            onPress: async () => {
-              try {
-                await Clipboard.setString(apkUrl);
-                Alert.alert('Sucesso', 'Link copiado! Cole no navegador.');
-              } catch (clipError) {
-                console.error('Erro ao copiar:', clipError);
-              }
-            },
-          },
-          {
-            text: 'OK',
-            onPress: () => {
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
-            },
-          },
-        ],
       );
     }
   };
@@ -209,8 +178,38 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
               </View>
             )}
 
+            {/* Progresso do Download */}
+            {downloading && (
+              <View style={styles.progressContainer}>
+                <Text style={styles.progressText}>
+                  Baixando atualização... {Math.round(downloadProgress * 100)}%
+                </Text>
+                <View style={styles.progressBar}>
+                  <View style={[styles.progressBarFill, { width: `${downloadProgress * 100}%` }]} />
+                </View>
+              </View>
+            )}
+
+            {/* Status de Instalação */}
+            {installing && (
+              <View style={styles.progressContainer}>
+                <ActivityIndicator size="large" color="#8B5CF6" />
+                <Text style={styles.progressText}>
+                  Preparando instalação...
+                </Text>
+              </View>
+            )}
+
+            {/* Mensagem de Erro */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={20} color="#EF4444" />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
             <View style={styles.buttons}>
-              {!updateInfo.isMandatory && (
+              {!updateInfo.isMandatory && !downloading && !installing && (
                 <TouchableOpacity
                   style={styles.buttonSecondary}
                   onPress={handleLater}>
@@ -218,12 +217,29 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.buttonPrimary, updateInfo.isMandatory && styles.buttonPrimaryFull]}
-                onPress={handleUpdate}>
+                style={[
+                  styles.buttonPrimary, 
+                  (updateInfo.isMandatory || downloading || installing) && styles.buttonPrimaryFull,
+                  (downloading || installing) && styles.buttonDisabled
+                ]}
+                onPress={handleUpdate}
+                disabled={downloading || installing}>
                 <LinearGradient
-                  colors={['#8B5CF6', '#7C3AED']}
+                  colors={downloading || installing ? ['#9CA3AF', '#6B7280'] : ['#8B5CF6', '#7C3AED']}
                   style={styles.buttonPrimaryGradient}>
-                  <Text style={styles.buttonPrimaryText}>Baixar Atualização</Text>
+                  {downloading ? (
+                    <>
+                      <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.buttonPrimaryText}>Baixando...</Text>
+                    </>
+                  ) : installing ? (
+                    <>
+                      <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.buttonPrimaryText}>Instalando...</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.buttonPrimaryText}>Baixar e Instalar</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -325,6 +341,24 @@ const styles = StyleSheet.create({
   progressBarFill: {
     height: '100%',
     backgroundColor: '#8B5CF6',
+    borderRadius: 4,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#DC2626',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttons: {
     flexDirection: 'row',

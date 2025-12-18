@@ -128,8 +128,8 @@ export default function LoginScreen({navigation}) {
 
   useEffect(() => {
     loadLoginConfig();
-    checkForUpdates();
     checkBiometric();
+    // Removido checkForUpdates() daqui - será feito após login
   }, []);
 
   const checkBiometric = async () => {
@@ -177,6 +177,10 @@ export default function LoginScreen({navigation}) {
       if (!result.success) {
         Alert.alert('Erro', result.error || 'Email ou senha incorretos');
       } else {
+        // Após login bem-sucedido, verificar atualizações
+        console.log('✅ Login bem-sucedido, verificando atualizações...');
+        await checkForUpdates();
+        
         // Após login bem-sucedido, oferecer para habilitar biometria se disponível
         if (biometricAvailable && !biometricEnabled) {
           Alert.alert(
@@ -223,6 +227,10 @@ export default function LoginScreen({navigation}) {
         const loginResult = await login(result.email, result.password);
         if (!loginResult.success) {
           Alert.alert('Erro', loginResult.error || 'Erro ao fazer login');
+        } else {
+          // Após login bem-sucedido, verificar atualizações
+          console.log('✅ Login biométrico bem-sucedido, verificando atualizações...');
+          await checkForUpdates();
         }
       } else {
         Alert.alert('Erro', result.error || 'Autenticação biométrica falhou');
