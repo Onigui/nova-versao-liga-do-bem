@@ -36,43 +36,49 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       );
 
       setDownloading(false);
-      setInstalling(true);
-
-      // Instalar APK com tratamento de erro robusto
-      // Usar setTimeout para garantir que não bloqueia a UI
-      setTimeout(() => {
-        // Chamar installAPK sem await para evitar bloqueio
-        UpdateService.installAPK(filePath)
-          .then(() => {
-            console.log('✅ Instalação iniciada com sucesso');
-            // Não atualizar estado aqui pois o app pode ser fechado
-            // O Android fecha o app quando abre o instalador
-          })
-          .catch((installError) => {
-            console.error('Erro na instalação:', installError);
-            setInstalling(false);
-            // Mostrar alerta com instruções
-            Alert.alert(
-              'Instalação Manual Necessária',
-              installError.message || 'Não foi possível abrir o instalador automaticamente.\n\nO APK foi baixado. Por favor, instale manualmente.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    // Fechar modal mas manter o app aberto
-                    if (!updateInfo.isMandatory) {
-                      onDismiss();
-                    }
-                  },
-                },
-              ],
-            );
-          });
-      }, 300); // Delay maior para garantir que tudo está pronto
+      
+      // SOLUÇÃO: Não tentar instalar automaticamente (causa crash)
+      // Apenas informar o usuário onde o arquivo foi salvo
+      const fileName = filePath.split('/').pop();
+      
+      Alert.alert(
+        'Download Concluído!',
+        `A nova versão foi baixada com sucesso!\n\n` +
+        `Arquivo: ${fileName}\n` +
+        `Local: Pasta Downloads\n\n` +
+        `Para instalar:\n` +
+        `1. Abra o gerenciador de arquivos\n` +
+        `2. Vá até a pasta Downloads\n` +
+        `3. Toque no arquivo "${fileName}"\n` +
+        `4. Clique em "Instalar"`,
+        [
+          {
+            text: 'Abrir Downloads',
+            onPress: async () => {
+              try {
+                // Tentar abrir a pasta Downloads (sem tentar instalar o APK)
+                await UpdateService.openDownloadsFolder();
+              } catch (error) {
+                console.error('Erro ao abrir pasta Downloads:', error);
+              }
+              if (!updateInfo.isMandatory) {
+                onDismiss();
+              }
+            },
+          },
+          {
+            text: 'OK',
+            onPress: () => {
+              if (!updateInfo.isMandatory) {
+                onDismiss();
+              }
+            },
+          },
+        ],
+      );
     } catch (error) {
       console.error('Erro no processo de atualização:', error);
       setDownloading(false);
-      setInstalling(false);
       Alert.alert(
         'Erro ao Baixar Atualização',
         error.message || 'Não foi possível baixar a atualização. Verifique sua conexão e tente novamente.',

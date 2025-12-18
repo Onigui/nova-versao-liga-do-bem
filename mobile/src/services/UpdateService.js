@@ -153,86 +153,46 @@ class UpdateService {
     }
   }
 
+  // Método removido - causa crash nativo
+  // A instalação agora é manual pelo usuário
   async installAPK(filePath) {
-    try {
-      if (Platform.OS !== 'android') {
-        throw new Error('Instalação de APK só é suportada no Android');
-      }
-
-      console.log('📦 Tentando instalar APK:', filePath);
-
-      // Verificar se o arquivo existe
-      const { fs } = RNFetchBlob;
-      const fileExists = await fs.exists(filePath);
-      if (!fileExists) {
-        throw new Error('Arquivo APK não encontrado');
-      }
-
-      // SOLUÇÃO: Chamar actionViewIntent de forma que não cause crash
-      // Usando InteractionManager para garantir que está depois de todas as animações
-      const { InteractionManager } = require('react-native');
-      
-      return new Promise((resolve, reject) => {
-        // Aguardar todas as interações e animações terminarem
-        InteractionManager.runAfterInteractions(() => {
-          // Adicionar um pequeno delay extra
-          setTimeout(() => {
-            try {
-              console.log('📱 Chamando actionViewIntent...');
-              
-              // Chamar actionViewIntent - este método é void e não retorna Promise
-              // Por isso não podemos await, apenas chamar e confiar
-              RNFetchBlob.android.actionViewIntent(
-                filePath,
-                'application/vnd.android.package-archive',
-              );
-              
-              console.log('✅ Intent enviado (sem erro síncrono)');
-              
-              // Resolver após um delay para dar tempo do Intent ser processado
-              // Se houver crash nativo, ele ocorrerá antes disso, mas pelo menos
-              // tentamos capturar qualquer erro JavaScript
-              setTimeout(() => {
-                resolve();
-              }, 1000);
-              
-            } catch (error) {
-              // Este catch só pega erros JavaScript, não erros nativos
-              console.error('❌ Erro JavaScript ao instalar APK:', error);
-              // Tentar fallback
-              this._tryLinkingFallback(filePath)
-                .then(resolve)
-                .catch(() => {
-                  reject(new Error(
-                    'Não foi possível abrir o instalador.\n\n' +
-                    'O APK foi baixado em:\n' +
-                    'Downloads/' + filePath.split('/').pop() + '\n\n' +
-                    'Por favor, abra o gerenciador de arquivos e instale manualmente.'
-                  ));
-                });
-            }
-          }, 200);
-        });
-      });
-    } catch (error) {
-      console.error('❌ Erro ao instalar APK:', error);
-      throw error;
-    }
+    // Este método não é mais usado, mas mantido para compatibilidade
+    throw new Error('Instalação automática desabilitada para evitar crash. Use openDownloadsFolder()');
   }
 
-  async _tryLinkingFallback(filePath) {
+  // Novo método: Abrir pasta Downloads sem tentar instalar APK
+  async openDownloadsFolder() {
     try {
-      const fileUri = `file://${filePath}`;
-      const canOpen = await Linking.canOpenURL(fileUri);
-      if (canOpen) {
-        await Linking.openURL(fileUri);
-        console.log('✅ APK aberto via Linking');
-        return;
+      if (Platform.OS !== 'android') {
+        throw new Error('Apenas Android suportado');
       }
-      throw new Error('Linking não consegue abrir o arquivo');
+
+      const { fs } = RNFetchBlob;
+      const downloads = fs.dirs.DownloadDir;
+      
+      // Tentar abrir a pasta Downloads usando Intent do Android
+      // Isso é mais seguro que tentar instalar o APK diretamente
+      try {
+        // Usar Intent para abrir o gerenciador de arquivos na pasta Downloads
+        const Intent = require('react-native').NativeModules.IntentAndroid;
+        if (Intent) {
+          Intent.openURL(`content://com.android.externalstorage.documents/document/primary:Download`);
+        } else {
+          // Fallback: tentar abrir com Linking usando content://
+          await Linking.openURL(`content://com.android.externalstorage.documents/document/primary:Download`);
+        }
+      } catch (intentError) {
+        // Se falhar, tentar abrir com file://
+        try {
+          await Linking.openURL(`file://${downloads}`);
+        } catch (linkingError) {
+          console.warn('Não foi possível abrir pasta Downloads automaticamente');
+          // Não lançar erro, apenas logar
+        }
+      }
     } catch (error) {
-      console.warn('⚠️ Linking fallback falhou:', error);
-      throw error;
+      console.error('Erro ao abrir pasta Downloads:', error);
+      // Não lançar erro para não quebrar o fluxo
     }
   }
 
