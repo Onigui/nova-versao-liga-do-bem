@@ -13,8 +13,6 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import UpdateService from '../services/UpdateService';
 
 export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateComplete}) {
-  const [downloading, setDownloading] = useState(false);
-  const [progress, setProgress] = useState(0);
 
   const handleUpdate = async () => {
     if (!updateInfo?.latestVersion?.apkUrl) {
@@ -22,108 +20,67 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       return;
     }
 
-    // Adicionar delay antes de iniciar para garantir que a UI está estável
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    setDownloading(true);
-    setProgress(0);
-
-    try {
-      // Usar InteractionManager para garantir que a UI está pronta
-      const { InteractionManager } = require('react-native');
-      await new Promise((resolve) => {
-        InteractionManager.runAfterInteractions(() => {
-          setTimeout(resolve, 200);
-        });
-      });
-
-      // Baixar APK com tratamento robusto de erros
-      const filePath = await UpdateService.downloadAPK(
-        updateInfo.latestVersion.apkUrl,
-        (progressValue) => {
-          // Atualizar progresso de forma segura
-          try {
-            setProgress(progressValue);
-          } catch (progressError) {
-            console.warn('Erro ao atualizar progresso na UI:', progressError);
-          }
+    // SOLUÇÃO RADICAL: Não usar RNFetchBlob (causa crash)
+    // Abrir URL diretamente no navegador/DownloadManager do sistema
+    const { Linking } = require('react-native');
+    
+    Alert.alert(
+      'Atualização Disponível',
+      `Uma nova versão (${updateInfo.latestVersion.version}) está disponível.\n\n` +
+      `O download será iniciado no navegador ou gerenciador de downloads do seu dispositivo.\n\n` +
+      `Após o download:\n` +
+      `1. Abra o arquivo baixado\n` +
+      `2. Clique em "Instalar"\n` +
+      `3. Volte ao aplicativo`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+          onPress: () => {
+            if (!updateInfo.isMandatory) {
+              onDismiss();
+            }
+          },
         },
-      );
-
-      // Delay antes de mostrar o alerta (garantir que download está completo)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setDownloading(false);
-      
-      // SOLUÇÃO: Não tentar instalar automaticamente (causa crash)
-      // Apenas informar o usuário onde o arquivo foi salvo
-      const fileName = filePath.split('/').pop();
-      
-      // Delay antes de mostrar alerta
-      setTimeout(() => {
-        Alert.alert(
-          'Download Concluído!',
-          `A nova versão foi baixada com sucesso!\n\n` +
-          `Arquivo: ${fileName}\n` +
-          `Local: Pasta Downloads\n\n` +
-          `Para instalar:\n` +
-          `1. Abra o gerenciador de arquivos\n` +
-          `2. Vá até a pasta Downloads\n` +
-          `3. Toque no arquivo "${fileName}"\n` +
-          `4. Clique em "Instalar"`,
-          [
-            {
-              text: 'Abrir Downloads',
-              onPress: async () => {
-                try {
-                  // Delay antes de abrir pasta
-                  await new Promise(resolve => setTimeout(resolve, 300));
-                  // Tentar abrir a pasta Downloads (sem tentar instalar o APK)
-                  await UpdateService.openDownloadsFolder();
-                } catch (error) {
-                  console.error('Erro ao abrir pasta Downloads:', error);
-                }
-                if (!updateInfo.isMandatory) {
-                  setTimeout(() => onDismiss(), 500);
-                }
-              },
-            },
-            {
-              text: 'OK',
-              onPress: () => {
-                if (!updateInfo.isMandatory) {
-                  setTimeout(() => onDismiss(), 500);
-                }
-              },
-            },
-          ],
-        );
-      }, 300);
-    } catch (error) {
-      console.error('Erro no processo de atualização:', error);
-      
-      // Delay antes de mostrar erro
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      setDownloading(false);
-      
-      setTimeout(() => {
-        Alert.alert(
-          'Erro ao Baixar Atualização',
-          error.message || 'Não foi possível baixar a atualização. Verifique sua conexão e tente novamente.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                if (!updateInfo.isMandatory) {
-                  setTimeout(() => onDismiss(), 500);
-                }
-              },
-            },
-          ],
-        );
-      }, 300);
-    }
+        {
+          text: 'Baixar Agora',
+          onPress: async () => {
+            try {
+              // Abrir URL diretamente - o sistema Android vai gerenciar o download
+              const canOpen = await Linking.canOpenURL(updateInfo.latestVersion.apkUrl);
+              if (canOpen) {
+                await Linking.openURL(updateInfo.latestVersion.apkUrl);
+                // Fechar modal após abrir URL
+                setTimeout(() => {
+                  if (!updateInfo.isMandatory) {
+                    onDismiss();
+                  }
+                }, 1000);
+              } else {
+                Alert.alert('Erro', 'Não foi possível abrir a URL de download');
+              }
+            } catch (error) {
+              console.error('Erro ao abrir URL:', error);
+              Alert.alert(
+                'Erro',
+                'Não foi possível iniciar o download. Tente copiar o link manualmente.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      if (!updateInfo.isMandatory) {
+                        onDismiss();
+                      }
+                    },
+                  },
+                ],
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: !updateInfo.isMandatory },
+    );
   };
 
   const handleLater = () => {
@@ -176,40 +133,24 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
               </View>
             )}
 
-            {downloading && (
-              <View style={styles.progressContainer}>
-                <ActivityIndicator size="large" color="#8B5CF6" />
-                <Text style={styles.progressText}>
-                  Baixando... {Math.round(progress * 100)}%
-                </Text>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[styles.progressBarFill, {width: `${progress * 100}%`}]}
-                  />
-                </View>
-              </View>
-            )}
-
-            {!downloading && (
-              <View style={styles.buttons}>
-                {!updateInfo.isMandatory && (
-                  <TouchableOpacity
-                    style={styles.buttonSecondary}
-                    onPress={handleLater}>
-                    <Text style={styles.buttonSecondaryText}>Depois</Text>
-                  </TouchableOpacity>
-                )}
+            <View style={styles.buttons}>
+              {!updateInfo.isMandatory && (
                 <TouchableOpacity
-                  style={[styles.buttonPrimary, updateInfo.isMandatory && styles.buttonPrimaryFull]}
-                  onPress={handleUpdate}>
-                  <LinearGradient
-                    colors={['#8B5CF6', '#7C3AED']}
-                    style={styles.buttonPrimaryGradient}>
-                    <Text style={styles.buttonPrimaryText}>Atualizar Agora</Text>
-                  </LinearGradient>
+                  style={styles.buttonSecondary}
+                  onPress={handleLater}>
+                  <Text style={styles.buttonSecondaryText}>Depois</Text>
                 </TouchableOpacity>
-              </View>
-            )}
+              )}
+              <TouchableOpacity
+                style={[styles.buttonPrimary, updateInfo.isMandatory && styles.buttonPrimaryFull]}
+                onPress={handleUpdate}>
+                <LinearGradient
+                  colors={['#8B5CF6', '#7C3AED']}
+                  style={styles.buttonPrimaryGradient}>
+                  <Text style={styles.buttonPrimaryText}>Baixar Atualização</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
