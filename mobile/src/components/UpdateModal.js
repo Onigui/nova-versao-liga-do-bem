@@ -24,7 +24,7 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
     }
 
     const apkUrl = updateInfo.latestVersion.apkUrl.trim();
-    console.log('🔗 Tentando abrir URL:', apkUrl);
+    console.log('🔗 URL do APK:', apkUrl);
 
     // Validar URL
     if (!apkUrl.startsWith('http://') && !apkUrl.startsWith('https://')) {
@@ -36,67 +36,76 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       return;
     }
 
+    // SOLUÇÃO: Abrir no navegador (mais confiável para URLs do GitHub)
+    // O navegador vai gerenciar o download automaticamente
     try {
-      // Método 1: Tentar abrir diretamente
-      console.log('📱 Tentando abrir URL com Linking.openURL...');
-      const canOpen = await Linking.canOpenURL(apkUrl);
-      console.log('✅ canOpenURL result:', canOpen);
+      console.log('🌐 Abrindo URL no navegador...');
+      
+      // Para URLs do GitHub, adicionar parâmetro para forçar download
+      let urlToOpen = apkUrl;
+      if (apkUrl.includes('github.com') || apkUrl.includes('githubusercontent.com')) {
+        // URLs do GitHub funcionam melhor quando abertas no navegador
+        // O navegador vai detectar que é um arquivo APK e iniciar o download
+        console.log('📦 URL do GitHub detectada, abrindo no navegador...');
+      }
+
+      // Tentar abrir no navegador padrão
+      const canOpen = await Linking.canOpenURL(urlToOpen);
+      console.log('✅ canOpenURL:', canOpen);
 
       if (canOpen) {
         try {
-          await Linking.openURL(apkUrl);
-          console.log('✅ URL aberta com sucesso');
+          // Abrir no navegador (mais confiável que tentar download direto)
+          await Linking.openURL(urlToOpen);
+          console.log('✅ URL aberta no navegador com sucesso');
           
-          // Fechar modal após abrir URL
-          setTimeout(() => {
-            if (!updateInfo.isMandatory) {
-              onDismiss();
-            }
-          }, 1000);
+          Alert.alert(
+            'Download Iniciado',
+            'O download será iniciado no navegador.\n\n' +
+            'Após o download:\n' +
+            '1. Toque na notificação de download\n' +
+            '2. Ou abra o arquivo na pasta Downloads\n' +
+            '3. Clique em "Instalar"',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  // Fechar modal após abrir URL
+                  setTimeout(() => {
+                    if (!updateInfo.isMandatory) {
+                      onDismiss();
+                    }
+                  }, 500);
+                },
+              },
+            ],
+          );
           return;
         } catch (openError) {
-          console.error('❌ Erro ao abrir URL:', openError);
-          // Continuar para método alternativo
+          console.error('❌ Erro ao abrir URL no navegador:', openError);
+          // Continuar para fallback
         }
       }
 
-      // Método 2: Se falhar, tentar com Intent explícito (Android)
-      if (Platform.OS === 'android') {
-        try {
-          console.log('📱 Tentando método alternativo (Intent)...');
-          // Tentar abrir com intent ACTION_VIEW
-          const intentUrl = `intent://${apkUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
-          const canOpenIntent = await Linking.canOpenURL(intentUrl);
-          
-          if (canOpenIntent) {
-            await Linking.openURL(intentUrl);
-            console.log('✅ URL aberta com Intent');
-            setTimeout(() => {
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
-            }, 1000);
-            return;
-          }
-        } catch (intentError) {
-          console.error('❌ Erro com Intent:', intentError);
-        }
-      }
-
-      // Método 3: Se tudo falhar, oferecer copiar link
+      // Fallback: Se não conseguir abrir, oferecer copiar link
       Alert.alert(
-        'Não foi possível abrir automaticamente',
-        `A URL não pôde ser aberta automaticamente.\n\n` +
-        `Opções:\n` +
-        `1. Copiar o link e colar no navegador\n` +
-        `2. Abrir manualmente: ${apkUrl.substring(0, 50)}...`,
+        'Abrir no Navegador',
+        'Não foi possível abrir automaticamente.\n\n' +
+        'Opções:\n' +
+        '1. Copiar o link e colar no navegador\n' +
+        '2. Abrir manualmente no navegador',
         [
           {
             text: 'Copiar Link',
             onPress: async () => {
               try {
                 await Clipboard.setString(apkUrl);
-                Alert.alert('Sucesso', 'Link copiado para a área de transferência! Cole no navegador.');
+                Alert.alert(
+                  'Link Copiado!',
+                  'O link foi copiado para a área de transferência.\n\n' +
+                  'Cole no navegador para baixar a atualização.',
+                  [{ text: 'OK' }],
+                );
               } catch (clipError) {
                 console.error('Erro ao copiar:', clipError);
                 Alert.alert('Erro', 'Não foi possível copiar o link.');
@@ -120,18 +129,18 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         { cancelable: !updateInfo.isMandatory },
       );
     } catch (error) {
-      console.error('❌ Erro geral ao processar URL:', error);
+      console.error('❌ Erro ao processar URL:', error);
       Alert.alert(
         'Erro',
-        `Não foi possível iniciar o download.\n\nErro: ${error.message}\n\n` +
-        `Por favor, copie o link manualmente:\n${apkUrl}`,
+        `Não foi possível abrir a URL.\n\n` +
+        `Por favor, copie o link e cole no navegador:\n\n${apkUrl.substring(0, 60)}...`,
         [
           {
             text: 'Copiar Link',
             onPress: async () => {
               try {
                 await Clipboard.setString(apkUrl);
-                Alert.alert('Sucesso', 'Link copiado! Cole no navegador para baixar.');
+                Alert.alert('Sucesso', 'Link copiado! Cole no navegador.');
               } catch (clipError) {
                 console.error('Erro ao copiar:', clipError);
               }
