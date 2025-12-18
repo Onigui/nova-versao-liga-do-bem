@@ -132,6 +132,14 @@ export default function LoginScreen({navigation}) {
     // Removido checkForUpdates() daqui - será feito após login
   }, []);
 
+  // Verificar biometria novamente quando a tela ganha foco (após habilitar)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkBiometric();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const checkBiometric = async () => {
     try {
       const { available, biometryType: type } = await BiometricService.isAvailable();
@@ -155,13 +163,22 @@ export default function LoginScreen({navigation}) {
 
   const checkForUpdates = async () => {
     try {
+      console.log('🔍 Verificando atualizações...');
       const info = await UpdateService.checkForUpdates();
+      console.log('📱 Resultado da verificação:', info);
+      
       if (info && info.hasUpdate) {
+        console.log('✅ Atualização disponível, mostrando modal...');
         setUpdateInfo(info);
-        setShowUpdateModal(true);
+        // Usar setTimeout para garantir que o modal aparece após navegação
+        setTimeout(() => {
+          setShowUpdateModal(true);
+        }, 1000);
+      } else {
+        console.log('ℹ️ Nenhuma atualização disponível');
       }
     } catch (error) {
-      console.error('Erro ao verificar atualizações:', error);
+      console.error('❌ Erro ao verificar atualizações:', error);
     }
   };
 
@@ -177,37 +194,58 @@ export default function LoginScreen({navigation}) {
       if (!result.success) {
         Alert.alert('Erro', result.error || 'Email ou senha incorretos');
       } else {
-        // Após login bem-sucedido, verificar atualizações
-        console.log('✅ Login bem-sucedido, verificando atualizações...');
-        await checkForUpdates();
+        // Login bem-sucedido - o AuthProvider já atualiza o estado
+        // Aguardar um pouco para garantir que o estado foi atualizado
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Após login bem-sucedido, oferecer para habilitar biometria se disponível
+        // IMPORTANTE: Fazer isso ANTES de verificar atualizações para não bloquear
         if (biometricAvailable && !biometricEnabled) {
-          Alert.alert(
-            'Login Biométrico',
-            `Deseja habilitar ${biometryType} para fazer login mais rápido?`,
-            [
-              {
-                text: 'Não',
-                style: 'cancel',
-              },
-              {
-                text: 'Sim',
-                onPress: async () => {
-                  const biometricResult = await BiometricService.enableBiometric(email, password);
-                  if (biometricResult.success) {
-                    setBiometricEnabled(true);
-                    Alert.alert('Sucesso', `${biometryType} habilitado com sucesso!`);
-                  } else {
-                    Alert.alert('Erro', biometricResult.error || 'Não foi possível habilitar biometria');
-                  }
+          // Usar setTimeout para garantir que o Alert aparece após a navegação
+          setTimeout(() => {
+            Alert.alert(
+              'Login Biométrico',
+              `Deseja habilitar ${biometryType} para fazer login mais rápido?`,
+              [
+                {
+                  text: 'Não',
+                  style: 'cancel',
+                  onPress: () => {
+                    // Após recusar, verificar atualizações
+                    checkForUpdates();
+                  },
                 },
-              },
-            ],
-          );
+                {
+                  text: 'Sim',
+                  onPress: async () => {
+                    const biometricResult = await BiometricService.enableBiometric(email, password);
+                    if (biometricResult.success) {
+                      setBiometricEnabled(true);
+                      // Após habilitar biometria, verificar atualizações
+                      Alert.alert('Sucesso', `${biometryType} habilitado com sucesso!`, [
+                        {
+                          text: 'OK',
+                          onPress: () => {
+                            checkForUpdates();
+                          },
+                        },
+                      ]);
+                    } else {
+                      Alert.alert('Erro', biometricResult.error || 'Não foi possível habilitar biometria');
+                      // Mesmo com erro, verificar atualizações
+                      checkForUpdates();
+                    }
+                  },
+                },
+              ],
+            );
+          }, 500);
+        } else {
+          // Se biometria já está habilitada ou não disponível, verificar atualizações diretamente
+          console.log('✅ Login bem-sucedido, verificando atualizações...');
+          await checkForUpdates();
         }
       }
-      // Se success = true, o AuthProvider já atualiza o estado e o usuário será redirecionado automaticamente
     } catch (error) {
       console.error('Erro no login:', error);
       Alert.alert(
@@ -228,6 +266,9 @@ export default function LoginScreen({navigation}) {
         if (!loginResult.success) {
           Alert.alert('Erro', loginResult.error || 'Erro ao fazer login');
         } else {
+          // Login bem-sucedido - aguardar estado atualizar
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           // Após login bem-sucedido, verificar atualizações
           console.log('✅ Login biométrico bem-sucedido, verificando atualizações...');
           await checkForUpdates();

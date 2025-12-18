@@ -22,19 +22,89 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     loadStoredAuth();
     
-    // Logout automático quando o app é fechado completamente
-    // Fazer logout sempre que o app vai para background (força login ao retornar)
+    // Sistema de timeout inteligente para logout
+    let backgroundTime = null;
+    let timeoutId = null;
+    let previousAppState = AppState.currentState;
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos de inatividade
+    const TEMPORARY_STATE_THRESHOLD = 5000; // 5 segundos - mudanças menores que isso são temporárias (permissões, etc)
+    
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // Fazer logout imediatamente quando o app vai para background
-        // Isso força o usuário a fazer login novamente ao retornar
-        logout();
+      console.log('📱 Mudança de estado do app:', { previous: previousAppState, next: nextAppState });
+      
+      // Ignorar mudanças de 'active' para 'inactive' que são temporárias (diálogos de permissão, etc)
+      if (previousAppState === 'active' && nextAppState === 'inactive') {
+        // Esta é provavelmente uma mudança temporária (diálogo de permissão, etc)
+        // Não fazer logout imediatamente, apenas marcar o tempo
+        const tempTime = Date.now();
+        
+        // Se voltar para 'active' rapidamente (menos de 5 segundos), não fazer logout
+        const tempTimeout = setTimeout(() => {
+          // Se ainda estiver inactive após 5 segundos, considerar como background real
+          if (AppState.currentState === 'inactive') {
+            backgroundTime = tempTime;
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              console.log('⏰ Timeout de inatividade atingido, fazendo logout...');
+              logout();
+            }, INACTIVITY_TIMEOUT);
+          }
+        }, TEMPORARY_STATE_THRESHOLD);
+        
+        // Limpar timeout temporário se voltar para active rapidamente
+        const checkActive = setInterval(() => {
+          if (AppState.currentState === 'active') {
+            clearTimeout(tempTimeout);
+            clearInterval(checkActive);
+          }
+        }, 100);
+        
+        previousAppState = nextAppState;
+        return;
       }
+      
+      if (nextAppState === 'background') {
+        // App foi realmente para background (home button, etc)
+        backgroundTime = Date.now();
+        
+        // Limpar timeout anterior se existir
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        
+        // Criar timeout para logout após inatividade
+        timeoutId = setTimeout(() => {
+          console.log('⏰ Timeout de inatividade atingido, fazendo logout...');
+          logout();
+        }, INACTIVITY_TIMEOUT);
+      } else if (nextAppState === 'active') {
+        // App voltou para foreground
+        // Limpar timeout se ainda não passou muito tempo
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
+        // Se passou muito tempo (mais que o timeout), fazer logout
+        if (backgroundTime && (Date.now() - backgroundTime) >= INACTIVITY_TIMEOUT) {
+          console.log('⏰ App voltou após muito tempo inativo, fazendo logout...');
+          logout();
+        }
+        
+        backgroundTime = null;
+      }
+      
+      previousAppState = nextAppState;
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       subscription?.remove();
     };
   }, []);
