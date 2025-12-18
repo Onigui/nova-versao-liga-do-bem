@@ -6579,16 +6579,58 @@
             uploadButton.textContent = '⏳ Enviando...';
 
             try {
-                // Converter arquivo para base64
-                const base64 = await fileToBase64(selectedApkFile);
-                
                 console.log('📤 Iniciando upload do APK...', {
                     fileName: selectedApkFile.name,
                     fileSize: selectedApkFile.size,
-                    base64Length: base64.length
+                    fileSizeMB: (selectedApkFile.size / 1024 / 1024).toFixed(2)
                 });
 
-                const response = await fetch(`${API_BASE_URL}/api/admin/app/versions/${currentVersionIdForUpload}/upload`, {
+                // Passo 1: Obter URL de upload assinada do backend
+                console.log('🔑 Obtendo URL de upload assinada...');
+                const urlResponse = await fetch(`${API_BASE_URL}/api/admin/app/versions/${currentVersionIdForUpload}/upload-url`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
+                        'x-admin-token': localStorage.getItem('admin_token')
+                    }
+                });
+
+                if (!urlResponse.ok) {
+                    throw new Error('Erro ao obter URL de upload');
+                }
+
+                const urlData = await urlResponse.json();
+                console.log('✅ URL de upload obtida:', urlData);
+
+                // Passo 2: Fazer upload direto para Cloudinary usando FormData
+                const formData = new FormData();
+                formData.append('file', selectedApkFile);
+                formData.append('api_key', urlData.apiKey);
+                formData.append('timestamp', urlData.timestamp);
+                formData.append('signature', urlData.signature);
+                formData.append('folder', urlData.folder);
+                formData.append('public_id', urlData.publicId);
+                formData.append('resource_type', 'raw');
+                formData.append('overwrite', 'true');
+
+                console.log('📤 Fazendo upload direto para Cloudinary...');
+                const uploadResponse = await fetch(urlData.uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    const errorText = await uploadResponse.text();
+                    console.error('❌ Erro no upload para Cloudinary:', errorText);
+                    throw new Error('Erro ao fazer upload para Cloudinary');
+                }
+
+                const uploadResult = await uploadResponse.json();
+                console.log('✅ Upload para Cloudinary concluído:', uploadResult);
+
+                // Passo 3: Atualizar versão no banco com a URL do APK
+                console.log('💾 Atualizando versão no banco de dados...');
+                const updateResponse = await fetch(`${API_BASE_URL}/api/admin/app/versions/${currentVersionIdForUpload}/upload`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -6596,22 +6638,23 @@
                         'x-admin-token': localStorage.getItem('admin_token')
                     },
                     body: JSON.stringify({
-                        apkBase64: base64
+                        apkUrl: uploadResult.secure_url,
+                        apkSize: uploadResult.bytes
                     })
                 });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('✅ Upload concluído:', data);
+                if (updateResponse.ok) {
+                    const data = await updateResponse.json();
+                    console.log('✅ Versão atualizada:', data);
                     
                     showNotification('APK enviado e hospedado com sucesso!', 'success');
                     clearApkFile();
                     closeModal('appVersionModal');
                     await loadAppVersions();
                 } else {
-                    const error = await response.json();
-                    console.error('❌ Erro no upload:', error);
-                    showNotification(error.error || 'Erro ao fazer upload do APK', 'error');
+                    const error = await updateResponse.json();
+                    console.error('❌ Erro ao atualizar versão:', error);
+                    showNotification('APK foi enviado, mas houve erro ao atualizar a versão. Tente novamente.', 'error');
                 }
             } catch (error) {
                 console.error('❌ Erro ao fazer upload:', error);

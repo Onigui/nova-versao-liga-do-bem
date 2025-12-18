@@ -229,7 +229,14 @@ export default function AddPetScreen({navigation, route}) {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(event, selectedDate) => {
-                  setShowDatePicker(Platform.OS === 'ios');
+                  // Fechar picker no Android após seleção
+                  if (Platform.OS === 'android') {
+                    setShowDatePicker(false);
+                  }
+                  // No iOS, manter aberto até cancelar
+                  if (event.type === 'dismissed' && Platform.OS === 'ios') {
+                    setShowDatePicker(false);
+                  }
                   if (selectedDate) {
                     setBirthDate(selectedDate);
                   }

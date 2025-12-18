@@ -2786,6 +2786,71 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // GET signed upload URL for APK (admin) - retorna URL assinada para upload direto
+    if (path.startsWith('/api/admin/app/versions/') && path.endsWith('/upload-url') && method === 'GET') {
+      try {
+        const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let isAuthorized = false;
+        if (token.startsWith('demo-token-')) {
+          isAuthorized = true;
+        } else {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'ADMIN') {
+              isAuthorized = true;
+            }
+          } catch {
+            isAuthorized = false;
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const id = path.split('/api/admin/app/versions/')[1].replace('/upload-url', '');
+        const cloudinaryInstance = getCloudinary();
+        
+        if (!cloudinaryInstance) {
+          return res.status(503).json({
+            error: 'Cloudinary não configurado',
+          });
+        }
+
+        // Gerar signed upload URL para upload direto do frontend
+        const timestamp = Math.round(new Date().getTime() / 1000);
+        const publicId = `liga-do-bem/app-versions/app_${id}_${timestamp}`;
+        
+        const signature = cloudinaryInstance.utils.api_sign_request(
+          {
+            timestamp,
+            folder: 'liga-do-bem/app-versions',
+            public_id: publicId,
+            resource_type: 'raw',
+            overwrite: true,
+          },
+          process.env.CLOUDINARY_API_SECRET || ''
+        );
+
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload`;
+        
+        return res.status(200).json({
+          uploadUrl,
+          signature,
+          timestamp,
+          publicId,
+          folder: 'liga-do-bem/app-versions',
+          cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+          apiKey: process.env.CLOUDINARY_API_KEY,
+        });
+      } catch (error: any) {
+        console.error('❌ Error generating upload URL:', error);
+        return res.status(500).json({ error: 'Error generating upload URL' });
+      }
+    }
+
     // POST upload APK (admin) - recebe base64 e faz upload para Cloudinary ou retorna URL
     if (path.startsWith('/api/admin/app/versions/') && path.endsWith('/upload') && method === 'POST') {
       const db = getPrisma();
@@ -2815,14 +2880,18 @@ export default async function handler(req: any, res: any) {
         }
 
         const id = path.split('/api/admin/app/versions/')[1].replace('/upload', '');
-        const { apkBase64, apkUrl } = body;
+        const { apkBase64, apkUrl, apkSize } = body;
 
-        // Se forneceu URL direta, usar ela
+        // Se forneceu URL direta (upload já foi feito no frontend), apenas atualizar no banco
         if (apkUrl) {
           const appVersion = await db.appVersion.update({
             where: { id },
-            data: { apkUrl },
+            data: { 
+              apkUrl,
+              apkSize: apkSize || null,
+            },
           });
+          console.log('✅ Versão atualizada com APK hospedado:', apkUrl);
           return res.status(200).json({ appVersion, apkUrl });
         }
 

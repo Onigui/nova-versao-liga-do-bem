@@ -156,7 +156,14 @@ export default function AddVaccinationScreen({navigation, route}) {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(event, selectedDate) => {
-                  setShowApplicationDatePicker(Platform.OS === 'ios');
+                  // Fechar picker no Android após seleção
+                  if (Platform.OS === 'android') {
+                    setShowApplicationDatePicker(false);
+                  }
+                  // No iOS, manter aberto até cancelar
+                  if (event.type === 'dismissed' && Platform.OS === 'ios') {
+                    setShowApplicationDatePicker(false);
+                  }
                   if (selectedDate) {
                     setApplicationDate(selectedDate);
                   }
@@ -184,7 +191,14 @@ export default function AddVaccinationScreen({navigation, route}) {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(event, selectedDate) => {
-                  setShowNextDoseDatePicker(Platform.OS === 'ios');
+                  // Fechar picker no Android após seleção
+                  if (Platform.OS === 'android') {
+                    setShowNextDoseDatePicker(false);
+                  }
+                  // No iOS, manter aberto até cancelar
+                  if (event.type === 'dismissed' && Platform.OS === 'ios') {
+                    setShowNextDoseDatePicker(false);
+                  }
                   if (selectedDate) {
                     setNextDoseDate(selectedDate);
                   }
