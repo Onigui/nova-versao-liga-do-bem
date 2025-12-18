@@ -15,7 +15,6 @@ import UpdateService from '../services/UpdateService';
 export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateComplete}) {
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [installing, setInstalling] = useState(false);
 
   const handleUpdate = async () => {
     if (!updateInfo?.latestVersion?.apkUrl) {
@@ -160,14 +159,7 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
               </View>
             )}
 
-            {installing && (
-              <View style={styles.progressContainer}>
-                <ActivityIndicator size="large" color="#8B5CF6" />
-                <Text style={styles.progressText}>Instalando atualização...</Text>
-              </View>
-            )}
-
-            {!downloading && !installing && (
+            {!downloading && (
               <View style={styles.buttons}>
                 {!updateInfo.isMandatory && (
                   <TouchableOpacity
