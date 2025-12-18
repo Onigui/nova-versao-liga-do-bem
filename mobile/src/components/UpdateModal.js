@@ -22,76 +22,107 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       return;
     }
 
+    // Adicionar delay antes de iniciar para garantir que a UI está estável
+    await new Promise(resolve => setTimeout(resolve, 300));
+
     setDownloading(true);
     setProgress(0);
 
     try {
-      // Baixar APK
+      // Usar InteractionManager para garantir que a UI está pronta
+      const { InteractionManager } = require('react-native');
+      await new Promise((resolve) => {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(resolve, 200);
+        });
+      });
+
+      // Baixar APK com tratamento robusto de erros
       const filePath = await UpdateService.downloadAPK(
         updateInfo.latestVersion.apkUrl,
         (progressValue) => {
-          setProgress(progressValue);
+          // Atualizar progresso de forma segura
+          try {
+            setProgress(progressValue);
+          } catch (progressError) {
+            console.warn('Erro ao atualizar progresso na UI:', progressError);
+          }
         },
       );
 
+      // Delay antes de mostrar o alerta (garantir que download está completo)
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       setDownloading(false);
       
       // SOLUÇÃO: Não tentar instalar automaticamente (causa crash)
       // Apenas informar o usuário onde o arquivo foi salvo
       const fileName = filePath.split('/').pop();
       
-      Alert.alert(
-        'Download Concluído!',
-        `A nova versão foi baixada com sucesso!\n\n` +
-        `Arquivo: ${fileName}\n` +
-        `Local: Pasta Downloads\n\n` +
-        `Para instalar:\n` +
-        `1. Abra o gerenciador de arquivos\n` +
-        `2. Vá até a pasta Downloads\n` +
-        `3. Toque no arquivo "${fileName}"\n` +
-        `4. Clique em "Instalar"`,
-        [
-          {
-            text: 'Abrir Downloads',
-            onPress: async () => {
-              try {
-                // Tentar abrir a pasta Downloads (sem tentar instalar o APK)
-                await UpdateService.openDownloadsFolder();
-              } catch (error) {
-                console.error('Erro ao abrir pasta Downloads:', error);
-              }
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
+      // Delay antes de mostrar alerta
+      setTimeout(() => {
+        Alert.alert(
+          'Download Concluído!',
+          `A nova versão foi baixada com sucesso!\n\n` +
+          `Arquivo: ${fileName}\n` +
+          `Local: Pasta Downloads\n\n` +
+          `Para instalar:\n` +
+          `1. Abra o gerenciador de arquivos\n` +
+          `2. Vá até a pasta Downloads\n` +
+          `3. Toque no arquivo "${fileName}"\n` +
+          `4. Clique em "Instalar"`,
+          [
+            {
+              text: 'Abrir Downloads',
+              onPress: async () => {
+                try {
+                  // Delay antes de abrir pasta
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                  // Tentar abrir a pasta Downloads (sem tentar instalar o APK)
+                  await UpdateService.openDownloadsFolder();
+                } catch (error) {
+                  console.error('Erro ao abrir pasta Downloads:', error);
+                }
+                if (!updateInfo.isMandatory) {
+                  setTimeout(() => onDismiss(), 500);
+                }
+              },
             },
-          },
-          {
-            text: 'OK',
-            onPress: () => {
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
+            {
+              text: 'OK',
+              onPress: () => {
+                if (!updateInfo.isMandatory) {
+                  setTimeout(() => onDismiss(), 500);
+                }
+              },
             },
-          },
-        ],
-      );
+          ],
+        );
+      }, 300);
     } catch (error) {
       console.error('Erro no processo de atualização:', error);
+      
+      // Delay antes de mostrar erro
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       setDownloading(false);
-      Alert.alert(
-        'Erro ao Baixar Atualização',
-        error.message || 'Não foi possível baixar a atualização. Verifique sua conexão e tente novamente.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
+      
+      setTimeout(() => {
+        Alert.alert(
+          'Erro ao Baixar Atualização',
+          error.message || 'Não foi possível baixar a atualização. Verifique sua conexão e tente novamente.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (!updateInfo.isMandatory) {
+                  setTimeout(() => onDismiss(), 500);
+                }
+              },
             },
-          },
-        ],
-      );
+          ],
+        );
+      }, 300);
     }
   };
 

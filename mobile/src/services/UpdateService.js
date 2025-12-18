@@ -167,6 +167,14 @@ class UpdateService {
       }
       console.log('✅ Permissão concedida');
 
+      // Usar InteractionManager para garantir que a UI está pronta
+      const { InteractionManager } = require('react-native');
+      await new Promise((resolve) => {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(resolve, 300); // Delay adicional para garantir estabilidade
+        });
+      });
+
       const { config, fs } = RNFetchBlob;
       const downloads = fs.dirs.DownloadDir;
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;
@@ -175,42 +183,83 @@ class UpdateService {
       console.log('📁 Caminho do arquivo:', filePath);
       console.log('📁 Pasta Downloads:', downloads);
 
-      console.log('⚙️ Configurando download...');
+      // Usar DownloadManager do Android (mais seguro e estável)
+      console.log('⚙️ Configurando download usando DownloadManager...');
+      
+      // Criar configuração mais simples e segura
       const downloadConfig = config({
-        fileCache: true,
+        fileCache: false, // Não usar cache para evitar problemas
         path: filePath,
         addAndroidDownloads: {
-          useDownloadManager: true,
+          useDownloadManager: true, // Usar DownloadManager nativo do Android
           notification: true,
-          title: 'Baixando atualização Liga do Bem',
-          description: 'Aguarde enquanto baixamos a nova versão...',
+          title: 'Liga do Bem - Atualização',
+          description: 'Baixando nova versão do aplicativo...',
           mime: 'application/vnd.android.package-archive',
           mediaScannable: true,
+          path: filePath, // Caminho explícito
         },
       });
 
       console.log('🌐 Iniciando requisição HTTP...');
+      
+      // Adicionar delay antes de iniciar o download para evitar crash
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const downloadTask = downloadConfig.fetch('GET', apkUrl);
 
-      console.log('📊 Configurando callback de progresso...');
-      downloadTask.progress((received, total) => {
-        const progress = received / total;
-        const percent = Math.round(progress * 100);
-        console.log(`📊 Progresso: ${percent}% (${received}/${total} bytes)`);
-        if (onProgress) {
-          onProgress(progress);
-        }
-      });
+      // Configurar progresso com tratamento de erro
+      let progressHandler = null;
+      try {
+        progressHandler = downloadTask.progress((received, total) => {
+          try {
+            const progress = received / total;
+            const percent = Math.round(progress * 100);
+            console.log(`📊 Progresso: ${percent}% (${received}/${total} bytes)`);
+            if (onProgress && typeof onProgress === 'function') {
+              // Usar setTimeout para evitar atualizações muito frequentes
+              setTimeout(() => {
+                try {
+                  onProgress(progress);
+                } catch (progressError) {
+                  console.warn('Erro ao atualizar progresso:', progressError);
+                }
+              }, 100);
+            }
+          } catch (progressError) {
+            console.warn('Erro no handler de progresso:', progressError);
+          }
+        });
+      } catch (progressError) {
+        console.warn('Erro ao configurar progresso (continuando mesmo assim):', progressError);
+      }
 
       console.log('⏳ Aguardando conclusão do download...');
-      const res = await downloadTask;
+      
+      // Aguardar download com timeout
+      const downloadPromise = downloadTask;
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout no download (5 minutos)')), 5 * 60 * 1000);
+      });
+      
+      const res = await Promise.race([downloadPromise, timeoutPromise]);
       const finalPath = res.path();
       
       console.log('✅ Download concluído!');
       console.log('📁 Arquivo salvo em:', finalPath);
       
-      // Verificar se arquivo existe
-      const fileExists = await fs.exists(finalPath);
+      // Verificar se arquivo existe (com retry)
+      let fileExists = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          fileExists = await fs.exists(finalPath);
+          if (fileExists) break;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (checkError) {
+          console.warn(`Tentativa ${i + 1} de verificar arquivo falhou:`, checkError);
+        }
+      }
+      
       if (!fileExists) {
         throw new Error('Arquivo não foi salvo corretamente');
       }
@@ -223,7 +272,9 @@ class UpdateService {
       console.error('❌ Erro ao baixar APK:', error);
       console.error('❌ Tipo do erro:', error.constructor.name);
       console.error('❌ Mensagem:', error.message);
-      console.error('❌ Stack:', error.stack);
+      if (error.stack) {
+        console.error('❌ Stack:', error.stack);
+      }
       
       // Log adicional se for erro de rede
       if (error.message?.includes('Network') || error.message?.includes('fetch')) {
