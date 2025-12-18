@@ -2821,16 +2821,20 @@ export default async function handler(req: any, res: any) {
 
         // Gerar signed upload URL para upload direto do frontend
         const timestamp = Math.round(new Date().getTime() / 1000);
-        const publicId = `liga-do-bem/app-versions/app_${id}_${timestamp}`;
+        const publicId = `app_${id}_${timestamp}`;
         
+        // Parâmetros para assinatura (todos como strings)
+        const params: any = {
+          timestamp: timestamp.toString(),
+          folder: 'liga-do-bem/app-versions',
+          public_id: publicId,
+          resource_type: 'raw',
+          overwrite: 'true',
+        };
+        
+        // Gerar assinatura
         const signature = cloudinaryInstance.utils.api_sign_request(
-          {
-            timestamp,
-            folder: 'liga-do-bem/app-versions',
-            public_id: publicId,
-            resource_type: 'raw',
-            overwrite: true,
-          },
+          params,
           process.env.CLOUDINARY_API_SECRET || ''
         );
 
@@ -2839,9 +2843,9 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({
           uploadUrl,
           signature,
-          timestamp,
+          timestamp: params.timestamp,
           publicId,
-          folder: 'liga-do-bem/app-versions',
+          folder: params.folder,
           cloudName: process.env.CLOUDINARY_CLOUD_NAME,
           apiKey: process.env.CLOUDINARY_API_KEY,
         });
