@@ -2490,20 +2490,24 @@ export default async function handler(req: any, res: any) {
         const currentVersion = req.query?.version || '1.0.0';
         const currentVersionCode = parseInt(req.query?.versionCode || '1', 10);
 
-        // Buscar versão mais recente disponível
+        // Buscar versão mais recente disponível COM APK
+        // Sempre retornar a última versão que tem APK hospedado
         const latestVersion = await db.appVersion.findFirst({
           where: {
             platform,
             isActive: true,
+            apkUrl: { not: null }, // Apenas versões com APK disponível
           },
           orderBy: { versionCode: 'desc' },
         });
 
-        if (!latestVersion) {
+        if (!latestVersion || !latestVersion.apkUrl) {
+          console.log('📱 Nenhuma versão com APK disponível encontrada');
           return res.status(200).json({
             hasUpdate: false,
             currentVersion,
             currentVersionCode,
+            message: 'Nenhuma versão disponível para download',
           });
         }
 
@@ -2637,6 +2641,12 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ error: 'Version and versionCode are required' });
         }
 
+        // IMPORTANTE: Se não forneceu apkUrl, criar versão sem APK
+        // O APK deve ser enviado via endpoint /upload depois
+        if (!apkUrl) {
+          console.log('⚠️ Versão criada sem APK. Use o endpoint /upload para enviar o APK.');
+        }
+
         // Desativar versões anteriores se esta for obrigatória
         if (isMandatory) {
           await db.appVersion.updateMany({
@@ -2664,7 +2674,10 @@ export default async function handler(req: any, res: any) {
           },
         });
 
-        return res.status(201).json({ appVersion });
+        return res.status(201).json({ 
+          appVersion,
+          message: apkUrl ? 'Versão criada com APK' : 'Versão criada. Use /upload para enviar o APK.',
+        });
       } catch (error: any) {
         console.error('❌ Error creating app version:', error);
         if (error.code === 'P2002') {
@@ -2822,6 +2835,9 @@ export default async function handler(req: any, res: any) {
             });
           }
 
+          console.log('📦 Iniciando upload do APK para Cloudinary...');
+          console.log('📦 Tamanho do base64:', apkBase64.length, 'caracteres');
+          
           try {
             const uploadResult = await new Promise((resolve, reject) => {
               cloudinaryInstance.uploader.upload(
@@ -2833,14 +2849,25 @@ export default async function handler(req: any, res: any) {
                   resource_type: 'raw', // APK é arquivo raw, não imagem
                 },
                 (error: any, result: any) => {
-                  if (error) reject(error);
-                  else resolve(result);
+                  if (error) {
+                    console.error('❌ Erro no upload do Cloudinary:', error);
+                    reject(error);
+                  } else {
+                    console.log('✅ Upload do Cloudinary concluído:', result.secure_url);
+                    resolve(result);
+                  }
                 }
               );
             });
 
             const uploadedUrl = (uploadResult as any).secure_url;
             const fileSize = (uploadResult as any).bytes;
+            
+            console.log('✅ APK hospedado com sucesso:', {
+              url: uploadedUrl,
+              size: fileSize,
+              sizeMB: (fileSize / 1024 / 1024).toFixed(2),
+            });
 
             // Desativar versões anteriores
             const currentVersion = await db.appVersion.findUnique({ where: { id } });

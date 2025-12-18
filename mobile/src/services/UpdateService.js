@@ -1,74 +1,107 @@
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, Linking, Platform, NativeModules } from 'react-native';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFetchBlob from 'rn-fetch-blob';
-import { PermissionsAndroid, NativeModules } from 'react-native';
+import { PermissionsAndroid } from 'react-native';
+import DeviceInfo from 'react-native-device-info';
 
-// Importar versão do app.json dinamicamente
-// Nota: Em React Native, require pode não funcionar em runtime
-// Por isso, vamos usar valores do package.json que são incluídos no bundle
+// Função para obter versão atual do app
+async function getCurrentAppVersion() {
+  try {
+    // Tentar usar DeviceInfo (mais confiável)
+    const version = await DeviceInfo.getVersion();
+    const buildNumber = await DeviceInfo.getBuildNumber();
+    return {
+      version: version || '1.2.3',
+      versionCode: parseInt(buildNumber || '5', 10),
+    };
+  } catch (error) {
+    console.warn('⚠️ Erro ao obter versão do DeviceInfo, usando valores padrão:', error);
+    // Fallback: tentar ler do app.json
+    try {
+      const appConfig = require('../../app.json');
+      return {
+        version: appConfig?.version || '1.2.3',
+        versionCode: appConfig?.versionCode || 5,
+      };
+    } catch (jsonError) {
+      console.warn('⚠️ Erro ao ler app.json, usando valores hardcoded');
+      return {
+        version: '1.2.3',
+        versionCode: 5,
+      };
+    }
+  }
+}
+
+// Valores padrão (serão sobrescritos na primeira chamada)
 let CURRENT_VERSION = '1.2.3';
 let CURRENT_VERSION_CODE = 5;
 
-// Tentar ler do app.json (pode não funcionar em runtime, mas tentamos)
-try {
-  // Em desenvolvimento, isso funciona
-  const appConfig = require('../../app.json');
-  if (appConfig && appConfig.version) {
-    CURRENT_VERSION = appConfig.version;
-  }
-  if (appConfig && appConfig.versionCode) {
-    CURRENT_VERSION_CODE = appConfig.versionCode;
-  }
-} catch (error) {
-  // Em produção, os valores são definidos no build.gradle
-  // Por isso mantemos os valores padrão que devem corresponder ao build.gradle
-  console.warn('Não foi possível ler app.json em runtime, usando valores padrão:', {
-    version: CURRENT_VERSION,
-    versionCode: CURRENT_VERSION_CODE,
-  });
-}
-
-// IMPORTANTE: Estes valores devem corresponder ao mobile/android/app/build.gradle
-// versionCode e versionName devem ser atualizados manualmente antes de cada build
+// Inicializar versão ao carregar o módulo
+getCurrentAppVersion().then(({ version, versionCode }) => {
+  CURRENT_VERSION = version;
+  CURRENT_VERSION_CODE = versionCode;
+  console.log('📱 Versão do app detectada:', { version, versionCode });
+});
 
 class UpdateService {
   async checkForUpdates() {
     try {
+      // Obter versão atual do app (sempre atualizada)
+      const { version, versionCode } = await getCurrentAppVersion();
+      
       console.log('🔍 Verificando atualizações...', {
-        currentVersion: CURRENT_VERSION,
-        currentVersionCode: CURRENT_VERSION_CODE,
+        currentVersion: version,
+        currentVersionCode: versionCode,
       });
 
-      const response = await fetch(
-        `${API_BASE_PATH}/app/version?platform=android&version=${CURRENT_VERSION}&versionCode=${CURRENT_VERSION_CODE}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+      const url = `${API_BASE_PATH}/app/version?platform=android&version=${version}&versionCode=${versionCode}`;
+      console.log('📡 URL da verificação:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      );
+      });
+
+      console.log('📡 Status da resposta:', response.status, response.statusText);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📱 Resposta da verificação de versão:', data);
+        console.log('📱 Resposta completa da verificação:', JSON.stringify(data, null, 2));
         
         // Garantir que hasUpdate só seja true se realmente houver atualização
         if (data.hasUpdate && data.latestVersion) {
           const latestVersionCode = data.latestVersion.versionCode || 0;
           // Verificar novamente no cliente para garantir
-          if (latestVersionCode <= CURRENT_VERSION_CODE) {
-            console.log('⚠️ Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...');
+          if (latestVersionCode <= versionCode) {
+            console.log('⚠️ Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...', {
+              latestVersionCode,
+              currentVersionCode: versionCode,
+            });
             data.hasUpdate = false;
+            data.latestVersion = null;
+          } else {
+            console.log('✅ Atualização disponível:', {
+              current: versionCode,
+              latest: latestVersionCode,
+            });
           }
+        } else {
+          console.log('✅ App está atualizado. Sem atualizações disponíveis.');
         }
         
         return data;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erro na resposta do servidor:', response.status, errorText);
+        return null;
       }
-      return null;
     } catch (error) {
       console.error('❌ Erro ao verificar atualizações:', error);
+      console.error('❌ Stack trace:', error.stack);
       return null;
     }
   }
@@ -114,18 +147,36 @@ class UpdateService {
   }
 
   async downloadAPK(apkUrl, onProgress) {
+    console.log('📥 Iniciando download do APK...');
+    console.log('📥 URL:', apkUrl);
+    
     try {
+      // Validar URL
+      if (!apkUrl || typeof apkUrl !== 'string') {
+        throw new Error('URL do APK inválida');
+      }
+      
+      if (!apkUrl.startsWith('http://') && !apkUrl.startsWith('https://')) {
+        throw new Error('URL do APK deve começar com http:// ou https://');
+      }
+
+      console.log('🔐 Solicitando permissão de armazenamento...');
       const hasPermission = await this.requestStoragePermission();
       if (!hasPermission) {
         throw new Error('Permissão de armazenamento negada');
       }
+      console.log('✅ Permissão concedida');
 
       const { config, fs } = RNFetchBlob;
       const downloads = fs.dirs.DownloadDir;
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;
       const filePath = `${downloads}/${fileName}`;
 
-      const downloadTask = config({
+      console.log('📁 Caminho do arquivo:', filePath);
+      console.log('📁 Pasta Downloads:', downloads);
+
+      console.log('⚙️ Configurando download...');
+      const downloadConfig = config({
         fileCache: true,
         path: filePath,
         addAndroidDownloads: {
@@ -136,19 +187,49 @@ class UpdateService {
           mime: 'application/vnd.android.package-archive',
           mediaScannable: true,
         },
-      }).fetch('GET', apkUrl);
+      });
 
+      console.log('🌐 Iniciando requisição HTTP...');
+      const downloadTask = downloadConfig.fetch('GET', apkUrl);
+
+      console.log('📊 Configurando callback de progresso...');
       downloadTask.progress((received, total) => {
         const progress = received / total;
+        const percent = Math.round(progress * 100);
+        console.log(`📊 Progresso: ${percent}% (${received}/${total} bytes)`);
         if (onProgress) {
           onProgress(progress);
         }
       });
 
+      console.log('⏳ Aguardando conclusão do download...');
       const res = await downloadTask;
-      return res.path();
+      const finalPath = res.path();
+      
+      console.log('✅ Download concluído!');
+      console.log('📁 Arquivo salvo em:', finalPath);
+      
+      // Verificar se arquivo existe
+      const fileExists = await fs.exists(finalPath);
+      if (!fileExists) {
+        throw new Error('Arquivo não foi salvo corretamente');
+      }
+      
+      const fileInfo = await fs.stat(finalPath);
+      console.log('📊 Tamanho do arquivo:', fileInfo.size, 'bytes');
+      
+      return finalPath;
     } catch (error) {
-      console.error('Erro ao baixar APK:', error);
+      console.error('❌ Erro ao baixar APK:', error);
+      console.error('❌ Tipo do erro:', error.constructor.name);
+      console.error('❌ Mensagem:', error.message);
+      console.error('❌ Stack:', error.stack);
+      
+      // Log adicional se for erro de rede
+      if (error.message?.includes('Network') || error.message?.includes('fetch')) {
+        console.error('❌ Erro de rede detectado. Verifique a conexão e a URL.');
+      }
+      
       throw error;
     }
   }
