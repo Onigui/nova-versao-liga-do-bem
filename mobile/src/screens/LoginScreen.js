@@ -18,8 +18,6 @@ import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_CONFIG } from '../config/appConfig';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
-import UpdateService from '../services/UpdateService';
-import UpdateModal from '../components/UpdateModal';
 import BiometricService from '../services/BiometricService';
 
 const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
@@ -43,8 +41,6 @@ export default function LoginScreen({navigation}) {
     icon: null,
     iconEmoji: '🐾',
   });
-  const [updateInfo, setUpdateInfo] = useState(null);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometryType, setBiometryType] = useState('Biometria');
@@ -173,49 +169,7 @@ export default function LoginScreen({navigation}) {
     }
   };
 
-  const checkForUpdates = async () => {
-    try {
-      console.log('🔍 [LoginScreen] Verificando atualizações após login...');
-      const info = await UpdateService.checkForUpdates();
-      console.log('📱 [LoginScreen] Resultado da verificação:', JSON.stringify(info, null, 2));
-      
-      if (info && info.hasUpdate && info.latestVersion) {
-        console.log('✅ [LoginScreen] Atualização disponível!', {
-          currentVersion: info.currentVersion,
-          currentVersionCode: info.currentVersionCode,
-          latestVersion: info.latestVersion.version,
-          latestVersionCode: info.latestVersion.versionCode,
-          apkUrl: info.latestVersion.apkUrl,
-        });
-        
-        // Definir informações de atualização
-        setUpdateInfo(info);
-        
-        // Aguardar um pouco para garantir que a navegação foi concluída
-        // e então mostrar o modal
-        setTimeout(() => {
-          console.log('📱 [LoginScreen] Abrindo modal de atualização...');
-          console.log('📱 [LoginScreen] Estado do modal:', { showUpdateModal: true, hasUpdateInfo: !!info });
-          setShowUpdateModal(true);
-          
-          // Verificar novamente após 1 segundo se o modal não apareceu
-          setTimeout(() => {
-            console.log('📱 [LoginScreen] Verificando se modal está visível...');
-          }, 1000);
-        }, 2000); // Aumentar delay para garantir que a navegação foi concluída
-      } else {
-        console.log('ℹ️ [LoginScreen] Nenhuma atualização disponível', {
-          hasInfo: !!info,
-          hasUpdate: info?.hasUpdate,
-          hasLatestVersion: !!info?.latestVersion,
-          info: info,
-        });
-      }
-    } catch (error) {
-      console.error('❌ [LoginScreen] Erro ao verificar atualizações:', error);
-      console.error('❌ [LoginScreen] Stack trace:', error.stack);
-    }
-  };
+  // Removido: checkForUpdates movido para UpdateChecker global
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -539,14 +493,6 @@ export default function LoginScreen({navigation}) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      <UpdateModal
-        visible={showUpdateModal}
-        updateInfo={updateInfo}
-        onDismiss={() => setShowUpdateModal(false)}
-        onUpdateComplete={() => {
-          setShowUpdateModal(false);
-        }}
-      />
     </LinearGradient>
   );
 }
