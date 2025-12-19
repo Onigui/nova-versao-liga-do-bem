@@ -47,45 +47,77 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
     try {
       console.log('📥 Iniciando download em background...');
       
-      // Fazer download em background
-      const filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
-        setDownloadProgress(progress);
-        console.log(`📊 Progresso do download: ${Math.round(progress * 100)}%`);
-      });
+      // Fazer download em background com tratamento de erro robusto
+      let filePath;
+      try {
+        filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
+          setDownloadProgress(progress);
+          console.log(`📊 Progresso do download: ${Math.round(progress * 100)}%`);
+        });
+        console.log('✅ Download concluído! Arquivo em:', filePath);
+      } catch (downloadError) {
+        console.error('❌ Erro no download:', downloadError);
+        throw new Error(`Erro ao baixar: ${downloadError.message || 'Erro desconhecido'}`);
+      }
 
-      console.log('✅ Download concluído! Iniciando instalação...');
       setDownloading(false);
       setInstalling(true);
 
       // Aguardar um pouco para garantir que o arquivo está totalmente salvo
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Instalar APK automaticamente
-      await UpdateService.installAPK(filePath);
-      
-      console.log('✅ Instalação iniciada!');
-      
-      // Fechar modal e notificar sucesso
-      Alert.alert(
-        'Download Concluído!',
-        'A atualização foi baixada com sucesso.\n\n' +
-        'O instalador do Android será aberto automaticamente.\n\n' +
-        'Siga as instruções na tela para instalar a nova versão.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setInstalling(false);
-              if (onUpdateComplete) {
-                onUpdateComplete();
-              }
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
+      // Tentar abrir instalador com tratamento de erro robusto
+      try {
+        console.log('📦 Tentando abrir instalador...');
+        await UpdateService.installAPK(filePath);
+        console.log('✅ Instalação iniciada!');
+        
+        // Fechar modal e notificar sucesso
+        Alert.alert(
+          'Download Concluído!',
+          'A atualização foi baixada com sucesso.\n\n' +
+          'O instalador do Android será aberto automaticamente.\n\n' +
+          'Siga as instruções na tela para instalar a nova versão.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setInstalling(false);
+                if (onUpdateComplete) {
+                  onUpdateComplete();
+                }
+                if (!updateInfo.isMandatory) {
+                  onDismiss();
+                }
+              },
             },
-          },
-        ],
-      );
+          ],
+        );
+      } catch (installError) {
+        console.error('❌ Erro ao abrir instalador:', installError);
+        // Não é um erro fatal - o download foi bem-sucedido
+        setInstalling(false);
+        
+        Alert.alert(
+          'Download Concluído!',
+          'A atualização foi baixada com sucesso!\n\n' +
+          'Por favor, abra o arquivo APK na pasta Downloads para instalar manualmente.\n\n' +
+          `Arquivo: ${filePath.split('/').pop()}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (onUpdateComplete) {
+                  onUpdateComplete();
+                }
+                if (!updateInfo.isMandatory) {
+                  onDismiss();
+                }
+              },
+            },
+          ],
+        );
+      }
     } catch (error) {
       console.error('❌ Erro durante atualização:', error);
       setError(error.message || 'Erro desconhecido');

@@ -279,68 +279,74 @@ class UpdateService {
     }
 
     try {
-      console.log('📦 Iniciando instalação do APK...');
+      console.log('📦 Preparando para abrir instalador do Android...');
       console.log('📁 Caminho do arquivo:', filePath);
 
-      // Verificar permissão de instalação
-      const hasInstallPermission = await this.requestStoragePermission();
-      if (!hasInstallPermission) {
-        throw new Error('Permissão de instalação negada');
-      }
-
-      // Usar FileProvider para criar URI segura
-      const { fs } = RNFetchBlob;
-      
       // Verificar se arquivo existe
+      const { fs } = RNFetchBlob;
       const fileExists = await fs.exists(filePath);
       if (!fileExists) {
-        throw new Error('Arquivo APK não encontrado');
+        throw new Error('Arquivo APK não encontrado no caminho: ' + filePath);
       }
 
-      // Obter package name do AndroidManifest
-      // O package name é com.ligadobem.botucatu conforme build.gradle
+      console.log('✅ Arquivo encontrado');
+
+      // SOLUÇÃO ULTRA-SIMPLIFICADA: Não usar actionViewIntent que está causando crash
+      // Em vez disso, vamos apenas informar o usuário onde está o arquivo
+      // OU usar uma abordagem mais segura com Intent nativo via NativeModules
+      
+      // Obter package name e authority do FileProvider
       const packageName = 'com.ligadobem.botucatu';
       const authority = `${packageName}.fileprovider`;
       
-      console.log('🔐 Autoridade do FileProvider:', authority);
-
-      // Usar RNFetchBlob para instalar APK via Intent nativo
-      // Isso usa o FileProvider automaticamente
+      // Tentar usar Linking com content URI (mais seguro que actionViewIntent)
+      // Mas primeiro precisamos construir o URI correto
+      
+      // O DownloadManager salva o arquivo em Downloads, então vamos tentar abrir diretamente
+      // usando o método mais simples possível
+      
       try {
-        console.log('📱 Abrindo instalador nativo do Android via RNFetchBlob...');
+        // Método 1: Tentar abrir usando Intent nativo via NativeModules (se disponível)
+        // Isso é mais seguro que actionViewIntent
+        if (NativeModules && NativeModules.IntentAndroid) {
+          console.log('📱 Tentando abrir via IntentAndroid nativo...');
+          try {
+            // Usar Intent nativo para abrir o instalador
+            const Intent = NativeModules.IntentAndroid;
+            if (Intent && Intent.openFile) {
+              await Intent.openFile(filePath, 'application/vnd.android.package-archive');
+              console.log('✅ Instalação iniciada via IntentAndroid');
+              return; // Sucesso!
+            }
+          } catch (intentError) {
+            console.warn('⚠️ IntentAndroid não funcionou:', intentError);
+          }
+        }
         
-        // RNFetchBlob.android.actionViewIntent usa FileProvider automaticamente
-        // e cria o Intent correto para instalar APK
-        await RNFetchBlob.android.actionViewIntent(
-          filePath,
-          'application/vnd.android.package-archive'
-        );
-        
-        console.log('✅ Instalação iniciada com sucesso!');
-      } catch (intentError) {
-        console.warn('⚠️ Erro com actionViewIntent, tentando método alternativo...', intentError);
-        
-        // Método alternativo: usar Linking com file://
-        // Isso funciona em versões mais antigas do Android
-        try {
+        // Método 2: Usar Linking com file:// (funciona em Android < 7.0)
+        if (Platform.Version < 24) {
+          console.log('📱 Tentando abrir via Linking (Android < 7.0)...');
           const fileUri = `file://${filePath}`;
-          console.log('📱 Tentando abrir via Linking...', fileUri);
-          
           const canOpen = await Linking.canOpenURL(fileUri);
           if (canOpen) {
             await Linking.openURL(fileUri);
             console.log('✅ Instalação iniciada via Linking');
-          } else {
-            throw new Error('Não foi possível abrir o arquivo para instalação');
+            return; // Sucesso!
           }
-        } catch (linkingError) {
-          console.error('❌ Erro com Linking:', linkingError);
-          throw new Error(`Não foi possível iniciar a instalação: ${linkingError.message}`);
         }
+        
+        // Método 3: Se nada funcionou, lançar erro informativo
+        throw new Error('Não foi possível abrir o instalador automaticamente. O arquivo foi baixado com sucesso na pasta Downloads. Por favor, abra-o manualmente para instalar.');
+        
+      } catch (openError) {
+        console.error('❌ Erro ao tentar abrir instalador:', openError);
+        // Retornar mensagem informativa em vez de erro fatal
+        throw new Error(openError.message || 'O arquivo foi baixado. Por favor, abra-o manualmente na pasta Downloads para instalar.');
       }
     } catch (error) {
-      console.error('❌ Erro ao instalar APK:', error);
-      throw error;
+      console.error('❌ Erro ao processar instalação:', error);
+      // Retornar mensagem amigável
+      throw new Error(error.message || 'O download foi concluído. Por favor, abra o arquivo APK na pasta Downloads para instalar manualmente.');
     }
   }
 
