@@ -180,23 +180,35 @@ export default function LoginScreen({navigation}) {
       console.log('📱 [LoginScreen] Resultado da verificação:', JSON.stringify(info, null, 2));
       
       if (info && info.hasUpdate && info.latestVersion) {
-        console.log('✅ [LoginScreen] Atualização disponível, mostrando modal...', {
+        console.log('✅ [LoginScreen] Atualização disponível!', {
           currentVersion: info.currentVersion,
           currentVersionCode: info.currentVersionCode,
           latestVersion: info.latestVersion.version,
           latestVersionCode: info.latestVersion.versionCode,
+          apkUrl: info.latestVersion.apkUrl,
         });
+        
+        // Definir informações de atualização
         setUpdateInfo(info);
-        // Usar setTimeout para garantir que o modal aparece após navegação
+        
+        // Aguardar um pouco para garantir que a navegação foi concluída
+        // e então mostrar o modal
         setTimeout(() => {
           console.log('📱 [LoginScreen] Abrindo modal de atualização...');
+          console.log('📱 [LoginScreen] Estado do modal:', { showUpdateModal: true, hasUpdateInfo: !!info });
           setShowUpdateModal(true);
-        }, 1500); // Aumentar delay para garantir que a navegação foi concluída
+          
+          // Verificar novamente após 1 segundo se o modal não apareceu
+          setTimeout(() => {
+            console.log('📱 [LoginScreen] Verificando se modal está visível...');
+          }, 1000);
+        }, 2000); // Aumentar delay para garantir que a navegação foi concluída
       } else {
         console.log('ℹ️ [LoginScreen] Nenhuma atualização disponível', {
           hasInfo: !!info,
           hasUpdate: info?.hasUpdate,
           hasLatestVersion: !!info?.latestVersion,
+          info: info,
         });
       }
     } catch (error) {
@@ -234,8 +246,8 @@ export default function LoginScreen({navigation}) {
                   text: 'Não',
                   style: 'cancel',
                   onPress: () => {
-                    // Após recusar, verificar atualizações
-                    checkForUpdates();
+                    // Após recusar, o UpdateChecker global vai verificar atualizações
+                    console.log('✅ Biometria recusada. UpdateChecker global vai verificar atualizações...');
                   },
                 },
                 {
@@ -249,14 +261,15 @@ export default function LoginScreen({navigation}) {
                         {
                           text: 'OK',
                           onPress: () => {
-                            checkForUpdates();
+                            // O UpdateChecker global vai verificar atualizações
+                            console.log('✅ Biometria habilitada. UpdateChecker global vai verificar atualizações...');
                           },
                         },
                       ]);
                     } else {
                       Alert.alert('Erro', biometricResult.error || 'Não foi possível habilitar biometria');
-                      // Mesmo com erro, verificar atualizações
-                      checkForUpdates();
+                      // O UpdateChecker global vai verificar atualizações
+                      console.log('✅ Erro ao habilitar biometria. UpdateChecker global vai verificar atualizações...');
                     }
                   },
                 },
@@ -264,9 +277,9 @@ export default function LoginScreen({navigation}) {
             );
           }, 500);
         } else {
-          // Se biometria já está habilitada ou não disponível, verificar atualizações diretamente
-          console.log('✅ Login bem-sucedido, verificando atualizações...');
-          await checkForUpdates();
+          // Se biometria já está habilitada ou não disponível, 
+          // o UpdateChecker global vai verificar atualizações automaticamente
+          console.log('✅ Login bem-sucedido. UpdateChecker global vai verificar atualizações...');
         }
       }
     } catch (error) {
@@ -292,9 +305,9 @@ export default function LoginScreen({navigation}) {
           // Login bem-sucedido - aguardar estado atualizar
           await new Promise(resolve => setTimeout(resolve, 100));
           
-          // Após login bem-sucedido, verificar atualizações
-          console.log('✅ Login biométrico bem-sucedido, verificando atualizações...');
-          await checkForUpdates();
+          // Após login bem-sucedido, 
+          // o UpdateChecker global vai verificar atualizações automaticamente
+          console.log('✅ Login biométrico bem-sucedido. UpdateChecker global vai verificar atualizações...');
         }
       } else {
         // Não mostrar alerta se o usuário cancelou (comportamento padrão de apps bancários)

@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import NotificationService from './src/services/NotificationService';
-// Removido: UpdateService e UpdateModal movidos para LoginScreen
+import UpdateChecker from './src/components/UpdateChecker';
 
 // Navigation
 import { AuthStack, AppStack } from './src/navigation/AppNavigator';
@@ -110,7 +110,7 @@ export default function App() {
                 <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
                 <RootNavigator />
               </NavigationContainer>
-              {/* UpdateModal movido para LoginScreen */}
+              <UpdateChecker />
             </AuthProvider>
           </PaperProvider>
         </GestureHandlerRootView>
@@ -128,7 +128,7 @@ export default function App() {
                 <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
                 <RootNavigator />
               </NavigationContainer>
-              {/* UpdateModal movido para LoginScreen */}
+              <UpdateChecker />
             </AuthProvider>
           </PaperProvider>
         </GestureHandlerRootView>

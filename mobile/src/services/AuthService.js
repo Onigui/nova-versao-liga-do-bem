@@ -20,8 +20,9 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
 
   useEffect(() => {
-    // Marcar que o app está ativo (para detectar fechamento completo)
-    AsyncStorage.setItem('app_is_active', 'true').catch(() => {});
+    // Marcar timestamp de quando o app foi iniciado
+    const appStartTime = Date.now();
+    AsyncStorage.setItem('app_last_active', appStartTime.toString()).catch(() => {});
     
     loadStoredAuth();
     
@@ -31,6 +32,13 @@ export const AuthProvider = ({ children }) => {
     let previousAppState = AppState.currentState;
     const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos de inatividade
     const TEMPORARY_STATE_THRESHOLD = 5000; // 5 segundos - mudanças menores que isso são temporárias (permissões, etc)
+    
+    // Atualizar timestamp de última atividade periodicamente enquanto o app está ativo
+    const updateActiveTimestamp = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        AsyncStorage.setItem('app_last_active', Date.now().toString()).catch(() => {});
+      }
+    }, 10000); // Atualizar a cada 10 segundos
     
     const handleAppStateChange = (nextAppState) => {
       console.log('📱 Mudança de estado do app:', { previous: previousAppState, next: nextAppState });
@@ -72,8 +80,8 @@ export const AuthProvider = ({ children }) => {
         // App foi realmente para background (home button, etc)
         backgroundTime = Date.now();
         
-        // Manter flag de app ativo (ainda não foi completamente fechado)
-        AsyncStorage.setItem('app_is_active', 'true').catch(() => {});
+        // Atualizar timestamp de última atividade
+        AsyncStorage.setItem('app_last_active', Date.now().toString()).catch(() => {});
         
         // Limpar timeout anterior se existir
         if (timeoutId) {
@@ -83,8 +91,6 @@ export const AuthProvider = ({ children }) => {
         // Criar timeout para logout após inatividade
         timeoutId = setTimeout(() => {
           console.log('⏰ Timeout de inatividade atingido, fazendo logout...');
-          // Marcar que app foi fechado (timeout de inatividade)
-          AsyncStorage.setItem('app_was_closed', 'true').catch(() => {});
           logout();
         }, INACTIVITY_TIMEOUT);
       } else if (nextAppState === 'active') {
@@ -113,6 +119,7 @@ export const AuthProvider = ({ children }) => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+      clearInterval(updateActiveTimestamp);
       subscription?.remove();
     };
   }, []);
@@ -120,20 +127,45 @@ export const AuthProvider = ({ children }) => {
   const loadStoredAuth = async () => {
     try {
       // Verificar se o app foi completamente fechado
-      // Quando o app é completamente fechado, o flag 'app_is_active' não existe
-      const appIsActive = await AsyncStorage.getItem('app_is_active');
+      // Quando o app é completamente fechado, o timestamp 'app_last_active' não é atualizado
+      // Se o timestamp for muito antigo (mais de 1 minuto), significa que o app foi completamente fechado
+      const lastActiveTimestamp = await AsyncStorage.getItem('app_last_active');
+      const now = Date.now();
       
-      if (appIsActive !== 'true') {
-        // App foi completamente fechado (flag não existe)
-        console.log('🔒 App foi completamente fechado (flag não encontrado), limpando sessão...');
-        // Limpar sessão
-        await AsyncStorage.removeItem('auth_token');
-        await AsyncStorage.removeItem('user_data');
-        await AsyncStorage.removeItem('app_was_closed');
-        setToken(null);
-        setUser(null);
-        setLoading(false);
-        return;
+      if (lastActiveTimestamp) {
+        const timeSinceLastActive = now - parseInt(lastActiveTimestamp, 10);
+        // Se passou mais de 1 minuto desde a última atividade, o app foi completamente fechado
+        if (timeSinceLastActive > 60000) { // 1 minuto
+          console.log('🔒 App foi completamente fechado (timestamp muito antigo), limpando sessão...', {
+            timeSinceLastActive: Math.round(timeSinceLastActive / 1000) + ' segundos',
+          });
+          // Limpar sessão
+          await AsyncStorage.removeItem('auth_token');
+          await AsyncStorage.removeItem('user_data');
+          await AsyncStorage.removeItem('app_last_active');
+          setToken(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        } else {
+          console.log('✅ App não foi completamente fechado (timestamp recente)', {
+            timeSinceLastActive: Math.round(timeSinceLastActive / 1000) + ' segundos',
+          });
+        }
+      } else {
+        // Se não há timestamp, é a primeira vez que o app é aberto ou foi completamente fechado
+        // Verificar se há token armazenado
+        const storedToken = await AsyncStorage.getItem('auth_token');
+        if (storedToken) {
+          // Há token mas não há timestamp = app foi completamente fechado
+          console.log('🔒 App foi completamente fechado (sem timestamp), limpando sessão...');
+          await AsyncStorage.removeItem('auth_token');
+          await AsyncStorage.removeItem('user_data');
+          setToken(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
       }
       
       const storedToken = await AsyncStorage.getItem('auth_token');
@@ -261,7 +293,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('auth_token');
       await AsyncStorage.removeItem('user_data');
       await AsyncStorage.removeItem('guest_mode'); // Limpar caso exista de versões antigas
-      await AsyncStorage.removeItem('app_is_active'); // Limpar flag de app ativo
+      await AsyncStorage.removeItem('app_last_active'); // Limpar timestamp
       setToken(null);
       setUser(null);
     } catch (error) {
