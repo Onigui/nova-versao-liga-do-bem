@@ -256,28 +256,23 @@ class UpdateService {
       // Para Android 7.0+ (API 24+), precisamos usar content:// URI
       // Para versões mais antigas, podemos usar file://
       
-      if (Platform.Version >= 24) {
-        // Android 7.0+ - usar content:// URI via FileProvider
-        // O caminho do arquivo precisa ser relativo ao FileProvider
-        const fileUri = `content://${authority}/external_files/${filePath.split('/').pop()}`;
-        console.log('📱 [installAPK] Usando content URI:', fileUri);
+      // Usar react-native-fs para abrir o instalador
+      // Isso usa o FileProvider automaticamente no Android 7.0+
+      try {
+        // react-native-fs tem um método para visualizar arquivos que funciona com APKs
+        await RNFS.openFile(filePath);
+        console.log('✅ [installAPK] Instalação iniciada via RNFS.openFile');
+        return;
+      } catch (openError) {
+        console.warn('⚠️ [installAPK] RNFS.openFile falhou, tentando Linking:', openError);
         
-        // Tentar abrir com Linking usando content URI
-        try {
-          await Linking.openURL(fileUri);
-          console.log('✅ [installAPK] Instalação iniciada via content URI');
-          return;
-        } catch (linkingError) {
-          console.warn('⚠️ [installAPK] Erro com content URI, tentando file://:', linkingError);
-        }
+        // Fallback: usar Linking com file:// URI
+        const fileUri = `file://${filePath}`;
+        console.log('📱 [installAPK] Tentando file URI:', fileUri);
+        
+        await Linking.openURL(fileUri);
+        console.log('✅ [installAPK] Instalação iniciada via Linking');
       }
-
-      // Fallback: usar file:// URI (funciona em Android < 7.0)
-      const fileUri = `file://${filePath}`;
-      console.log('📱 [installAPK] Usando file URI:', fileUri);
-      
-      await Linking.openURL(fileUri);
-      console.log('✅ [installAPK] Instalação iniciada via file URI');
     } catch (error) {
       console.error('❌ [installAPK] Erro:', error);
       throw error;
