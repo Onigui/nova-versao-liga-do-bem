@@ -279,65 +279,6 @@ class UpdateService {
     }
   }
 
-      // SOLUÇÃO ULTRA-SIMPLIFICADA: Não usar actionViewIntent que está causando crash
-      // Em vez disso, vamos apenas informar o usuário onde está o arquivo
-      // OU usar uma abordagem mais segura com Intent nativo via NativeModules
-      
-      // Obter package name e authority do FileProvider
-      const packageName = 'com.ligadobem.botucatu';
-      const authority = `${packageName}.fileprovider`;
-      
-      // Tentar usar Linking com content URI (mais seguro que actionViewIntent)
-      // Mas primeiro precisamos construir o URI correto
-      
-      // O DownloadManager salva o arquivo em Downloads, então vamos tentar abrir diretamente
-      // usando o método mais simples possível
-      
-      try {
-        // Método 1: Tentar abrir usando Intent nativo via NativeModules (se disponível)
-        // Isso é mais seguro que actionViewIntent
-        if (NativeModules && NativeModules.IntentAndroid) {
-          console.log('📱 Tentando abrir via IntentAndroid nativo...');
-          try {
-            // Usar Intent nativo para abrir o instalador
-            const Intent = NativeModules.IntentAndroid;
-            if (Intent && Intent.openFile) {
-              await Intent.openFile(filePath, 'application/vnd.android.package-archive');
-              console.log('✅ Instalação iniciada via IntentAndroid');
-              return; // Sucesso!
-            }
-          } catch (intentError) {
-            console.warn('⚠️ IntentAndroid não funcionou:', intentError);
-          }
-        }
-        
-        // Método 2: Usar Linking com file:// (funciona em Android < 7.0)
-        if (Platform.Version < 24) {
-          console.log('📱 Tentando abrir via Linking (Android < 7.0)...');
-          const fileUri = `file://${filePath}`;
-          const canOpen = await Linking.canOpenURL(fileUri);
-          if (canOpen) {
-            await Linking.openURL(fileUri);
-            console.log('✅ Instalação iniciada via Linking');
-            return; // Sucesso!
-          }
-        }
-        
-        // Método 3: Se nada funcionou, lançar erro informativo
-        throw new Error('Não foi possível abrir o instalador automaticamente. O arquivo foi baixado com sucesso na pasta Downloads. Por favor, abra-o manualmente para instalar.');
-        
-      } catch (openError) {
-        console.error('❌ Erro ao tentar abrir instalador:', openError);
-        // Retornar mensagem informativa em vez de erro fatal
-        throw new Error(openError.message || 'O arquivo foi baixado. Por favor, abra-o manualmente na pasta Downloads para instalar.');
-      }
-    } catch (error) {
-      console.error('❌ Erro ao processar instalação:', error);
-      // Retornar mensagem amigável
-      throw new Error(error.message || 'O download foi concluído. Por favor, abra o arquivo APK na pasta Downloads para instalar manualmente.');
-    }
-  }
-
   // Novo método: Abrir pasta Downloads sem tentar instalar APK
   async openDownloadsFolder() {
     try {
