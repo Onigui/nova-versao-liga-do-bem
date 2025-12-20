@@ -147,12 +147,11 @@ class UpdateService {
   }
 
   async downloadAPK(apkUrl, onProgress) {
-    console.log('📥 [downloadAPK] Iniciando...');
+    console.log('📥 [downloadAPK] Iniciando download...');
     
     try {
       // Validar URL
       if (!apkUrl || typeof apkUrl !== 'string') {
-        console.error('❌ [downloadAPK] URL inválida:', apkUrl);
         throw new Error('URL do APK inválida');
       }
       
@@ -160,72 +159,77 @@ class UpdateService {
       console.log('📥 [downloadAPK] URL:', trimmedUrl);
       
       if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-        console.error('❌ [downloadAPK] URL não começa com http:// ou https://');
         throw new Error('URL do APK deve começar com http:// ou https://');
       }
 
-      // SOLUÇÃO ULTRA-SIMPLIFICADA: Usar Linking.openURL SEM solicitar permissões antes
-      // Isso evita qualquer crash relacionado a permissões
-      // O Android vai usar o DownloadManager nativo automaticamente
+      // SOLUÇÃO SIMPLES: Usar react-native-fs downloadFile
+      // Isso é muito mais simples e confiável
       
-      // Usar setTimeout para garantir que não bloqueia a thread principal
-      return new Promise((resolve, reject) => {
-        try {
-          console.log('🌐 [downloadAPK] Abrindo URL no navegador/DownloadManager...');
-          
-          // Usar setTimeout para garantir execução assíncrona
-          setTimeout(async () => {
-            try {
-              // Verificar se pode abrir URL (não esperar resultado para evitar crash)
-              Linking.canOpenURL(trimmedUrl).catch(err => {
-                console.warn('⚠️ [downloadAPK] canOpenURL falhou (continuando mesmo assim):', err);
-              });
+      // Solicitar permissões
+      console.log('🔐 [downloadAPK] Solicitando permissões...');
+      const hasPermission = await this.requestStoragePermission();
+      if (!hasPermission) {
+        console.warn('⚠️ [downloadAPK] Permissão negada, mas continuando...');
+      }
 
-              // Abrir URL diretamente - isso vai iniciar o download no DownloadManager nativo
-              // Não usar await aqui pode causar crash em algumas versões
-              // Usar setTimeout adicional para garantir que não bloqueia
-              setTimeout(() => {
-                try {
-                  Linking.openURL(trimmedUrl).catch(err => {
-                    console.error('❌ [downloadAPK] Erro ao abrir URL:', err);
-                    reject(new Error('Não foi possível abrir a URL de download: ' + err.message));
-                  });
-                  
-                  console.log('✅ [downloadAPK] URL aberta com sucesso');
-                  
-                  // Simular progresso
-                  if (onProgress && typeof onProgress === 'function') {
-                    try {
-                      setTimeout(() => onProgress(0.1), 100);
-                      setTimeout(() => onProgress(0.5), 500);
-                      setTimeout(() => onProgress(1.0), 1000);
-                    } catch (progressErr) {
-                      console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso:', progressErr);
-                    }
-                  }
-                  
-                  resolve('download_iniciado');
-                } catch (innerErr) {
-                  console.error('❌ [downloadAPK] Erro no setTimeout interno:', innerErr);
-                  reject(new Error('Erro ao abrir URL: ' + innerErr.message));
-                }
-              }, 100);
-            } catch (outerErr) {
-              console.error('❌ [downloadAPK] Erro no setTimeout externo:', outerErr);
-              reject(new Error('Erro ao processar download: ' + outerErr.message));
-            }
-          }, 50);
-        } catch (syncErr) {
-          console.error('❌ [downloadAPK] Erro síncrono:', syncErr);
-          reject(new Error('Erro síncrono: ' + syncErr.message));
-        }
-      });
+      // Usar react-native-fs para download
+      const RNFS = require('react-native-fs');
+      const downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
+      
+      console.log('📁 [downloadAPK] Salvando em:', downloadPath);
+      console.log('🌐 [downloadAPK] Iniciando download...');
+
+      // Configurar download
+      const downloadOptions = {
+        fromUrl: trimmedUrl,
+        toFile: downloadPath,
+        background: true, // Permite download em background
+        discretionary: false,
+        cacheable: false,
+      };
+
+      // Iniciar download
+      const downloadResult = RNFS.downloadFile(downloadOptions);
+      
+      // Monitorar progresso
+      if (onProgress) {
+        downloadResult.promise.then((result) => {
+          if (result.statusCode === 200) {
+            console.log('✅ [downloadAPK] Download concluído!');
+            onProgress(1.0);
+          } else {
+            throw new Error(`Erro no download: status ${result.statusCode}`);
+          }
+        });
+      }
+
+      // Aguardar conclusão do download
+      const result = await downloadResult.promise;
+      
+      if (result.statusCode !== 200) {
+        throw new Error(`Erro ao baixar: status ${result.statusCode}`);
+      }
+
+      console.log('✅ [downloadAPK] Download concluído! Arquivo salvo em:', downloadPath);
+
+      // Verificar se arquivo existe
+      const exists = await RNFS.exists(downloadPath);
+      if (!exists) {
+        throw new Error('Arquivo não foi salvo corretamente');
+      }
+
+      // Notificar progresso completo
+      if (onProgress) {
+        onProgress(1.0);
+      }
+
+      return downloadPath;
     } catch (error) {
-      console.error('❌ [downloadAPK] Erro geral:', error);
-      console.error('❌ [downloadAPK] Stack:', error.stack);
+      console.error('❌ [downloadAPK] Erro:', error);
       throw error;
     }
   }
+
 
   async installAPK(filePath) {
     if (Platform.OS !== 'android') {
@@ -233,16 +237,52 @@ class UpdateService {
     }
 
     try {
-      console.log('📦 Preparando para abrir instalador do Android...');
-      
-      // Se filePath for 'download_iniciado', significa que o download foi iniciado via Linking
-      // Nesse caso, não precisamos fazer nada - o usuário vai instalar manualmente após o download
-      if (filePath === 'download_iniciado') {
-        console.log('✅ Download iniciado. O usuário poderá instalar após o download ser concluído.');
-        return;
+      console.log('📦 [installAPK] Preparando instalação...');
+      console.log('📁 [installAPK] Caminho:', filePath);
+
+      // Verificar se arquivo existe
+      const RNFS = require('react-native-fs');
+      const exists = await RNFS.exists(filePath);
+      if (!exists) {
+        throw new Error('Arquivo APK não encontrado: ' + filePath);
       }
 
-      console.log('📁 Caminho do arquivo:', filePath);
+      console.log('✅ [installAPK] Arquivo encontrado, abrindo instalador...');
+
+      // Usar FileProvider para criar URI segura
+      const packageName = 'com.ligadobem.botucatu';
+      const authority = `${packageName}.fileprovider`;
+      
+      // Para Android 7.0+ (API 24+), precisamos usar content:// URI
+      // Para versões mais antigas, podemos usar file://
+      
+      if (Platform.Version >= 24) {
+        // Android 7.0+ - usar content:// URI via FileProvider
+        // O caminho do arquivo precisa ser relativo ao FileProvider
+        const fileUri = `content://${authority}/external_files/${filePath.split('/').pop()}`;
+        console.log('📱 [installAPK] Usando content URI:', fileUri);
+        
+        // Tentar abrir com Linking usando content URI
+        try {
+          await Linking.openURL(fileUri);
+          console.log('✅ [installAPK] Instalação iniciada via content URI');
+          return;
+        } catch (linkingError) {
+          console.warn('⚠️ [installAPK] Erro com content URI, tentando file://:', linkingError);
+        }
+      }
+
+      // Fallback: usar file:// URI (funciona em Android < 7.0)
+      const fileUri = `file://${filePath}`;
+      console.log('📱 [installAPK] Usando file URI:', fileUri);
+      
+      await Linking.openURL(fileUri);
+      console.log('✅ [installAPK] Instalação iniciada via file URI');
+    } catch (error) {
+      console.error('❌ [installAPK] Erro:', error);
+      throw error;
+    }
+  }
 
       // SOLUÇÃO ULTRA-SIMPLIFICADA: Não usar actionViewIntent que está causando crash
       // Em vez disso, vamos apenas informar o usuário onde está o arquivo

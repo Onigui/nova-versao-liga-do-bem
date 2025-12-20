@@ -93,30 +93,10 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       }
 
       setDownloading(false);
+      setInstalling(true);
       
-      // Se filePath for 'download_iniciado', significa que o download foi iniciado via Linking
-      if (filePath === 'download_iniciado') {
-        Alert.alert(
-          'Download Iniciado!',
-          'O download da atualização foi iniciado.\n\n' +
-          'Uma notificação aparecerá quando o download estiver completo.\n\n' +
-          'Após o download, toque na notificação ou abra o arquivo na pasta Downloads para instalar.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                if (onUpdateComplete) {
-                  onUpdateComplete();
-                }
-                if (!updateInfo.isMandatory) {
-                  onDismiss();
-                }
-              },
-            },
-          ],
-        );
-        return;
-      }
+      // Aguardar um pouco para garantir que o arquivo está salvo
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Se chegou aqui, significa que temos um caminho de arquivo real
       // Tentar abrir instalador
