@@ -1,9 +1,20 @@
 import { Alert, Linking, Platform, NativeModules } from 'react-native';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import RNFetchBlob from 'rn-fetch-blob';
 import { PermissionsAndroid } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
+
+// Importar RNFetchBlob com tratamento de erro
+let RNFetchBlob;
+try {
+  RNFetchBlob = require('rn-fetch-blob');
+  if (!RNFetchBlob) {
+    console.warn('⚠️ RNFetchBlob não foi carregado corretamente');
+  }
+} catch (importError) {
+  console.error('❌ Erro ao importar RNFetchBlob:', importError);
+  RNFetchBlob = null;
+}
 
 // Função para obter versão atual do app
 async function getCurrentAppVersion() {
@@ -161,43 +172,109 @@ class UpdateService {
         throw new Error('URL do APK deve começar com http:// ou https://');
       }
 
-      console.log('🔐 Solicitando permissão de armazenamento...');
-      const hasPermission = await this.requestStoragePermission();
-      if (!hasPermission) {
-        throw new Error('Permissão de armazenamento negada');
+      // VERIFICAÇÃO CRÍTICA: Verificar se RNFetchBlob está disponível ANTES de usar
+      if (!RNFetchBlob) {
+        console.error('❌ RNFetchBlob não está disponível');
+        throw new Error('Módulo de download não está disponível. Por favor, reinicie o aplicativo.');
       }
-      console.log('✅ Permissão concedida');
+
+      // Verificar se RNFetchBlob está realmente funcional
+      try {
+        // Teste simples para verificar se o módulo está funcionando
+        if (typeof RNFetchBlob !== 'object') {
+          throw new Error('RNFetchBlob não é um objeto válido');
+        }
+      } catch (testError) {
+        console.error('❌ Erro ao testar RNFetchBlob:', testError);
+        throw new Error('Módulo de download não está funcionando corretamente. Por favor, reinicie o aplicativo.');
+      }
+
+      // Verificar se config e fs existem
+      if (!RNFetchBlob.config || !RNFetchBlob.fs) {
+        throw new Error('RNFetchBlob não está inicializado corretamente. Por favor, reinicie o aplicativo.');
+      }
 
       const { config, fs } = RNFetchBlob;
+
+      // Verificar se fs.dirs existe
+      if (!fs || !fs.dirs) {
+        throw new Error('RNFetchBlob.fs.dirs não está disponível.');
+      }
+
+      // Verificar DownloadDir
+      if (!fs.dirs.DownloadDir) {
+        throw new Error('Pasta Downloads não está disponível.');
+      }
+
       const downloads = fs.dirs.DownloadDir;
+      
+      if (!downloads || typeof downloads !== 'string') {
+        throw new Error('Caminho da pasta Downloads inválido.');
+      }
+
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;
       const filePath = `${downloads}/${fileName}`;
 
       console.log('📁 Caminho do arquivo:', filePath);
       console.log('📁 Pasta Downloads:', downloads);
 
+      // Solicitar permissão DEPOIS de verificar RNFetchBlob (para evitar crash se RNFetchBlob falhar)
+      console.log('🔐 Solicitando permissão de armazenamento...');
+      let hasPermission = false;
+      try {
+        hasPermission = await this.requestStoragePermission();
+      } catch (permError) {
+        console.error('❌ Erro ao solicitar permissão:', permError);
+        throw new Error('Erro ao solicitar permissão de armazenamento: ' + permError.message);
+      }
+
+      if (!hasPermission) {
+        throw new Error('Permissão de armazenamento negada');
+      }
+      console.log('✅ Permissão concedida');
+
       // Usar DownloadManager do Android para download em background
       console.log('⚙️ Configurando download em background...');
       
-      const downloadConfig = config({
-        fileCache: false,
-        path: filePath,
-        addAndroidDownloads: {
-          useDownloadManager: true, // DownloadManager nativo (funciona em background)
-          notification: true, // Mostra notificação durante download
-          title: 'Liga do Bem - Atualização',
-          description: 'Baixando nova versão do aplicativo...',
-          mime: 'application/vnd.android.package-archive',
-          mediaScannable: true,
+      let downloadConfig;
+      try {
+        downloadConfig = config({
+          fileCache: false,
           path: filePath,
-          // Importante: permitir download em background
-          showNotification: true,
-        },
-      });
+          addAndroidDownloads: {
+            useDownloadManager: true, // DownloadManager nativo (funciona em background)
+            notification: true, // Mostra notificação durante download
+            title: 'Liga do Bem - Atualização',
+            description: 'Baixando nova versão do aplicativo...',
+            mime: 'application/vnd.android.package-archive',
+            mediaScannable: true,
+            path: filePath,
+            // Importante: permitir download em background
+            showNotification: true,
+          },
+        });
+      } catch (configError) {
+        console.error('❌ Erro ao configurar download:', configError);
+        throw new Error('Erro ao configurar download: ' + configError.message);
+      }
+
+      if (!downloadConfig || typeof downloadConfig.fetch !== 'function') {
+        throw new Error('Configuração de download inválida.');
+      }
 
       console.log('🌐 Iniciando download...');
       
-      const downloadTask = downloadConfig.fetch('GET', apkUrl);
+      let downloadTask;
+      try {
+        downloadTask = downloadConfig.fetch('GET', apkUrl);
+      } catch (fetchError) {
+        console.error('❌ Erro ao iniciar download:', fetchError);
+        throw new Error('Erro ao iniciar download: ' + fetchError.message);
+      }
+
+      if (!downloadTask) {
+        throw new Error('Falha ao criar tarefa de download.');
+      }
 
       // Configurar progresso
       if (onProgress && typeof onProgress === 'function') {

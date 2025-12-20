@@ -22,6 +22,9 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
   const [error, setError] = useState(null);
 
   const handleUpdate = async () => {
+    // Adicionar delay para garantir que o estado está pronto
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     if (!updateInfo?.latestVersion?.apkUrl) {
       Alert.alert('Erro', 'URL do APK não disponível');
       return;
@@ -40,9 +43,13 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       return;
     }
 
+    // Atualizar estados ANTES de qualquer operação assíncrona
     setError(null);
     setDownloadProgress(0);
     setDownloading(true);
+
+    // Adicionar outro pequeno delay para garantir que o estado foi atualizado
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     try {
       console.log('📥 Iniciando download em background...');
@@ -50,13 +57,26 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       // Fazer download em background com tratamento de erro robusto
       let filePath;
       try {
-        filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
-          setDownloadProgress(progress);
-          console.log(`📊 Progresso do download: ${Math.round(progress * 100)}%`);
-        });
+        // Envolver em try-catch adicional para capturar erros síncronos
+        filePath = await (async () => {
+          try {
+            return await UpdateService.downloadAPK(apkUrl, (progress) => {
+              try {
+                setDownloadProgress(progress);
+                console.log(`📊 Progresso do download: ${Math.round(progress * 100)}%`);
+              } catch (progressError) {
+                console.warn('Erro ao atualizar progresso na UI:', progressError);
+              }
+            });
+          } catch (innerError) {
+            console.error('❌ Erro interno no download:', innerError);
+            throw innerError;
+          }
+        })();
         console.log('✅ Download concluído! Arquivo em:', filePath);
       } catch (downloadError) {
         console.error('❌ Erro no download:', downloadError);
+        console.error('❌ Stack do erro:', downloadError.stack);
         throw new Error(`Erro ao baixar: ${downloadError.message || 'Erro desconhecido'}`);
       }
 
