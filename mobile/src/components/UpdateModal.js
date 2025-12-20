@@ -81,18 +81,41 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       }
 
       setDownloading(false);
+      
+      // Se filePath for 'download_iniciado', significa que o download foi iniciado via Linking
+      if (filePath === 'download_iniciado') {
+        Alert.alert(
+          'Download Iniciado!',
+          'O download da atualização foi iniciado.\n\n' +
+          'Uma notificação aparecerá quando o download estiver completo.\n\n' +
+          'Após o download, toque na notificação ou abra o arquivo na pasta Downloads para instalar.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (onUpdateComplete) {
+                  onUpdateComplete();
+                }
+                if (!updateInfo.isMandatory) {
+                  onDismiss();
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      // Se chegou aqui, significa que temos um caminho de arquivo real
+      // Tentar abrir instalador
       setInstalling(true);
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Aguardar um pouco para garantir que o arquivo está totalmente salvo
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Tentar abrir instalador com tratamento de erro robusto
       try {
         console.log('📦 Tentando abrir instalador...');
         await UpdateService.installAPK(filePath);
         console.log('✅ Instalação iniciada!');
         
-        // Fechar modal e notificar sucesso
         Alert.alert(
           'Download Concluído!',
           'A atualização foi baixada com sucesso.\n\n' +
@@ -115,14 +138,12 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         );
       } catch (installError) {
         console.error('❌ Erro ao abrir instalador:', installError);
-        // Não é um erro fatal - o download foi bem-sucedido
         setInstalling(false);
         
         Alert.alert(
           'Download Concluído!',
           'A atualização foi baixada com sucesso!\n\n' +
-          'Por favor, abra o arquivo APK na pasta Downloads para instalar manualmente.\n\n' +
-          `Arquivo: ${filePath.split('/').pop()}`,
+          'Por favor, abra o arquivo APK na pasta Downloads para instalar manualmente.',
           [
             {
               text: 'OK',
