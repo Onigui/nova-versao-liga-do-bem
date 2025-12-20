@@ -197,29 +197,39 @@ class UpdateService {
         throw new Error('URL do APK deve começar com http:// ou https://');
       }
 
-      // VERIFICAÇÃO CRÍTICA: Verificar se RNFetchBlob está disponível ANTES de usar
-      if (!RNFetchBlob) {
-        console.error('❌ RNFetchBlob não está disponível');
-        throw new Error('Módulo de download não está disponível. Por favor, reinicie o aplicativo.');
+      // VERIFICAÇÃO CRÍTICA: Inicializar RNFetchBlob de forma segura
+      const RNFetchBlobInstance = ensureRNFetchBlob();
+      
+      if (!RNFetchBlobInstance) {
+        console.error('❌ RNFetchBlob não está disponível após tentativa de inicialização');
+        console.log('⚠️ Usando método alternativo: abrindo URL no navegador...');
+        
+        // FALLBACK: Se RNFetchBlob não estiver disponível, abrir URL no navegador
+        // Isso permite que o usuário baixe manualmente
+        try {
+          const canOpen = await Linking.canOpenURL(apkUrl);
+          if (canOpen) {
+            await Linking.openURL(apkUrl);
+            throw new Error('O download será feito pelo navegador. Por favor, instale o APK após o download.');
+          } else {
+            throw new Error('Não foi possível abrir a URL de download. Por favor, copie o link e abra no navegador.');
+          }
+        } catch (linkingError) {
+          throw new Error('Módulo de download não está disponível. Por favor, reinicie o aplicativo ou copie o link para baixar manualmente.');
+        }
       }
 
       // Verificar se RNFetchBlob está realmente funcional
-      try {
-        // Teste simples para verificar se o módulo está funcionando
-        if (typeof RNFetchBlob !== 'object') {
-          throw new Error('RNFetchBlob não é um objeto válido');
-        }
-      } catch (testError) {
-        console.error('❌ Erro ao testar RNFetchBlob:', testError);
-        throw new Error('Módulo de download não está funcionando corretamente. Por favor, reinicie o aplicativo.');
+      if (typeof RNFetchBlobInstance !== 'object') {
+        throw new Error('RNFetchBlob não é um objeto válido');
       }
 
       // Verificar se config e fs existem
-      if (!RNFetchBlob.config || !RNFetchBlob.fs) {
+      if (!RNFetchBlobInstance.config || !RNFetchBlobInstance.fs) {
         throw new Error('RNFetchBlob não está inicializado corretamente. Por favor, reinicie o aplicativo.');
       }
 
-      const { config, fs } = RNFetchBlob;
+      const { config, fs } = RNFetchBlobInstance;
 
       // Verificar se fs.dirs existe
       if (!fs || !fs.dirs) {
