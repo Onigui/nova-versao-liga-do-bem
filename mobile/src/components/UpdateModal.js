@@ -22,62 +22,73 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
   const [error, setError] = useState(null);
 
   const handleUpdate = async () => {
-    // Adicionar delay para garantir que o estado está pronto
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    if (!updateInfo?.latestVersion?.apkUrl) {
-      Alert.alert('Erro', 'URL do APK não disponível');
-      return;
-    }
-
-    const apkUrl = updateInfo.latestVersion.apkUrl.trim();
-    console.log('🔗 URL do APK:', apkUrl);
-
-    // Validar URL
-    if (!apkUrl.startsWith('http://') && !apkUrl.startsWith('https://')) {
-      Alert.alert(
-        'URL Inválida',
-        'A URL do APK não está no formato correto. Por favor, verifique no painel administrativo.',
-        [{ text: 'OK' }],
-      );
-      return;
-    }
-
-    // Atualizar estados ANTES de qualquer operação assíncrona
-    setError(null);
-    setDownloadProgress(0);
-    setDownloading(true);
-
-    // Adicionar outro pequeno delay para garantir que o estado foi atualizado
-    await new Promise(resolve => setTimeout(resolve, 200));
-
+    console.log('🔘 [handleUpdate] Botão clicado');
+    
     try {
-      console.log('📥 Iniciando download em background...');
+      // Validar updateInfo primeiro
+      if (!updateInfo?.latestVersion?.apkUrl) {
+        console.error('❌ [handleUpdate] URL não disponível');
+        Alert.alert('Erro', 'URL do APK não disponível');
+        return;
+      }
+
+      const apkUrl = updateInfo.latestVersion.apkUrl?.trim();
+      console.log('🔗 [handleUpdate] URL do APK:', apkUrl);
+
+      if (!apkUrl) {
+        console.error('❌ [handleUpdate] URL vazia após trim');
+        Alert.alert('Erro', 'URL do APK inválida');
+        return;
+      }
+
+      // Validar URL
+      if (!apkUrl.startsWith('http://') && !apkUrl.startsWith('https://')) {
+        console.error('❌ [handleUpdate] URL não começa com http:// ou https://');
+        Alert.alert(
+          'URL Inválida',
+          'A URL do APK não está no formato correto. Por favor, verifique no painel administrativo.',
+          [{ text: 'OK' }],
+        );
+        return;
+      }
+
+      // Atualizar estados de forma segura
+      try {
+        setError(null);
+        setDownloadProgress(0);
+        setDownloading(true);
+      } catch (stateError) {
+        console.error('❌ [handleUpdate] Erro ao atualizar estado:', stateError);
+      }
+
+      // Adicionar delay para garantir que o estado foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      console.log('📥 [handleUpdate] Iniciando download...');
       
-      // Fazer download em background com tratamento de erro robusto
+      // Fazer download com tratamento de erro ultra-robusto
       let filePath;
       try {
-        // Envolver em try-catch adicional para capturar erros síncronos
-        filePath = await (async () => {
+        filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
           try {
-            return await UpdateService.downloadAPK(apkUrl, (progress) => {
-              try {
-                setDownloadProgress(progress);
-                console.log(`📊 Progresso do download: ${Math.round(progress * 100)}%`);
-              } catch (progressError) {
-                console.warn('Erro ao atualizar progresso na UI:', progressError);
-              }
-            });
-          } catch (innerError) {
-            console.error('❌ Erro interno no download:', innerError);
-            throw innerError;
+            if (typeof progress === 'number' && progress >= 0 && progress <= 1) {
+              setDownloadProgress(progress);
+              console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
+            }
+          } catch (progressError) {
+            console.warn('⚠️ [handleUpdate] Erro ao atualizar progresso:', progressError);
           }
-        })();
-        console.log('✅ Download concluído! Arquivo em:', filePath);
+        });
+        console.log('✅ [handleUpdate] Download iniciado, resultado:', filePath);
       } catch (downloadError) {
-        console.error('❌ Erro no download:', downloadError);
-        console.error('❌ Stack do erro:', downloadError.stack);
-        throw new Error(`Erro ao baixar: ${downloadError.message || 'Erro desconhecido'}`);
+        console.error('❌ [handleUpdate] Erro no download:', downloadError);
+        console.error('❌ [handleUpdate] Mensagem:', downloadError?.message);
+        console.error('❌ [handleUpdate] Stack:', downloadError?.stack);
+        
+        setDownloading(false);
+        setError(downloadError?.message || 'Erro desconhecido ao iniciar download');
+        
+        throw downloadError;
       }
 
       setDownloading(false);

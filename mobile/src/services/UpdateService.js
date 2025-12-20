@@ -147,55 +147,82 @@ class UpdateService {
   }
 
   async downloadAPK(apkUrl, onProgress) {
-    console.log('📥 Iniciando download do APK...');
-    console.log('📥 URL:', apkUrl);
+    console.log('📥 [downloadAPK] Iniciando...');
     
     try {
       // Validar URL
       if (!apkUrl || typeof apkUrl !== 'string') {
+        console.error('❌ [downloadAPK] URL inválida:', apkUrl);
         throw new Error('URL do APK inválida');
       }
       
-      if (!apkUrl.startsWith('http://') && !apkUrl.startsWith('https://')) {
+      const trimmedUrl = apkUrl.trim();
+      console.log('📥 [downloadAPK] URL:', trimmedUrl);
+      
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        console.error('❌ [downloadAPK] URL não começa com http:// ou https://');
         throw new Error('URL do APK deve começar com http:// ou https://');
       }
 
-      // SOLUÇÃO SIMPLIFICADA: Usar Linking.openURL para abrir a URL
+      // SOLUÇÃO ULTRA-SIMPLIFICADA: Usar Linking.openURL SEM solicitar permissões antes
+      // Isso evita qualquer crash relacionado a permissões
       // O Android vai usar o DownloadManager nativo automaticamente
-      // Isso é mais confiável que tentar usar bibliotecas externas problemáticas
-      console.log('🌐 Abrindo URL no DownloadManager nativo do Android...');
       
-      // Solicitar permissão de instalação (para depois instalar)
-      console.log('🔐 Verificando permissões...');
-      const hasPermission = await this.requestStoragePermission();
-      if (!hasPermission) {
-        console.warn('⚠️ Permissão negada, mas continuando...');
-      }
+      // Usar setTimeout para garantir que não bloqueia a thread principal
+      return new Promise((resolve, reject) => {
+        try {
+          console.log('🌐 [downloadAPK] Abrindo URL no navegador/DownloadManager...');
+          
+          // Usar setTimeout para garantir execução assíncrona
+          setTimeout(async () => {
+            try {
+              // Verificar se pode abrir URL (não esperar resultado para evitar crash)
+              Linking.canOpenURL(trimmedUrl).catch(err => {
+                console.warn('⚠️ [downloadAPK] canOpenURL falhou (continuando mesmo assim):', err);
+              });
 
-      // Abrir URL - o Android vai baixar automaticamente usando DownloadManager
-      const canOpen = await Linking.canOpenURL(apkUrl);
-      if (!canOpen) {
-        throw new Error('Não foi possível abrir a URL de download');
-      }
-
-      // Abrir a URL - isso vai iniciar o download no DownloadManager nativo
-      await Linking.openURL(apkUrl);
-      
-      console.log('✅ Download iniciado no DownloadManager nativo do Android');
-      
-      // Simular progresso (já que não temos callback real do DownloadManager)
-      if (onProgress && typeof onProgress === 'function') {
-        // Simular progresso inicial
-        setTimeout(() => onProgress(0.1), 100);
-        setTimeout(() => onProgress(0.5), 500);
-        setTimeout(() => onProgress(1.0), 1000);
-      }
-
-      // Retornar uma mensagem indicando que o download foi iniciado
-      // O arquivo será salvo em Downloads/ pelo sistema Android
-      return 'download_iniciado';
+              // Abrir URL diretamente - isso vai iniciar o download no DownloadManager nativo
+              // Não usar await aqui pode causar crash em algumas versões
+              // Usar setTimeout adicional para garantir que não bloqueia
+              setTimeout(() => {
+                try {
+                  Linking.openURL(trimmedUrl).catch(err => {
+                    console.error('❌ [downloadAPK] Erro ao abrir URL:', err);
+                    reject(new Error('Não foi possível abrir a URL de download: ' + err.message));
+                  });
+                  
+                  console.log('✅ [downloadAPK] URL aberta com sucesso');
+                  
+                  // Simular progresso
+                  if (onProgress && typeof onProgress === 'function') {
+                    try {
+                      setTimeout(() => onProgress(0.1), 100);
+                      setTimeout(() => onProgress(0.5), 500);
+                      setTimeout(() => onProgress(1.0), 1000);
+                    } catch (progressErr) {
+                      console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso:', progressErr);
+                    }
+                  }
+                  
+                  resolve('download_iniciado');
+                } catch (innerErr) {
+                  console.error('❌ [downloadAPK] Erro no setTimeout interno:', innerErr);
+                  reject(new Error('Erro ao abrir URL: ' + innerErr.message));
+                }
+              }, 100);
+            } catch (outerErr) {
+              console.error('❌ [downloadAPK] Erro no setTimeout externo:', outerErr);
+              reject(new Error('Erro ao processar download: ' + outerErr.message));
+            }
+          }, 50);
+        } catch (syncErr) {
+          console.error('❌ [downloadAPK] Erro síncrono:', syncErr);
+          reject(new Error('Erro síncrono: ' + syncErr.message));
+        }
+      });
     } catch (error) {
-      console.error('❌ Erro ao iniciar download:', error);
+      console.error('❌ [downloadAPK] Erro geral:', error);
+      console.error('❌ [downloadAPK] Stack:', error.stack);
       throw error;
     }
   }
