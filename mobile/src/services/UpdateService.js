@@ -282,33 +282,14 @@ class UpdateService {
       if (Platform.OS !== 'android') {
         throw new Error('Apenas Android suportado');
       }
-
-      const RNFetchBlobInstance = ensureRNFetchBlob();
-      if (!RNFetchBlobInstance || !RNFetchBlobInstance.fs) {
-        throw new Error('RNFetchBlob não está disponível');
-      }
-      const { fs } = RNFetchBlobInstance;
-      const downloads = fs.dirs.DownloadDir;
       
-      // Tentar abrir a pasta Downloads usando Intent do Android
-      // Isso é mais seguro que tentar instalar o APK diretamente
+      // Tentar abrir a pasta Downloads usando content:// URI
       try {
-        // Usar Intent para abrir o gerenciador de arquivos na pasta Downloads
-        const Intent = require('react-native').NativeModules.IntentAndroid;
-        if (Intent) {
-          Intent.openURL(`content://com.android.externalstorage.documents/document/primary:Download`);
-        } else {
-          // Fallback: tentar abrir com Linking usando content://
-          await Linking.openURL(`content://com.android.externalstorage.documents/document/primary:Download`);
-        }
-      } catch (intentError) {
-        // Se falhar, tentar abrir com file://
-        try {
-          await Linking.openURL(`file://${downloads}`);
-        } catch (linkingError) {
-          console.warn('Não foi possível abrir pasta Downloads automaticamente');
-          // Não lançar erro, apenas logar
-        }
+        // Usar content:// URI para abrir o gerenciador de arquivos na pasta Downloads
+        await Linking.openURL('content://com.android.externalstorage.documents/document/primary:Download');
+      } catch (linkingError) {
+        console.warn('Não foi possível abrir pasta Downloads automaticamente:', linkingError);
+        // Não lançar erro, apenas logar
       }
     } catch (error) {
       console.error('Erro ao abrir pasta Downloads:', error);
