@@ -4,16 +4,41 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PermissionsAndroid } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 
-// Importar RNFetchBlob com tratamento de erro
-let RNFetchBlob;
-try {
-  RNFetchBlob = require('rn-fetch-blob');
-  if (!RNFetchBlob) {
-    console.warn('⚠️ RNFetchBlob não foi carregado corretamente');
+// Importar RNFetchBlob com tratamento de erro e inicialização segura
+let RNFetchBlob = null;
+let RNFetchBlobAvailable = false;
+
+// Função para verificar e inicializar RNFetchBlob de forma segura
+function ensureRNFetchBlob() {
+  if (RNFetchBlobAvailable && RNFetchBlob) {
+    return RNFetchBlob;
   }
-} catch (importError) {
-  console.error('❌ Erro ao importar RNFetchBlob:', importError);
-  RNFetchBlob = null;
+
+  try {
+    // Tentar importar
+    const module = require('rn-fetch-blob');
+    
+    if (!module) {
+      console.warn('⚠️ RNFetchBlob retornou null/undefined');
+      return null;
+    }
+
+    // Verificar se as propriedades essenciais existem
+    if (typeof module.config !== 'function' || !module.fs) {
+      console.warn('⚠️ RNFetchBlob não está completamente inicializado');
+      return null;
+    }
+
+    RNFetchBlob = module;
+    RNFetchBlobAvailable = true;
+    console.log('✅ RNFetchBlob inicializado com sucesso');
+    return RNFetchBlob;
+  } catch (importError) {
+    console.error('❌ Erro ao importar/inicializar RNFetchBlob:', importError);
+    RNFetchBlob = null;
+    RNFetchBlobAvailable = false;
+    return null;
+  }
 }
 
 // Função para obter versão atual do app
@@ -360,7 +385,11 @@ class UpdateService {
       console.log('📁 Caminho do arquivo:', filePath);
 
       // Verificar se arquivo existe
-      const { fs } = RNFetchBlob;
+      const RNFetchBlobInstance = ensureRNFetchBlob();
+      if (!RNFetchBlobInstance || !RNFetchBlobInstance.fs) {
+        throw new Error('RNFetchBlob não está disponível para verificar arquivo');
+      }
+      const { fs } = RNFetchBlobInstance;
       const fileExists = await fs.exists(filePath);
       if (!fileExists) {
         throw new Error('Arquivo APK não encontrado no caminho: ' + filePath);
@@ -434,7 +463,11 @@ class UpdateService {
         throw new Error('Apenas Android suportado');
       }
 
-      const { fs } = RNFetchBlob;
+      const RNFetchBlobInstance = ensureRNFetchBlob();
+      if (!RNFetchBlobInstance || !RNFetchBlobInstance.fs) {
+        throw new Error('RNFetchBlob não está disponível');
+      }
+      const { fs } = RNFetchBlobInstance;
       const downloads = fs.dirs.DownloadDir;
       
       // Tentar abrir a pasta Downloads usando Intent do Android
