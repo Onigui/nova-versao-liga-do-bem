@@ -10,6 +10,7 @@ import {
   Linking,
   Clipboard,
   Platform,
+  InteractionManager,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -306,7 +307,33 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
                   (updateInfo.isMandatory || downloading || installing) && styles.buttonPrimaryFull,
                   (downloading || installing) && styles.buttonDisabled
                 ]}
-                onPress={handleUpdate}
+                onPress={() => {
+                  // Envolver em InteractionManager para garantir que UI está pronta
+                  InteractionManager.runAfterInteractions(() => {
+                    // Adicionar try-catch no nível mais alto
+                    try {
+                      handleUpdate().catch(err => {
+                        console.error('❌ [onPress] Erro não capturado:', err);
+                        setDownloading(false);
+                        setInstalling(false);
+                        Alert.alert(
+                          'Erro',
+                          'Ocorreu um erro ao iniciar o download. Por favor, tente novamente.',
+                          [{ text: 'OK' }]
+                        );
+                      });
+                    } catch (syncErr) {
+                      console.error('❌ [onPress] Erro síncrono:', syncErr);
+                      setDownloading(false);
+                      setInstalling(false);
+                      Alert.alert(
+                        'Erro',
+                        'Ocorreu um erro ao processar a solicitação. Por favor, tente novamente.',
+                        [{ text: 'OK' }]
+                      );
+                    }
+                  });
+                }}
                 disabled={downloading || installing}>
                 <LinearGradient
                   colors={downloading || installing ? ['#9CA3AF', '#6B7280'] : ['#8B5CF6', '#7C3AED']}
