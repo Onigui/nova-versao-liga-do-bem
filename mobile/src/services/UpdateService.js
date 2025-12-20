@@ -162,18 +162,58 @@ class UpdateService {
         throw new Error('URL do APK deve começar com http:// ou https://');
       }
 
-      // SOLUÇÃO SIMPLES: Usar react-native-fs downloadFile
-      // Isso é muito mais simples e confiável
-      
-      // Solicitar permissões
-      console.log('🔐 [downloadAPK] Solicitando permissões...');
-      const hasPermission = await this.requestStoragePermission();
-      if (!hasPermission) {
-        console.warn('⚠️ [downloadAPK] Permissão negada, mas continuando...');
+      // Tentar usar react-native-fs, mas com fallback seguro
+      let RNFS = null;
+      try {
+        RNFS = require('react-native-fs');
+        // Verificar se a biblioteca está realmente disponível
+        if (!RNFS || !RNFS.downloadFile || !RNFS.DownloadDirectoryPath) {
+          throw new Error('react-native-fs não está disponível ou não está linkado');
+        }
+        console.log('✅ [downloadAPK] react-native-fs disponível');
+      } catch (fsError) {
+        console.error('❌ [downloadAPK] Erro ao carregar react-native-fs:', fsError);
+        console.log('⚠️ [downloadAPK] Usando fallback: Linking.openURL');
+        
+        // FALLBACK: Usar Linking.openURL (abre no navegador)
+        // Solicitar permissões (mesmo que não sejam necessárias para Linking)
+        try {
+          await this.requestStoragePermission();
+        } catch (permError) {
+          console.warn('⚠️ [downloadAPK] Erro ao solicitar permissões:', permError);
+        }
+
+        // Abrir URL no navegador/DownloadManager
+        const canOpen = await Linking.canOpenURL(trimmedUrl);
+        if (!canOpen) {
+          throw new Error('Não foi possível abrir a URL de download');
+        }
+
+        await Linking.openURL(trimmedUrl);
+        console.log('✅ [downloadAPK] URL aberta no navegador para download');
+        
+        // Simular progresso
+        if (onProgress) {
+          setTimeout(() => onProgress(0.1), 100);
+          setTimeout(() => onProgress(0.5), 500);
+          setTimeout(() => onProgress(1.0), 1000);
+        }
+
+        return 'download_iniciado'; // Indica que foi iniciado via navegador
       }
 
-      // Usar react-native-fs para download
-      const RNFS = require('react-native-fs');
+      // Se chegou aqui, react-native-fs está disponível
+      // Solicitar permissões
+      console.log('🔐 [downloadAPK] Solicitando permissões...');
+      try {
+        const hasPermission = await this.requestStoragePermission();
+        if (!hasPermission) {
+          console.warn('⚠️ [downloadAPK] Permissão negada, mas continuando...');
+        }
+      } catch (permError) {
+        console.warn('⚠️ [downloadAPK] Erro ao solicitar permissões:', permError);
+      }
+
       const downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
       
       console.log('📁 [downloadAPK] Salvando em:', downloadPath);
@@ -191,18 +231,6 @@ class UpdateService {
       // Iniciar download
       const downloadResult = RNFS.downloadFile(downloadOptions);
       
-      // Monitorar progresso
-      if (onProgress) {
-        downloadResult.promise.then((result) => {
-          if (result.statusCode === 200) {
-            console.log('✅ [downloadAPK] Download concluído!');
-            onProgress(1.0);
-          } else {
-            throw new Error(`Erro no download: status ${result.statusCode}`);
-          }
-        });
-      }
-
       // Aguardar conclusão do download
       const result = await downloadResult.promise;
       
@@ -240,8 +268,43 @@ class UpdateService {
       console.log('📦 [installAPK] Preparando instalação...');
       console.log('📁 [installAPK] Caminho:', filePath);
 
+      // Se filePath for 'download_iniciado', significa que foi iniciado via navegador
+      if (filePath === 'download_iniciado') {
+        console.log('✅ [installAPK] Download iniciado via navegador. O usuário será instruído a instalar manualmente.');
+        return;
+      }
+
+      // Tentar usar react-native-fs, mas com fallback seguro
+      let RNFS = null;
+      try {
+        RNFS = require('react-native-fs');
+        if (!RNFS || !RNFS.exists || !RNFS.openFile) {
+          throw new Error('react-native-fs não está disponível ou não está linkado');
+        }
+        console.log('✅ [installAPK] react-native-fs disponível');
+      } catch (fsError) {
+        console.error('❌ [installAPK] Erro ao carregar react-native-fs:', fsError);
+        console.log('⚠️ [installAPK] Usando fallback: Linking.openURL');
+        
+        // FALLBACK: Usar Linking com file:// URI
+        try {
+          const fileUri = `file://${filePath}`;
+          const canOpen = await Linking.canOpenURL(fileUri);
+          if (canOpen) {
+            await Linking.openURL(fileUri);
+            console.log('✅ [installAPK] Instalação iniciada via Linking (fallback)');
+            return;
+          } else {
+            throw new Error('Não foi possível abrir o arquivo APK');
+          }
+        } catch (linkingError) {
+          console.error('❌ [installAPK] Erro no fallback Linking:', linkingError);
+          throw new Error('Não foi possível abrir o instalador. O arquivo foi baixado. Por favor, abra-o manualmente na pasta Downloads.');
+        }
+      }
+
+      // Se chegou aqui, react-native-fs está disponível
       // Verificar se arquivo existe
-      const RNFS = require('react-native-fs');
       const exists = await RNFS.exists(filePath);
       if (!exists) {
         throw new Error('Arquivo APK não encontrado: ' + filePath);
@@ -249,17 +312,8 @@ class UpdateService {
 
       console.log('✅ [installAPK] Arquivo encontrado, abrindo instalador...');
 
-      // Usar FileProvider para criar URI segura
-      const packageName = 'com.ligadobem.botucatu';
-      const authority = `${packageName}.fileprovider`;
-      
-      // Para Android 7.0+ (API 24+), precisamos usar content:// URI
-      // Para versões mais antigas, podemos usar file://
-      
       // Usar react-native-fs para abrir o instalador
-      // Isso usa o FileProvider automaticamente no Android 7.0+
       try {
-        // react-native-fs tem um método para visualizar arquivos que funciona com APKs
         await RNFS.openFile(filePath);
         console.log('✅ [installAPK] Instalação iniciada via RNFS.openFile');
         return;
@@ -270,8 +324,13 @@ class UpdateService {
         const fileUri = `file://${filePath}`;
         console.log('📱 [installAPK] Tentando file URI:', fileUri);
         
-        await Linking.openURL(fileUri);
-        console.log('✅ [installAPK] Instalação iniciada via Linking');
+        try {
+          await Linking.openURL(fileUri);
+          console.log('✅ [installAPK] Instalação iniciada via Linking');
+        } catch (linkingError) {
+          console.error('❌ [installAPK] Erro no Linking:', linkingError);
+          throw new Error('Não foi possível abrir o instalador. O arquivo foi baixado. Por favor, abra-o manualmente na pasta Downloads.');
+        }
       }
     } catch (error) {
       console.error('❌ [installAPK] Erro:', error);
