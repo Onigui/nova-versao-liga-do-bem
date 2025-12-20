@@ -93,26 +93,44 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       }
 
       setDownloading(false);
-      setInstalling(true);
-      
-      // Aguardar um pouco para garantir que o arquivo está salvo
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Se chegou aqui, significa que temos um caminho de arquivo real
-      // Tentar abrir instalador
+      // Se filePath for 'download_iniciado', significa que foi iniciado via navegador
+      if (filePath === 'download_iniciado') {
+        Alert.alert(
+          'Download Iniciado!',
+          'O download da atualização foi iniciado no seu navegador.\n\n' +
+          'Uma notificação aparecerá quando o download estiver completo.\n\n' +
+          'Após o download, toque na notificação ou abra o arquivo na pasta Downloads para instalar.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (onUpdateComplete) {
+                  onUpdateComplete();
+                }
+                if (!updateInfo.isMandatory) {
+                  onDismiss();
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      // Se chegou aqui, temos um caminho de arquivo real
       setInstalling(true);
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       try {
-        console.log('📦 Tentando abrir instalador...');
+        console.log('📦 [UpdateModal] Tentando instalar APK...');
         await UpdateService.installAPK(filePath);
-        console.log('✅ Instalação iniciada!');
+        console.log('✅ [UpdateModal] Instalação iniciada!');
         
         Alert.alert(
           'Download Concluído!',
-          'A atualização foi baixada com sucesso.\n\n' +
-          'O instalador do Android será aberto automaticamente.\n\n' +
-          'Siga as instruções na tela para instalar a nova versão.',
+          'O instalador do Android foi aberto.\n\n' +
+          'Por favor, confirme a instalação na tela que apareceu.',
           [
             {
               text: 'OK',
@@ -129,13 +147,14 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
           ],
         );
       } catch (installError) {
-        console.error('❌ Erro ao abrir instalador:', installError);
+        console.error('❌ [UpdateModal] Erro na instalação:', installError);
         setInstalling(false);
         
         Alert.alert(
-          'Download Concluído!',
-          'A atualização foi baixada com sucesso!\n\n' +
-          'Por favor, abra o arquivo APK na pasta Downloads para instalar manualmente.',
+          'Download Concluído',
+          `O download foi concluído, mas não foi possível abrir o instalador automaticamente.\n\n` +
+          `Por favor, abra o arquivo na pasta Downloads para instalar manualmente.\n\n` +
+          `Erro: ${installError.message}`,
           [
             {
               text: 'OK',
