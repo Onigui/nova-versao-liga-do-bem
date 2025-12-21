@@ -274,64 +274,10 @@ class UpdateService {
         return;
       }
 
-      // Tentar usar react-native-fs, mas com fallback seguro
-      let RNFS = null;
-      try {
-        RNFS = require('react-native-fs');
-        if (!RNFS || !RNFS.exists || !RNFS.openFile) {
-          throw new Error('react-native-fs não está disponível ou não está linkado');
-        }
-        console.log('✅ [installAPK] react-native-fs disponível');
-      } catch (fsError) {
-        console.error('❌ [installAPK] Erro ao carregar react-native-fs:', fsError);
-        console.log('⚠️ [installAPK] Usando fallback: Linking.openURL');
-        
-        // FALLBACK: Usar Linking com file:// URI
-        try {
-          const fileUri = `file://${filePath}`;
-          const canOpen = await Linking.canOpenURL(fileUri);
-          if (canOpen) {
-            await Linking.openURL(fileUri);
-            console.log('✅ [installAPK] Instalação iniciada via Linking (fallback)');
-            return;
-          } else {
-            throw new Error('Não foi possível abrir o arquivo APK');
-          }
-        } catch (linkingError) {
-          console.error('❌ [installAPK] Erro no fallback Linking:', linkingError);
-          throw new Error('Não foi possível abrir o instalador. O arquivo foi baixado. Por favor, abra-o manualmente na pasta Downloads.');
-        }
-      }
-
-      // Se chegou aqui, react-native-fs está disponível
-      // Verificar se arquivo existe
-      const exists = await RNFS.exists(filePath);
-      if (!exists) {
-        throw new Error('Arquivo APK não encontrado: ' + filePath);
-      }
-
-      console.log('✅ [installAPK] Arquivo encontrado, abrindo instalador...');
-
-      // Usar react-native-fs para abrir o instalador
-      try {
-        await RNFS.openFile(filePath);
-        console.log('✅ [installAPK] Instalação iniciada via RNFS.openFile');
-        return;
-      } catch (openError) {
-        console.warn('⚠️ [installAPK] RNFS.openFile falhou, tentando Linking:', openError);
-        
-        // Fallback: usar Linking com file:// URI
-        const fileUri = `file://${filePath}`;
-        console.log('📱 [installAPK] Tentando file URI:', fileUri);
-        
-        try {
-          await Linking.openURL(fileUri);
-          console.log('✅ [installAPK] Instalação iniciada via Linking');
-        } catch (linkingError) {
-          console.error('❌ [installAPK] Erro no Linking:', linkingError);
-          throw new Error('Não foi possível abrir o instalador. O arquivo foi baixado. Por favor, abra-o manualmente na pasta Downloads.');
-        }
-      }
+      // SOLUÇÃO TEMPORÁRIA: Se o download foi iniciado via DownloadManager,
+      // o usuário precisa instalar manualmente após o download
+      // Não podemos instalar automaticamente quando usamos Linking.openURL
+      console.log('✅ [installAPK] Download iniciado via DownloadManager. O usuário será instruído a instalar manualmente após o download.');
     } catch (error) {
       console.error('❌ [installAPK] Erro:', error);
       throw error;
