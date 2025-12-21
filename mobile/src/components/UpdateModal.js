@@ -62,35 +62,15 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         console.error('❌ [handleUpdate] Erro ao atualizar estado:', stateError);
       }
 
-      // Adicionar delay para garantir que o estado foi atualizado
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      console.log('📥 [handleUpdate] Iniciando download...');
+      console.log('📥 [handleUpdate] Chamando UpdateService.downloadAPK...');
       
-      // Fazer download com tratamento de erro ultra-robusto
-      let filePath;
-      try {
-        filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
-          try {
-            if (typeof progress === 'number' && progress >= 0 && progress <= 1) {
-              setDownloadProgress(progress);
-              console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
-            }
-          } catch (progressError) {
-            console.warn('⚠️ [handleUpdate] Erro ao atualizar progresso:', progressError);
-          }
-        });
-        console.log('✅ [handleUpdate] Download iniciado, resultado:', filePath);
-      } catch (downloadError) {
-        console.error('❌ [handleUpdate] Erro no download:', downloadError);
-        console.error('❌ [handleUpdate] Mensagem:', downloadError?.message);
-        console.error('❌ [handleUpdate] Stack:', downloadError?.stack);
-        
-        setDownloading(false);
-        setError(downloadError?.message || 'Erro desconhecido ao iniciar download');
-        
-        throw downloadError;
-      }
+      // Fazer download de forma simples
+      const filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
+        setDownloadProgress(progress);
+        console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
+      });
+      
+      console.log('✅ [handleUpdate] Download iniciado, resultado:', filePath);
 
       setDownloading(false);
 
