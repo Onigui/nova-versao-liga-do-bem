@@ -162,96 +162,22 @@ class UpdateService {
         throw new Error('URL do APK deve começar com http:// ou https://');
       }
 
-      // Tentar usar react-native-fs, mas com fallback seguro
-      let RNFS = null;
-      try {
-        RNFS = require('react-native-fs');
-        // Verificar se a biblioteca está realmente disponível
-        if (!RNFS || !RNFS.downloadFile || !RNFS.DownloadDirectoryPath) {
-          throw new Error('react-native-fs não está disponível ou não está linkado');
-        }
-        console.log('✅ [downloadAPK] react-native-fs disponível');
-      } catch (fsError) {
-        console.error('❌ [downloadAPK] Erro ao carregar react-native-fs:', fsError);
-        console.log('⚠️ [downloadAPK] Usando fallback: Linking.openURL');
-        
-        // FALLBACK: Usar Linking.openURL (abre no navegador)
-        // Solicitar permissões (mesmo que não sejam necessárias para Linking)
-        try {
-          await this.requestStoragePermission();
-        } catch (permError) {
-          console.warn('⚠️ [downloadAPK] Erro ao solicitar permissões:', permError);
-        }
-
-        // Abrir URL no navegador/DownloadManager
-        const canOpen = await Linking.canOpenURL(trimmedUrl);
-        if (!canOpen) {
-          throw new Error('Não foi possível abrir a URL de download');
-        }
-
-        await Linking.openURL(trimmedUrl);
-        console.log('✅ [downloadAPK] URL aberta no navegador para download');
-        
-        // Simular progresso
-        if (onProgress) {
-          setTimeout(() => onProgress(0.1), 100);
-          setTimeout(() => onProgress(0.5), 500);
-          setTimeout(() => onProgress(1.0), 1000);
-        }
-
-        return 'download_iniciado'; // Indica que foi iniciado via navegador
-      }
-
-      // Se chegou aqui, react-native-fs está disponível
-      // Solicitar permissões
-      console.log('🔐 [downloadAPK] Solicitando permissões...');
-      try {
-        const hasPermission = await this.requestStoragePermission();
-        if (!hasPermission) {
-          console.warn('⚠️ [downloadAPK] Permissão negada, mas continuando...');
-        }
-      } catch (permError) {
-        console.warn('⚠️ [downloadAPK] Erro ao solicitar permissões:', permError);
-      }
-
-      const downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
+      // Usar apenas Linking.openURL - método mais simples e confiável
+      // O Android vai usar o DownloadManager nativo automaticamente
+      console.log('🌐 [downloadAPK] Abrindo URL com Linking.openURL...');
       
-      console.log('📁 [downloadAPK] Salvando em:', downloadPath);
-      console.log('🌐 [downloadAPK] Iniciando download...');
-
-      // Configurar download
-      const downloadOptions = {
-        fromUrl: trimmedUrl,
-        toFile: downloadPath,
-        background: true, // Permite download em background
-        discretionary: false,
-        cacheable: false,
-      };
-
-      // Iniciar download
-      const downloadResult = RNFS.downloadFile(downloadOptions);
-      
-      // Aguardar conclusão do download
-      const result = await downloadResult.promise;
-      
-      if (result.statusCode !== 200) {
-        throw new Error(`Erro ao baixar: status ${result.statusCode}`);
+      // Simular progresso rapidamente
+      if (onProgress && typeof onProgress === 'function') {
+        setTimeout(() => onProgress(0.1), 50);
+        setTimeout(() => onProgress(0.5), 200);
+        setTimeout(() => onProgress(1.0), 500);
       }
 
-      console.log('✅ [downloadAPK] Download concluído! Arquivo salvo em:', downloadPath);
+      // Abrir URL diretamente - Android vai usar DownloadManager
+      await Linking.openURL(trimmedUrl);
+      console.log('✅ [downloadAPK] URL aberta com sucesso');
 
-      // Verificar se arquivo existe
-      const exists = await RNFS.exists(downloadPath);
-      if (!exists) {
-        throw new Error('Arquivo não foi salvo corretamente');
-      }
-
-      // Notificar progresso completo
-      if (onProgress) {
-        onProgress(1.0);
-      }
-
-      return downloadPath;
+      return 'download_iniciado';
     } catch (error) {
       console.error('❌ [downloadAPK] Erro:', error);
       throw error;
