@@ -147,7 +147,7 @@ class UpdateService {
   }
 
   async downloadAPK(apkUrl, onProgress) {
-    console.log('📥 [downloadAPK] Iniciando download...');
+    console.log('📥 [downloadAPK] Iniciando download interno...');
     
     try {
       // Validar URL
@@ -162,22 +162,58 @@ class UpdateService {
         throw new Error('URL do APK deve começar com http:// ou https://');
       }
 
-      // Usar apenas Linking.openURL - método mais simples e confiável
-      // O Android vai usar o DownloadManager nativo automaticamente
-      console.log('🌐 [downloadAPK] Abrindo URL com Linking.openURL...');
+      // Solicitar permissões primeiro
+      console.log('🔐 [downloadAPK] Solicitando permissões...');
+      await this.requestStoragePermission();
+
+      // Importar react-native-fs dinamicamente
+      const RNFS = require('react-native-fs');
       
-      // Simular progresso rapidamente
-      if (onProgress && typeof onProgress === 'function') {
-        setTimeout(() => onProgress(0.1), 50);
-        setTimeout(() => onProgress(0.5), 200);
-        setTimeout(() => onProgress(1.0), 500);
+      // Caminho onde salvar o APK
+      const downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
+      console.log('📁 [downloadAPK] Salvando em:', downloadPath);
+
+      // Configurar opções de download
+      const downloadOptions = {
+        fromUrl: trimmedUrl,
+        toFile: downloadPath,
+        background: false, // Download em foreground para ter progresso
+        progressDivider: 10, // Notificar progresso a cada 10%
+        progress: (res) => {
+          const progress = res.bytesWritten / res.contentLength;
+          console.log(`📊 [downloadAPK] Progresso: ${Math.round(progress * 100)}%`);
+          if (onProgress && typeof onProgress === 'function') {
+            onProgress(progress);
+          }
+        },
+      };
+
+      console.log('🌐 [downloadAPK] Iniciando download...');
+      
+      // Iniciar download
+      const downloadResult = RNFS.downloadFile(downloadOptions);
+      
+      // Aguardar conclusão
+      const result = await downloadResult.promise;
+      
+      if (result.statusCode !== 200) {
+        throw new Error(`Erro ao baixar: status ${result.statusCode}`);
       }
 
-      // Abrir URL diretamente - Android vai usar DownloadManager
-      await Linking.openURL(trimmedUrl);
-      console.log('✅ [downloadAPK] URL aberta com sucesso');
+      console.log('✅ [downloadAPK] Download concluído! Arquivo salvo em:', downloadPath);
 
-      return 'download_iniciado';
+      // Verificar se arquivo existe
+      const exists = await RNFS.exists(downloadPath);
+      if (!exists) {
+        throw new Error('Arquivo não foi salvo corretamente');
+      }
+
+      // Notificar progresso completo
+      if (onProgress) {
+        onProgress(1.0);
+      }
+
+      return downloadPath;
     } catch (error) {
       console.error('❌ [downloadAPK] Erro:', error);
       throw error;
@@ -194,16 +230,46 @@ class UpdateService {
       console.log('📦 [installAPK] Preparando instalação...');
       console.log('📁 [installAPK] Caminho:', filePath);
 
-      // Se filePath for 'download_iniciado', significa que foi iniciado via navegador
-      if (filePath === 'download_iniciado') {
-        console.log('✅ [installAPK] Download iniciado via navegador. O usuário será instruído a instalar manualmente.');
-        return;
+      // Verificar se arquivo existe
+      const RNFS = require('react-native-fs');
+      const exists = await RNFS.exists(filePath);
+      if (!exists) {
+        throw new Error('Arquivo APK não encontrado: ' + filePath);
       }
 
-      // SOLUÇÃO TEMPORÁRIA: Se o download foi iniciado via DownloadManager,
-      // o usuário precisa instalar manualmente após o download
-      // Não podemos instalar automaticamente quando usamos Linking.openURL
-      console.log('✅ [installAPK] Download iniciado via DownloadManager. O usuário será instruído a instalar manualmente após o download.');
+      console.log('✅ [installAPK] Arquivo encontrado, abrindo instalador...');
+
+      // Para Android 7.0+ (API 24+), usar FileProvider via content URI
+      // Para versões mais antigas, usar file:// URI diretamente
+      if (Platform.Version >= 24) {
+        // Android 7.0+ - usar FileProvider
+        const packageName = 'com.ligadobem.botucatu';
+        const authority = `${packageName}.fileprovider`;
+        
+        // Extrair apenas o nome do arquivo do caminho completo
+        const fileName = filePath.split('/').pop();
+        
+        // Construir content URI (o FileProvider está configurado em file_paths.xml)
+        const contentUri = `content://${authority}/external_files/${fileName}`;
+        
+        console.log('📱 [installAPK] Usando content URI:', contentUri);
+        
+        // Tentar abrir com Linking usando content URI
+        try {
+          await Linking.openURL(contentUri);
+          console.log('✅ [installAPK] Instalação iniciada via content URI');
+          return;
+        } catch (contentError) {
+          console.warn('⚠️ [installAPK] Erro com content URI, tentando file://:', contentError);
+        }
+      }
+
+      // Fallback: usar file:// URI (Android < 7.0 ou se content URI falhar)
+      const fileUri = `file://${filePath}`;
+      console.log('📱 [installAPK] Usando file URI:', fileUri);
+      
+      await Linking.openURL(fileUri);
+      console.log('✅ [installAPK] Instalação iniciada via file URI');
     } catch (error) {
       console.error('❌ [installAPK] Erro:', error);
       throw error;
