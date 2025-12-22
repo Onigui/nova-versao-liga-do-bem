@@ -147,58 +147,113 @@ class UpdateService {
   }
 
   async downloadAPK(apkUrl, onProgress) {
-    console.log('📥 [downloadAPK] Iniciando download...');
-    
-    // Validar URL
-    if (!apkUrl || typeof apkUrl !== 'string') {
-      throw new Error('URL do APK inválida');
-    }
-    
-    const trimmedUrl = apkUrl.trim();
-    console.log('📥 [downloadAPK] URL:', trimmedUrl);
-    
-    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-      throw new Error('URL do APK deve começar com http:// ou https://');
-    }
-
-    // SOLUÇÃO SIMPLES: Usar apenas Linking.openURL (API nativa do React Native)
-    // O Android vai usar o DownloadManager nativo automaticamente
-    // Isso é 100% confiável e não causa crash
-    console.log('🌐 [downloadAPK] Usando DownloadManager do Android via Linking.openURL...');
+    console.log('📥 [downloadAPK] ========== INÍCIO ==========');
+    console.log('📥 [downloadAPK] Parâmetros recebidos:');
+    console.log('   - apkUrl:', apkUrl);
+    console.log('   - onProgress:', typeof onProgress);
     
     try {
+      // Validar URL
+      console.log('🔍 [downloadAPK] Validando URL...');
+      if (!apkUrl) {
+        const error = new Error('URL do APK não fornecida (null/undefined)');
+        console.error('❌ [downloadAPK]', error.message);
+        throw error;
+      }
+      
+      if (typeof apkUrl !== 'string') {
+        const error = new Error(`URL do APK deve ser uma string, recebido: ${typeof apkUrl}`);
+        console.error('❌ [downloadAPK]', error.message);
+        throw error;
+      }
+      
+      const trimmedUrl = apkUrl.trim();
+      console.log('📥 [downloadAPK] URL após trim:', trimmedUrl);
+      console.log('📥 [downloadAPK] Tamanho da URL:', trimmedUrl.length);
+      
+      if (!trimmedUrl) {
+        const error = new Error('URL do APK está vazia após remover espaços');
+        console.error('❌ [downloadAPK]', error.message);
+        throw error;
+      }
+      
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        const error = new Error(`URL do APK deve começar com http:// ou https://. Recebido: ${trimmedUrl.substring(0, 20)}...`);
+        console.error('❌ [downloadAPK]', error.message);
+        throw error;
+      }
+
+      // SOLUÇÃO SIMPLES: Usar apenas Linking.openURL (API nativa do React Native)
+      // O Android vai usar o DownloadManager nativo automaticamente
+      // Isso é 100% confiável e não causa crash
+      console.log('🌐 [downloadAPK] Usando DownloadManager do Android via Linking.openURL...');
+      
       // Simular progresso (já que não temos callback real do DownloadManager)
       if (onProgress && typeof onProgress === 'function') {
-        setTimeout(() => {
-          try {
-            onProgress(0.1);
-          } catch (e) {
-            console.warn('Erro ao atualizar progresso:', e);
-          }
-        }, 100);
-        setTimeout(() => {
-          try {
-            onProgress(0.5);
-          } catch (e) {
-            console.warn('Erro ao atualizar progresso:', e);
-          }
-        }, 500);
-        setTimeout(() => {
-          try {
-            onProgress(1.0);
-          } catch (e) {
-            console.warn('Erro ao atualizar progresso:', e);
-          }
-        }, 1000);
+        console.log('📊 [downloadAPK] Configurando callbacks de progresso...');
+        try {
+          setTimeout(() => {
+            try {
+              onProgress(0.1);
+              console.log('📊 [downloadAPK] Progresso atualizado: 10%');
+            } catch (e) {
+              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso (10%):', e);
+            }
+          }, 100);
+          setTimeout(() => {
+            try {
+              onProgress(0.5);
+              console.log('📊 [downloadAPK] Progresso atualizado: 50%');
+            } catch (e) {
+              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso (50%):', e);
+            }
+          }, 500);
+          setTimeout(() => {
+            try {
+              onProgress(1.0);
+              console.log('📊 [downloadAPK] Progresso atualizado: 100%');
+            } catch (e) {
+              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso (100%):', e);
+            }
+          }, 1000);
+        } catch (progressError) {
+          console.warn('⚠️ [downloadAPK] Erro ao configurar callbacks de progresso:', progressError);
+        }
+      } else {
+        console.log('⚠️ [downloadAPK] Callback de progresso não fornecido ou inválido');
+      }
+
+      // Verificar se pode abrir URL
+      console.log('🔍 [downloadAPK] Verificando se pode abrir URL...');
+      let canOpen = false;
+      try {
+        canOpen = await Linking.canOpenURL(trimmedUrl);
+        console.log('✅ [downloadAPK] canOpenURL resultado:', canOpen);
+      } catch (canOpenError) {
+        console.warn('⚠️ [downloadAPK] Erro ao verificar canOpenURL (continuando mesmo assim):', canOpenError);
+        canOpen = true; // Assumir que pode abrir se a verificação falhar
       }
 
       // Abrir URL - o Android vai usar o DownloadManager nativo
-      await Linking.openURL(trimmedUrl);
-      console.log('✅ [downloadAPK] Download iniciado via DownloadManager do Android');
-
-      return 'download_iniciado';
+      console.log('🌐 [downloadAPK] Abrindo URL com Linking.openURL...');
+      try {
+        await Linking.openURL(trimmedUrl);
+        console.log('✅ [downloadAPK] Download iniciado via DownloadManager do Android');
+        console.log('📥 [downloadAPK] ========== SUCESSO ==========');
+        return 'download_iniciado';
+      } catch (openError) {
+        console.error('❌ [downloadAPK] Erro ao abrir URL:', openError);
+        console.error('❌ [downloadAPK] Tipo do erro:', typeof openError);
+        console.error('❌ [downloadAPK] Mensagem:', openError?.message);
+        console.error('❌ [downloadAPK] Stack:', openError?.stack);
+        throw new Error(`Não foi possível abrir a URL de download: ${openError?.message || openError?.toString() || 'Erro desconhecido'}`);
+      }
     } catch (error) {
-      console.error('❌ [downloadAPK] Erro:', error);
+      console.error('❌ [downloadAPK] ========== ERRO ==========');
+      console.error('❌ [downloadAPK] Tipo do erro:', typeof error);
+      console.error('❌ [downloadAPK] Mensagem:', error?.message);
+      console.error('❌ [downloadAPK] Stack:', error?.stack);
+      console.error('❌ [downloadAPK] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
       throw error;
     }
   }
