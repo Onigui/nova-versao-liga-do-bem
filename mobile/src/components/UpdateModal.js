@@ -108,11 +108,12 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
 
       setDownloading(false);
 
-      // Se filePath for 'download_iniciado', significa que foi iniciado via navegador
+      // Se filePath for 'download_iniciado', significa que foi iniciado via DownloadManager
       if (filePath === 'download_iniciado') {
+        console.log('✅ [handleUpdate] Download iniciado via DownloadManager');
         Alert.alert(
           'Download Iniciado!',
-          'O download da atualização foi iniciado no seu navegador.\n\n' +
+          'O download da atualização foi iniciado.\n\n' +
           'Uma notificação aparecerá quando o download estiver completo.\n\n' +
           'Após o download, toque na notificação ou abra o arquivo na pasta Downloads para instalar.',
           [
@@ -133,14 +134,17 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       }
 
       // Se chegou aqui, temos um caminho de arquivo real
+      console.log('📦 [handleUpdate] Tentando instalar APK...');
       setInstalling(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
+      
       try {
-        console.log('📦 [UpdateModal] Tentando instalar APK...');
-        await UpdateService.installAPK(filePath);
-        console.log('✅ [UpdateModal] Instalação iniciada!');
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
+        console.log('📦 [handleUpdate] Chamando UpdateService.installAPK...');
+        await UpdateService.installAPK(filePath);
+        console.log('✅ [handleUpdate] Instalação iniciada!');
+        
+        setInstalling(false);
         Alert.alert(
           'Download Concluído!',
           'O instalador do Android foi aberto.\n\n' +
@@ -149,7 +153,6 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
             {
               text: 'OK',
               onPress: () => {
-                setInstalling(false);
                 if (onUpdateComplete) {
                   onUpdateComplete();
                 }
@@ -161,14 +164,20 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
           ],
         );
       } catch (installError) {
-        console.error('❌ [UpdateModal] Erro na instalação:', installError);
+        console.error('❌ [handleUpdate] Erro na instalação:', installError);
+        console.error('❌ [handleUpdate] Tipo do erro:', typeof installError);
+        console.error('❌ [handleUpdate] Mensagem:', installError?.message);
+        console.error('❌ [handleUpdate] Stack:', installError?.stack);
+        
         setInstalling(false);
+        const installErrorMessage = installError?.message || installError?.toString() || 'Erro desconhecido na instalação';
+        setError(installErrorMessage);
         
         Alert.alert(
           'Download Concluído',
           `O download foi concluído, mas não foi possível abrir o instalador automaticamente.\n\n` +
           `Por favor, abra o arquivo na pasta Downloads para instalar manualmente.\n\n` +
-          `Erro: ${installError.message}`,
+          `Erro: ${installErrorMessage}`,
           [
             {
               text: 'OK',
@@ -185,10 +194,37 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         );
       }
     } catch (error) {
-      console.error('❌ Erro durante atualização:', error);
-      setError(error.message || 'Erro desconhecido');
+      // Catch ALL - captura qualquer erro não tratado
+      console.error('❌ [handleUpdate] ERRO CRÍTICO não tratado:', error);
+      console.error('❌ [handleUpdate] Tipo:', typeof error);
+      console.error('❌ [handleUpdate] Mensagem:', error?.message);
+      console.error('❌ [handleUpdate] Stack:', error?.stack);
+      console.error('❌ [handleUpdate] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      
       setDownloading(false);
       setInstalling(false);
+      const errorMessage = error?.message || error?.toString() || 'Erro desconhecido ao processar atualização';
+      setError(errorMessage);
+      
+      Alert.alert(
+        'Erro na Atualização',
+        `Ocorreu um erro ao processar a atualização.\n\nErro: ${errorMessage}\n\nPor favor, tente novamente ou entre em contato com o suporte.`,
+        [
+          {
+            text: 'Tentar Novamente',
+            onPress: () => handleUpdate(),
+          },
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+            onPress: () => {
+              if (!updateInfo.isMandatory) {
+                onDismiss();
+              }
+            },
+          },
+        ],
+      );
       
       Alert.alert(
         'Erro na Atualização',
