@@ -64,13 +64,47 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
 
       console.log('📥 [handleUpdate] Chamando UpdateService.downloadAPK...');
       
-      // Fazer download de forma simples
-      const filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
-        setDownloadProgress(progress);
-        console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
-      });
-      
-      console.log('✅ [handleUpdate] Download iniciado, resultado:', filePath);
+      // Fazer download com tratamento de erro robusto
+      let filePath;
+      try {
+        filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
+          try {
+            setDownloadProgress(progress);
+            console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
+          } catch (progressError) {
+            console.warn('⚠️ [handleUpdate] Erro ao atualizar progresso:', progressError);
+          }
+        });
+        console.log('✅ [handleUpdate] Download concluído, resultado:', filePath);
+      } catch (downloadError) {
+        console.error('❌ [handleUpdate] Erro no download:', downloadError);
+        setDownloading(false);
+        setError(downloadError?.message || 'Erro desconhecido no download');
+        
+        Alert.alert(
+          'Erro no Download',
+          `Não foi possível baixar a atualização.\n\n${downloadError?.message || 'Erro desconhecido'}\n\nTente novamente ou use o link manual.`,
+          [
+            {
+              text: 'Copiar Link',
+              onPress: async () => {
+                try {
+                  await Clipboard.setString(apkUrl);
+                  Alert.alert('Sucesso', 'Link copiado! Cole no navegador para baixar.');
+                } catch (e) {
+                  console.error('Erro ao copiar:', e);
+                }
+              },
+            },
+            { text: 'OK', onPress: () => {
+              if (!updateInfo.isMandatory) {
+                onDismiss();
+              }
+            }},
+          ],
+        );
+        return;
+      }
 
       setDownloading(false);
 
