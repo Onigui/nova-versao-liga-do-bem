@@ -213,41 +213,17 @@ class UpdateService {
       console.log('📦 [installAPK] Preparando instalação...');
       console.log('📁 [installAPK] Caminho:', filePath);
 
-      // Verificar se arquivo existe
-      const RNFS = require('react-native-fs');
-      const exists = await RNFS.exists(filePath);
-      if (!exists) {
-        throw new Error('Arquivo APK não encontrado: ' + filePath);
+      // Se filePath for 'download_iniciado', significa que o download foi iniciado via DownloadManager
+      // O usuário precisa instalar manualmente após o download terminar
+      if (filePath === 'download_iniciado') {
+        console.log('✅ [installAPK] Download iniciado via DownloadManager. O usuário será instruído a instalar manualmente.');
+        return;
       }
 
-      console.log('✅ [installAPK] Arquivo encontrado, abrindo instalador...');
-
-      // Para Android 7.0+ (API 24+), usar FileProvider via content URI
-      // Para versões mais antigas, usar file:// URI diretamente
-      if (Platform.Version >= 24) {
-        // Android 7.0+ - usar FileProvider
-        const packageName = 'com.ligadobem.botucatu';
-        const authority = `${packageName}.fileprovider`;
-        
-        // Extrair apenas o nome do arquivo do caminho completo
-        const fileName = filePath.split('/').pop();
-        
-        // Construir content URI (o FileProvider está configurado em file_paths.xml)
-        const contentUri = `content://${authority}/external_files/${fileName}`;
-        
-        console.log('📱 [installAPK] Usando content URI:', contentUri);
-        
-        // Tentar abrir com Linking usando content URI
-        try {
-          await Linking.openURL(contentUri);
-          console.log('✅ [installAPK] Instalação iniciada via content URI');
-          return;
-        } catch (contentError) {
-          console.warn('⚠️ [installAPK] Erro com content URI, tentando file://:', contentError);
-        }
-      }
-
-      // Fallback: usar file:// URI (Android < 7.0 ou se content URI falhar)
+      // Se chegou aqui, temos um caminho de arquivo real (não deveria acontecer com a implementação atual)
+      console.warn('⚠️ [installAPK] Tentando instalar com filePath:', filePath);
+      
+      // Tentar usar file:// URI
       const fileUri = `file://${filePath}`;
       console.log('📱 [installAPK] Usando file URI:', fileUri);
       
