@@ -164,13 +164,34 @@ class UpdateService {
 
       // Solicitar permissões primeiro
       console.log('🔐 [downloadAPK] Solicitando permissões...');
-      await this.requestStoragePermission();
+      try {
+        await this.requestStoragePermission();
+      } catch (permError) {
+        console.warn('⚠️ [downloadAPK] Erro ao solicitar permissões (continuando mesmo assim):', permError);
+      }
 
-      // Importar react-native-fs dinamicamente
-      const RNFS = require('react-native-fs');
+      // Tentar importar react-native-fs de forma segura
+      let RNFS = null;
+      let downloadPath = null;
       
-      // Caminho onde salvar o APK
-      const downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
+      try {
+        RNFS = require('react-native-fs');
+        if (RNFS && RNFS.DownloadDirectoryPath) {
+          downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
+          console.log('✅ [downloadAPK] react-native-fs disponível, usando:', downloadPath);
+        } else {
+          throw new Error('RNFS não está configurado corretamente');
+        }
+      } catch (fsError) {
+        console.warn('⚠️ [downloadAPK] react-native-fs não disponível, usando fallback:', fsError);
+        // Fallback: usar Linking.openURL se react-native-fs não estiver disponível
+        await Linking.openURL(trimmedUrl);
+        if (onProgress) {
+          setTimeout(() => onProgress(1.0), 500);
+        }
+        return 'download_iniciado';
+      }
+      
       console.log('📁 [downloadAPK] Salvando em:', downloadPath);
 
       // Configurar opções de download
