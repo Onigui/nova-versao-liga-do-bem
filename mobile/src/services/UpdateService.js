@@ -149,19 +149,20 @@ class UpdateService {
   async downloadAPK(apkUrl, onProgress) {
     console.log('📥 [downloadAPK] Iniciando download interno...');
     
-    try {
-      // Validar URL
-      if (!apkUrl || typeof apkUrl !== 'string') {
-        throw new Error('URL do APK inválida');
-      }
-      
-      const trimmedUrl = apkUrl.trim();
-      console.log('📥 [downloadAPK] URL:', trimmedUrl);
-      
-      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-        throw new Error('URL do APK deve começar com http:// ou https://');
-      }
+    // Validar URL primeiro (fora do try para garantir que sempre execute)
+    if (!apkUrl || typeof apkUrl !== 'string') {
+      throw new Error('URL do APK inválida');
+    }
+    
+    const trimmedUrl = apkUrl.trim();
+    console.log('📥 [downloadAPK] URL:', trimmedUrl);
+    
+    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+      throw new Error('URL do APK deve começar com http:// ou https://');
+    }
 
+    // Tentar usar react-native-fs, mas com fallback seguro imediato
+    try {
       // Solicitar permissões primeiro
       console.log('🔐 [downloadAPK] Solicitando permissões...');
       try {
@@ -175,18 +176,22 @@ class UpdateService {
       let downloadPath = null;
       
       try {
+        // Verificar se react-native-fs está disponível ANTES de usar
         RNFS = require('react-native-fs');
-        if (RNFS && RNFS.DownloadDirectoryPath) {
-          downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
-          console.log('✅ [downloadAPK] react-native-fs disponível, usando:', downloadPath);
-        } else {
-          throw new Error('RNFS não está configurado corretamente');
+        
+        // Verificar se as propriedades necessárias existem
+        if (!RNFS || typeof RNFS.DownloadDirectoryPath === 'undefined' || typeof RNFS.downloadFile !== 'function') {
+          throw new Error('react-native-fs não está linkado corretamente');
         }
+        
+        downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
+        console.log('✅ [downloadAPK] react-native-fs disponível, usando:', downloadPath);
+        
       } catch (fsError) {
         console.warn('⚠️ [downloadAPK] react-native-fs não disponível, usando fallback:', fsError);
-        // Fallback: usar Linking.openURL se react-native-fs não estiver disponível
+        // Fallback IMEDIATO: usar Linking.openURL se react-native-fs não estiver disponível
         await Linking.openURL(trimmedUrl);
-        if (onProgress) {
+        if (onProgress && typeof onProgress === 'function') {
           setTimeout(() => onProgress(1.0), 500);
         }
         return 'download_iniciado';
