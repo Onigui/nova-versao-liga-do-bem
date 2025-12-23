@@ -53,13 +53,27 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         return;
       }
 
-      // Atualizar estados de forma segura
+      // Atualizar estados de forma ULTRA-segura
+      console.log('📊 [handleUpdate] Atualizando estados...');
       try {
         setError(null);
+      } catch (e) {
+        console.warn('⚠️ [handleUpdate] Erro ao setError:', e);
+      }
+      try {
         setDownloadProgress(0);
+      } catch (e) {
+        console.warn('⚠️ [handleUpdate] Erro ao setDownloadProgress:', e);
+      }
+      try {
         setDownloading(true);
-      } catch (stateError) {
-        console.error('❌ [handleUpdate] Erro ao atualizar estado:', stateError);
+      } catch (e) {
+        console.warn('⚠️ [handleUpdate] Erro ao setDownloading:', e);
+      }
+      try {
+        setInstalling(false);
+      } catch (e) {
+        console.warn('⚠️ [handleUpdate] Erro ao setInstalling:', e);
       }
 
       console.log('📥 [handleUpdate] Chamando UpdateService.downloadAPK...');
