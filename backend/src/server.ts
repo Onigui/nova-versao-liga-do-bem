@@ -16,6 +16,7 @@ import volunteersRoutes from './routes/volunteers';
 import notificationsRoutes from './routes/notifications';
 import paymentsRoutes from './routes/payments';
 import transparencyRoutes from './routes/transparency';
+import appRoutes from './routes/app';
 
 // Load environment variables
 dotenv.config();
@@ -364,6 +365,7 @@ app.use('/api/volunteers', volunteersRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/transparency', transparencyRoutes);
+app.use('/api/app', appRoutes);
 
 // Inicializar banco de dados
 ensureDatabaseReady();

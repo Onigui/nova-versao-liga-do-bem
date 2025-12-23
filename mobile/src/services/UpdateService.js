@@ -11,76 +11,57 @@ async function getCurrentAppVersion() {
     const version = await DeviceInfo.getVersion();
     const buildNumber = await DeviceInfo.getBuildNumber();
     return {
-      version: version || '1.2.3',
-      versionCode: parseInt(buildNumber || '5', 10),
+      version,
+      versionCode: parseInt(buildNumber, 10) || 0,
     };
   } catch (error) {
-    console.warn('⚠️ Erro ao obter versão do DeviceInfo, usando valores padrão:', error);
-    // Fallback: tentar ler do app.json
+    console.warn('Erro ao obter versão do DeviceInfo:', error);
+    // Fallback: usar package.json
     try {
-      const appConfig = require('../../app.json');
+      const packageJson = require('../../package.json');
       return {
-        version: appConfig?.version || '1.2.3',
-        versionCode: appConfig?.versionCode || 5,
+        version: packageJson.version || '1.0.0',
+        versionCode: parseInt(packageJson.version?.split('.').join('') || '100', 10),
       };
-    } catch (jsonError) {
-      console.warn('⚠️ Erro ao ler app.json, usando valores hardcoded');
+    } catch {
       return {
-        version: '1.2.3',
-        versionCode: 5,
+        version: '1.0.0',
+        versionCode: 100,
       };
     }
   }
 }
 
-// Valores padrão (serão sobrescritos na primeira chamada)
-let CURRENT_VERSION = '1.2.3';
-let CURRENT_VERSION_CODE = 5;
-
-// Inicializar versão ao carregar o módulo
-getCurrentAppVersion().then(({ version, versionCode }) => {
-  CURRENT_VERSION = version;
-  CURRENT_VERSION_CODE = versionCode;
-  console.log('📱 Versão do app detectada:', { version, versionCode });
-});
-
 class UpdateService {
+  /**
+   * Verifica se há atualizações disponíveis
+   * @returns {Promise<{hasUpdate: boolean, latestVersion: object|null}>}
+   */
   async checkForUpdates() {
     try {
-      // Obter versão atual do app (sempre atualizada)
       const { version, versionCode } = await getCurrentAppVersion();
-      
-      console.log('🔍 Verificando atualizações...', {
-        currentVersion: version,
-        currentVersionCode: versionCode,
-      });
+      console.log('📱 Verificando atualizações...', { version, versionCode });
 
-      const url = `${API_BASE_PATH}/app/version?platform=android&version=${version}&versionCode=${versionCode}`;
-      console.log('📡 URL da verificação:', url);
+      const url = `${API_BASE_PATH}/app/update/check?version=${version}&versionCode=${versionCode}`;
 
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        cache: 'no-store', // Forçar buscar sempre da API
+        cache: 'no-store',
       });
 
-      console.log('📡 Status da resposta:', response.status, response.statusText);
+      console.log('📡 Status da resposta:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📱 Resposta completa da verificação:', JSON.stringify(data, null, 2));
-        
-        // Garantir que hasUpdate só seja true se realmente houver atualização
+        console.log('📱 Resposta da verificação:', JSON.stringify(data, null, 2));
+
         if (data.hasUpdate && data.latestVersion) {
           const latestVersionCode = data.latestVersion.versionCode || 0;
-          // Verificar novamente no cliente para garantir
           if (latestVersionCode <= versionCode) {
-            console.log('⚠️ Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...', {
-              latestVersionCode,
-              currentVersionCode: versionCode,
-            });
+            console.log('⚠️ Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...');
             data.hasUpdate = false;
             data.latestVersion = null;
           } else {
@@ -89,10 +70,8 @@ class UpdateService {
               latest: latestVersionCode,
             });
           }
-        } else {
-          console.log('✅ App está atualizado. Sem atualizações disponíveis.');
         }
-        
+
         return data;
       } else {
         const errorText = await response.text();
@@ -101,7 +80,6 @@ class UpdateService {
       }
     } catch (error) {
       console.error('❌ Erro ao verificar atualizações:', error);
-      console.error('❌ Stack trace:', error.stack);
       return null;
     }
   }
@@ -112,9 +90,7 @@ class UpdateService {
     }
 
     try {
-      // Para Android 13+ (API 33+), não precisa de WRITE_EXTERNAL_STORAGE
       if (Platform.Version >= 33) {
-        // Usar REQUEST_INSTALL_PACKAGES para instalar APKs
         const installPermission = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.REQUEST_INSTALL_PACKAGES,
           {
@@ -127,7 +103,6 @@ class UpdateService {
         );
         return installPermission === PermissionsAndroid.RESULTS.GRANTED;
       } else {
-        // Para Android < 13, usar WRITE_EXTERNAL_STORAGE
         const storagePermission = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           {
@@ -146,105 +121,105 @@ class UpdateService {
     }
   }
 
-  async downloadAPK(apkUrl, onProgress) {
-    console.log('📥 [downloadAPK] ========== INÍCIO ==========');
-    console.log('📥 [downloadAPK] Parâmetros recebidos:');
-    console.log('   - apkUrl:', apkUrl);
-    console.log('   - onProgress:', typeof onProgress);
-    
+  /**
+   * Baixa o APK diretamente do backend
+   * @param {string} versionId - ID da versão no banco de dados
+   * @param {function} onProgress - Callback de progresso (0.0 a 1.0)
+   * @returns {Promise<string>} - Caminho do arquivo baixado
+   */
+  async downloadAPK(versionId, onProgress) {
+    console.log('📥 [downloadAPK] Iniciando download do APK...');
+    console.log('📥 [downloadAPK] Version ID:', versionId);
+
+    if (!versionId) {
+      throw new Error('ID da versão não fornecido');
+    }
+
     try {
-      // Validar URL
-      console.log('🔍 [downloadAPK] Validando URL...');
-      if (!apkUrl) {
-        const error = new Error('URL do APK não fornecida (null/undefined)');
-        console.error('❌ [downloadAPK]', error.message);
-        throw error;
-      }
-      
-      if (typeof apkUrl !== 'string') {
-        const error = new Error(`URL do APK deve ser uma string, recebido: ${typeof apkUrl}`);
-        console.error('❌ [downloadAPK]', error.message);
-        throw error;
-      }
-      
-      const trimmedUrl = apkUrl.trim();
-      console.log('📥 [downloadAPK] URL após trim:', trimmedUrl);
-      console.log('📥 [downloadAPK] Tamanho da URL:', trimmedUrl.length);
-      
-      if (!trimmedUrl) {
-        const error = new Error('URL do APK está vazia após remover espaços');
-        console.error('❌ [downloadAPK]', error.message);
-        throw error;
-      }
-      
-      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-        const error = new Error(`URL do APK deve começar com http:// ou https://. Recebido: ${trimmedUrl.substring(0, 20)}...`);
-        console.error('❌ [downloadAPK]', error.message);
-        throw error;
+      // Solicitar permissões
+      console.log('🔐 [downloadAPK] Solicitando permissões...');
+      const hasPermission = await this.requestStoragePermission();
+      if (!hasPermission) {
+        throw new Error('Permissões necessárias não foram concedidas');
       }
 
-      // SOLUÇÃO ULTRA-SIMPLES: Usar apenas Linking.openURL (100% nativo, ZERO chance de crash)
-      // O Android DownloadManager vai gerenciar tudo automaticamente
-      console.log('🌐 [downloadAPK] Usando DownloadManager nativo do Android via Linking.openURL...');
-      
-      // Simular progresso (já que não temos callback real do DownloadManager)
-      if (onProgress && typeof onProgress === 'function') {
-        console.log('📊 [downloadAPK] Simulando progresso...');
-        try {
-          setTimeout(() => {
-            try {
-              onProgress(0.1);
-              console.log('📊 [downloadAPK] Progresso: 10%');
-            } catch (e) {
-              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso:', e);
-            }
-          }, 100);
-          setTimeout(() => {
-            try {
-              onProgress(0.5);
-              console.log('📊 [downloadAPK] Progresso: 50%');
-            } catch (e) {
-              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso:', e);
-            }
-          }, 500);
-          setTimeout(() => {
-            try {
-              onProgress(1.0);
-              console.log('📊 [downloadAPK] Progresso: 100%');
-            } catch (e) {
-              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso:', e);
-            }
-          }, 1000);
-        } catch (progressError) {
-          console.warn('⚠️ [downloadAPK] Erro ao configurar progresso:', progressError);
-        }
-      }
-
-      // Abrir URL - Android vai usar DownloadManager nativo (NÃO CRASHA)
-      console.log('🌐 [downloadAPK] Abrindo URL com Linking.openURL...');
+      // Verificar se react-native-fs está disponível
+      let RNFS;
       try {
-        await Linking.openURL(trimmedUrl);
-        console.log('✅ [downloadAPK] Download iniciado via DownloadManager do Android');
-        console.log('📥 [downloadAPK] ========== SUCESSO ==========');
-        return 'download_iniciado';
-      } catch (openError) {
-        console.error('❌ [downloadAPK] Erro ao abrir URL:', openError);
-        console.error('❌ [downloadAPK] Tipo:', typeof openError);
-        console.error('❌ [downloadAPK] Mensagem:', openError?.message);
-        console.error('❌ [downloadAPK] Stack:', openError?.stack);
-        throw new Error(`Não foi possível iniciar o download: ${openError?.message || openError?.toString() || 'Erro desconhecido'}`);
+        RNFS = require('react-native-fs');
+        if (!RNFS || typeof RNFS.DownloadDirectoryPath === 'undefined' || typeof RNFS.downloadFile !== 'function') {
+          throw new Error('react-native-fs não está disponível');
+        }
+      } catch (fsError) {
+        console.error('❌ [downloadAPK] react-native-fs não disponível:', fsError);
+        throw new Error('A biblioteca de download não está configurada. Por favor, recompile o aplicativo.');
       }
+
+      // URL do endpoint para baixar o APK
+      const downloadUrl = `${API_BASE_PATH}/app/update/apk/${versionId}`;
+      console.log('🌐 [downloadAPK] URL de download:', downloadUrl);
+
+      // Caminho onde salvar o APK
+      const fileName = `liga-do-bem-update-${Date.now()}.apk`;
+      const downloadPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+      console.log('📁 [downloadAPK] Salvando em:', downloadPath);
+
+      // Configurar download
+      const downloadOptions = {
+        fromUrl: downloadUrl,
+        toFile: downloadPath,
+        background: false,
+        progressDivider: 10,
+        progress: (res) => {
+          try {
+            if (res && res.bytesWritten && res.contentLength) {
+              const progress = res.bytesWritten / res.contentLength;
+              console.log(`📊 [downloadAPK] Progresso: ${Math.round(progress * 100)}% (${res.bytesWritten}/${res.contentLength} bytes)`);
+              if (onProgress && typeof onProgress === 'function') {
+                onProgress(progress);
+              }
+            }
+          } catch (progressError) {
+            console.warn('⚠️ [downloadAPK] Erro ao processar progresso:', progressError);
+          }
+        },
+      };
+
+      console.log('🌐 [downloadAPK] Iniciando download...');
+
+      // Iniciar download
+      const downloadResult = RNFS.downloadFile(downloadOptions);
+
+      // Aguardar conclusão
+      const result = await downloadResult.promise;
+
+      if (result.statusCode !== 200) {
+        throw new Error(`Erro ao baixar: status ${result.statusCode}`);
+      }
+
+      // Verificar se arquivo existe
+      const exists = await RNFS.exists(downloadPath);
+      if (!exists) {
+        throw new Error('Arquivo não foi salvo corretamente após o download');
+      }
+
+      // Notificar progresso completo
+      if (onProgress) {
+        onProgress(1.0);
+      }
+
+      console.log('✅ [downloadAPK] Download concluído! Arquivo salvo em:', downloadPath);
+      return downloadPath;
     } catch (error) {
-      console.error('❌ [downloadAPK] ========== ERRO ==========');
-      console.error('❌ [downloadAPK] Tipo do erro:', typeof error);
-      console.error('❌ [downloadAPK] Mensagem:', error?.message);
-      console.error('❌ [downloadAPK] Stack:', error?.stack);
-      console.error('❌ [downloadAPK] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      console.error('❌ [downloadAPK] Erro:', error);
       throw error;
     }
   }
 
-
+  /**
+   * Instala o APK baixado
+   * @param {string} filePath - Caminho do arquivo APK
+   */
   async installAPK(filePath) {
     if (Platform.OS !== 'android') {
       throw new Error('Instalação de APK só é suportada no Android');
@@ -254,20 +229,32 @@ class UpdateService {
       console.log('📦 [installAPK] Preparando instalação...');
       console.log('📁 [installAPK] Caminho:', filePath);
 
-      // Se filePath for 'download_iniciado', significa que o download foi iniciado via DownloadManager
-      // O usuário precisa instalar manualmente após o download terminar
-      if (filePath === 'download_iniciado') {
-        console.log('✅ [installAPK] Download iniciado via DownloadManager. O usuário será instruído a instalar manualmente.');
-        return;
+      // Para Android 7.0+ (API 24+), usar FileProvider via content URI
+      if (Platform.Version >= 24) {
+        const packageName = 'com.ligadobem.botucatu';
+        const authority = `${packageName}.fileprovider`;
+
+        // Extrair apenas o nome do arquivo do caminho completo
+        const fileName = filePath.split('/').pop();
+
+        // Construir content URI
+        const contentUri = `content://${authority}/external_files/${fileName}`;
+
+        console.log('📱 [installAPK] Usando content URI:', contentUri);
+
+        try {
+          await Linking.openURL(contentUri);
+          console.log('✅ [installAPK] Instalação iniciada via content URI');
+          return;
+        } catch (contentError) {
+          console.warn('⚠️ [installAPK] Erro com content URI, tentando file://:', contentError);
+        }
       }
 
-      // Se chegou aqui, temos um caminho de arquivo real (não deveria acontecer com a implementação atual)
-      console.warn('⚠️ [installAPK] Tentando instalar com filePath:', filePath);
-      
-      // Tentar usar file:// URI
+      // Fallback: usar file:// URI
       const fileUri = `file://${filePath}`;
       console.log('📱 [installAPK] Usando file URI:', fileUri);
-      
+
       await Linking.openURL(fileUri);
       console.log('✅ [installAPK] Instalação iniciada via file URI');
     } catch (error) {
@@ -275,59 +262,6 @@ class UpdateService {
       throw error;
     }
   }
-
-  // Novo método: Abrir pasta Downloads sem tentar instalar APK
-  async openDownloadsFolder() {
-    try {
-      if (Platform.OS !== 'android') {
-        throw new Error('Apenas Android suportado');
-      }
-      
-      // Tentar abrir a pasta Downloads usando content:// URI
-      try {
-        // Usar content:// URI para abrir o gerenciador de arquivos na pasta Downloads
-        await Linking.openURL('content://com.android.externalstorage.documents/document/primary:Download');
-      } catch (linkingError) {
-        console.warn('Não foi possível abrir pasta Downloads automaticamente:', linkingError);
-        // Não lançar erro, apenas logar
-      }
-    } catch (error) {
-      console.error('Erro ao abrir pasta Downloads:', error);
-      // Não lançar erro para não quebrar o fluxo
-    }
-  }
-
-
-  showUpdateDialog(updateInfo, onUpdate, onLater) {
-    const { latestVersion, isMandatory, releaseNotes } = updateInfo;
-    
-    Alert.alert(
-      isMandatory ? 'Atualização Obrigatória' : 'Nova Versão Disponível',
-      `Uma nova versão (${latestVersion.version}) está disponível.\n\n${releaseNotes || 'Melhorias e correções de bugs.'}\n\n${isMandatory ? 'Esta atualização é obrigatória para continuar usando o app.' : 'Deseja atualizar agora?'}`,
-      isMandatory
-        ? [
-            {
-              text: 'Atualizar Agora',
-              onPress: onUpdate,
-              style: 'default',
-            },
-          ]
-        : [
-            {
-              text: 'Depois',
-              onPress: onLater,
-              style: 'cancel',
-            },
-            {
-              text: 'Atualizar Agora',
-              onPress: onUpdate,
-              style: 'default',
-            },
-          ],
-      { cancelable: !isMandatory },
-    );
-  }
 }
 
 export default new UpdateService();
-

@@ -7,10 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Linking,
-  Clipboard,
-  Platform,
-  InteractionManager,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -23,73 +19,35 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
   const [error, setError] = useState(null);
 
   const handleUpdate = async () => {
-    console.log('🔘 [handleUpdate] Botão clicado');
+    console.log('🔘 [handleUpdate] Iniciando atualização...');
     
     try {
-      // Validar updateInfo primeiro
-      if (!updateInfo?.latestVersion?.apkUrl) {
-        console.error('❌ [handleUpdate] URL não disponível');
-        Alert.alert('Erro', 'URL do APK não disponível');
+      // Validar updateInfo
+      if (!updateInfo?.latestVersion?.versionId) {
+        console.error('❌ [handleUpdate] Version ID não disponível');
+        Alert.alert('Erro', 'Informações de atualização inválidas');
         return;
       }
 
-      const apkUrl = updateInfo.latestVersion.apkUrl?.trim();
-      console.log('🔗 [handleUpdate] URL do APK:', apkUrl);
+      const versionId = updateInfo.latestVersion.versionId;
+      console.log('📦 [handleUpdate] Version ID:', versionId);
 
-      if (!apkUrl) {
-        console.error('❌ [handleUpdate] URL vazia após trim');
-        Alert.alert('Erro', 'URL do APK inválida');
-        return;
-      }
+      // Resetar estados
+      setError(null);
+      setDownloadProgress(0);
+      setDownloading(true);
+      setInstalling(false);
 
-      // Validar URL
-      if (!apkUrl.startsWith('http://') && !apkUrl.startsWith('https://')) {
-        console.error('❌ [handleUpdate] URL não começa com http:// ou https://');
-        Alert.alert(
-          'URL Inválida',
-          'A URL do APK não está no formato correto. Por favor, verifique no painel administrativo.',
-          [{ text: 'OK' }],
-        );
-        return;
-      }
-
-      // Atualizar estados de forma ULTRA-segura
-      console.log('📊 [handleUpdate] Atualizando estados...');
-      try {
-        setError(null);
-      } catch (e) {
-        console.warn('⚠️ [handleUpdate] Erro ao setError:', e);
-      }
-      try {
-        setDownloadProgress(0);
-      } catch (e) {
-        console.warn('⚠️ [handleUpdate] Erro ao setDownloadProgress:', e);
-      }
-      try {
-        setDownloading(true);
-      } catch (e) {
-        console.warn('⚠️ [handleUpdate] Erro ao setDownloading:', e);
-      }
-      try {
-        setInstalling(false);
-      } catch (e) {
-        console.warn('⚠️ [handleUpdate] Erro ao setInstalling:', e);
-      }
-
-      console.log('📥 [handleUpdate] Chamando UpdateService.downloadAPK...');
+      console.log('📥 [handleUpdate] Iniciando download...');
       
-      // Fazer download com tratamento de erro robusto
+      // Fazer download
       let filePath;
       try {
-        filePath = await UpdateService.downloadAPK(apkUrl, (progress) => {
-          try {
-            setDownloadProgress(progress);
-            console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
-          } catch (progressError) {
-            console.warn('⚠️ [handleUpdate] Erro ao atualizar progresso:', progressError);
-          }
+        filePath = await UpdateService.downloadAPK(versionId, (progress) => {
+          setDownloadProgress(progress);
+          console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
         });
-        console.log('✅ [handleUpdate] Download concluído, resultado:', filePath);
+        console.log('✅ [handleUpdate] Download concluído:', filePath);
       } catch (downloadError) {
         console.error('❌ [handleUpdate] Erro no download:', downloadError);
         setDownloading(false);
@@ -97,76 +55,48 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         
         Alert.alert(
           'Erro no Download',
-          `Não foi possível baixar a atualização.\n\n${downloadError?.message || 'Erro desconhecido'}\n\nTente novamente ou use o link manual.`,
+          `Não foi possível baixar a atualização.\n\n${downloadError?.message || 'Erro desconhecido'}\n\nPor favor, tente novamente.`,
           [
             {
-              text: 'Copiar Link',
-              onPress: async () => {
-                try {
-                  await Clipboard.setString(apkUrl);
-                  Alert.alert('Sucesso', 'Link copiado! Cole no navegador para baixar.');
-                } catch (e) {
-                  console.error('Erro ao copiar:', e);
-                }
-              },
+              text: 'Tentar Novamente',
+              onPress: () => handleUpdate(),
             },
-            { text: 'OK', onPress: () => {
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
-            }},
-          ],
-        );
-        return;
-      }
-
-      setDownloading(false);
-
-      // Se filePath for 'download_iniciado', significa que foi iniciado via DownloadManager
-      if (filePath === 'download_iniciado') {
-        console.log('✅ [handleUpdate] Download iniciado via DownloadManager');
-        Alert.alert(
-          'Download Iniciado!',
-          'O download da atualização foi iniciado.\n\n' +
-          'Uma notificação aparecerá quando o download estiver completo.\n\n' +
-          'Após o download, toque na notificação ou abra o arquivo na pasta Downloads para instalar.',
-          [
             {
-              text: 'OK',
+              text: 'Cancelar',
+              style: 'cancel',
               onPress: () => {
-                if (onUpdateComplete) {
-                  onUpdateComplete();
-                }
                 if (!updateInfo.isMandatory) {
                   onDismiss();
                 }
               },
             },
           ],
+          { cancelable: !updateInfo.isMandatory }
         );
         return;
       }
 
-      // Se chegou aqui, temos um caminho de arquivo real
-      console.log('📦 [handleUpdate] Tentando instalar APK...');
+      setDownloading(false);
+
+      // Instalar APK
       setInstalling(true);
       
+      // Pequeno delay para mostrar estado de instalação
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        console.log('📦 [handleUpdate] Chamando UpdateService.installAPK...');
+        console.log('📦 [handleUpdate] Iniciando instalação...');
         await UpdateService.installAPK(filePath);
         console.log('✅ [handleUpdate] Instalação iniciada!');
-        
-        setInstalling(false);
+
         Alert.alert(
           'Download Concluído!',
-          'O instalador do Android foi aberto.\n\n' +
-          'Por favor, confirme a instalação na tela que apareceu.',
+          'O instalador do Android foi aberto.\n\nPor favor, confirme a instalação na tela que apareceu.',
           [
             {
               text: 'OK',
               onPress: () => {
+                setInstalling(false);
                 if (onUpdateComplete) {
                   onUpdateComplete();
                 }
@@ -179,19 +109,11 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         );
       } catch (installError) {
         console.error('❌ [handleUpdate] Erro na instalação:', installError);
-        console.error('❌ [handleUpdate] Tipo do erro:', typeof installError);
-        console.error('❌ [handleUpdate] Mensagem:', installError?.message);
-        console.error('❌ [handleUpdate] Stack:', installError?.stack);
-        
         setInstalling(false);
-        const installErrorMessage = installError?.message || installError?.toString() || 'Erro desconhecido na instalação';
-        setError(installErrorMessage);
-        
+
         Alert.alert(
-          'Download Concluído',
-          `O download foi concluído, mas não foi possível abrir o instalador automaticamente.\n\n` +
-          `Por favor, abra o arquivo na pasta Downloads para instalar manualmente.\n\n` +
-          `Erro: ${installErrorMessage}`,
+          'Erro na Instalação',
+          `O download foi concluído, mas não foi possível abrir o instalador automaticamente.\n\n${installError?.message || 'Erro desconhecido'}\n\nPor favor, verifique se você tem permissão para instalar aplicativos de fontes desconhecidas.`,
           [
             {
               text: 'OK',
@@ -208,21 +130,14 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
         );
       }
     } catch (error) {
-      // Catch ALL - captura qualquer erro não tratado
-      console.error('❌ [handleUpdate] ERRO CRÍTICO não tratado:', error);
-      console.error('❌ [handleUpdate] Tipo:', typeof error);
-      console.error('❌ [handleUpdate] Mensagem:', error?.message);
-      console.error('❌ [handleUpdate] Stack:', error?.stack);
-      console.error('❌ [handleUpdate] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-      
+      console.error('❌ [handleUpdate] Erro geral:', error);
+      setError(error?.message || 'Erro desconhecido');
       setDownloading(false);
       setInstalling(false);
-      const errorMessage = error?.message || error?.toString() || 'Erro desconhecido ao processar atualização';
-      setError(errorMessage);
-      
+
       Alert.alert(
         'Erro na Atualização',
-        `Ocorreu um erro ao processar a atualização.\n\nErro: ${errorMessage}\n\nPor favor, tente novamente ou entre em contato com o suporte.`,
+        `Não foi possível baixar ou instalar a atualização.\n\n${error?.message || 'Erro desconhecido'}\n\nPor favor, tente novamente.`,
         [
           {
             text: 'Tentar Novamente',
@@ -238,185 +153,100 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
             },
           },
         ],
-      );
-      
-      Alert.alert(
-        'Erro na Atualização',
-        `Não foi possível baixar ou instalar a atualização.\n\n` +
-        `Erro: ${error.message}\n\n` +
-        `Tente novamente ou copie o link para baixar manualmente.`,
-        [
-          {
-            text: 'Copiar Link',
-            onPress: async () => {
-              try {
-                await Clipboard.setString(apkUrl);
-                Alert.alert('Sucesso', 'Link copiado! Cole no navegador para baixar.');
-              } catch (clipError) {
-                console.error('Erro ao copiar:', clipError);
-              }
-            },
-          },
-          {
-            text: 'Tentar Novamente',
-            onPress: () => handleUpdate(),
-          },
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-            onPress: () => {
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
-            },
-          },
-        ],
-        { cancelable: !updateInfo.isMandatory },
+        { cancelable: !updateInfo.isMandatory }
       );
     }
   };
 
-  const handleLater = () => {
-    if (!updateInfo?.isMandatory) {
-      onDismiss();
-    }
-  };
-
-  if (!visible || !updateInfo?.hasUpdate) {
+  if (!updateInfo || !updateInfo.latestVersion) {
     return null;
   }
+
+  const { latestVersion, isMandatory } = updateInfo;
 
   return (
     <Modal
       visible={visible}
-      transparent={true}
+      transparent
       animationType="fade"
-      onRequestClose={updateInfo.isMandatory ? undefined : onDismiss}>
+      onRequestClose={isMandatory ? undefined : onDismiss}
+    >
       <View style={styles.overlay}>
-        <View style={styles.modal}>
+        <View style={styles.modalContainer}>
           <LinearGradient
-            colors={['#8B5CF6', '#7C3AED']}
-            style={styles.modalHeader}>
-            <Ionicons name="download" size={48} color="#FFFFFF" />
-            <Text style={styles.modalTitle}>
-              {updateInfo.isMandatory ? 'Atualização Obrigatória' : 'Nova Versão Disponível'}
-            </Text>
+            colors={['#4A90E2', '#357ABD']}
+            style={styles.header}
+          >
+            <Ionicons name="cloud-download-outline" size={48} color="#FFF" />
+            <Text style={styles.title}>Atualização Disponível</Text>
           </LinearGradient>
 
-          <View style={styles.modalContent}>
-            <Text style={styles.modalMessage}>
-              Uma nova versão ({updateInfo.latestVersion.version}) está disponível.
+          <View style={styles.content}>
+            <Text style={styles.versionText}>
+              Versão {latestVersion.version}
             </Text>
 
-            {updateInfo.latestVersion.releaseNotes && (
-              <View style={styles.releaseNotes}>
+            {latestVersion.releaseNotes && (
+              <View style={styles.releaseNotesContainer}>
                 <Text style={styles.releaseNotesTitle}>O que há de novo:</Text>
-                <Text style={styles.releaseNotesText}>
-                  {updateInfo.latestVersion.releaseNotes}
-                </Text>
+                <Text style={styles.releaseNotes}>{latestVersion.releaseNotes}</Text>
               </View>
             )}
 
-            {updateInfo.isMandatory && (
+            {isMandatory && (
               <View style={styles.mandatoryBadge}>
-                <Ionicons name="alert-circle" size={20} color="#EF4444" />
-                <Text style={styles.mandatoryText}>
-                  Esta atualização é obrigatória para continuar usando o app.
-                </Text>
+                <Ionicons name="alert-circle" size={16} color="#E74C3C" />
+                <Text style={styles.mandatoryText}>Atualização obrigatória</Text>
               </View>
             )}
 
-            {/* Progresso do Download */}
-            {downloading && (
-              <View style={styles.progressContainer}>
-                <Text style={styles.progressText}>
-                  Baixando atualização... {Math.round(downloadProgress * 100)}%
-                </Text>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressBarFill, { width: `${downloadProgress * 100}%` }]} />
-                </View>
-              </View>
-            )}
-
-            {/* Status de Instalação */}
-            {installing && (
-              <View style={styles.progressContainer}>
-                <ActivityIndicator size="large" color="#8B5CF6" />
-                <Text style={styles.progressText}>
-                  Preparando instalação...
-                </Text>
-              </View>
-            )}
-
-            {/* Mensagem de Erro */}
             {error && (
               <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color="#EF4444" />
+                <Ionicons name="alert-circle" size={20} color="#E74C3C" />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
-            <View style={styles.buttons}>
-              {!updateInfo.isMandatory && !downloading && !installing && (
+            {downloading && (
+              <View style={styles.progressContainer}>
+                <Text style={styles.progressText}>
+                  Baixando... {Math.round(downloadProgress * 100)}%
+                </Text>
+                <View style={styles.progressBarContainer}>
+                  <View style={[styles.progressBar, { width: `${downloadProgress * 100}%` }]} />
+                </View>
+              </View>
+            )}
+
+            {installing && (
+              <View style={styles.progressContainer}>
+                <ActivityIndicator size="large" color="#4A90E2" />
+                <Text style={styles.progressText}>Preparando instalação...</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.footer}>
+            {!downloading && !installing && (
+              <>
                 <TouchableOpacity
-                  style={styles.buttonSecondary}
-                  onPress={handleLater}>
-                  <Text style={styles.buttonSecondaryText}>Depois</Text>
+                  style={[styles.button, styles.updateButton]}
+                  onPress={handleUpdate}
+                >
+                  <Ionicons name="download-outline" size={20} color="#FFF" />
+                  <Text style={styles.buttonText}>Baixar e Instalar</Text>
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[
-                  styles.buttonPrimary, 
-                  (updateInfo.isMandatory || downloading || installing) && styles.buttonPrimaryFull,
-                  (downloading || installing) && styles.buttonDisabled
-                ]}
-                onPress={() => {
-                  // Envolver em InteractionManager para garantir que UI está pronta
-                  InteractionManager.runAfterInteractions(() => {
-                    // Adicionar try-catch no nível mais alto
-                    try {
-                      handleUpdate().catch(err => {
-                        console.error('❌ [onPress] Erro não capturado:', err);
-                        setDownloading(false);
-                        setInstalling(false);
-                        Alert.alert(
-                          'Erro',
-                          'Ocorreu um erro ao iniciar o download. Por favor, tente novamente.',
-                          [{ text: 'OK' }]
-                        );
-                      });
-                    } catch (syncErr) {
-                      console.error('❌ [onPress] Erro síncrono:', syncErr);
-                      setDownloading(false);
-                      setInstalling(false);
-                      Alert.alert(
-                        'Erro',
-                        'Ocorreu um erro ao processar a solicitação. Por favor, tente novamente.',
-                        [{ text: 'OK' }]
-                      );
-                    }
-                  });
-                }}
-                disabled={downloading || installing}>
-                <LinearGradient
-                  colors={downloading || installing ? ['#9CA3AF', '#6B7280'] : ['#8B5CF6', '#7C3AED']}
-                  style={styles.buttonPrimaryGradient}>
-                  {downloading ? (
-                    <>
-                      <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                      <Text style={styles.buttonPrimaryText}>Baixando...</Text>
-                    </>
-                  ) : installing ? (
-                    <>
-                      <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                      <Text style={styles.buttonPrimaryText}>Instalando...</Text>
-                    </>
-                  ) : (
-                    <Text style={styles.buttonPrimaryText}>Baixar e Instalar</Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+
+                {!isMandatory && (
+                  <TouchableOpacity
+                    style={[styles.button, styles.cancelButton]}
+                    onPress={onDismiss}
+                  >
+                    <Text style={styles.cancelButtonText}>Depois</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
         </View>
       </View>
@@ -427,148 +257,132 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
-  modal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    width: '100%',
+  modalContainer: {
+    width: '85%',
     maxWidth: 400,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
     overflow: 'hidden',
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 4},
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 10,
   },
-  modalHeader: {
+  header: {
     padding: 24,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  modalTitle: {
+  title: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#FFF',
     marginTop: 12,
   },
-  modalContent: {
-    padding: 24,
+  content: {
+    padding: 20,
   },
-  modalMessage: {
-    fontSize: 16,
-    color: '#374151',
+  versionText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
     marginBottom: 16,
     textAlign: 'center',
   },
-  releaseNotes: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
+  releaseNotesContainer: {
     marginBottom: 16,
   },
   releaseNotesTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: '#666',
     marginBottom: 8,
   },
-  releaseNotesText: {
+  releaseNotes: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#555',
     lineHeight: 20,
   },
   mandatoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#FFEBEE',
+    padding: 8,
+    borderRadius: 8,
     marginBottom: 16,
-    gap: 8,
   },
   mandatoryText: {
-    flex: 1,
+    marginLeft: 8,
     fontSize: 14,
-    color: '#DC2626',
-    fontWeight: '500',
-  },
-  progressContainer: {
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  progressBar: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#8B5CF6',
-    borderRadius: 4,
+    color: '#E74C3C',
+    fontWeight: '600',
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
+    backgroundColor: '#FFEBEE',
     padding: 12,
+    borderRadius: 8,
     marginBottom: 16,
-    gap: 8,
   },
   errorText: {
-    flex: 1,
+    marginLeft: 8,
     fontSize: 14,
-    color: '#DC2626',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  buttonSecondary: {
+    color: '#E74C3C',
     flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+  },
+  progressContainer: {
     alignItems: 'center',
+    marginTop: 16,
   },
-  buttonSecondaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
+  progressText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
   },
-  buttonPrimary: {
-    flex: 1,
-    borderRadius: 12,
+  progressBarContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
     overflow: 'hidden',
   },
-  buttonPrimaryFull: {
-    flex: 1,
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#4A90E2',
+    borderRadius: 4,
   },
-  buttonPrimaryGradient: {
-    padding: 16,
+  footer: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  button: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
   },
-  buttonPrimaryText: {
+  updateButton: {
+    backgroundColor: '#4A90E2',
+  },
+  buttonText: {
+    color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
+    marginLeft: 8,
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
   },
 });
-
