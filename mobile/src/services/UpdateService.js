@@ -183,71 +183,145 @@ class UpdateService {
         throw error;
       }
 
-      // SOLUÇÃO SIMPLES: Usar apenas Linking.openURL (API nativa do React Native)
-      // O Android vai usar o DownloadManager nativo automaticamente
-      // Isso é 100% confiável e não causa crash
-      console.log('🌐 [downloadAPK] Usando DownloadManager do Android via Linking.openURL...');
+      // Tentar usar react-native-fs para download interno
+      // Se não estiver disponível, mostrar erro claro ao usuário
+      console.log('🔍 [downloadAPK] Verificando se react-native-fs está disponível...');
       
-      // Simular progresso (já que não temos callback real do DownloadManager)
-      if (onProgress && typeof onProgress === 'function') {
-        console.log('📊 [downloadAPK] Configurando callbacks de progresso...');
-        try {
-          setTimeout(() => {
-            try {
-              onProgress(0.1);
-              console.log('📊 [downloadAPK] Progresso atualizado: 10%');
-            } catch (e) {
-              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso (10%):', e);
-            }
-          }, 100);
-          setTimeout(() => {
-            try {
-              onProgress(0.5);
-              console.log('📊 [downloadAPK] Progresso atualizado: 50%');
-            } catch (e) {
-              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso (50%):', e);
-            }
-          }, 500);
-          setTimeout(() => {
-            try {
-              onProgress(1.0);
-              console.log('📊 [downloadAPK] Progresso atualizado: 100%');
-            } catch (e) {
-              console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso (100%):', e);
-            }
-          }, 1000);
-        } catch (progressError) {
-          console.warn('⚠️ [downloadAPK] Erro ao configurar callbacks de progresso:', progressError);
+      let RNFS = null;
+      let downloadPath = null;
+      
+      try {
+        // Tentar importar react-native-fs
+        // Usar uma função wrapper para capturar erros de require
+        const checkRNFS = () => {
+          try {
+            return require('react-native-fs');
+          } catch (requireError) {
+            console.warn('⚠️ [downloadAPK] Erro ao fazer require de react-native-fs:', requireError);
+            return null;
+          }
+        };
+        
+        RNFS = checkRNFS();
+        
+        if (!RNFS) {
+          throw new Error('react-native-fs não está disponível');
         }
-      } else {
-        console.log('⚠️ [downloadAPK] Callback de progresso não fornecido ou inválido');
+        
+        // Verificar se as propriedades necessárias existem
+        if (typeof RNFS.DownloadDirectoryPath === 'undefined') {
+          throw new Error('RNFS.DownloadDirectoryPath não está disponível');
+        }
+        
+        if (typeof RNFS.downloadFile !== 'function') {
+          throw new Error('RNFS.downloadFile não é uma função');
+        }
+        
+        downloadPath = `${RNFS.DownloadDirectoryPath}/liga-do-bem-update-${Date.now()}.apk`;
+        console.log('✅ [downloadAPK] react-native-fs disponível!');
+        console.log('📁 [downloadAPK] Caminho de download:', downloadPath);
+        
+      } catch (fsError) {
+        console.error('❌ [downloadAPK] react-native-fs não está disponível:', fsError);
+        console.error('❌ [downloadAPK] Mensagem:', fsError?.message);
+        throw new Error(
+          'A biblioteca de download não está configurada. ' +
+          'Por favor, recompile o aplicativo para habilitar downloads internos. ' +
+          `Erro: ${fsError?.message || 'Biblioteca não encontrada'}`
+        );
       }
 
-      // Verificar se pode abrir URL
-      console.log('🔍 [downloadAPK] Verificando se pode abrir URL...');
-      let canOpen = false;
+      // Solicitar permissões
+      console.log('🔐 [downloadAPK] Solicitando permissões de armazenamento...');
       try {
-        canOpen = await Linking.canOpenURL(trimmedUrl);
-        console.log('✅ [downloadAPK] canOpenURL resultado:', canOpen);
-      } catch (canOpenError) {
-        console.warn('⚠️ [downloadAPK] Erro ao verificar canOpenURL (continuando mesmo assim):', canOpenError);
-        canOpen = true; // Assumir que pode abrir se a verificação falhar
+        await this.requestStoragePermission();
+        console.log('✅ [downloadAPK] Permissões concedidas');
+      } catch (permError) {
+        console.warn('⚠️ [downloadAPK] Erro ao solicitar permissões (continuando mesmo assim):', permError);
       }
 
-      // Abrir URL - o Android vai usar o DownloadManager nativo
-      console.log('🌐 [downloadAPK] Abrindo URL com Linking.openURL...');
+      // Configurar download
+      console.log('⚙️ [downloadAPK] Configurando opções de download...');
+      const downloadOptions = {
+        fromUrl: trimmedUrl,
+        toFile: downloadPath,
+        background: false, // Download em foreground para ter progresso
+        progressDivider: 10, // Notificar progresso a cada 10%
+        progress: (res) => {
+          try {
+            if (res && res.bytesWritten && res.contentLength) {
+              const progress = res.bytesWritten / res.contentLength;
+              console.log(`📊 [downloadAPK] Progresso: ${Math.round(progress * 100)}% (${res.bytesWritten}/${res.contentLength} bytes)`);
+              if (onProgress && typeof onProgress === 'function') {
+                onProgress(progress);
+              }
+            }
+          } catch (progressError) {
+            console.warn('⚠️ [downloadAPK] Erro ao processar progresso:', progressError);
+          }
+        },
+      };
+
+      console.log('🌐 [downloadAPK] Iniciando download interno...');
+      
+      // Iniciar download
+      let downloadResult;
       try {
-        await Linking.openURL(trimmedUrl);
-        console.log('✅ [downloadAPK] Download iniciado via DownloadManager do Android');
-        console.log('📥 [downloadAPK] ========== SUCESSO ==========');
-        return 'download_iniciado';
-      } catch (openError) {
-        console.error('❌ [downloadAPK] Erro ao abrir URL:', openError);
-        console.error('❌ [downloadAPK] Tipo do erro:', typeof openError);
-        console.error('❌ [downloadAPK] Mensagem:', openError?.message);
-        console.error('❌ [downloadAPK] Stack:', openError?.stack);
-        throw new Error(`Não foi possível abrir a URL de download: ${openError?.message || openError?.toString() || 'Erro desconhecido'}`);
+        downloadResult = RNFS.downloadFile(downloadOptions);
+        console.log('✅ [downloadAPK] Download iniciado');
+      } catch (startError) {
+        console.error('❌ [downloadAPK] Erro ao iniciar download:', startError);
+        throw new Error(`Não foi possível iniciar o download: ${startError?.message || 'Erro desconhecido'}`);
       }
+      
+      // Aguardar conclusão
+      console.log('⏳ [downloadAPK] Aguardando conclusão do download...');
+      let result;
+      try {
+        result = await downloadResult.promise;
+        console.log('✅ [downloadAPK] Download concluído!');
+        console.log('📊 [downloadAPK] Status:', result.statusCode);
+        console.log('📊 [downloadAPK] Bytes escritos:', result.bytesWritten);
+      } catch (promiseError) {
+        console.error('❌ [downloadAPK] Erro durante o download:', promiseError);
+        throw new Error(`Erro durante o download: ${promiseError?.message || 'Erro desconhecido'}`);
+      }
+      
+      if (result.statusCode !== 200) {
+        const error = new Error(`Erro ao baixar: status ${result.statusCode}`);
+        console.error('❌ [downloadAPK]', error.message);
+        throw error;
+      }
+
+      console.log('✅ [downloadAPK] Verificando se arquivo foi salvo...');
+      
+      // Verificar se arquivo existe
+      let exists = false;
+      try {
+        exists = await RNFS.exists(downloadPath);
+        console.log('📁 [downloadAPK] Arquivo existe?', exists);
+      } catch (existsError) {
+        console.warn('⚠️ [downloadAPK] Erro ao verificar existência do arquivo:', existsError);
+      }
+      
+      if (!exists) {
+        throw new Error('Arquivo não foi salvo corretamente após o download');
+      }
+
+      // Notificar progresso completo
+      if (onProgress && typeof onProgress === 'function') {
+        try {
+          onProgress(1.0);
+          console.log('📊 [downloadAPK] Progresso atualizado: 100%');
+        } catch (progressError) {
+          console.warn('⚠️ [downloadAPK] Erro ao atualizar progresso final:', progressError);
+        }
+      }
+
+      console.log('✅ [downloadAPK] Download concluído com sucesso!');
+      console.log('📁 [downloadAPK] Arquivo salvo em:', downloadPath);
+      console.log('📥 [downloadAPK] ========== SUCESSO ==========');
+      return downloadPath;
     } catch (error) {
       console.error('❌ [downloadAPK] ========== ERRO ==========');
       console.error('❌ [downloadAPK] Tipo do erro:', typeof error);
