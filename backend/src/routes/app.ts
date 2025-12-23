@@ -97,9 +97,22 @@ router.get('/update/apk/:versionId', async (req: Request, res: Response) => {
     }
 
     // Caminho local - construir caminho completo
-    // APKs devem estar em uma pasta uploads/apks/ ou web/downloads/
+    // APKs devem estar em backend/uploads/apks/
     const projectRoot = path.resolve(__dirname, '../../..');
-    const apkPath = path.resolve(projectRoot, version.apkUrl);
+    
+    // Se apkUrl já for um caminho absoluto ou relativo ao projeto, usar direto
+    // Caso contrário, assumir que está em uploads/apks/
+    let apkPath;
+    if (version.apkUrl.startsWith('/') || version.apkUrl.includes('..')) {
+      // Caminho absoluto ou com .. - usar com cuidado
+      apkPath = path.resolve(projectRoot, version.apkUrl.replace(/^\/+/, ''));
+    } else if (version.apkUrl.startsWith('uploads/apks/') || version.apkUrl.startsWith('backend/uploads/apks/')) {
+      // Já está no formato correto
+      apkPath = path.resolve(projectRoot, version.apkUrl);
+    } else {
+      // Assumir que está em uploads/apks/
+      apkPath = path.resolve(projectRoot, 'backend/uploads/apks', version.apkUrl);
+    }
 
     // Verificar se arquivo existe
     try {

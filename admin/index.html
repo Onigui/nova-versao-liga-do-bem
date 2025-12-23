@@ -2155,6 +2155,54 @@
         </div>
     </div>
 
+    <!-- Modal para Upload de APK -->
+    <div id="uploadAPKModal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Upload de Nova Versão do App</h3>
+                <button class="modal-close" onclick="closeModal('uploadAPKModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadAPKForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label class="form-label">Versão (ex: 1.2.3)</label>
+                        <input type="text" class="form-input" name="version" placeholder="1.2.3" required pattern="^\d+\.\d+\.\d+$">
+                        <p style="font-size: 0.875rem; color: #6B7280; margin-top: 0.5rem;">Formato: X.Y.Z (ex: 1.2.3)</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Código da Versão (número inteiro)</label>
+                        <input type="number" class="form-input" name="versionCode" placeholder="5" required min="1">
+                        <p style="font-size: 0.875rem; color: #6B7280; margin-top: 0.5rem;">Deve ser maior que a versão anterior</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Arquivo APK</label>
+                        <input type="file" class="form-input" name="apk" accept=".apk,application/vnd.android.package-archive" required>
+                        <p style="font-size: 0.875rem; color: #6B7280; margin-top: 0.5rem;">Tamanho máximo: 100MB</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Notas da Versão</label>
+                        <textarea class="form-input form-textarea" name="releaseNotes" rows="4" placeholder="Descreva as novidades desta versão..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" name="isMandatory" style="width: auto;">
+                            <span>Atualização obrigatória</span>
+                        </label>
+                        <p style="font-size: 0.875rem; color: #6B7280; margin-top: 0.5rem;">Se marcado, os usuários não poderão ignorar esta atualização</p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('uploadAPKModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="uploadAPK()">
+                    <span class="loading" style="display: none;"></span>
+                    <span>📤</span>
+                    Upload e Publicar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal para Cadastro de Membro -->
     <div id="memberModal" class="modal-overlay">
         <div class="modal">
@@ -2655,6 +2703,7 @@
             
             // Carregar dados específicos da seção (duplicado para garantir)
             if (sectionId === 'app-config') {
+                loadVersions();
                 loadAppConfig();
             }
             

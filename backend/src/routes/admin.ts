@@ -1,7 +1,47 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs/promises';
 import { getPrisma } from '../utils/prisma';
 import { generateToken, verifyToken } from '../utils/jwt';
 import { authenticate } from '../middleware/auth';
+
+// Configurar multer para upload de APKs
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    // Criar pasta uploads/apks se não existir
+    const uploadsDir = path.resolve(__dirname, '../../uploads/apks');
+    try {
+      await fs.mkdir(uploadsDir, { recursive: true });
+      cb(null, uploadsDir);
+    } catch (error) {
+      cb(error as Error, uploadsDir);
+    }
+  },
+  filename: (req, file, cb) => {
+    // Nome do arquivo: liga-do-bem-v{version}.apk
+    const version = req.body.version || 'latest';
+    const timestamp = Date.now();
+    const filename = `liga-do-bem-v${version}-${timestamp}.apk`;
+    cb(null, filename);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB máximo
+  },
+  fileFilter: (req, file, cb) => {
+    // Aceitar apenas arquivos .apk
+    if (file.mimetype === 'application/vnd.android.package-archive' || 
+        file.originalname.toLowerCase().endsWith('.apk')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos APK são permitidos'));
+    }
+  }
+});
 
 const router = Router();
 
@@ -830,6 +870,138 @@ router.delete('/members/:id', authenticate, async (req: Request, res: Response) 
     
     res.status(500).json({ 
       message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// Endpoint para upload de APK e criação de versão
+router.post('/app/upload-apk', authenticate, upload.single('apk'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        message: 'Arquivo APK não fornecido'
+      });
+    }
+
+    const { version, versionCode, releaseNotes, isMandatory } = req.body;
+
+    if (!version || !versionCode) {
+      // Deletar arquivo se validação falhar
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({
+        message: 'Versão e código de versão são obrigatórios'
+      });
+    }
+
+    const prisma = getPrisma();
+    if (!prisma) {
+      // Deletar arquivo se banco não estiver disponível
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(503).json({
+        message: 'Database not available'
+      });
+    }
+
+    // Verificar se já existe versão com mesmo versionCode
+    const existingVersion = await prisma.appVersion.findUnique({
+      where: { versionCode: parseInt(versionCode, 10) }
+    });
+
+    if (existingVersion) {
+      // Deletar arquivo se versão já existe
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({
+        message: `Já existe uma versão com código ${versionCode}`
+      });
+    }
+
+    // Obter tamanho do arquivo
+    const stats = await fs.stat(req.file.path);
+    const apkSize = stats.size;
+
+    // Caminho relativo para salvar no banco (relativo ao projeto)
+    const apkUrl = `uploads/apks/${req.file.filename}`;
+
+    // Criar versão no banco
+    const newVersion = await prisma.appVersion.create({
+      data: {
+        version: version,
+        versionCode: parseInt(versionCode, 10),
+        apkUrl: apkUrl,
+        apkSize: apkSize,
+        releaseNotes: releaseNotes || null,
+        isMandatory: isMandatory === 'true' || isMandatory === true,
+        isActive: true,
+        platform: 'android'
+      }
+    });
+
+    console.log('✅ APK uploadado e versão criada:', newVersion.id);
+
+    res.json({
+      message: 'APK uploadado com sucesso',
+      version: {
+        id: newVersion.id,
+        version: newVersion.version,
+        versionCode: newVersion.versionCode,
+        apkSize: newVersion.apkSize,
+        releaseNotes: newVersion.releaseNotes,
+        isMandatory: newVersion.isMandatory
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao fazer upload de APK:', error);
+    
+    // Deletar arquivo em caso de erro
+    if (req.file) {
+      await fs.unlink(req.file.path).catch(() => {});
+    }
+    
+    res.status(500).json({
+      message: 'Erro ao fazer upload de APK',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para listar versões
+router.get('/app/versions', authenticate, async (req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+    if (!prisma) {
+      return res.status(503).json({
+        message: 'Database not available'
+      });
+    }
+
+    const versions = await prisma.appVersion.findMany({
+      where: {
+        platform: 'android'
+      },
+      orderBy: {
+        versionCode: 'desc'
+      }
+    });
+
+    res.json({
+      versions: versions.map(v => ({
+        id: v.id,
+        version: v.version,
+        versionCode: v.versionCode,
+        apkSize: v.apkSize,
+        releaseNotes: v.releaseNotes,
+        isMandatory: v.isMandatory,
+        isActive: v.isActive,
+        createdAt: v.createdAt
+      }))
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao listar versões:', error);
+    res.status(500).json({
+      message: 'Erro ao listar versões',
+      error: error.message
     });
   }
 });
