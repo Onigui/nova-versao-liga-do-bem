@@ -38,15 +38,37 @@ function generateToken(payload: any) {
 }
 
 export default async function handler(req: any, res: any) {
-  // CORS
-  const origin = req.headers?.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
+  // CORS - Permitir todos os subdomínios Vercel
+  const origin = req.headers?.origin;
+  
+  // Sempre permitir subdomínios Vercel e localhost
+  const allowedOrigins = [
+    'https://nova-versao-liga-do-bem-admin.vercel.app',
+    'https://nova-versao-liga-do-bem-web.vercel.app',
+    'https://nova-versao-liga-do-bem-pufx.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:8081'
+  ];
+  
+  let allowOrigin = '*';
+  if (origin) {
+    // Se for subdomínio Vercel, permitir
+    if (origin.includes('.vercel.app') || origin.includes('vercel.app') || origin.includes('localhost')) {
+      allowOrigin = origin;
+    } else if (allowedOrigins.includes(origin)) {
+      allowOrigin = origin;
+    }
+  }
+  
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept, Content-Length');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+    return res.status(200).end();
   }
 
   // Parse body if present
