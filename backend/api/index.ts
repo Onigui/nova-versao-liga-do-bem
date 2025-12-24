@@ -2738,11 +2738,18 @@ export default async function handler(req: any, res: any) {
     // POST /api/admin/app/upload-apk - Upload APK e criar versão
     if (path === '/api/admin/app/upload-apk' && method === 'POST') {
       console.log('📤 POST /api/admin/app/upload-apk - Iniciando processamento');
+      
+      // Função helper para garantir CORS em erros
+      const sendErrorWithCORS = (status: number, message: string) => {
+        res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        return res.status(status).json({ error: message });
+      };
+      
       const db = getPrisma();
       if (!db) {
         console.error('❌ Database not configured');
-        // Garantir headers CORS mesmo em erro
-        return res.status(503).json({ error: 'Database not configured' });
+        return sendErrorWithCORS(503, 'Database not configured');
       }
       
       return new Promise((resolve) => {
@@ -2757,8 +2764,7 @@ export default async function handler(req: any, res: any) {
           
           if (!token) {
             console.error('❌ No token provided');
-            // Garantir headers CORS mesmo em erro
-            return resolve(res.status(401).json({ error: 'Unauthorized' }));
+            return resolve(sendErrorWithCORS(401, 'Unauthorized'));
           }
           let isAuthorized = false;
           if (token.startsWith('demo-token-')) {
@@ -2778,10 +2784,7 @@ export default async function handler(req: any, res: any) {
           }
           if (!isAuthorized) {
             console.error('❌ Not authorized');
-            // Garantir headers CORS mesmo em erro - IMPORTANTE: definir antes de retornar
-            res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-            return resolve(res.status(403).json({ error: 'Forbidden' }));
+            return resolve(sendErrorWithCORS(403, 'Forbidden'));
           }
 
           const contentType = req.headers['content-type'] || '';
