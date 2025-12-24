@@ -874,18 +874,25 @@ router.delete('/members/:id', authenticate, async (req: Request, res: Response) 
   }
 });
 
-// Handler para OPTIONS (preflight) do upload
+// Handler para OPTIONS (preflight) do upload - DEVE vir ANTES do authenticate
 router.options('/app/upload-apk', (req: Request, res: Response) => {
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 horas
-  res.sendStatus(200);
+  return res.status(200).end();
 });
 
 // Endpoint para upload de APK e criação de versão
 router.post('/app/upload-apk', authenticate, upload.single('apk'), async (req: Request, res: Response) => {
+  // Adicionar headers CORS na resposta
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -947,6 +954,13 @@ router.post('/app/upload-apk', authenticate, upload.single('apk'), async (req: R
     });
 
     console.log('✅ APK uploadado e versão criada:', newVersion.id);
+
+    // Adicionar headers CORS na resposta
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     res.json({
       message: 'APK uploadado com sucesso',
