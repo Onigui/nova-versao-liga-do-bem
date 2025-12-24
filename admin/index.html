@@ -6580,6 +6580,21 @@
                         return;
                     }
                     
+                    const file = fileInput.files[0];
+                    const fileSizeMB = file.size / (1024 * 1024);
+                    const maxSizeMB = 4.5; // Limite do Vercel Hobby plan
+                    
+                    // Verificar tamanho do arquivo
+                    if (fileSizeMB > maxSizeMB) {
+                        showNotification(
+                            `Arquivo muito grande (${fileSizeMB.toFixed(2)}MB). ` +
+                            `O limite é ${maxSizeMB}MB. ` +
+                            `Por favor, use uma URL externa para arquivos grandes ou faça upload para um serviço de storage (S3, Cloudinary, etc.) e use a opção "URL Externa".`,
+                            'error'
+                        );
+                        return;
+                    }
+                    
                     const formData = new FormData();
                     formData.append('apk', fileInput.files[0]);
                     formData.append('version', form.version.value);
