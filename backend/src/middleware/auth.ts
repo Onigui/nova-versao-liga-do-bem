@@ -16,6 +16,11 @@ interface AuthRequest extends Request {
 
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  // Pular autenticação para requisições OPTIONS (preflight CORS)
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   try {
     const token = (req as Request).headers.authorization?.replace('Bearer ', '');
 
