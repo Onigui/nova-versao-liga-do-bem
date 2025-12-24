@@ -77,13 +77,17 @@ export default async function handler(req: any, res: any) {
     }
   }
   
+  // SEMPRE definir headers CORS primeiro, antes de qualquer processamento
   res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept, Content-Length');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length');
 
+  // Tratar OPTIONS (preflight) imediatamente
   if (req.method === 'OPTIONS') {
+    console.log('✅ OPTIONS preflight request - retornando 200');
     return res.status(200).end();
   }
 
