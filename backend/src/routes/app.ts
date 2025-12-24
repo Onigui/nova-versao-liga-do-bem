@@ -38,6 +38,20 @@ router.get('/update/check', async (req: Request, res: Response) => {
     const currentVersionCode = versionCode ? parseInt(versionCode as string, 10) : 0;
     const hasUpdate = latestVersion.versionCode > currentVersionCode;
 
+    // Se apkUrl for uma URL do GitHub Release, usar diretamente
+    // Caso contrário, usar o endpoint de download
+    let apkUrl = null;
+    if (hasUpdate && latestVersion.apkUrl) {
+      if (latestVersion.apkUrl.startsWith('https://github.com/') || 
+          latestVersion.apkUrl.startsWith('https://github-releases')) {
+        // URL direta do GitHub Release
+        apkUrl = latestVersion.apkUrl;
+      } else {
+        // URL relativa - construir URL do endpoint
+        apkUrl = `/api/app/update/apk/${latestVersion.id}`;
+      }
+    }
+
     res.json({
       hasUpdate,
       latestVersion: hasUpdate ? {
@@ -46,7 +60,7 @@ router.get('/update/check', async (req: Request, res: Response) => {
         releaseNotes: latestVersion.releaseNotes,
         isMandatory: latestVersion.isMandatory,
         apkSize: latestVersion.apkSize,
-        // Não retornar apkUrl - o app vai buscar via /api/app/update/apk/:versionId
+        apkUrl: apkUrl, // URL direta para download
         versionId: latestVersion.id
       } : null
     });

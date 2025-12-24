@@ -122,18 +122,28 @@ class UpdateService {
   }
 
   /**
-   * Baixa o APK diretamente do backend
-   * @param {string} versionId - ID da versão no banco de dados
+   * Baixa o APK diretamente do GitHub Release ou do backend
+   * @param {string} versionId - ID da versão no banco de dados (opcional se apkUrl for fornecido)
+   * @param {string} apkUrl - URL direta do APK (GitHub Release ou backend)
    * @param {function} onProgress - Callback de progresso (0.0 a 1.0)
    * @returns {Promise<string>} - Caminho do arquivo baixado
    */
-  async downloadAPK(versionId, onProgress) {
-    console.log('📥 [downloadAPK] Iniciando download do APK...');
+  async downloadAPK(versionId, apkUrl, onProgress) {
+    console.log('📥 [downloadAPK] ========== INÍCIO ==========');
     console.log('📥 [downloadAPK] Version ID:', versionId);
+    console.log('📥 [downloadAPK] APK URL:', apkUrl);
 
-    if (!versionId) {
-      throw new Error('ID da versão não fornecido');
+    // Se apkUrl não foi fornecido, construir URL do backend
+    let downloadUrl = apkUrl;
+    if (!downloadUrl) {
+      if (!versionId) {
+        throw new Error('ID da versão ou URL do APK deve ser fornecido');
+      }
+      // URL do endpoint para baixar o APK do backend
+      downloadUrl = `${API_BASE_PATH}/app/update/apk/${versionId}`;
     }
+
+    console.log('🌐 [downloadAPK] URL de download final:', downloadUrl);
 
     try {
       // Solicitar permissões
@@ -154,10 +164,6 @@ class UpdateService {
         console.error('❌ [downloadAPK] react-native-fs não disponível:', fsError);
         throw new Error('A biblioteca de download não está configurada. Por favor, recompile o aplicativo.');
       }
-
-      // URL do endpoint para baixar o APK
-      const downloadUrl = `${API_BASE_PATH}/app/update/apk/${versionId}`;
-      console.log('🌐 [downloadAPK] URL de download:', downloadUrl);
 
       // Caminho onde salvar o APK
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;

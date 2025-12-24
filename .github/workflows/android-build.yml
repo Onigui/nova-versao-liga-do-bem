@@ -170,19 +170,40 @@ jobs:
           path: mobile/android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
+      - name: Get Version from package.json
+        id: get_version
+        working-directory: ./mobile
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          VERSION_CODE=$(node -p "require('./package.json').versionCode || '0'")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "📦 Versão detectada: $VERSION (code: $VERSION_CODE)"
+
       - name: Create Release
-        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           files: mobile/android/app/build/outputs/apk/release/*.apk
-          tag_name: v${{ github.event.inputs.version || '1.2.3' }}
-          name: Release v${{ github.event.inputs.version || '1.2.3' }}
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Liga do Bem v${{ steps.get_version.outputs.version }}
           body: |
-            Android APK Build
+            ## 📱 Liga do Bem Botucatu - Android APK
             
-            - Version: ${{ github.event.inputs.version || '1.2.3' }}
-            - Commit: ${{ github.sha }}
-            - Branch: ${{ github.ref }}
+            **Versão:** ${{ steps.get_version.outputs.version }}
+            **Version Code:** ${{ steps.get_version.outputs.version_code }}
+            
+            ### 📥 Download
+            Baixe o APK anexado abaixo e instale no seu dispositivo Android.
+            
+            ### 🔄 Atualização Automática
+            O aplicativo verifica automaticamente por atualizações e instala quando disponível.
+            
+            ---
+            **Commit:** ${{ github.sha }}
+            **Branch:** ${{ github.ref_name }}
+            **Build Date:** ${{ github.event.head_commit.timestamp || github.run_started_at }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

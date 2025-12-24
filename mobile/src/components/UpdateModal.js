@@ -30,7 +30,9 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       }
 
       const versionId = updateInfo.latestVersion.versionId;
+      const apkUrl = updateInfo.latestVersion.apkUrl; // URL do GitHub Release ou backend
       console.log('📦 [handleUpdate] Version ID:', versionId);
+      console.log('📦 [handleUpdate] APK URL:', apkUrl);
 
       // Resetar estados
       setError(null);
@@ -40,10 +42,10 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
 
       console.log('📥 [handleUpdate] Iniciando download...');
       
-      // Fazer download
+      // Fazer download - passar apkUrl se disponível (prioridade sobre versionId)
       let filePath;
       try {
-        filePath = await UpdateService.downloadAPK(versionId, (progress) => {
+        filePath = await UpdateService.downloadAPK(versionId, apkUrl, (progress) => {
           setDownloadProgress(progress);
           console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
         });
