@@ -874,6 +874,16 @@ router.delete('/members/:id', authenticate, async (req: Request, res: Response) 
   }
 });
 
+// Handler para OPTIONS (preflight) do upload
+router.options('/app/upload-apk', (req: Request, res: Response) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 horas
+  res.sendStatus(200);
+});
+
 // Endpoint para upload de APK e criação de versão
 router.post('/app/upload-apk', authenticate, upload.single('apk'), async (req: Request, res: Response) => {
   try {
