@@ -2861,17 +2861,19 @@ export default async function handler(req: any, res: any) {
             return resolve(res.status(500).json({ error: 'Error parsing form data' }));
           });
 
-          // Pipe request body to busboy
-          if (req.body) {
-            // Se o body já foi processado, tentar usar diretamente
-            if (Buffer.isBuffer(req.body)) {
-              busboy.end(req.body);
-            } else {
-              return resolve(res.status(400).json({ error: 'Invalid request body format' }));
-            }
-          } else {
-            // Se não há body, esperar stream
+          // No Vercel serverless, o body pode vir como buffer
+          // Precisamos acessar o body raw antes do parsing
+          // Vercel passa o body como buffer para multipart
+          if (req.body && Buffer.isBuffer(req.body)) {
+            busboy.end(req.body);
+          } else if (req.body && typeof req.body === 'string') {
+            // Se for string, converter para buffer
+            busboy.end(Buffer.from(req.body, 'binary'));
+          } else if (req.on && typeof req.on === 'function') {
+            // Tentar usar como stream
             req.pipe(busboy);
+          } else {
+            return resolve(res.status(400).json({ error: 'Invalid request body format for multipart upload' }));
           }
         } catch (error: any) {
           console.error('❌ Error uploading APK:', error);
