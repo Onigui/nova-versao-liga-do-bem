@@ -3,6 +3,9 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import Busboy from 'busboy';
+import fs from 'fs';
+import path from 'path';
 
 // Cloudinary para upload de imagens
 let cloudinary: any = null;
@@ -71,17 +74,6 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  // Parse body if present
-  let body = req.body;
-  if (req.method !== 'GET' && req.method !== 'HEAD' && typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (e) {
-      // Body might already be parsed
-    }
-  }
-  if (!body) body = {};
-
   // Get path - Vercel may pass different path formats
   // Try multiple sources: req.url, req.path, or query parameter
   let path = req.url?.replace(/\?.*$/, '') || req.path || req.query?.path || '/';
@@ -112,8 +104,24 @@ export default async function handler(req: any, res: any) {
 
   console.log(`📥 ${method} ${path}`);
   
-  // Store parsed body
-  req.body = body;
+  // Parse body if present (skip for multipart/form-data - will be handled by busboy)
+  const contentType = req.headers['content-type'] || '';
+  const isMultipart = contentType.includes('multipart/form-data');
+  
+  let body = req.body;
+  if (!isMultipart && req.method !== 'GET' && req.method !== 'HEAD' && typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      // Body might already be parsed
+    }
+  }
+  if (!body && !isMultipart) body = {};
+  
+  // Store parsed body (for non-multipart requests)
+  if (!isMultipart) {
+    req.body = body;
+  }
 
   try {
     // Ping
@@ -2708,6 +2716,168 @@ export default async function handler(req: any, res: any) {
         }
         return res.status(500).json({ error: 'Error creating app version' });
       }
+    }
+
+    // POST /api/admin/app/upload-apk - Upload APK e criar versão
+    if (path === '/api/admin/app/upload-apk' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      
+      return new Promise((resolve) => {
+        try {
+          // Verificar autenticação
+          const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
+          if (!token) {
+            return resolve(res.status(401).json({ error: 'Unauthorized' }));
+          }
+          let isAuthorized = false;
+          if (token.startsWith('demo-token-')) {
+            isAuthorized = true;
+          } else {
+            try {
+              const decoded: any = jwt.verify(token, JWT_SECRET);
+              if (decoded.role === 'ADMIN') {
+                isAuthorized = true;
+              }
+            } catch {
+              isAuthorized = false;
+            }
+          }
+          if (!isAuthorized) {
+            return resolve(res.status(403).json({ error: 'Forbidden' }));
+          }
+
+          const contentType = req.headers['content-type'] || '';
+          if (!contentType.includes('multipart/form-data')) {
+            return resolve(res.status(400).json({ error: 'Content-Type must be multipart/form-data' }));
+          }
+
+          // Processar multipart/form-data com busboy
+          const busboy = Busboy({ headers: req.headers as any });
+          const fields: any = {};
+          let fileData: Buffer | null = null;
+          let fileName = '';
+          let fileSize = 0;
+
+          busboy.on('file', (name, file, info) => {
+            const { filename, encoding, mimeType } = info;
+            fileName = filename || 'app.apk';
+            console.log(`📥 Recebendo arquivo: ${fileName}, tipo: ${mimeType}`);
+            
+            const chunks: Buffer[] = [];
+            file.on('data', (chunk: Buffer) => {
+              chunks.push(chunk);
+              fileSize += chunk.length;
+            });
+            
+            file.on('end', () => {
+              fileData = Buffer.concat(chunks);
+              console.log(`✅ Arquivo recebido: ${fileName}, tamanho: ${fileSize} bytes`);
+            });
+          });
+
+          busboy.on('field', (name, value) => {
+            fields[name] = value;
+            console.log(`📝 Campo: ${name} = ${value}`);
+          });
+
+          busboy.on('finish', async () => {
+            try {
+              if (!fileData) {
+                return resolve(res.status(400).json({ error: 'Arquivo APK não fornecido' }));
+              }
+
+              const { version, versionCode, releaseNotes, isMandatory } = fields;
+
+              if (!version || !versionCode) {
+                return resolve(res.status(400).json({ error: 'Versão e código de versão são obrigatórios' }));
+              }
+
+              // Verificar se já existe versão
+              const existingVersion = await db.appVersion.findUnique({
+                where: { versionCode: parseInt(versionCode, 10) }
+              });
+
+              if (existingVersion) {
+                return resolve(res.status(400).json({ error: `Já existe uma versão com código ${versionCode}` }));
+              }
+
+              // No Vercel, salvar em /tmp (único diretório writable)
+              const uploadsDir = '/tmp/uploads/apks';
+              if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+              }
+
+              const timestamp = Date.now();
+              const savedFileName = `liga-do-bem-v${version}-${timestamp}.apk`;
+              const filePath = path.join(uploadsDir, savedFileName);
+              
+              fs.writeFileSync(filePath, fileData);
+              console.log(`💾 Arquivo salvo em: ${filePath}`);
+
+              // Criar versão no banco
+              // No Vercel, vamos salvar o caminho relativo
+              // Em produção, você pode fazer upload para S3/Blob Storage e salvar a URL
+              const apkUrl = `/tmp/uploads/apks/${savedFileName}`; // Caminho temporário
+              
+              const appVersion = await db.appVersion.create({
+                data: {
+                  version: version,
+                  versionCode: parseInt(versionCode, 10),
+                  apkUrl: apkUrl, // Em produção, usar URL do storage
+                  apkSize: fileSize,
+                  releaseNotes: releaseNotes || null,
+                  isMandatory: isMandatory === 'true' || isMandatory === true,
+                  isActive: true,
+                  platform: 'android'
+                }
+              });
+
+              console.log('✅ APK uploadado e versão criada:', appVersion.id);
+
+              return resolve(res.status(201).json({
+                message: 'APK uploadado com sucesso',
+                version: {
+                  id: appVersion.id,
+                  version: appVersion.version,
+                  versionCode: appVersion.versionCode,
+                  apkUrl: appVersion.apkUrl,
+                  apkSize: appVersion.apkSize,
+                  releaseNotes: appVersion.releaseNotes,
+                  isMandatory: appVersion.isMandatory,
+                  isActive: appVersion.isActive
+                }
+              }));
+            } catch (error: any) {
+              console.error('❌ Error processing upload:', error);
+              return resolve(res.status(500).json({ error: 'Error processing upload: ' + (error?.message || 'Unknown error') }));
+            }
+          });
+
+          busboy.on('error', (error: any) => {
+            console.error('❌ Busboy error:', error);
+            return resolve(res.status(500).json({ error: 'Error parsing form data' }));
+          });
+
+          // Pipe request body to busboy
+          if (req.body) {
+            // Se o body já foi processado, tentar usar diretamente
+            if (Buffer.isBuffer(req.body)) {
+              busboy.end(req.body);
+            } else {
+              return resolve(res.status(400).json({ error: 'Invalid request body format' }));
+            }
+          } else {
+            // Se não há body, esperar stream
+            req.pipe(busboy);
+          }
+        } catch (error: any) {
+          console.error('❌ Error uploading APK:', error);
+          return resolve(res.status(500).json({ error: 'Error uploading APK: ' + (error?.message || 'Unknown error') }));
+        }
+      });
     }
 
     // PUT app version (admin)
