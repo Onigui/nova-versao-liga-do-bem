@@ -2718,10 +2718,16 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // OPTIONS /api/admin/app/upload-apk - CORS preflight
+    if (path === '/api/admin/app/upload-apk' && method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
     // POST /api/admin/app/upload-apk - Upload APK e criar versão
     if (path === '/api/admin/app/upload-apk' && method === 'POST') {
       const db = getPrisma();
       if (!db) {
+        // Garantir headers CORS mesmo em erro
         return res.status(503).json({ error: 'Database not configured' });
       }
       
@@ -2730,6 +2736,7 @@ export default async function handler(req: any, res: any) {
           // Verificar autenticação
           const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '');
           if (!token) {
+            // Garantir headers CORS mesmo em erro
             return resolve(res.status(401).json({ error: 'Unauthorized' }));
           }
           let isAuthorized = false;
@@ -2746,6 +2753,7 @@ export default async function handler(req: any, res: any) {
             }
           }
           if (!isAuthorized) {
+            // Garantir headers CORS mesmo em erro
             return resolve(res.status(403).json({ error: 'Forbidden' }));
           }
 
