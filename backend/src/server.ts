@@ -35,15 +35,21 @@ app.use(cors({
       // Vercel (novo - será configurado via variáveis de ambiente)
       process.env.ADMIN_URL,
       process.env.WEB_URL,
-      // Vercel URLs (produção)
+      // Vercel URLs (produção) - inclui todos os subdomínios
       'https://nova-versao-liga-do-bem-admin.vercel.app',
       'https://nova-versao-liga-do-bem-web.vercel.app',
+      'https://nova-versao-liga-do-bem-pufx.vercel.app', // Subdomínio específico
       // Localhost para desenvolvimento
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:8081',
       'http://localhost:19006'
     ].filter(Boolean); // Remove valores undefined/null
+    
+    // Sempre permitir qualquer subdomínio .vercel.app
+    if (origin && (origin.includes('.vercel.app') || origin.includes('vercel.app'))) {
+      return callback(null, true);
+    }
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -52,19 +58,19 @@ app.use(cors({
       if (process.env.NODE_ENV !== 'production') {
         callback(null, true);
       } else {
-        // Em produção, permitir apenas origins configurados
-        // Se não estiver na lista mas for um subdomínio do Vercel, permitir
-        if (origin.includes('.vercel.app') || origin.includes('vercel.app')) {
+        // Em produção, se for Vercel, sempre permitir
+        if (origin && (origin.includes('.vercel.app') || origin.includes('vercel.app'))) {
           callback(null, true);
         } else {
-          callback(null, true); // Temporariamente permitir tudo durante migração
+          // Temporariamente permitir tudo durante migração
+          callback(null, true);
         }
       }
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'x-admin-token', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'x-admin-token', 'Accept', 'Content-Length'],
   exposedHeaders: ['Content-Length', 'X-Request-Id'],
   maxAge: 86400, // 24 hours
   optionsSuccessStatus: 200
@@ -78,7 +84,7 @@ app.use((req, res, next) => {
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, x-admin-token, Accept, Content-Length');
   
   // Handle preflight
   if (req.method === 'OPTIONS') {
