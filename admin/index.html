@@ -6521,25 +6521,68 @@
             }).join('');
         }
 
+        function toggleAPKSource() {
+            const source = document.querySelector('input[name="apkSource"]:checked')?.value;
+            const uploadDiv = document.getElementById('apkUploadInput');
+            const urlDiv = document.getElementById('apkUrlInput');
+            const fileInput = document.getElementById('apkFileInput');
+            const urlInput = urlDiv?.querySelector('input[name="apkUrl"]');
+            
+            if (source === 'upload') {
+                if (uploadDiv) uploadDiv.style.display = 'block';
+                if (urlDiv) urlDiv.style.display = 'none';
+                if (fileInput) fileInput.required = true;
+                if (urlInput) urlInput.required = false;
+            } else {
+                if (uploadDiv) uploadDiv.style.display = 'none';
+                if (urlDiv) urlDiv.style.display = 'block';
+                if (fileInput) fileInput.required = false;
+                if (urlInput) urlInput.required = true;
+            }
+        }
+
         function openAppVersionModal(versionId = null) {
             editingAppVersion = versionId;
             const modal = document.getElementById('appVersionModal') || createAppVersionModal();
             modal.style.display = 'flex';
-            if (versionId) {
-                const version = appVersionsList.find(v => v.id === versionId);
-                if (version) {
-                    document.getElementById('appVersionForm').version.value = version.version;
-                    document.getElementById('appVersionForm').versionCode.value = version.versionCode;
-                    document.getElementById('appVersionForm').platform.value = version.platform || 'android';
-                    document.getElementById('appVersionForm').minVersion.value = version.minVersion || '';
-                    document.getElementById('appVersionForm').apkUrl.value = version.apkUrl || '';
-                    document.getElementById('appVersionForm').releaseNotes.value = version.releaseNotes || '';
-                    document.getElementById('appVersionForm').isMandatory.checked = version.isMandatory;
-                    document.getElementById('appVersionForm').isActive.checked = version.isActive;
+            
+            // Aguardar um pouco para o modal ser renderizado
+            setTimeout(() => {
+                if (versionId) {
+                    const version = appVersionsList.find(v => v.id === versionId);
+                    if (version) {
+                        const form = document.getElementById('appVersionForm');
+                        if (form) {
+                            form.version.value = version.version || '';
+                            form.versionCode.value = version.versionCode || '';
+                            form.platform.value = version.platform || 'android';
+                            form.minVersion.value = version.minVersion || '';
+                            form.releaseNotes.value = version.releaseNotes || '';
+                            form.isMandatory.checked = version.isMandatory || false;
+                            form.isActive.checked = version.isActive !== false;
+                            
+                            // Se já tem APK, mostrar URL
+                            if (version.apkUrl) {
+                                const urlInput = form.querySelector('input[name="apkUrl"]');
+                                if (urlInput) urlInput.value = version.apkUrl;
+                                // Selecionar opção URL
+                                const urlRadio = form.querySelector('input[name="apkSource"][value="url"]');
+                                if (urlRadio) urlRadio.checked = true;
+                                toggleAPKSource();
+                            }
+                        }
+                    }
+                } else {
+                    const form = document.getElementById('appVersionForm');
+                    if (form) {
+                        form.reset();
+                        // Selecionar opção upload para nova versão
+                        const uploadRadio = form.querySelector('input[name="apkSource"][value="upload"]');
+                        if (uploadRadio) uploadRadio.checked = true;
+                        toggleAPKSource();
+                    }
                 }
-            } else {
-                document.getElementById('appVersionForm').reset();
-            }
+            }, 100);
         }
 
         function createAppVersionModal() {
@@ -6553,7 +6596,7 @@
                         <button class="modal-close" onclick="closeModal('appVersionModal')">&times;</button>
                     </div>
                     <div class="modal-body">
-                        <form id="appVersionForm" onsubmit="saveAppVersion(event)">
+                        <form id="appVersionForm" onsubmit="saveAppVersion(event)" enctype="multipart/form-data">
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="form-label">Versão *</label>
@@ -6576,19 +6619,27 @@
                                 <input type="text" class="form-input" name="minVersion" placeholder="Ex: 1.2.0">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">URL do APK *</label>
-                                <input type="url" class="form-input" name="apkUrl" id="apkUrlInput" required placeholder="https://github.com/.../releases/download/.../app.apk">
-                                <small style="color: var(--text-gray); display: block; margin-top: 4px;">
-                                    Cole aqui o link direto do APK gerado pelo GitHub Actions ou qualquer URL de download.
-                                </small>
-                                <div style="margin-top: 8px; padding: 12px; background: #EFF6FF; border-radius: 4px; border-left: 3px solid #3B82F6;">
-                                    <small style="color: #1E40AF;">
-                                        💡 <strong>Como obter o link do GitHub Actions:</strong><br>
-                                        1. Vá até a aba "Actions" do repositório<br>
-                                        2. Clique na build mais recente<br>
-                                        3. Role até "Artifacts"<br>
-                                        4. Clique no APK e copie o link de download<br>
-                                        5. Cole o link aqui
+                                <label class="form-label">Arquivo APK *</label>
+                                <div style="margin-bottom: 12px;">
+                                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <input type="radio" name="apkSource" value="upload" ${!editingAppVersion ? 'checked' : ''} onchange="toggleAPKSource()">
+                                        <span>Fazer Upload (Recomendado)</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="radio" name="apkSource" value="url" ${editingAppVersion ? 'checked' : ''} onchange="toggleAPKSource()">
+                                        <span>Usar URL Externa</span>
+                                    </label>
+                                </div>
+                                <div id="apkUploadInput" style="display: ${!editingAppVersion ? 'block' : 'none'};">
+                                    <input type="file" class="form-input" name="apkFile" id="apkFileInput" accept=".apk,application/vnd.android.package-archive" ${!editingAppVersion ? 'required' : ''}>
+                                    <small style="color: var(--text-gray); display: block; margin-top: 4px;">
+                                        Tamanho máximo: 100MB. O arquivo será hospedado no servidor.
+                                    </small>
+                                </div>
+                                <div id="apkUrlInput" style="display: ${editingAppVersion ? 'block' : 'none'};">
+                                    <input type="url" class="form-input" name="apkUrl" placeholder="https://github.com/.../releases/download/.../app.apk" ${editingAppVersion ? 'required' : ''}>
+                                    <small style="color: var(--text-gray); display: block; margin-top: 4px;">
+                                        Cole aqui o link direto do APK (apenas para edição de versões existentes).
                                     </small>
                                 </div>
                             </div>
@@ -6626,25 +6677,66 @@
         async function saveAppVersion(event) {
             event.preventDefault();
             const form = event.target;
+            const apkSource = form.querySelector('input[name="apkSource"]:checked')?.value;
+            const token = localStorage.getItem('admin_token');
             
-            const formData = {
-                version: form.version.value,
-                versionCode: parseInt(form.versionCode.value),
-                platform: form.platform.value,
-                minVersion: form.minVersion.value || null,
-                apkUrl: form.apkUrl.value.trim(), // URL direta do GitHub Actions ou qualquer link
-                releaseNotes: form.releaseNotes.value || null,
-                isMandatory: form.isMandatory.checked,
-                isActive: form.isActive.checked
-            };
-
-            // Validar URL
-            if (!formData.apkUrl || !formData.apkUrl.startsWith('http')) {
-                showNotification('Por favor, forneça uma URL válida para o APK', 'error');
-                return;
-            }
-
             try {
+                // Se for nova versão e tiver arquivo para upload, usar endpoint de upload
+                if (!editingAppVersion && apkSource === 'upload') {
+                    const fileInput = form.querySelector('input[name="apkFile"]');
+                    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                        showNotification('Por favor, selecione um arquivo APK', 'error');
+                        return;
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('apk', fileInput.files[0]);
+                    formData.append('version', form.version.value);
+                    formData.append('versionCode', form.versionCode.value);
+                    formData.append('releaseNotes', form.releaseNotes.value || '');
+                    formData.append('isMandatory', form.isMandatory.checked ? 'true' : 'false');
+                    
+                    const response = await fetch(`${API_BASE_URL}/api/admin/app/upload-apk`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        closeModal('appVersionModal');
+                        await loadAppVersions();
+                        showNotification('✅ APK uploadado e versão criada com sucesso!', 'success');
+                    } else {
+                        showNotification(data.message || 'Erro ao fazer upload do APK', 'error');
+                    }
+                    return;
+                }
+                
+                // Se for edição ou URL externa, usar endpoint normal
+                const formData = {
+                    version: form.version.value,
+                    versionCode: parseInt(form.versionCode.value),
+                    platform: form.platform.value,
+                    minVersion: form.minVersion.value || null,
+                    releaseNotes: form.releaseNotes.value || null,
+                    isMandatory: form.isMandatory.checked,
+                    isActive: form.isActive.checked
+                };
+                
+                // Se usar URL, adicionar apkUrl
+                if (apkSource === 'url') {
+                    const apkUrl = form.querySelector('input[name="apkUrl"]')?.value.trim();
+                    if (!apkUrl || !apkUrl.startsWith('http')) {
+                        showNotification('Por favor, forneça uma URL válida para o APK', 'error');
+                        return;
+                    }
+                    formData.apkUrl = apkUrl;
+                }
+                
                 const url = editingAppVersion 
                     ? `${API_BASE_URL}/api/admin/app/versions/${editingAppVersion}`
                     : `${API_BASE_URL}/api/admin/app/versions`;
@@ -6654,8 +6746,8 @@
                     method,
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
-                        'x-admin-token': localStorage.getItem('admin_token')
+                        'Authorization': `Bearer ${token}`,
+                        'x-admin-token': token
                     },
                     body: JSON.stringify(formData)
                 });
@@ -6666,11 +6758,11 @@
                     showNotification('Versão salva com sucesso!', 'success');
                 } else {
                     const error = await response.json();
-                    showNotification(error.error || 'Erro ao salvar versão', 'error');
+                    showNotification(error.error || error.message || 'Erro ao salvar versão', 'error');
                 }
             } catch (error) {
                 console.error('Erro ao salvar versão:', error);
-                showNotification('Erro ao salvar versão', 'error');
+                showNotification('Erro ao salvar versão: ' + error.message, 'error');
             }
         }
 
