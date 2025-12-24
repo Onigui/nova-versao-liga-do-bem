@@ -207,3 +207,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Output Release URL
+        run: |
+          echo "✅ Release criado com sucesso!"
+          echo "📦 Tag: v${{ steps.get_version.outputs.version }}"
+          echo "🔗 URL do Release: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.version }}"
+          echo "📥 URL Direta do APK: https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/app-release.apk"
+          echo ""
+          echo "📋 PRÓXIMO PASSO:"
+          echo "1. Acesse o painel admin"
+          echo "2. Vá em 'Versões do App' > 'Nova Versão'"
+          echo "3. Preencha:"
+          echo "   - Versão: ${{ steps.get_version.outputs.version }}"
+          echo "   - Version Code: ${{ steps.get_version.outputs.version_code }}"
+          echo "   - Fonte: URL Externa"
+          echo "   - URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/app-release.apk"
+          echo "4. Salve a versão"
+
