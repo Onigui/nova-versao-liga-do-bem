@@ -2778,7 +2778,9 @@ export default async function handler(req: any, res: any) {
           }
           if (!isAuthorized) {
             console.error('❌ Not authorized');
-            // Garantir headers CORS mesmo em erro
+            // Garantir headers CORS mesmo em erro - IMPORTANTE: definir antes de retornar
+            res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
             return resolve(res.status(403).json({ error: 'Forbidden' }));
           }
 

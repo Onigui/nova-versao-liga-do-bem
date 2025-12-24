@@ -6587,11 +6587,14 @@
                     formData.append('releaseNotes', form.releaseNotes.value || '');
                     formData.append('isMandatory', form.isMandatory.checked ? 'true' : 'false');
                     
+                    // IMPORTANTE: Não definir Content-Type manualmente quando usar FormData
+                    // O navegador define automaticamente com o boundary correto
                     const response = await fetch(`${API_BASE_URL}/api/admin/app/upload-apk`, {
                         method: 'POST',
                         headers: {
                             'X-Admin-Token': token,
                             'Authorization': `Bearer ${token}`
+                            // NÃO incluir 'Content-Type' - deixar o navegador definir automaticamente
                         },
                         body: formData
                     });
