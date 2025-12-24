@@ -45,17 +45,22 @@ export default async function handler(req: any, res: any) {
   // IMPORTANTE: Headers CORS devem ser definidos ANTES de qualquer processamento
   const origin = req.headers?.origin;
   
-  // Log para debug
-  console.log('🔍 Request:', {
-    method: req.method,
-    path: req.url,
-    origin: origin,
-    headers: {
-      'content-type': req.headers['content-type'],
-      'x-admin-token': req.headers['x-admin-token'] ? 'present' : 'missing',
-      'authorization': req.headers['authorization'] ? 'present' : 'missing'
-    }
-  });
+  // Log para debug - SEMPRE executar primeiro
+  try {
+    console.log('🔍 Request:', {
+      method: req.method,
+      path: req.url,
+      origin: origin,
+      'content-length': req.headers['content-length'],
+      headers: {
+        'content-type': req.headers['content-type'],
+        'x-admin-token': req.headers['x-admin-token'] ? 'present' : 'missing',
+        'authorization': req.headers['authorization'] ? 'present' : 'missing'
+      }
+    });
+  } catch (logError) {
+    console.error('❌ Erro ao fazer log:', logError);
+  }
   
   // Sempre permitir subdomínios Vercel e localhost
   const allowedOrigins = [
