@@ -6615,13 +6615,18 @@
                         
                         const data = await response.json();
                         console.log('📦 Dados recebidos:', data);
-                    
-                    if (response.ok) {
-                        closeModal('appVersionModal');
-                        await loadAppVersions();
-                        showNotification('✅ APK uploadado e versão criada com sucesso!', 'success');
-                    } else {
-                        showNotification(data.message || 'Erro ao fazer upload do APK', 'error');
+                        
+                        if (response.ok) {
+                            closeModal('appVersionModal');
+                            await loadAppVersions();
+                            showNotification('✅ APK uploadado e versão criada com sucesso!', 'success');
+                        } else {
+                            console.error('❌ Erro na resposta:', data);
+                            showNotification(data.message || data.error || 'Erro ao fazer upload do APK', 'error');
+                        }
+                    } catch (error) {
+                        console.error('❌ Erro ao fazer upload:', error);
+                        showNotification('Erro ao fazer upload do APK: ' + (error?.message || 'Erro desconhecido'), 'error');
                     }
                     return;
                 }
