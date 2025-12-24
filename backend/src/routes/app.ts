@@ -10,8 +10,15 @@ router.get('/update/check', async (req: Request, res: Response) => {
   try {
     const { version, versionCode } = req.query;
     
+    console.log('🔍 [update/check] Verificando atualizações...', {
+      version,
+      versionCode,
+      query: req.query
+    });
+    
     const prisma = getPrisma();
     if (!prisma) {
+      console.error('❌ [update/check] Database not available');
       return res.status(503).json({
         error: 'Database not available'
       });
@@ -28,7 +35,16 @@ router.get('/update/check', async (req: Request, res: Response) => {
       }
     });
 
+    console.log('📦 [update/check] Versão mais recente no banco:', latestVersion ? {
+      id: latestVersion.id,
+      version: latestVersion.version,
+      versionCode: latestVersion.versionCode,
+      isActive: latestVersion.isActive,
+      apkUrl: latestVersion.apkUrl
+    } : 'Nenhuma versão encontrada');
+
     if (!latestVersion) {
+      console.log('ℹ️ [update/check] Nenhuma versão ativa encontrada');
       return res.json({
         hasUpdate: false,
         message: 'Nenhuma versão disponível'
@@ -37,6 +53,14 @@ router.get('/update/check', async (req: Request, res: Response) => {
 
     const currentVersionCode = versionCode ? parseInt(versionCode as string, 10) : 0;
     const hasUpdate = latestVersion.versionCode > currentVersionCode;
+    
+    console.log('🔍 [update/check] Comparação:', {
+      currentVersionCode,
+      latestVersionCode: latestVersion.versionCode,
+      hasUpdate,
+      currentVersion: version,
+      latestVersion: latestVersion.version
+    });
 
     // Se apkUrl for uma URL do GitHub Release, usar diretamente
     // Caso contrário, usar o endpoint de download

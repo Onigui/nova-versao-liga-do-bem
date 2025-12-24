@@ -10,20 +10,51 @@ async function getCurrentAppVersion() {
     // Tentar usar DeviceInfo (mais confiável)
     const version = await DeviceInfo.getVersion();
     const buildNumber = await DeviceInfo.getBuildNumber();
+    const versionCode = parseInt(buildNumber, 10) || 0;
+    
+    console.log('📱 [getCurrentAppVersion] DeviceInfo:', {
+      version,
+      buildNumber,
+      versionCode
+    });
+    
     return {
       version,
-      versionCode: parseInt(buildNumber, 10) || 0,
+      versionCode,
     };
   } catch (error) {
-    console.warn('Erro ao obter versão do DeviceInfo:', error);
-    // Fallback: usar package.json
+    console.warn('⚠️ [getCurrentAppVersion] Erro ao obter versão do DeviceInfo:', error);
+    // Fallback: usar app.json primeiro, depois package.json
+    try {
+      const appJson = require('../../app.json');
+      if (appJson.versionCode) {
+        console.log('📱 [getCurrentAppVersion] Usando app.json:', {
+          version: appJson.version,
+          versionCode: appJson.versionCode
+        });
+        return {
+          version: appJson.version || '1.0.0',
+          versionCode: parseInt(appJson.versionCode, 10) || 0,
+        };
+      }
+    } catch (appJsonError) {
+      console.warn('⚠️ [getCurrentAppVersion] Erro ao ler app.json:', appJsonError);
+    }
+    
+    // Último fallback: package.json
     try {
       const packageJson = require('../../package.json');
+      const versionCode = parseInt(packageJson.version?.split('.').join('') || '100', 10);
+      console.log('📱 [getCurrentAppVersion] Usando package.json (fallback):', {
+        version: packageJson.version || '1.0.0',
+        versionCode
+      });
       return {
         version: packageJson.version || '1.0.0',
-        versionCode: parseInt(packageJson.version?.split('.').join('') || '100', 10),
+        versionCode,
       };
     } catch {
+      console.warn('⚠️ [getCurrentAppVersion] Todos os fallbacks falharam, usando valores padrão');
       return {
         version: '1.0.0',
         versionCode: 100,
