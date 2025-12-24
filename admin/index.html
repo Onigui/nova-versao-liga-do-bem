@@ -6587,19 +6587,34 @@
                     formData.append('releaseNotes', form.releaseNotes.value || '');
                     formData.append('isMandatory', form.isMandatory.checked ? 'true' : 'false');
                     
-                    // IMPORTANTE: Não definir Content-Type manualmente quando usar FormData
-                    // O navegador define automaticamente com o boundary correto
-                    const response = await fetch(`${API_BASE_URL}/api/admin/app/upload-apk`, {
-                        method: 'POST',
-                        headers: {
-                            'X-Admin-Token': token,
-                            'Authorization': `Bearer ${token}`
-                            // NÃO incluir 'Content-Type' - deixar o navegador definir automaticamente
-                        },
-                        body: formData
+                    console.log('📤 Enviando upload de APK...', {
+                        version: form.version.value,
+                        versionCode: form.versionCode.value,
+                        fileSize: fileInput.files[0]?.size,
+                        fileName: fileInput.files[0]?.name
                     });
                     
-                    const data = await response.json();
+                    // IMPORTANTE: Não definir Content-Type manualmente quando usar FormData
+                    // O navegador define automaticamente com o boundary correto
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/api/admin/app/upload-apk`, {
+                            method: 'POST',
+                            headers: {
+                                'X-Admin-Token': token,
+                                'Authorization': `Bearer ${token}`
+                                // NÃO incluir 'Content-Type' - deixar o navegador definir automaticamente
+                            },
+                            body: formData
+                        });
+                        
+                        console.log('📥 Resposta recebida:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            ok: response.ok
+                        });
+                        
+                        const data = await response.json();
+                        console.log('📦 Dados recebidos:', data);
                     
                     if (response.ok) {
                         closeModal('appVersionModal');
