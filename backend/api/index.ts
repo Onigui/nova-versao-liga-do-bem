@@ -42,7 +42,20 @@ function generateToken(payload: any) {
 
 export default async function handler(req: any, res: any) {
   // CORS - Permitir todos os subdomínios Vercel
+  // IMPORTANTE: Headers CORS devem ser definidos ANTES de qualquer processamento
   const origin = req.headers?.origin;
+  
+  // Log para debug
+  console.log('🔍 Request:', {
+    method: req.method,
+    path: req.url,
+    origin: origin,
+    headers: {
+      'content-type': req.headers['content-type'],
+      'x-admin-token': req.headers['x-admin-token'] ? 'present' : 'missing',
+      'authorization': req.headers['authorization'] ? 'present' : 'missing'
+    }
+  });
   
   // Sempre permitir subdomínios Vercel e localhost
   const allowedOrigins = [
