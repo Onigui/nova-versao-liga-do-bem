@@ -76,7 +76,7 @@ router.get('/update/check', async (req: Request, res: Response) => {
       }
     }
 
-    res.json({
+    const responseData = {
       hasUpdate,
       latestVersion: hasUpdate ? {
         version: latestVersion.version,
@@ -87,7 +87,10 @@ router.get('/update/check', async (req: Request, res: Response) => {
         apkUrl: apkUrl, // URL direta para download
         versionId: latestVersion.id
       } : null
-    });
+    };
+    
+    console.log('📤 [update/check] Enviando resposta:', JSON.stringify(responseData, null, 2));
+    res.json(responseData);
   } catch (error: any) {
     console.error('❌ Erro ao verificar atualizações:', error);
     res.status(500).json({

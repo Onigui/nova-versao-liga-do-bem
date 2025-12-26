@@ -71,9 +71,11 @@ class UpdateService {
   async checkForUpdates() {
     try {
       const { version, versionCode } = await getCurrentAppVersion();
-      console.log('📱 Verificando atualizações...', { version, versionCode });
+      console.log('📱 [UpdateService.checkForUpdates] Verificando atualizações...', { version, versionCode });
 
       const url = `${API_BASE_PATH}/app/update/check?version=${version}&versionCode=${versionCode}`;
+      console.log('📱 [UpdateService.checkForUpdates] URL:', url);
+      console.log('📱 [UpdateService.checkForUpdates] API_BASE_PATH:', API_BASE_PATH);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -83,35 +85,61 @@ class UpdateService {
         cache: 'no-store',
       });
 
-      console.log('📡 Status da resposta:', response.status);
+      console.log('📡 [UpdateService.checkForUpdates] Status da resposta:', response.status);
+      console.log('📡 [UpdateService.checkForUpdates] Response OK:', response.ok);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📱 Resposta da verificação:', JSON.stringify(data, null, 2));
+        console.log('📱 [UpdateService.checkForUpdates] Resposta completa:', JSON.stringify(data, null, 2));
 
         if (data.hasUpdate && data.latestVersion) {
           const latestVersionCode = data.latestVersion.versionCode || 0;
+          console.log('🔍 [UpdateService.checkForUpdates] Comparando versões:', {
+            currentVersionCode: versionCode,
+            latestVersionCode: latestVersionCode,
+            isGreater: latestVersionCode > versionCode
+          });
+          
           if (latestVersionCode <= versionCode) {
-            console.log('⚠️ Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...');
+            console.log('⚠️ [UpdateService.checkForUpdates] Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...');
             data.hasUpdate = false;
             data.latestVersion = null;
           } else {
-            console.log('✅ Atualização disponível:', {
+            console.log('✅ [UpdateService.checkForUpdates] Atualização disponível!', {
               current: versionCode,
               latest: latestVersionCode,
+              latestVersion: data.latestVersion.version,
+              apkUrl: data.latestVersion.apkUrl
             });
           }
+        } else {
+          console.log('ℹ️ [UpdateService.checkForUpdates] Nenhuma atualização disponível:', {
+            hasUpdate: data.hasUpdate,
+            hasLatestVersion: !!data.latestVersion,
+            message: data.message
+          });
         }
 
         return data;
       } else {
         const errorText = await response.text();
-        console.error('❌ Erro na resposta do servidor:', response.status, errorText);
-        return null;
+        console.error('❌ [UpdateService.checkForUpdates] Erro na resposta do servidor:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText
+        });
+        return {
+          hasUpdate: false,
+          error: `Erro ${response.status}: ${errorText}`
+        };
       }
     } catch (error) {
-      console.error('❌ Erro ao verificar atualizações:', error);
-      return null;
+      console.error('❌ [UpdateService.checkForUpdates] Erro ao verificar atualizações:', error);
+      console.error('❌ [UpdateService.checkForUpdates] Stack:', error.stack);
+      return {
+        hasUpdate: false,
+        error: error.message || 'Erro desconhecido'
+      };
     }
   }
 

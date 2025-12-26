@@ -18,13 +18,16 @@ export default function UpdateChecker() {
     // e ainda não verificou nesta sessão
     if (isAuthenticated && !hasChecked) {
       console.log('🔍 [UpdateChecker] Usuário autenticado, verificando atualizações...');
+      console.log('🔍 [UpdateChecker] Estado:', { isAuthenticated, hasChecked });
       checkForUpdates();
     } else if (!isAuthenticated) {
       // Resetar quando o usuário faz logout
+      console.log('🔍 [UpdateChecker] Usuário não autenticado, resetando...');
       setHasChecked(false);
       setUpdateInfo(null);
       setShowUpdateModal(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, hasChecked]);
 
   const checkForUpdates = async () => {
