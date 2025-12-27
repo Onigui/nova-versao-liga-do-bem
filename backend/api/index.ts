@@ -2621,7 +2621,9 @@ export default async function handler(req: any, res: any) {
     }
 
     // GET /api/app/update/check - Verificar atualizações (public - for mobile app)
+    console.log('🔍 Checking path for /api/app/update/check:', { path, method, matches: path === '/api/app/update/check' && method === 'GET' });
     if (path === '/api/app/update/check' && method === 'GET') {
+      console.log('✅ [update/check] Rota detectada! Iniciando processamento...');
       const db = getPrisma();
       if (!db) {
         console.error('❌ [update/check] Database not available');
