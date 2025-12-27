@@ -2620,6 +2620,101 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // GET /api/app/update/check - Verificar atualizações (public - for mobile app)
+    if (path === '/api/app/update/check' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        console.error('❌ [update/check] Database not available');
+        return res.status(503).json({
+          error: 'Database not available'
+        });
+      }
+      
+      try {
+        const { version, versionCode } = req.query;
+        
+        console.log('🔍 [update/check] Verificando atualizações...', {
+          version,
+          versionCode,
+          query: req.query
+        });
+
+        // Buscar a versão mais recente ativa
+        const latestVersion = await db.appVersion.findFirst({
+          where: {
+            isActive: true,
+            platform: 'android'
+          },
+          orderBy: {
+            versionCode: 'desc'
+          }
+        });
+
+        console.log('📦 [update/check] Versão mais recente no banco:', latestVersion ? {
+          id: latestVersion.id,
+          version: latestVersion.version,
+          versionCode: latestVersion.versionCode,
+          isActive: latestVersion.isActive,
+          apkUrl: latestVersion.apkUrl
+        } : 'Nenhuma versão encontrada');
+
+        if (!latestVersion) {
+          console.log('ℹ️ [update/check] Nenhuma versão ativa encontrada');
+          return res.json({
+            hasUpdate: false,
+            message: 'Nenhuma versão disponível'
+          });
+        }
+
+        const currentVersionCode = versionCode ? parseInt(versionCode as string, 10) : 0;
+        const hasUpdate = latestVersion.versionCode > currentVersionCode;
+        
+        console.log('🔍 [update/check] Comparação:', {
+          currentVersionCode,
+          latestVersionCode: latestVersion.versionCode,
+          hasUpdate,
+          currentVersion: version,
+          latestVersion: latestVersion.version
+        });
+
+        // Se apkUrl for uma URL do GitHub Release, usar diretamente
+        // Caso contrário, usar o endpoint de download
+        let apkUrl = null;
+        if (hasUpdate && latestVersion.apkUrl) {
+          if (latestVersion.apkUrl.startsWith('https://github.com/') || 
+              latestVersion.apkUrl.startsWith('https://github-releases')) {
+            // URL direta do GitHub Release
+            apkUrl = latestVersion.apkUrl;
+          } else {
+            // URL relativa - construir URL do endpoint
+            apkUrl = `/api/app/update/apk/${latestVersion.id}`;
+          }
+        }
+
+        const responseData = {
+          hasUpdate,
+          latestVersion: hasUpdate ? {
+            version: latestVersion.version,
+            versionCode: latestVersion.versionCode,
+            releaseNotes: latestVersion.releaseNotes,
+            isMandatory: latestVersion.isMandatory,
+            apkSize: latestVersion.apkSize,
+            apkUrl: apkUrl, // URL direta para download
+            versionId: latestVersion.id
+          } : null
+        };
+        
+        console.log('📤 [update/check] Enviando resposta:', JSON.stringify(responseData, null, 2));
+        return res.json(responseData);
+      } catch (error: any) {
+        console.error('❌ [update/check] Erro ao verificar atualizações:', error);
+        return res.status(500).json({
+          error: 'Erro ao verificar atualizações',
+          message: error.message
+        });
+      }
+    }
+
     // GET all app versions (admin)
     if (path === '/api/admin/app/versions' && method === 'GET') {
       const db = getPrisma();
