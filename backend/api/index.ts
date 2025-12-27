@@ -2531,96 +2531,8 @@ export default async function handler(req: any, res: any) {
 
     // ============ APP VERSION ENDPOINTS ============
     
-    // GET current app version (public - for mobile app)
-    if (path === '/api/app/version' && method === 'GET') {
-      const db = getPrisma();
-      if (!db) {
-        return res.status(503).json({ error: 'Database not configured' });
-      }
-      try {
-        const platform = req.query?.platform || 'android';
-        const currentVersion = req.query?.version || '1.0.0';
-        const currentVersionCode = parseInt(req.query?.versionCode || '1', 10);
-
-        // Buscar versão mais recente disponível COM APK e que está ATIVA
-        // IMPORTANTE: Só retorna versões que estão marcadas como isActive=true
-        // Isso permite controle: apenas versões liberadas pelo admin aparecem
-        const latestVersion = await db.appVersion.findFirst({
-          where: {
-            platform,
-            isActive: true, // Apenas versões ativas (liberadas pelo admin)
-            apkUrl: { not: null }, // Apenas versões com APK disponível
-          },
-          orderBy: { versionCode: 'desc' },
-        });
-
-        if (!latestVersion || !latestVersion.apkUrl) {
-          console.log('📱 Nenhuma versão com APK disponível encontrada');
-          return res.status(200).json({
-            hasUpdate: false,
-            currentVersion,
-            currentVersionCode,
-            message: 'Nenhuma versão disponível para download',
-          });
-        }
-
-        // Comparação estrita: só há atualização se versionCode for MAIOR
-        const hasUpdate = latestVersion.versionCode > currentVersionCode;
-        const isMandatory = hasUpdate && latestVersion.isMandatory;
-        
-        // Verificar se a versão atual é menor que a mínima obrigatória
-        let isBlocked = false;
-        if (latestVersion.minVersion) {
-          const minVersionCode = await db.appVersion.findFirst({
-            where: {
-              platform,
-              version: latestVersion.minVersion,
-            },
-          });
-          if (minVersionCode && currentVersionCode < minVersionCode.versionCode) {
-            isBlocked = true;
-          }
-        }
-
-        // Log para debug
-        console.log('📱 Verificação de versão:', {
-          currentVersion,
-          currentVersionCode,
-          latestVersion: latestVersion.version,
-          latestVersionCode: latestVersion.versionCode,
-          hasUpdate,
-          isMandatory,
-        });
-
-        return res.status(200).json({
-          hasUpdate,
-          isMandatory: isMandatory || isBlocked,
-          isBlocked,
-          currentVersion,
-          currentVersionCode,
-          latestVersion: hasUpdate ? {
-            version: latestVersion.version,
-            versionCode: latestVersion.versionCode,
-            apkUrl: latestVersion.apkUrl,
-            apkSize: latestVersion.apkSize,
-            releaseNotes: latestVersion.releaseNotes,
-            minVersion: latestVersion.minVersion,
-          } : null,
-        });
-      } catch (error: any) {
-        console.error('❌ Error loading app version:', error);
-        if (error.message?.includes('does not exist') || error.code === 'P2021') {
-          return res.status(200).json({
-            hasUpdate: false,
-            currentVersion: req.query?.version || '1.0.0',
-            currentVersionCode: parseInt(req.query?.versionCode || '1', 10),
-          });
-        }
-        return res.status(500).json({ error: 'Error loading app version' });
-      }
-    }
-
     // GET /api/app/update/check - Verificar atualizações (public - for mobile app)
+    // IMPORTANTE: Este endpoint DEVE vir ANTES do /api/app/version para evitar conflitos
     if (path === '/api/app/update/check' && method === 'GET') {
       console.log('✅ [update/check] Rota detectada! Path:', path, 'Method:', method);
       const db = getPrisma();
@@ -2713,6 +2625,95 @@ export default async function handler(req: any, res: any) {
           error: 'Erro ao verificar atualizações',
           message: error.message
         });
+      }
+    }
+    
+    // GET current app version (public - for mobile app)
+    if (path === '/api/app/version' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const platform = req.query?.platform || 'android';
+        const currentVersion = req.query?.version || '1.0.0';
+        const currentVersionCode = parseInt(req.query?.versionCode || '1', 10);
+
+        // Buscar versão mais recente disponível COM APK e que está ATIVA
+        // IMPORTANTE: Só retorna versões que estão marcadas como isActive=true
+        // Isso permite controle: apenas versões liberadas pelo admin aparecem
+        const latestVersion = await db.appVersion.findFirst({
+          where: {
+            platform,
+            isActive: true, // Apenas versões ativas (liberadas pelo admin)
+            apkUrl: { not: null }, // Apenas versões com APK disponível
+          },
+          orderBy: { versionCode: 'desc' },
+        });
+
+        if (!latestVersion || !latestVersion.apkUrl) {
+          console.log('📱 Nenhuma versão com APK disponível encontrada');
+          return res.status(200).json({
+            hasUpdate: false,
+            currentVersion,
+            currentVersionCode,
+            message: 'Nenhuma versão disponível para download',
+          });
+        }
+
+        // Comparação estrita: só há atualização se versionCode for MAIOR
+        const hasUpdate = latestVersion.versionCode > currentVersionCode;
+        const isMandatory = hasUpdate && latestVersion.isMandatory;
+        
+        // Verificar se a versão atual é menor que a mínima obrigatória
+        let isBlocked = false;
+        if (latestVersion.minVersion) {
+          const minVersionCode = await db.appVersion.findFirst({
+            where: {
+              platform,
+              version: latestVersion.minVersion,
+            },
+          });
+          if (minVersionCode && currentVersionCode < minVersionCode.versionCode) {
+            isBlocked = true;
+          }
+        }
+
+        // Log para debug
+        console.log('📱 Verificação de versão:', {
+          currentVersion,
+          currentVersionCode,
+          latestVersion: latestVersion.version,
+          latestVersionCode: latestVersion.versionCode,
+          hasUpdate,
+          isMandatory,
+        });
+
+        return res.status(200).json({
+          hasUpdate,
+          isMandatory: isMandatory || isBlocked,
+          isBlocked,
+          currentVersion,
+          currentVersionCode,
+          latestVersion: hasUpdate ? {
+            version: latestVersion.version,
+            versionCode: latestVersion.versionCode,
+            apkUrl: latestVersion.apkUrl,
+            apkSize: latestVersion.apkSize,
+            releaseNotes: latestVersion.releaseNotes,
+            minVersion: latestVersion.minVersion,
+          } : null,
+        });
+      } catch (error: any) {
+        console.error('❌ Error loading app version:', error);
+        if (error.message?.includes('does not exist') || error.code === 'P2021') {
+          return res.status(200).json({
+            hasUpdate: false,
+            currentVersion: req.query?.version || '1.0.0',
+            currentVersionCode: parseInt(req.query?.versionCode || '1', 10),
+          });
+        }
+        return res.status(500).json({ error: 'Error loading app version' });
       }
     }
 
