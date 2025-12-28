@@ -126,6 +126,19 @@ export default async function handler(req: any, res: any) {
 
   console.log(`📥 ${method} ${path}`);
   
+  // DEBUG: Log específico para o endpoint de update/check
+  if (path.includes('update/check') || req.url?.includes('update/check')) {
+    console.log('🔍🔍🔍 DEBUG update/check:', {
+      path,
+      method,
+      'req.url': req.url,
+      'req.path': req.path,
+      'path === /api/app/update/check': path === '/api/app/update/check',
+      'method === GET': method === 'GET',
+      'matches condition': path === '/api/app/update/check' && method === 'GET'
+    });
+  }
+  
   // Parse body if present (skip for multipart/form-data - will be handled by busboy)
   const contentType = req.headers['content-type'] || '';
   const isMultipart = contentType.includes('multipart/form-data');
