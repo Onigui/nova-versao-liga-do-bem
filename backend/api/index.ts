@@ -233,15 +233,23 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        const currentVersionCode = versionCode ? parseInt(versionCode as string, 10) : 0;
-        const hasUpdate = latestVersion.versionCode > currentVersionCode;
+        // Garantir que versionCode seja número
+        const currentVersionCode = versionCode ? parseInt(String(versionCode), 10) : 0;
+        const latestVersionCode = typeof latestVersion.versionCode === 'number' 
+          ? latestVersion.versionCode 
+          : parseInt(String(latestVersion.versionCode), 10);
+        
+        const hasUpdate = latestVersionCode > currentVersionCode;
         
         console.log('🔍 [update/check] Comparação:', {
           currentVersionCode,
-          latestVersionCode: latestVersion.versionCode,
+          currentVersionCodeType: typeof currentVersionCode,
+          latestVersionCode,
+          latestVersionCodeType: typeof latestVersionCode,
           hasUpdate,
           currentVersion: version,
-          latestVersion: latestVersion.version
+          latestVersion: latestVersion.version,
+          comparison: `${latestVersionCode} > ${currentVersionCode} = ${hasUpdate}`
         });
 
         // Se apkUrl for uma URL do GitHub Release, usar diretamente
@@ -260,9 +268,11 @@ export default async function handler(req: any, res: any) {
 
         const responseData = {
           hasUpdate,
+          currentVersionCode, // Adicionar para debug
+          latestVersionCode, // Adicionar para debug
           latestVersion: hasUpdate ? {
             version: latestVersion.version,
-            versionCode: latestVersion.versionCode,
+            versionCode: latestVersionCode, // Usar o versionCode já convertido
             releaseNotes: latestVersion.releaseNotes,
             isMandatory: latestVersion.isMandatory,
             apkSize: latestVersion.apkSize,
