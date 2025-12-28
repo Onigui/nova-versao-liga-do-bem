@@ -93,21 +93,29 @@ class UpdateService {
         console.log('📱 [UpdateService.checkForUpdates] Resposta completa:', JSON.stringify(data, null, 2));
 
         if (data.hasUpdate && data.latestVersion) {
-          const latestVersionCode = data.latestVersion.versionCode || 0;
+          // Garantir que versionCodes sejam números para comparação correta
+          const currentVersionCodeNum = typeof versionCode === 'number' ? versionCode : parseInt(String(versionCode), 10) || 0;
+          const latestVersionCodeNum = typeof data.latestVersion.versionCode === 'number' 
+            ? data.latestVersion.versionCode 
+            : parseInt(String(data.latestVersion.versionCode || 0), 10);
+          
           console.log('🔍 [UpdateService.checkForUpdates] Comparando versões:', {
-            currentVersionCode: versionCode,
-            latestVersionCode: latestVersionCode,
-            isGreater: latestVersionCode > versionCode
+            currentVersionCode: currentVersionCodeNum,
+            currentVersionCodeType: typeof currentVersionCodeNum,
+            latestVersionCode: latestVersionCodeNum,
+            latestVersionCodeType: typeof latestVersionCodeNum,
+            isGreater: latestVersionCodeNum > currentVersionCodeNum,
+            comparison: `${latestVersionCodeNum} > ${currentVersionCodeNum} = ${latestVersionCodeNum > currentVersionCodeNum}`
           });
           
-          if (latestVersionCode <= versionCode) {
+          if (latestVersionCodeNum <= currentVersionCodeNum) {
             console.log('⚠️ [UpdateService.checkForUpdates] Backend retornou hasUpdate=true, mas versão não é maior. Corrigindo...');
             data.hasUpdate = false;
             data.latestVersion = null;
           } else {
             console.log('✅ [UpdateService.checkForUpdates] Atualização disponível!', {
-              current: versionCode,
-              latest: latestVersionCode,
+              current: currentVersionCodeNum,
+              latest: latestVersionCodeNum,
               latestVersion: data.latestVersion.version,
               apkUrl: data.latestVersion.apkUrl
             });
