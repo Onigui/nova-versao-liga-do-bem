@@ -177,6 +177,16 @@ export default async function handler(req: any, res: any) {
 
     // GET /api/app/update/check - Verificar atualizações (public - for mobile app)
     // MOVENDO PARA O TOPO PARA GARANTIR QUE SEJA EXECUTADO
+    console.log('🔍🔍🔍 ANTES DO IF update/check:', {
+      path: JSON.stringify(path),
+      method: JSON.stringify(method),
+      pathLength: path?.length,
+      methodLength: method?.length,
+      'path === /api/app/update/check': path === '/api/app/update/check',
+      'method === GET': method === 'GET',
+      'path.includes(update/check)': path?.includes('update/check'),
+      'method.includes(GET)': method?.includes('GET')
+    });
     if (path === '/api/app/update/check' && method === 'GET') {
       console.log('✅✅✅ [update/check] Rota detectada NO TOPO! Path:', path, 'Method:', method);
       const db = getPrisma();
