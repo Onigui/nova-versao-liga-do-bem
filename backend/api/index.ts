@@ -123,12 +123,23 @@ export default async function handler(req: any, res: any) {
       path = '/api' + (path.startsWith('/') ? '' : '/') + path;
     }
   }
+  
+  // DEBUG: Log após normalização
+  if (path.includes('update/check') || req.url?.includes('update/check')) {
+    console.log('🔍🔍🔍 DEBUG update/check APÓS normalização:', {
+      path,
+      method,
+      'path === /api/app/update/check': path === '/api/app/update/check',
+      'method === GET': method === 'GET',
+      'matches condition': path === '/api/app/update/check' && method === 'GET'
+    });
+  }
 
   console.log(`📥 ${method} ${path}`);
   
   // DEBUG: Log específico para o endpoint de update/check
   if (path.includes('update/check') || req.url?.includes('update/check')) {
-    console.log('🔍🔍🔍 DEBUG update/check:', {
+    console.log('🔍🔍🔍 DEBUG update/check ANTES dos endpoints:', {
       path,
       method,
       'req.url': req.url,
