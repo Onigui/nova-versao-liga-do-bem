@@ -316,62 +316,47 @@ class UpdateService {
         throw new Error(`Não foi possível verificar o arquivo APK: ${fsError.message}`);
       }
 
-      // Para Android 7.0+ (API 24+), usar content URI com FileProvider
-      if (Platform.Version >= 24) {
-        const packageName = 'com.ligadobem.botucatu';
-        const authority = `${packageName}.fileprovider`;
+      // Para Android moderno, precisamos usar content URI
+      // O problema é que Linking.openURL pode não funcionar bem
+      // Vamos usar uma abordagem mais simples e direta
+      
+      const packageName = 'com.ligadobem.botucatu';
+      const authority = `${packageName}.fileprovider`;
 
-        // Usar external_files para Downloads
-        // O caminho deve ser relativo ao diretório de Downloads
-        const downloadsPath = RNFS.DownloadDirectoryPath;
-        let relativePath = filePath;
-        
-        if (filePath.startsWith(downloadsPath)) {
-          relativePath = filePath.replace(downloadsPath, '').replace(/^\//, '');
-        } else {
-          // Extrair apenas o nome do arquivo
-          relativePath = filePath.split('/').pop();
-        }
+      // Para Downloads, o caminho relativo deve ser apenas o nome do arquivo
+      const fileName = filePath.split('/').pop();
+      
+      // Construir content URI - formato: content://authority/external_files/filename
+      const contentUri = `content://${authority}/external_files/${fileName}`;
+      console.log('📱 [installAPK] Content URI:', contentUri);
+      console.log('📱 [installAPK] File path:', filePath);
+      console.log('📱 [installAPK] File name:', fileName);
 
-        // Construir content URI
-        const contentUri = `content://${authority}/external_files/${relativePath}`;
-        console.log('📱 [installAPK] Tentando content URI:', contentUri);
-
-        try {
-          const canOpen = await Linking.canOpenURL(contentUri);
-          console.log('📱 [installAPK] canOpenURL result:', canOpen);
-          
-          if (canOpen) {
-            await Linking.openURL(contentUri);
-            console.log('✅ [installAPK] Instalação iniciada via content URI');
-            return;
-          } else {
-            console.warn('⚠️ [installAPK] Não foi possível abrir content URI, tentando file://');
-          }
-        } catch (contentError) {
-          console.warn('⚠️ [installAPK] Erro com content URI:', contentError);
-          console.warn('⚠️ [installAPK] Tentando file:// como fallback...');
-        }
-      }
-
-      // Fallback: usar file:// URI (funciona em versões mais antigas)
-      const fileUri = `file://${filePath}`;
-      console.log('📱 [installAPK] Tentando file URI:', fileUri);
-
+      // Tentar abrir com content URI
       try {
-        const canOpen = await Linking.canOpenURL(fileUri);
-        console.log('📱 [installAPK] canOpenURL (file://) result:', canOpen);
+        console.log('📱 [installAPK] Tentando abrir instalador...');
         
-        if (canOpen) {
+        // Não usar canOpenURL para content:// URIs (pode retornar false incorretamente)
+        // Tentar abrir diretamente
+        await Linking.openURL(contentUri);
+        console.log('✅ [installAPK] Instalação iniciada via content URI');
+        return;
+      } catch (contentError) {
+        console.warn('⚠️ [installAPK] Erro com content URI:', contentError);
+        console.warn('⚠️ [installAPK] Mensagem:', contentError.message);
+        
+        // Se content URI falhar, tentar file:// (pode funcionar em alguns casos)
+        const fileUri = `file://${filePath}`;
+        console.log('📱 [installAPK] Tentando file URI como fallback:', fileUri);
+        
+        try {
           await Linking.openURL(fileUri);
           console.log('✅ [installAPK] Instalação iniciada via file URI');
           return;
-        } else {
-          throw new Error('Não foi possível abrir o instalador. Verifique se o arquivo existe e se você tem permissão para instalar aplicativos.');
+        } catch (fileError) {
+          console.error('❌ [installAPK] Erro com file URI também:', fileError);
+          throw new Error(`Não foi possível abrir o instalador. Verifique se você tem permissão para instalar aplicativos de fontes desconhecidas. Erro: ${contentError.message || fileError.message}`);
         }
-      } catch (fileError) {
-        console.error('❌ [installAPK] Erro ao usar file URI:', fileError);
-        throw new Error(`Não foi possível abrir o instalador: ${fileError.message}`);
       }
     } catch (error) {
       console.error('❌ [installAPK] Erro geral:', error);
