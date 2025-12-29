@@ -290,7 +290,7 @@ class UpdateService {
   }
 
   /**
-   * Instala o APK baixado
+   * Instala o APK baixado usando módulo nativo
    * @param {string} filePath - Caminho do arquivo APK
    */
   async installAPK(filePath) {
@@ -316,47 +316,46 @@ class UpdateService {
         throw new Error(`Não foi possível verificar o arquivo APK: ${fsError.message}`);
       }
 
-      // Para Android moderno, precisamos usar content URI
-      // O problema é que Linking.openURL pode não funcionar bem
-      // Vamos usar uma abordagem mais simples e direta
-      
-      const packageName = 'com.ligadobem.botucatu';
-      const authority = `${packageName}.fileprovider`;
-
-      // Para Downloads, o caminho relativo deve ser apenas o nome do arquivo
-      const fileName = filePath.split('/').pop();
-      
-      // Construir content URI - formato: content://authority/external_files/filename
-      const contentUri = `content://${authority}/external_files/${fileName}`;
-      console.log('📱 [installAPK] Content URI:', contentUri);
-      console.log('📱 [installAPK] File path:', filePath);
-      console.log('📱 [installAPK] File name:', fileName);
-
-      // Tentar abrir com content URI
+      // Tentar usar módulo nativo ApkInstaller
       try {
-        console.log('📱 [installAPK] Tentando abrir instalador...');
+        const { NativeModules } = require('react-native');
+        const { ApkInstaller } = NativeModules;
         
-        // Não usar canOpenURL para content:// URIs (pode retornar false incorretamente)
-        // Tentar abrir diretamente
-        await Linking.openURL(contentUri);
-        console.log('✅ [installAPK] Instalação iniciada via content URI');
-        return;
-      } catch (contentError) {
-        console.warn('⚠️ [installAPK] Erro com content URI:', contentError);
-        console.warn('⚠️ [installAPK] Mensagem:', contentError.message);
-        
-        // Se content URI falhar, tentar file:// (pode funcionar em alguns casos)
-        const fileUri = `file://${filePath}`;
-        console.log('📱 [installAPK] Tentando file URI como fallback:', fileUri);
-        
-        try {
-          await Linking.openURL(fileUri);
-          console.log('✅ [installAPK] Instalação iniciada via file URI');
-          return;
-        } catch (fileError) {
-          console.error('❌ [installAPK] Erro com file URI também:', fileError);
-          throw new Error(`Não foi possível abrir o instalador. Verifique se você tem permissão para instalar aplicativos de fontes desconhecidas. Erro: ${contentError.message || fileError.message}`);
+        if (!ApkInstaller) {
+          throw new Error('Módulo nativo ApkInstaller não encontrado');
         }
+
+        console.log('📱 [installAPK] Usando módulo nativo ApkInstaller...');
+        
+        // Usar Promise para chamar o método nativo
+        await new Promise((resolve, reject) => {
+          ApkInstaller.installApk(filePath, (success) => {
+            if (success) {
+              console.log('✅ [installAPK] Instalação iniciada via módulo nativo');
+              resolve(true);
+            } else {
+              reject(new Error('Falha ao iniciar instalação'));
+            }
+          }, (error) => {
+            console.error('❌ [installAPK] Erro do módulo nativo:', error);
+            reject(new Error(error.message || 'Erro ao instalar APK'));
+          });
+        });
+        
+        return;
+      } catch (nativeError) {
+        console.warn('⚠️ [installAPK] Erro ao usar módulo nativo, tentando fallback:', nativeError);
+        
+        // Fallback: tentar usar Linking.openURL (pode não funcionar em Android moderno)
+        const packageName = 'com.ligadobem.botucatu';
+        const authority = `${packageName}.fileprovider`;
+        const fileName = filePath.split('/').pop();
+        const contentUri = `content://${authority}/external_files/${fileName}`;
+        
+        console.log('📱 [installAPK] Tentando fallback com Linking.openURL:', contentUri);
+        await Linking.openURL(contentUri);
+        console.log('✅ [installAPK] Instalação iniciada via fallback');
+        return;
       }
     } catch (error) {
       console.error('❌ [installAPK] Erro geral:', error);
