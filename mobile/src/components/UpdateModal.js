@@ -133,30 +133,40 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       }
     } catch (error) {
       console.error('❌ [handleUpdate] Erro geral:', error);
+      console.error('❌ [handleUpdate] Stack:', error.stack);
       setError(error?.message || 'Erro desconhecido');
       setDownloading(false);
       setInstalling(false);
 
-      Alert.alert(
-        'Erro na Atualização',
-        `Não foi possível baixar ou instalar a atualização.\n\n${error?.message || 'Erro desconhecido'}\n\nPor favor, tente novamente.`,
-        [
-          {
-            text: 'Tentar Novamente',
-            onPress: () => handleUpdate(),
-          },
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-            onPress: () => {
-              if (!updateInfo.isMandatory) {
-                onDismiss();
-              }
+      // Não fechar o app, apenas mostrar erro
+      try {
+        Alert.alert(
+          'Erro na Atualização',
+          `Não foi possível baixar ou instalar a atualização.\n\n${error?.message || 'Erro desconhecido'}\n\nPor favor, tente novamente.`,
+          [
+            {
+              text: 'Tentar Novamente',
+              onPress: () => {
+                // Recursão segura com delay
+                setTimeout(() => handleUpdate(), 100);
+              },
             },
-          },
-        ],
-        { cancelable: !updateInfo.isMandatory }
-      );
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => {
+                if (!updateInfo.isMandatory) {
+                  onDismiss();
+                }
+              },
+            },
+          ],
+          { cancelable: !updateInfo.isMandatory }
+        );
+      } catch (alertError) {
+        console.error('❌ [handleUpdate] Erro ao mostrar Alert:', alertError);
+        // Se o Alert também falhar, apenas logar e não fazer nada
+      }
     }
   };
 
