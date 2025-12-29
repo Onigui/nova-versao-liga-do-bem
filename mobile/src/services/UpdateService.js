@@ -302,36 +302,80 @@ class UpdateService {
       console.log('📦 [installAPK] Preparando instalação...');
       console.log('📁 [installAPK] Caminho:', filePath);
 
-      // Para Android 7.0+ (API 24+), usar FileProvider via content URI
+      // Verificar se o arquivo existe
+      let RNFS;
+      try {
+        RNFS = require('react-native-fs');
+        const exists = await RNFS.exists(filePath);
+        if (!exists) {
+          throw new Error(`Arquivo APK não encontrado: ${filePath}`);
+        }
+        console.log('✅ [installAPK] Arquivo APK encontrado e válido');
+      } catch (fsError) {
+        console.error('❌ [installAPK] Erro ao verificar arquivo:', fsError);
+        throw new Error(`Não foi possível verificar o arquivo APK: ${fsError.message}`);
+      }
+
+      // Para Android 7.0+ (API 24+), usar content URI com FileProvider
       if (Platform.Version >= 24) {
         const packageName = 'com.ligadobem.botucatu';
         const authority = `${packageName}.fileprovider`;
 
-        // Extrair apenas o nome do arquivo do caminho completo
-        const fileName = filePath.split('/').pop();
+        // Usar external_files para Downloads
+        // O caminho deve ser relativo ao diretório de Downloads
+        const downloadsPath = RNFS.DownloadDirectoryPath;
+        let relativePath = filePath;
+        
+        if (filePath.startsWith(downloadsPath)) {
+          relativePath = filePath.replace(downloadsPath, '').replace(/^\//, '');
+        } else {
+          // Extrair apenas o nome do arquivo
+          relativePath = filePath.split('/').pop();
+        }
 
         // Construir content URI
-        const contentUri = `content://${authority}/external_files/${fileName}`;
-
-        console.log('📱 [installAPK] Usando content URI:', contentUri);
+        const contentUri = `content://${authority}/external_files/${relativePath}`;
+        console.log('📱 [installAPK] Tentando content URI:', contentUri);
 
         try {
-          await Linking.openURL(contentUri);
-          console.log('✅ [installAPK] Instalação iniciada via content URI');
-          return;
+          const canOpen = await Linking.canOpenURL(contentUri);
+          console.log('📱 [installAPK] canOpenURL result:', canOpen);
+          
+          if (canOpen) {
+            await Linking.openURL(contentUri);
+            console.log('✅ [installAPK] Instalação iniciada via content URI');
+            return;
+          } else {
+            console.warn('⚠️ [installAPK] Não foi possível abrir content URI, tentando file://');
+          }
         } catch (contentError) {
-          console.warn('⚠️ [installAPK] Erro com content URI, tentando file://:', contentError);
+          console.warn('⚠️ [installAPK] Erro com content URI:', contentError);
+          console.warn('⚠️ [installAPK] Tentando file:// como fallback...');
         }
       }
 
-      // Fallback: usar file:// URI
+      // Fallback: usar file:// URI (funciona em versões mais antigas)
       const fileUri = `file://${filePath}`;
-      console.log('📱 [installAPK] Usando file URI:', fileUri);
+      console.log('📱 [installAPK] Tentando file URI:', fileUri);
 
-      await Linking.openURL(fileUri);
-      console.log('✅ [installAPK] Instalação iniciada via file URI');
+      try {
+        const canOpen = await Linking.canOpenURL(fileUri);
+        console.log('📱 [installAPK] canOpenURL (file://) result:', canOpen);
+        
+        if (canOpen) {
+          await Linking.openURL(fileUri);
+          console.log('✅ [installAPK] Instalação iniciada via file URI');
+          return;
+        } else {
+          throw new Error('Não foi possível abrir o instalador. Verifique se o arquivo existe e se você tem permissão para instalar aplicativos.');
+        }
+      } catch (fileError) {
+        console.error('❌ [installAPK] Erro ao usar file URI:', fileError);
+        throw new Error(`Não foi possível abrir o instalador: ${fileError.message}`);
+      }
     } catch (error) {
-      console.error('❌ [installAPK] Erro:', error);
+      console.error('❌ [installAPK] Erro geral:', error);
+      console.error('❌ [installAPK] Stack:', error.stack);
       throw error;
     }
   }
