@@ -322,26 +322,14 @@ class UpdateService {
         const { ApkInstaller } = NativeModules;
         
         if (!ApkInstaller) {
-          throw new Error('Módulo nativo ApkInstaller não encontrado');
+          throw new Error('Módulo nativo ApkInstaller não encontrado. Por favor, recompile o aplicativo.');
         }
 
         console.log('📱 [installAPK] Usando módulo nativo ApkInstaller...');
         
-        // Usar Promise para chamar o método nativo
-        await new Promise((resolve, reject) => {
-          ApkInstaller.installApk(filePath, (success) => {
-            if (success) {
-              console.log('✅ [installAPK] Instalação iniciada via módulo nativo');
-              resolve(true);
-            } else {
-              reject(new Error('Falha ao iniciar instalação'));
-            }
-          }, (error) => {
-            console.error('❌ [installAPK] Erro do módulo nativo:', error);
-            reject(new Error(error.message || 'Erro ao instalar APK'));
-          });
-        });
-        
+        // Chamar o método nativo (ele retorna uma Promise)
+        await ApkInstaller.installApk(filePath);
+        console.log('✅ [installAPK] Instalação iniciada via módulo nativo');
         return;
       } catch (nativeError) {
         console.warn('⚠️ [installAPK] Erro ao usar módulo nativo, tentando fallback:', nativeError);

@@ -27,9 +27,10 @@ class ApkInstallerModule(reactContext: ReactApplicationContext) : ReactContextBa
                 return
             }
 
+            val uri = getUriForFile(context, file)
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                setDataAndType(getUriForFile(context, file), "application/vnd.android.package-archive")
+                setDataAndType(uri, "application/vnd.android.package-archive")
             }
 
             val chooser = Intent.createChooser(intent, "Instalar APK")
