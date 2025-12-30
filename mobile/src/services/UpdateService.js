@@ -232,9 +232,11 @@ class UpdateService {
         throw new Error('A biblioteca de download não está configurada. Por favor, recompile o aplicativo.');
       }
 
-      // Caminho onde salvar o APK
+      // Caminho onde salvar o APK - usar DocumentDirectoryPath (mais confiável com FileProvider)
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;
-      const downloadPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+      // Tentar usar ExternalDirectoryPath primeiro (mais acessível), senão usar DocumentDirectoryPath
+      const basePath = RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath;
+      const downloadPath = `${basePath}/${fileName}`;
       console.log('📁 [downloadAPK] Salvando em:', downloadPath);
 
       // Configurar download

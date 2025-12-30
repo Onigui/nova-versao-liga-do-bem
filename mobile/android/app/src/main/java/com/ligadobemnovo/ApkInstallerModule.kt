@@ -42,26 +42,52 @@ class ApkInstallerModule(reactContext: ReactApplicationContext) : ReactContextBa
                 return
             }
 
-            // Obter URI usando FileProvider
-            val uri = getUriForFile(context, file)
-            
+            // Obter URI usando FileProvider (com tratamento de erro)
+            val uri = try {
+                getUriForFile(context, file)
+            } catch (e: Exception) {
+                promise.reject("URI_ERROR", "Erro ao criar URI para o arquivo: ${e.message}", e)
+                return
+            }
+
             // Criar Intent de instalação
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                // Adicionar flag para não causar crash se não houver app
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
 
             // Verificar se há algum app que pode lidar com a instalação
             val packageManager = currentActivity.packageManager
-            if (intent.resolveActivity(packageManager) == null) {
+            val resolveInfo = intent.resolveActivity(packageManager)
+            if (resolveInfo == null) {
                 promise.reject("NO_INSTALLER", "Nenhum aplicativo encontrado para instalar APKs. Verifique as configurações do dispositivo.")
                 return
             }
 
-            // Iniciar a instalação usando a Activity atual
-            currentActivity.startActivity(intent)
-            promise.resolve(true)
+            // Garantir permissões de leitura para o pacote que vai receber o Intent
+            try {
+                context.grantUriPermission(
+                    resolveInfo.activityInfo.packageName,
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                // Se não conseguir conceder permissão, continuar mesmo assim
+                // O FileProvider pode lidar com isso automaticamente
+            }
+
+            // Iniciar a instalação usando a Activity atual (com tratamento de erro)
+            try {
+                currentActivity.startActivity(intent)
+                promise.resolve(true)
+            } catch (e: android.content.ActivityNotFoundException) {
+                promise.reject("ACTIVITY_NOT_FOUND", "Não foi possível abrir o instalador. Verifique se há um aplicativo instalador disponível.", e)
+            } catch (e: Exception) {
+                promise.reject("START_ACTIVITY_ERROR", "Erro ao iniciar instalação: ${e.message}", e)
+            }
         } catch (e: SecurityException) {
             promise.reject("SECURITY_ERROR", "Erro de segurança ao instalar APK: ${e.message}. Verifique as permissões do app.", e)
         } catch (e: IllegalArgumentException) {
