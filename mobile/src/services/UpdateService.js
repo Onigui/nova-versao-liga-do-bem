@@ -329,12 +329,48 @@ class UpdateService {
           throw new Error('Módulo nativo ApkInstaller não encontrado. Por favor, recompile o aplicativo.');
         }
 
+        if (!ApkInstaller.installApk || typeof ApkInstaller.installApk !== 'function') {
+          console.error('❌ [installAPK] Método installApk não encontrado no módulo');
+          throw new Error('Método installApk não está disponível no módulo nativo.');
+        }
+
         console.log('📱 [installAPK] Usando módulo nativo ApkInstaller...');
         console.log('📁 [installAPK] Caminho do arquivo:', filePath);
         
-        // Chamar o método nativo (ele retorna uma Promise)
-        const result = await ApkInstaller.installApk(filePath);
-        console.log('✅ [installAPK] Instalação iniciada via módulo nativo. Resultado:', result);
+        // Wrapper de segurança para garantir que a Promise sempre retorne/rejeite
+        const installPromise = new Promise((resolve, reject) => {
+          try {
+            // Chamar o método nativo
+            const nativePromise = ApkInstaller.installApk(filePath);
+            
+            if (!nativePromise || typeof nativePromise.then !== 'function') {
+              reject(new Error('Módulo nativo não retornou uma Promise válida'));
+              return;
+            }
+            
+            nativePromise
+              .then((result) => {
+                console.log('✅ [installAPK] Instalação iniciada via módulo nativo. Resultado:', result);
+                resolve(result);
+              })
+              .catch((error) => {
+                console.error('❌ [installAPK] Promise do módulo nativo rejeitada:', error);
+                reject(error);
+              });
+          } catch (syncError) {
+            console.error('❌ [installAPK] Erro síncrono ao chamar módulo nativo:', syncError);
+            reject(syncError);
+          }
+        });
+        
+        // Aguardar com timeout de segurança
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('Timeout ao aguardar resposta do módulo nativo (5s)'));
+          }, 5000);
+        });
+        
+        await Promise.race([installPromise, timeoutPromise]);
         return;
       } catch (nativeError) {
         console.error('❌ [installAPK] Erro ao usar módulo nativo:', nativeError);
