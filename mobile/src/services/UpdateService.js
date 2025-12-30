@@ -319,31 +319,34 @@ class UpdateService {
       // Tentar usar módulo nativo ApkInstaller
       try {
         const { NativeModules } = require('react-native');
-        const { ApkInstaller } = NativeModules;
+        const ApkInstaller = NativeModules.ApkInstaller;
         
         if (!ApkInstaller) {
+          console.error('❌ [installAPK] Módulo nativo ApkInstaller não encontrado');
+          console.log('📋 [installAPK] Módulos disponíveis:', Object.keys(NativeModules));
           throw new Error('Módulo nativo ApkInstaller não encontrado. Por favor, recompile o aplicativo.');
         }
 
         console.log('📱 [installAPK] Usando módulo nativo ApkInstaller...');
+        console.log('📁 [installAPK] Caminho do arquivo:', filePath);
         
         // Chamar o método nativo (ele retorna uma Promise)
-        await ApkInstaller.installApk(filePath);
-        console.log('✅ [installAPK] Instalação iniciada via módulo nativo');
+        const result = await ApkInstaller.installApk(filePath);
+        console.log('✅ [installAPK] Instalação iniciada via módulo nativo. Resultado:', result);
         return;
       } catch (nativeError) {
-        console.warn('⚠️ [installAPK] Erro ao usar módulo nativo, tentando fallback:', nativeError);
+        console.error('❌ [installAPK] Erro ao usar módulo nativo:', nativeError);
+        console.error('❌ [installAPK] Tipo do erro:', nativeError?.constructor?.name);
+        console.error('❌ [installAPK] Código do erro:', nativeError?.code);
+        console.error('❌ [installAPK] Mensagem:', nativeError?.message);
+        console.error('❌ [installAPK] Stack:', nativeError?.stack);
         
-        // Fallback: tentar usar Linking.openURL (pode não funcionar em Android moderno)
-        const packageName = 'com.ligadobem.botucatu';
-        const authority = `${packageName}.fileprovider`;
-        const fileName = filePath.split('/').pop();
-        const contentUri = `content://${authority}/external_files/${fileName}`;
-        
-        console.log('📱 [installAPK] Tentando fallback com Linking.openURL:', contentUri);
-        await Linking.openURL(contentUri);
-        console.log('✅ [installAPK] Instalação iniciada via fallback');
-        return;
+        // Não tentar fallback - se o módulo nativo falhou, é melhor mostrar o erro
+        throw new Error(
+          `Erro ao iniciar instalação: ${nativeError?.message || 'Erro desconhecido'}. ` +
+          `Código: ${nativeError?.code || 'N/A'}. ` +
+          `Por favor, verifique se o app tem permissão para instalar aplicativos.`
+        );
       }
     } catch (error) {
       console.error('❌ [installAPK] Erro geral:', error);

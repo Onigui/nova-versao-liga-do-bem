@@ -88,9 +88,16 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
 
       try {
         console.log('📦 [handleUpdate] Iniciando instalação...');
+        console.log('📁 [handleUpdate] Caminho do APK:', filePath);
+        
         await UpdateService.installAPK(filePath);
         console.log('✅ [handleUpdate] Instalação iniciada!');
 
+        // Pequeno delay para garantir que o Intent foi processado
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        setInstalling(false);
+        
         Alert.alert(
           'Download Concluído!',
           'O instalador do Android foi aberto.\n\nPor favor, confirme a instalação na tela que apareceu.',
@@ -98,7 +105,6 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
             {
               text: 'OK',
               onPress: () => {
-                setInstalling(false);
                 if (onUpdateComplete) {
                   onUpdateComplete();
                 }
@@ -108,17 +114,43 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
               },
             },
           ],
+          { cancelable: false }
         );
       } catch (installError) {
         console.error('❌ [handleUpdate] Erro na instalação:', installError);
+        console.error('❌ [handleUpdate] Tipo do erro:', installError?.constructor?.name);
+        console.error('❌ [handleUpdate] Código:', installError?.code);
+        console.error('❌ [handleUpdate] Mensagem:', installError?.message);
+        console.error('❌ [handleUpdate] Stack:', installError?.stack);
+        
         setInstalling(false);
+        setError(installError?.message || 'Erro desconhecido na instalação');
+
+        // Mensagem mais detalhada baseada no tipo de erro
+        let errorMessage = installError?.message || 'Erro desconhecido';
+        if (installError?.code === 'NO_ACTIVITY') {
+          errorMessage = 'O app precisa estar em primeiro plano para instalar. Por favor, tente novamente.';
+        } else if (installError?.code === 'FILE_NOT_FOUND' || installError?.code === 'FILE_NOT_READABLE') {
+          errorMessage = 'O arquivo baixado não foi encontrado ou não pode ser lido. Por favor, tente baixar novamente.';
+        } else if (installError?.code === 'NO_INSTALLER') {
+          errorMessage = 'Nenhum aplicativo encontrado para instalar APKs. Verifique as configurações do dispositivo.';
+        } else if (installError?.code === 'SECURITY_ERROR') {
+          errorMessage = 'Erro de segurança. Verifique se o app tem permissão para instalar aplicativos nas configurações.';
+        }
 
         Alert.alert(
           'Erro na Instalação',
-          `O download foi concluído, mas não foi possível abrir o instalador automaticamente.\n\n${installError?.message || 'Erro desconhecido'}\n\nPor favor, verifique se você tem permissão para instalar aplicativos de fontes desconhecidas.`,
+          `O download foi concluído, mas não foi possível abrir o instalador automaticamente.\n\n${errorMessage}\n\nPor favor, verifique:\n• Se você tem permissão para instalar aplicativos de fontes desconhecidas\n• Se o app está em primeiro plano\n• Tente baixar novamente se o problema persistir`,
           [
             {
+              text: 'Tentar Novamente',
+              onPress: () => {
+                setTimeout(() => handleUpdate(), 100);
+              },
+            },
+            {
               text: 'OK',
+              style: 'cancel',
               onPress: () => {
                 if (onUpdateComplete) {
                   onUpdateComplete();
@@ -129,6 +161,7 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
               },
             },
           ],
+          { cancelable: !updateInfo.isMandatory }
         );
       }
     } catch (error) {

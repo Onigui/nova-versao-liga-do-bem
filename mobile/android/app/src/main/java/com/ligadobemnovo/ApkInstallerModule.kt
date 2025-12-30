@@ -20,24 +20,52 @@ class ApkInstallerModule(reactContext: ReactApplicationContext) : ReactContextBa
     fun installApk(filePath: String, promise: Promise) {
         try {
             val context = reactApplicationContext
+            val currentActivity = currentActivity
+            
+            // Verificar se a Activity está disponível
+            if (currentActivity == null) {
+                promise.reject("NO_ACTIVITY", "Não foi possível obter a Activity atual. O app pode estar em background.")
+                return
+            }
+
             val file = File(filePath)
 
+            // Verificar se o arquivo existe
             if (!file.exists()) {
                 promise.reject("FILE_NOT_FOUND", "Arquivo APK não encontrado: $filePath")
                 return
             }
 
-            val uri = getUriForFile(context, file)
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                setDataAndType(uri, "application/vnd.android.package-archive")
+            // Verificar se o arquivo pode ser lido
+            if (!file.canRead()) {
+                promise.reject("FILE_NOT_READABLE", "Não foi possível ler o arquivo APK. Verifique as permissões.")
+                return
             }
 
-            val chooser = Intent.createChooser(intent, "Instalar APK")
-            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // Obter URI usando FileProvider
+            val uri = getUriForFile(context, file)
+            
+            // Criar Intent de instalação
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
 
-            context.startActivity(chooser)
+            // Verificar se há algum app que pode lidar com a instalação
+            val packageManager = currentActivity.packageManager
+            if (intent.resolveActivity(packageManager) == null) {
+                promise.reject("NO_INSTALLER", "Nenhum aplicativo encontrado para instalar APKs. Verifique as configurações do dispositivo.")
+                return
+            }
+
+            // Iniciar a instalação usando a Activity atual
+            currentActivity.startActivity(intent)
             promise.resolve(true)
+        } catch (e: SecurityException) {
+            promise.reject("SECURITY_ERROR", "Erro de segurança ao instalar APK: ${e.message}. Verifique as permissões do app.", e)
+        } catch (e: IllegalArgumentException) {
+            promise.reject("INVALID_URI", "URI inválido para o arquivo APK: ${e.message}", e)
         } catch (e: Exception) {
             promise.reject("INSTALL_ERROR", "Erro ao instalar APK: ${e.message}", e)
         }
