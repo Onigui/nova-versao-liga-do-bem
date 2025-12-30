@@ -2,6 +2,8 @@ package com.ligadobemnovo
 
 import android.content.Intent
 import android.content.ActivityNotFoundException
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -62,8 +64,8 @@ class ApkInstallerModule(reactContext: ReactApplicationContext) : ReactContextBa
 
             // Verificar se há algum app que pode lidar com a instalação
             val packageManager = currentActivity.packageManager
-            val resolveInfo = intent.resolveActivity(packageManager)
-            if (resolveInfo == null) {
+            val resolveInfo: ResolveInfo? = intent.resolveActivity(packageManager)
+            if (resolveInfo == null || resolveInfo.activityInfo == null) {
                 promise.reject("NO_INSTALLER", "Nenhum aplicativo encontrado para instalar APKs. Verifique as configurações do dispositivo.")
                 return
             }
