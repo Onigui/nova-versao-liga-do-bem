@@ -1,6 +1,7 @@
 package com.ligadobemnovo
 
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -83,7 +84,7 @@ class ApkInstallerModule(reactContext: ReactApplicationContext) : ReactContextBa
             try {
                 currentActivity.startActivity(intent)
                 promise.resolve(true)
-            } catch (e: android.content.ActivityNotFoundException) {
+            } catch (e: ActivityNotFoundException) {
                 promise.reject("ACTIVITY_NOT_FOUND", "Não foi possível abrir o instalador. Verifique se há um aplicativo instalador disponível.", e)
             } catch (e: Exception) {
                 promise.reject("START_ACTIVITY_ERROR", "Erro ao iniciar instalação: ${e.message}", e)

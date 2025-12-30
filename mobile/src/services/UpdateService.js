@@ -224,17 +224,20 @@ class UpdateService {
       let RNFS;
       try {
         RNFS = require('react-native-fs');
-        if (!RNFS || typeof RNFS.DownloadDirectoryPath === 'undefined' || typeof RNFS.downloadFile !== 'function') {
+        if (!RNFS || typeof RNFS.downloadFile !== 'function') {
           throw new Error('react-native-fs não está disponível');
+        }
+        // Verificar se pelo menos um dos paths está disponível
+        if (typeof RNFS.ExternalDirectoryPath === 'undefined' && typeof RNFS.DocumentDirectoryPath === 'undefined') {
+          throw new Error('react-native-fs não tem paths de diretório disponíveis');
         }
       } catch (fsError) {
         console.error('❌ [downloadAPK] react-native-fs não disponível:', fsError);
         throw new Error('A biblioteca de download não está configurada. Por favor, recompile o aplicativo.');
       }
 
-      // Caminho onde salvar o APK - usar DocumentDirectoryPath (mais confiável com FileProvider)
+      // Caminho onde salvar o APK - usar ExternalDirectoryPath primeiro (mais confiável com FileProvider), senão DocumentDirectoryPath
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;
-      // Tentar usar ExternalDirectoryPath primeiro (mais acessível), senão usar DocumentDirectoryPath
       const basePath = RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath;
       const downloadPath = `${basePath}/${fileName}`;
       console.log('📁 [downloadAPK] Salvando em:', downloadPath);
