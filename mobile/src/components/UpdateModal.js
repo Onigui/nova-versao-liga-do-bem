@@ -21,8 +21,9 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
   const handleUpdate = async () => {
     console.log('🔘 [handleUpdate] Iniciando atualização...');
     
+    // Envolver tudo em um wrapper para capturar erros síncronos e assíncronos
     try {
-      // Validar updateInfo
+      // Validar updateInfo ANTES de mudar qualquer estado
       if (!updateInfo?.latestVersion?.versionId) {
         console.error('❌ [handleUpdate] Version ID não disponível');
         Alert.alert('Erro', 'Informações de atualização inválidas');
@@ -34,11 +35,16 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       console.log('📦 [handleUpdate] Version ID:', versionId);
       console.log('📦 [handleUpdate] APK URL:', apkUrl);
 
-      // Resetar estados
-      setError(null);
-      setDownloadProgress(0);
-      setDownloading(true);
-      setInstalling(false);
+      // Resetar estados de forma segura
+      try {
+        setError(null);
+        setDownloadProgress(0);
+        setDownloading(true);
+        setInstalling(false);
+      } catch (stateError) {
+        console.error('❌ [handleUpdate] Erro ao atualizar estado:', stateError);
+        // Continuar mesmo assim
+      }
 
       console.log('📥 [handleUpdate] Iniciando download...');
       
@@ -46,8 +52,12 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
       let filePath;
       try {
         filePath = await UpdateService.downloadAPK(versionId, apkUrl, (progress) => {
-          setDownloadProgress(progress);
-          console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
+          try {
+            setDownloadProgress(progress);
+            console.log(`📊 [handleUpdate] Progresso: ${Math.round(progress * 100)}%`);
+          } catch (progressError) {
+            console.warn('⚠️ [handleUpdate] Erro ao atualizar progresso:', progressError);
+          }
         });
         console.log('✅ [handleUpdate] Download concluído:', filePath);
       } catch (downloadError) {
@@ -197,7 +207,7 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
           { cancelable: !updateInfo.isMandatory }
         );
       } catch (alertError) {
-        console.error('❌ [handleUpdate] Erro ao mostrar Alert:', alertError);
+        console.error('❌ [handleUpdateInternal] Erro ao mostrar Alert:', alertError);
         // Se o Alert também falhar, apenas logar e não fazer nada
       }
     }

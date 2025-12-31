@@ -4,6 +4,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PermissionsAndroid } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 
+// Importar RNFS de forma segura
+let RNFS = null;
+try {
+  RNFS = require('react-native-fs');
+  if (!RNFS || typeof RNFS.downloadFile !== 'function') {
+    console.warn('⚠️ [UpdateService] react-native-fs não está disponível corretamente');
+    RNFS = null;
+  }
+} catch (e) {
+  console.warn('⚠️ [UpdateService] Erro ao importar react-native-fs:', e);
+  RNFS = null;
+}
+
 // Função para obter versão atual do app
 async function getCurrentAppVersion() {
   try {
@@ -157,7 +170,12 @@ class UpdateService {
     }
 
     try {
+      console.log('🔐 [requestStoragePermission] Solicitando permissões...', {
+        platformVersion: Platform.Version
+      });
+
       if (Platform.Version >= 33) {
+        console.log('🔐 [requestStoragePermission] Android 13+ - solicitando REQUEST_INSTALL_PACKAGES');
         const installPermission = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.REQUEST_INSTALL_PACKAGES,
           {
@@ -168,8 +186,11 @@ class UpdateService {
             buttonPositive: 'OK',
           },
         );
-        return installPermission === PermissionsAndroid.RESULTS.GRANTED;
+        const granted = installPermission === PermissionsAndroid.RESULTS.GRANTED;
+        console.log('🔐 [requestStoragePermission] Permissão de instalação:', granted ? 'CONCEDIDA' : 'NEGADA');
+        return granted;
       } else {
+        console.log('🔐 [requestStoragePermission] Android < 13 - solicitando WRITE_EXTERNAL_STORAGE');
         const storagePermission = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           {
@@ -180,10 +201,13 @@ class UpdateService {
             buttonPositive: 'OK',
           },
         );
-        return storagePermission === PermissionsAndroid.RESULTS.GRANTED;
+        const granted = storagePermission === PermissionsAndroid.RESULTS.GRANTED;
+        console.log('🔐 [requestStoragePermission] Permissão de armazenamento:', granted ? 'CONCEDIDA' : 'NEGADA');
+        return granted;
       }
     } catch (err) {
-      console.warn('Erro ao solicitar permissão:', err);
+      console.error('❌ [requestStoragePermission] Erro ao solicitar permissão:', err);
+      console.error('❌ [requestStoragePermission] Stack:', err?.stack);
       return false;
     }
   }
@@ -221,24 +245,24 @@ class UpdateService {
       }
 
       // Verificar se react-native-fs está disponível
-      let RNFS;
-      try {
-        RNFS = require('react-native-fs');
-        if (!RNFS || typeof RNFS.downloadFile !== 'function') {
-          throw new Error('react-native-fs não está disponível');
-        }
-        // Verificar se pelo menos um dos paths está disponível
-        if (typeof RNFS.ExternalDirectoryPath === 'undefined' && typeof RNFS.DocumentDirectoryPath === 'undefined') {
-          throw new Error('react-native-fs não tem paths de diretório disponíveis');
-        }
-      } catch (fsError) {
-        console.error('❌ [downloadAPK] react-native-fs não disponível:', fsError);
+      if (!RNFS) {
+        console.error('❌ [downloadAPK] react-native-fs não está disponível');
         throw new Error('A biblioteca de download não está configurada. Por favor, recompile o aplicativo.');
+      }
+
+      // Verificar se pelo menos um dos paths está disponível
+      if (typeof RNFS.ExternalDirectoryPath === 'undefined' && typeof RNFS.DocumentDirectoryPath === 'undefined') {
+        console.error('❌ [downloadAPK] react-native-fs não tem paths de diretório disponíveis');
+        throw new Error('A biblioteca de download não tem caminhos de diretório disponíveis. Por favor, recompile o aplicativo.');
       }
 
       // Caminho onde salvar o APK - usar ExternalDirectoryPath primeiro (mais confiável com FileProvider), senão DocumentDirectoryPath
       const fileName = `liga-do-bem-update-${Date.now()}.apk`;
-      const basePath = RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath;
+      const basePath = (RNFS && (RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath)) || null;
+      if (!basePath) {
+        console.error('❌ [downloadAPK] Não foi possível obter caminho de diretório');
+        throw new Error('Não foi possível obter caminho para salvar o arquivo. Por favor, recompile o aplicativo.');
+      }
       const downloadPath = `${basePath}/${fileName}`;
       console.log('📁 [downloadAPK] Salvando em:', downloadPath);
 
@@ -308,9 +332,12 @@ class UpdateService {
       console.log('📁 [installAPK] Caminho:', filePath);
 
       // Verificar se o arquivo existe
-      let RNFS;
+      if (!RNFS) {
+        console.error('❌ [installAPK] react-native-fs não está disponível');
+        throw new Error('A biblioteca de arquivos não está configurada. Por favor, recompile o aplicativo.');
+      }
+
       try {
-        RNFS = require('react-native-fs');
         const exists = await RNFS.exists(filePath);
         if (!exists) {
           throw new Error(`Arquivo APK não encontrado: ${filePath}`);
