@@ -125,77 +125,6 @@ export default function AddVaccinationScreen({navigation, route}) {
         <View style={styles.placeholder} />
       </LinearGradient>
 
-      {/* DateTimePickers renderizados fora do ScrollView para evitar crashes no Android */}
-      {showApplicationDatePicker && (
-        <DateTimePicker
-          value={applicationDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
-            try {
-              logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
-                eventType: event?.type,
-                hasSelectedDate: !!selectedDate,
-                selectedDate: selectedDate?.toISOString(),
-                platform: Platform.OS,
-              });
-              
-              // Fechar picker no Android após seleção
-              if (Platform.OS === 'android') {
-                setShowApplicationDatePicker(false);
-              }
-              // No iOS, manter aberto até cancelar
-              if (event.type === 'dismissed' && Platform.OS === 'ios') {
-                setShowApplicationDatePicker(false);
-              }
-              if (selectedDate) {
-                setApplicationDate(selectedDate);
-                logInfo('📅 Data de aplicação atualizada', { date: selectedDate.toISOString() });
-              }
-            } catch (error) {
-              logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
-              captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
-              setShowApplicationDatePicker(false);
-            }
-          }}
-        />
-      )}
-
-      {showNextDoseDatePicker && (
-        <DateTimePicker
-          value={nextDoseDate || new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
-            try {
-              logInfo('📅 DateTimePicker onChange - Próxima Dose', {
-                eventType: event?.type,
-                hasSelectedDate: !!selectedDate,
-                selectedDate: selectedDate?.toISOString(),
-                platform: Platform.OS,
-              });
-              
-              // Fechar picker no Android após seleção
-              if (Platform.OS === 'android') {
-                setShowNextDoseDatePicker(false);
-              }
-              // No iOS, manter aberto até cancelar
-              if (event.type === 'dismissed' && Platform.OS === 'ios') {
-                setShowNextDoseDatePicker(false);
-              }
-              if (selectedDate) {
-                setNextDoseDate(selectedDate);
-                logInfo('📅 Data de próxima dose atualizada', { date: selectedDate.toISOString() });
-              }
-            } catch (error) {
-              logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
-              captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
-              setShowNextDoseDatePicker(false);
-            }
-          }}
-        />
-      )}
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.form}>
           <View style={styles.inputGroup}>
@@ -244,6 +173,40 @@ export default function AddVaccinationScreen({navigation, route}) {
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
+            {showApplicationDatePicker && (
+              <DateTimePicker
+                value={applicationDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  try {
+                    logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
+                      eventType: event?.type,
+                      hasSelectedDate: !!selectedDate,
+                      selectedDate: selectedDate?.toISOString(),
+                      platform: Platform.OS,
+                    });
+                    
+                    // Fechar picker no Android após seleção
+                    if (Platform.OS === 'android') {
+                      setShowApplicationDatePicker(false);
+                    }
+                    // No iOS, manter aberto até cancelar
+                    if (event.type === 'dismissed' && Platform.OS === 'ios') {
+                      setShowApplicationDatePicker(false);
+                    }
+                    if (selectedDate) {
+                      setApplicationDate(selectedDate);
+                      logInfo('📅 Data de aplicação atualizada', { date: selectedDate.toISOString() });
+                    }
+                  } catch (error) {
+                    logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
+                    captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
+                    setShowApplicationDatePicker(false);
+                  }
+                }}
+              />
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -273,6 +236,40 @@ export default function AddVaccinationScreen({navigation, route}) {
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
+            {showNextDoseDatePicker && (
+              <DateTimePicker
+                value={nextDoseDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  try {
+                    logInfo('📅 DateTimePicker onChange - Próxima Dose', {
+                      eventType: event?.type,
+                      hasSelectedDate: !!selectedDate,
+                      selectedDate: selectedDate?.toISOString(),
+                      platform: Platform.OS,
+                    });
+                    
+                    // Fechar picker no Android após seleção
+                    if (Platform.OS === 'android') {
+                      setShowNextDoseDatePicker(false);
+                    }
+                    // No iOS, manter aberto até cancelar
+                    if (event.type === 'dismissed' && Platform.OS === 'ios') {
+                      setShowNextDoseDatePicker(false);
+                    }
+                    if (selectedDate) {
+                      setNextDoseDate(selectedDate);
+                      logInfo('📅 Data de próxima dose atualizada', { date: selectedDate.toISOString() });
+                    }
+                  } catch (error) {
+                    logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
+                    captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
+                    setShowNextDoseDatePicker(false);
+                  }
+                }}
+              />
+            )}
           </View>
 
           <View style={styles.inputGroup}>
