@@ -124,6 +124,73 @@ export default function AddVaccinationScreen({navigation, route}) {
         <View style={styles.placeholder} />
       </LinearGradient>
 
+      {/* DateTimePickers renderizados fora do ScrollView para evitar crashes no Android */}
+      {showApplicationDatePicker && (
+        <DateTimePicker
+          value={applicationDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, selectedDate) => {
+            try {
+              if (!isMounted) return;
+              
+              if (Platform.OS === 'android') {
+                setShowApplicationDatePicker(false);
+                if (selectedDate && selectedDate instanceof Date) {
+                  setApplicationDate(selectedDate);
+                }
+              } else {
+                if (event.type === 'dismissed' || event.type === 'set') {
+                  setShowApplicationDatePicker(false);
+                }
+                if (event.type === 'set' && selectedDate && selectedDate instanceof Date) {
+                  setApplicationDate(selectedDate);
+                }
+              }
+            } catch (error) {
+              console.error('Erro ao processar seleção de data de aplicação:', error);
+              if (isMounted) {
+                setShowApplicationDatePicker(false);
+              }
+            }
+          }}
+          maximumDate={new Date()}
+        />
+      )}
+
+      {showNextDoseDatePicker && (
+        <DateTimePicker
+          value={nextDoseDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, selectedDate) => {
+            try {
+              if (!isMounted) return;
+              
+              if (Platform.OS === 'android') {
+                setShowNextDoseDatePicker(false);
+                if (selectedDate && selectedDate instanceof Date) {
+                  setNextDoseDate(selectedDate);
+                }
+              } else {
+                if (event.type === 'dismissed' || event.type === 'set') {
+                  setShowNextDoseDatePicker(false);
+                }
+                if (event.type === 'set' && selectedDate && selectedDate instanceof Date) {
+                  setNextDoseDate(selectedDate);
+                }
+              }
+            } catch (error) {
+              console.error('Erro ao processar seleção de data de próxima dose:', error);
+              if (isMounted) {
+                setShowNextDoseDatePicker(false);
+              }
+            }
+          }}
+          minimumDate={applicationDate}
+        />
+      )}
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.form}>
           <View style={styles.inputGroup}>
@@ -158,42 +225,6 @@ export default function AddVaccinationScreen({navigation, route}) {
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
-            {showApplicationDatePicker && (
-              <DateTimePicker
-                value={applicationDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selectedDate) => {
-                  try {
-                    // Verificar se o componente ainda está montado
-                    if (!isMounted) return;
-
-                    // Fechar picker no Android
-                    if (Platform.OS === 'android') {
-                      setShowApplicationDatePicker(false);
-                      // No Android, selectedDate será undefined se o usuário cancelar
-                      if (selectedDate && selectedDate instanceof Date) {
-                        setApplicationDate(selectedDate);
-                      }
-                    } else {
-                      // iOS
-                      if (event.type === 'dismissed' || event.type === 'set') {
-                        setShowApplicationDatePicker(false);
-                      }
-                      if (event.type === 'set' && selectedDate && selectedDate instanceof Date) {
-                        setApplicationDate(selectedDate);
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Erro ao processar seleção de data:', error);
-                    if (isMounted) {
-                      setShowApplicationDatePicker(false);
-                    }
-                  }
-                }}
-                maximumDate={new Date()}
-              />
-            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -208,42 +239,6 @@ export default function AddVaccinationScreen({navigation, route}) {
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
-            {showNextDoseDatePicker && (
-              <DateTimePicker
-                value={nextDoseDate || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selectedDate) => {
-                  try {
-                    // Verificar se o componente ainda está montado
-                    if (!isMounted) return;
-
-                    // Fechar picker no Android
-                    if (Platform.OS === 'android') {
-                      setShowNextDoseDatePicker(false);
-                      // No Android, selectedDate será undefined se o usuário cancelar
-                      if (selectedDate && selectedDate instanceof Date) {
-                        setNextDoseDate(selectedDate);
-                      }
-                    } else {
-                      // iOS
-                      if (event.type === 'dismissed' || event.type === 'set') {
-                        setShowNextDoseDatePicker(false);
-                      }
-                      if (event.type === 'set' && selectedDate && selectedDate instanceof Date) {
-                        setNextDoseDate(selectedDate);
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Erro ao processar seleção de data:', error);
-                    if (isMounted) {
-                      setShowNextDoseDatePicker(false);
-                    }
-                  }
-                }}
-                minimumDate={applicationDate}
-              />
-            )}
           </View>
 
           <View style={styles.inputGroup}>
