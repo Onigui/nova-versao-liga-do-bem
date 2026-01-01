@@ -15,6 +15,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logError, logInfo, captureError } from '../services/RemoteLogger';
 
 export default function AddVaccinationScreen({navigation, route}) {
   const {petId, vaccination, onSave} = route.params || {};
@@ -131,16 +132,30 @@ export default function AddVaccinationScreen({navigation, route}) {
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) => {
-            // Fechar picker no Android após seleção
-            if (Platform.OS === 'android') {
+            try {
+              logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
+                eventType: event?.type,
+                hasSelectedDate: !!selectedDate,
+                selectedDate: selectedDate?.toISOString(),
+                platform: Platform.OS,
+              });
+              
+              // Fechar picker no Android após seleção
+              if (Platform.OS === 'android') {
+                setShowApplicationDatePicker(false);
+              }
+              // No iOS, manter aberto até cancelar
+              if (event.type === 'dismissed' && Platform.OS === 'ios') {
+                setShowApplicationDatePicker(false);
+              }
+              if (selectedDate) {
+                setApplicationDate(selectedDate);
+                logInfo('📅 Data de aplicação atualizada', { date: selectedDate.toISOString() });
+              }
+            } catch (error) {
+              logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
+              captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
               setShowApplicationDatePicker(false);
-            }
-            // No iOS, manter aberto até cancelar
-            if (event.type === 'dismissed' && Platform.OS === 'ios') {
-              setShowApplicationDatePicker(false);
-            }
-            if (selectedDate) {
-              setApplicationDate(selectedDate);
             }
           }}
         />
@@ -152,16 +167,30 @@ export default function AddVaccinationScreen({navigation, route}) {
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) => {
-            // Fechar picker no Android após seleção
-            if (Platform.OS === 'android') {
+            try {
+              logInfo('📅 DateTimePicker onChange - Próxima Dose', {
+                eventType: event?.type,
+                hasSelectedDate: !!selectedDate,
+                selectedDate: selectedDate?.toISOString(),
+                platform: Platform.OS,
+              });
+              
+              // Fechar picker no Android após seleção
+              if (Platform.OS === 'android') {
+                setShowNextDoseDatePicker(false);
+              }
+              // No iOS, manter aberto até cancelar
+              if (event.type === 'dismissed' && Platform.OS === 'ios') {
+                setShowNextDoseDatePicker(false);
+              }
+              if (selectedDate) {
+                setNextDoseDate(selectedDate);
+                logInfo('📅 Data de próxima dose atualizada', { date: selectedDate.toISOString() });
+              }
+            } catch (error) {
+              logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
+              captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
               setShowNextDoseDatePicker(false);
-            }
-            // No iOS, manter aberto até cancelar
-            if (event.type === 'dismissed' && Platform.OS === 'ios') {
-              setShowNextDoseDatePicker(false);
-            }
-            if (selectedDate) {
-              setNextDoseDate(selectedDate);
             }
           }}
         />
@@ -195,7 +224,21 @@ export default function AddVaccinationScreen({navigation, route}) {
             <Text style={styles.label}>Data de Aplicação *</Text>
             <TouchableOpacity
               style={styles.input}
-              onPress={() => setShowApplicationDatePicker(true)}>
+              onPress={() => {
+                try {
+                  logInfo('📅 Tentando abrir DateTimePicker - Data de Aplicação', {
+                    currentDate: applicationDate?.toISOString(),
+                    platform: Platform.OS,
+                    platformVersion: Platform.Version,
+                  });
+                  setShowApplicationDatePicker(true);
+                  logInfo('📅 DateTimePicker state atualizado para true');
+                } catch (error) {
+                  logError('❌ Erro ao tentar abrir DateTimePicker - Data de Aplicação', error);
+                  captureError(error, { context: 'DateTimePicker - Data de Aplicação' });
+                  Alert.alert('Erro', 'Não foi possível abrir o calendário. Tente novamente.');
+                }
+              }}>
               <Text style={styles.inputText}>
                 {applicationDate.toLocaleDateString('pt-BR')}
               </Text>
@@ -207,7 +250,22 @@ export default function AddVaccinationScreen({navigation, route}) {
             <Text style={styles.label}>Próxima Dose</Text>
             <TouchableOpacity
               style={styles.input}
-              onPress={() => setShowNextDoseDatePicker(true)}>
+              onPress={() => {
+                try {
+                  logInfo('📅 Tentando abrir DateTimePicker - Próxima Dose', {
+                    currentDate: nextDoseDate?.toISOString(),
+                    applicationDate: applicationDate?.toISOString(),
+                    platform: Platform.OS,
+                    platformVersion: Platform.Version,
+                  });
+                  setShowNextDoseDatePicker(true);
+                  logInfo('📅 DateTimePicker state atualizado para true (Próxima Dose)');
+                } catch (error) {
+                  logError('❌ Erro ao tentar abrir DateTimePicker - Próxima Dose', error);
+                  captureError(error, { context: 'DateTimePicker - Próxima Dose' });
+                  Alert.alert('Erro', 'Não foi possível abrir o calendário. Tente novamente.');
+                }
+              }}>
               <Text style={nextDoseDate ? styles.inputText : styles.inputPlaceholder}>
                 {nextDoseDate
                   ? nextDoseDate.toLocaleDateString('pt-BR')

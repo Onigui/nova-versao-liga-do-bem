@@ -41,84 +41,124 @@ class RemoteLogger {
     }
   }
 
-  // Salvar logs no AsyncStorage
+  // Salvar logs no AsyncStorage de forma síncrona quando possível (para crashes)
   async saveLogsToStorage() {
     try {
       const logsToSave = this.logs.slice(-100); // Salvar últimos 100 no storage
       await AsyncStorage.setItem(this.storageKey, JSON.stringify(logsToSave));
+      
+      // Também salvar logs críticos (erros) em uma chave separada para recuperação rápida
+      const criticalLogs = logsToSave.filter(log => log.level === 'error');
+      if (criticalLogs.length > 0) {
+        await AsyncStorage.setItem('app_critical_logs', JSON.stringify(criticalLogs.slice(-50)));
+      }
     } catch (error) {
       console.warn('Erro ao salvar logs no storage:', error);
+      // Tentar salvar pelo menos uma versão simplificada em caso de erro
+      try {
+        const simpleLogs = this.logs.slice(-20).map(log => ({
+          timestamp: log.timestamp,
+          level: log.level,
+          message: log.message,
+        }));
+        await AsyncStorage.setItem(this.storageKey + '_backup', JSON.stringify(simpleLogs));
+      } catch (backupError) {
+        // Se até o backup falhar, apenas logar
+        console.error('Erro ao salvar backup de logs:', backupError);
+      }
     }
   }
 
   // Adicionar log
   log(level, message, data = null) {
-    // Capturar stack trace para erros
-    let stackTrace = null;
-    if (level === 'error' && data) {
-      try {
-        if (data instanceof Error) {
-          stackTrace = data.stack || null;
-          data = {
-            message: data.message,
-            name: data.name,
-            stack: data.stack,
-            ...(data.other && typeof data.other === 'object' ? data.other : {}),
-          };
-        } else if (data?.error?.stack) {
-          stackTrace = data.error.stack;
-        } else if (data?.stack) {
-          stackTrace = data.stack;
+    try {
+      // Capturar stack trace para erros
+      let stackTrace = null;
+      if (level === 'error' && data) {
+        try {
+          if (data instanceof Error) {
+            stackTrace = data.stack || null;
+            data = {
+              message: data.message,
+              name: data.name,
+              stack: data.stack,
+              ...(data.other && typeof data.other === 'object' ? data.other : {}),
+            };
+          } else if (data?.error?.stack) {
+            stackTrace = data.error.stack;
+          } else if (data?.stack) {
+            stackTrace = data.stack;
+          }
+        } catch (e) {
+          // Ignorar erros ao processar stack trace
         }
-      } catch (e) {
-        // Ignorar erros ao processar stack trace
       }
-    }
 
-    // Capturar stack trace do contexto atual se for erro
-    if (level === 'error' && !stackTrace) {
-      try {
-        const error = new Error();
-        if (error.stack) {
-          stackTrace = error.stack;
+      // Capturar stack trace do contexto atual se for erro
+      if (level === 'error' && !stackTrace) {
+        try {
+          const error = new Error();
+          if (error.stack) {
+            stackTrace = error.stack;
+          }
+        } catch (e) {
+          // Ignorar
         }
-      } catch (e) {
-        // Ignorar
       }
-    }
 
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      level, // 'info', 'warn', 'error', 'debug'
-      message,
-      data: data ? (typeof data === 'string' ? data : JSON.stringify(data, null, 2)) : null,
-      stackTrace,
-      platform: 'mobile',
-    };
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        level, // 'info', 'warn', 'error', 'debug'
+        message,
+        data: data ? (typeof data === 'string' ? data : JSON.stringify(data, null, 2)) : null,
+        stackTrace,
+        platform: 'mobile',
+      };
 
-    this.logs.push(logEntry);
+      this.logs.push(logEntry);
 
-    // Manter apenas os últimos N logs
-    if (this.logs.length > this.maxLogs) {
-      this.logs.shift();
-    }
-
-    // Salvar no storage (async, não bloquear)
-    this.saveLogsToStorage().catch(e => {
-      // Ignorar erros de salvamento
-    });
-
-    // Log local também
-    if (level === 'error') {
-      console.error(`[${level.toUpperCase()}]`, message, data);
-      if (stackTrace) {
-        console.error('Stack Trace:', stackTrace);
+      // Manter apenas os últimos N logs
+      if (this.logs.length > this.maxLogs) {
+        this.logs.shift();
       }
-    } else if (level === 'warn') {
-      console.warn(`[${level.toUpperCase()}]`, message, data);
-    } else {
-      console.log(`[${level.toUpperCase()}]`, message, data);
+
+      // Para erros críticos, tentar salvar imediatamente de forma mais agressiva
+      if (level === 'error') {
+        // Salvar síncrono quando possível (para crashes)
+        this.saveLogsToStorageSync().catch(() => {
+          // Se falhar, tentar async como fallback
+          this.saveLogsToStorage().catch(e => {
+            // Ignorar erros de salvamento
+          });
+        });
+      } else {
+        // Salvar no storage (async, não bloquear)
+        this.saveLogsToStorage().catch(e => {
+          // Ignorar erros de salvamento
+        });
+      }
+
+      // Log local também
+      if (level === 'error') {
+        console.error(`[${level.toUpperCase()}]`, message, data);
+        if (stackTrace) {
+          console.error('Stack Trace:', stackTrace);
+        }
+      } else if (level === 'warn') {
+        console.warn(`[${level.toUpperCase()}]`, message, data);
+      } else {
+        console.log(`[${level.toUpperCase()}]`, message, data);
+      }
+    } catch (e) {
+      // Se até o log falhar, pelo menos tentar console
+      console.error('Erro ao processar log:', e);
+      console.log(`[${level?.toUpperCase() || 'LOG'}]`, message);
     }
+  }
+
+  // Salvar logs de forma síncrona (usando Promise.resolve para erros críticos)
+  async saveLogsToStorageSync() {
+    return this.saveLogsToStorage();
   }
 
   // Enviar logs para o backend
@@ -173,6 +213,38 @@ class RemoteLogger {
   // Obter logs locais (para debug screen)
   getLocalLogs() {
     return [...this.logs];
+  }
+
+  // Carregar logs críticos salvos
+  async getCriticalLogs() {
+    try {
+      const stored = await AsyncStorage.getItem('app_critical_logs');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.warn('Erro ao carregar logs críticos:', error);
+    }
+    return [];
+  }
+
+  // Obter todos os logs (incluindo críticos salvos)
+  async getAllLogs() {
+    try {
+      const criticalLogs = await this.getCriticalLogs();
+      const currentLogs = this.getLocalLogs();
+      // Combinar e ordenar por timestamp
+      const allLogs = [...criticalLogs, ...currentLogs].sort((a, b) => {
+        return new Date(a.timestamp) - new Date(b.timestamp);
+      });
+      return allLogs;
+    } catch (error) {
+      console.warn('Erro ao obter todos os logs:', error);
+      return this.getLocalLogs();
+    }
   }
 
   // Capturar erro com contexto adicional

@@ -47,14 +47,39 @@ export default function App() {
         
         ErrorUtils.setGlobalHandler((error, isFatal) => {
           try {
-            const { captureError } = require('./src/services/RemoteLogger');
-            captureError(error, {
-              isFatal,
+            const { captureError, logError } = require('./src/services/RemoteLogger');
+            
+            // Capturar erro com contexto adicional
+            const errorContext = {
+              isFatal: isFatal || false,
               timestamp: new Date().toISOString(),
               context: 'Global Error Handler',
-            });
+              errorType: error?.name || 'Unknown',
+              errorMessage: error?.message || String(error),
+              stack: error?.stack || 'No stack trace',
+            };
+            
+            // Logar erro crítico
+            logError('🚨 CRASH - Global Error Handler capturou erro fatal', errorContext);
+            
+            // Capturar erro também
+            captureError(error, errorContext);
+            
+            // Tentar salvar logs imediatamente para erros fatais
+            if (isFatal) {
+              try {
+                const remoteLogger = require('./src/services/RemoteLogger').default;
+                if (remoteLogger && remoteLogger.saveLogsToStorage) {
+                  remoteLogger.saveLogsToStorage().catch(() => {});
+                }
+              } catch (saveError) {
+                // Ignorar erros ao salvar
+              }
+            }
           } catch (logError) {
             console.error('Erro ao capturar erro global:', logError);
+            // Tentar salvar pelo menos no console
+            console.error('🚨 CRASH FATAL:', error);
           }
           
           // Chamar handler original também
