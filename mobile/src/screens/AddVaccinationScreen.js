@@ -131,30 +131,18 @@ export default function AddVaccinationScreen({navigation, route}) {
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) => {
-            try {
-              if (!isMounted) return;
-              
-              if (Platform.OS === 'android') {
-                setShowApplicationDatePicker(false);
-                if (selectedDate && selectedDate instanceof Date) {
-                  setApplicationDate(selectedDate);
-                }
-              } else {
-                if (event.type === 'dismissed' || event.type === 'set') {
-                  setShowApplicationDatePicker(false);
-                }
-                if (event.type === 'set' && selectedDate && selectedDate instanceof Date) {
-                  setApplicationDate(selectedDate);
-                }
-              }
-            } catch (error) {
-              console.error('Erro ao processar seleção de data de aplicação:', error);
-              if (isMounted) {
-                setShowApplicationDatePicker(false);
-              }
+            // Fechar picker no Android após seleção
+            if (Platform.OS === 'android') {
+              setShowApplicationDatePicker(false);
+            }
+            // No iOS, manter aberto até cancelar
+            if (event.type === 'dismissed' && Platform.OS === 'ios') {
+              setShowApplicationDatePicker(false);
+            }
+            if (selectedDate) {
+              setApplicationDate(selectedDate);
             }
           }}
-          maximumDate={new Date()}
         />
       )}
 
@@ -164,30 +152,18 @@ export default function AddVaccinationScreen({navigation, route}) {
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) => {
-            try {
-              if (!isMounted) return;
-              
-              if (Platform.OS === 'android') {
-                setShowNextDoseDatePicker(false);
-                if (selectedDate && selectedDate instanceof Date) {
-                  setNextDoseDate(selectedDate);
-                }
-              } else {
-                if (event.type === 'dismissed' || event.type === 'set') {
-                  setShowNextDoseDatePicker(false);
-                }
-                if (event.type === 'set' && selectedDate && selectedDate instanceof Date) {
-                  setNextDoseDate(selectedDate);
-                }
-              }
-            } catch (error) {
-              console.error('Erro ao processar seleção de data de próxima dose:', error);
-              if (isMounted) {
-                setShowNextDoseDatePicker(false);
-              }
+            // Fechar picker no Android após seleção
+            if (Platform.OS === 'android') {
+              setShowNextDoseDatePicker(false);
+            }
+            // No iOS, manter aberto até cancelar
+            if (event.type === 'dismissed' && Platform.OS === 'ios') {
+              setShowNextDoseDatePicker(false);
+            }
+            if (selectedDate) {
+              setNextDoseDate(selectedDate);
             }
           }}
-          minimumDate={applicationDate}
         />
       )}
 
