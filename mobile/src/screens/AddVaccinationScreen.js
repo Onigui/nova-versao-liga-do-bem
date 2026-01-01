@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Modal,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -17,23 +18,46 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logError, logInfo, captureError } from '../services/RemoteLogger';
 
+// Função para validar e normalizar data
+const validateDate = (date) => {
+  if (!date) return new Date();
+  if (date instanceof Date && !isNaN(date.getTime())) {
+    return date;
+  }
+  try {
+    const parsed = new Date(date);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  } catch (e) {
+    logError('Erro ao validar data', e);
+  }
+  return new Date();
+};
+
 export default function AddVaccinationScreen({navigation, route}) {
   const {petId, vaccination, onSave} = route.params || {};
   const isEditing = !!vaccination;
 
   const [vaccineName, setVaccineName] = useState(vaccination?.vaccineName || '');
   const [vaccineType, setVaccineType] = useState(vaccination?.vaccineType || '');
-  const [applicationDate, setApplicationDate] = useState(
-    vaccination?.applicationDate
-      ? new Date(vaccination.applicationDate)
-      : new Date(),
-  );
+  const [applicationDate, setApplicationDate] = useState(() => {
+    try {
+      return validateDate(vaccination?.applicationDate ? new Date(vaccination.applicationDate) : new Date());
+    } catch (e) {
+      logError('Erro ao inicializar applicationDate', e);
+      return new Date();
+    }
+  });
   const [showApplicationDatePicker, setShowApplicationDatePicker] = useState(false);
-  const [nextDoseDate, setNextDoseDate] = useState(
-    vaccination?.nextDoseDate
-      ? new Date(vaccination.nextDoseDate)
-      : null,
-  );
+  const [nextDoseDate, setNextDoseDate] = useState(() => {
+    try {
+      return vaccination?.nextDoseDate ? validateDate(new Date(vaccination.nextDoseDate)) : null;
+    } catch (e) {
+      logError('Erro ao inicializar nextDoseDate', e);
+      return null;
+    }
+  });
   const [showNextDoseDatePicker, setShowNextDoseDatePicker] = useState(false);
   const [batchNumber, setBatchNumber] = useState(vaccination?.batchNumber || '');
   const [veterinarian, setVeterinarian] = useState(vaccination?.veterinarian || '');
@@ -42,6 +66,7 @@ export default function AddVaccinationScreen({navigation, route}) {
   const [notes, setNotes] = useState(vaccination?.notes || '');
   const [saving, setSaving] = useState(false);
   const [isMounted, setIsMounted] = useState(true);
+  const [pendingPickerType, setPendingPickerType] = useState(null);
 
   // Cleanup ao desmontar o componente
   useEffect(() => {
@@ -49,6 +74,39 @@ export default function AddVaccinationScreen({navigation, route}) {
       setIsMounted(false);
     };
   }, []);
+
+  // Delay para mostrar picker (pode ajudar a evitar crashes de renderização imediata)
+  useEffect(() => {
+    if (pendingPickerType === 'application') {
+      const timer = setTimeout(() => {
+        if (isMounted) {
+          try {
+            logInfo('📅 Mostrando DateTimePicker após delay - Data de Aplicação');
+            setShowApplicationDatePicker(true);
+            setPendingPickerType(null);
+          } catch (error) {
+            logError('❌ Erro ao mostrar DateTimePicker após delay', error);
+            setPendingPickerType(null);
+          }
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    } else if (pendingPickerType === 'nextDose') {
+      const timer = setTimeout(() => {
+        if (isMounted) {
+          try {
+            logInfo('📅 Mostrando DateTimePicker após delay - Próxima Dose');
+            setShowNextDoseDatePicker(true);
+            setPendingPickerType(null);
+          } catch (error) {
+            logError('❌ Erro ao mostrar DateTimePicker após delay', error);
+            setPendingPickerType(null);
+          }
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingPickerType, isMounted]);
 
   const handleSave = async () => {
     if (!vaccineName.trim() || !applicationDate) {
@@ -155,13 +213,17 @@ export default function AddVaccinationScreen({navigation, route}) {
               style={styles.input}
               onPress={() => {
                 try {
+                  const safeDate = validateDate(applicationDate);
                   logInfo('📅 Tentando abrir DateTimePicker - Data de Aplicação', {
-                    currentDate: applicationDate?.toISOString(),
+                    currentDate: safeDate.toISOString(),
+                    dateValid: !isNaN(safeDate.getTime()),
                     platform: Platform.OS,
                     platformVersion: Platform.Version,
                   });
-                  setShowApplicationDatePicker(true);
-                  logInfo('📅 DateTimePicker state atualizado para true');
+                  
+                  // Usar delay para evitar renderização imediata que pode causar crash
+                  setPendingPickerType('application');
+                  logInfo('📅 DateTimePicker agendado para mostrar');
                 } catch (error) {
                   logError('❌ Erro ao tentar abrir DateTimePicker - Data de Aplicação', error);
                   captureError(error, { context: 'DateTimePicker - Data de Aplicação' });
@@ -173,40 +235,80 @@ export default function AddVaccinationScreen({navigation, route}) {
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
-            {showApplicationDatePicker && (
-              <DateTimePicker
-                value={applicationDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selectedDate) => {
-                  try {
-                    logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
-                      eventType: event?.type,
-                      hasSelectedDate: !!selectedDate,
-                      selectedDate: selectedDate?.toISOString(),
-                      platform: Platform.OS,
-                    });
-                    
-                    // Fechar picker no Android após seleção
-                    if (Platform.OS === 'android') {
-                      setShowApplicationDatePicker(false);
-                    }
-                    // No iOS, manter aberto até cancelar
-                    if (event.type === 'dismissed' && Platform.OS === 'ios') {
-                      setShowApplicationDatePicker(false);
-                    }
-                    if (selectedDate) {
-                      setApplicationDate(selectedDate);
-                      logInfo('📅 Data de aplicação atualizada', { date: selectedDate.toISOString() });
-                    }
-                  } catch (error) {
-                    logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
-                    captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
-                    setShowApplicationDatePicker(false);
-                  }
-                }}
-              />
-            )}
+            {showApplicationDatePicker && (() => {
+              try {
+                const safeDate = validateDate(applicationDate);
+                if (Platform.OS === 'android') {
+                  // No Android, usar renderização direta mas com validação
+                  return (
+                    <DateTimePicker
+                      value={safeDate}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        try {
+                          logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
+                            eventType: event?.type,
+                            hasSelectedDate: !!selectedDate,
+                            selectedDate: selectedDate?.toISOString(),
+                            platform: Platform.OS,
+                          });
+                          
+                          setShowApplicationDatePicker(false);
+                          
+                          if (selectedDate) {
+                            const validatedDate = validateDate(selectedDate);
+                            setApplicationDate(validatedDate);
+                            logInfo('📅 Data de aplicação atualizada', { date: validatedDate.toISOString() });
+                          }
+                        } catch (error) {
+                          logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
+                          captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
+                          setShowApplicationDatePicker(false);
+                        }
+                      }}
+                    />
+                  );
+                } else {
+                  // iOS
+                  return (
+                    <DateTimePicker
+                      value={safeDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        try {
+                          logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
+                            eventType: event?.type,
+                            hasSelectedDate: !!selectedDate,
+                            selectedDate: selectedDate?.toISOString(),
+                            platform: Platform.OS,
+                          });
+                          
+                          if (event.type === 'dismissed') {
+                            setShowApplicationDatePicker(false);
+                          }
+                          
+                          if (selectedDate) {
+                            const validatedDate = validateDate(selectedDate);
+                            setApplicationDate(validatedDate);
+                            logInfo('📅 Data de aplicação atualizada', { date: validatedDate.toISOString() });
+                          }
+                        } catch (error) {
+                          logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
+                          captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
+                          setShowApplicationDatePicker(false);
+                        }
+                      }}
+                    />
+                  );
+                }
+              } catch (error) {
+                logError('❌ Erro ao renderizar DateTimePicker - Data de Aplicação', error);
+                captureError(error, { context: 'DateTimePicker render - Data de Aplicação' });
+                return null;
+              }
+            })()}
           </View>
 
           <View style={styles.inputGroup}>
@@ -215,14 +317,19 @@ export default function AddVaccinationScreen({navigation, route}) {
               style={styles.input}
               onPress={() => {
                 try {
+                  const safeNextDate = validateDate(nextDoseDate || new Date());
+                  const safeAppDate = validateDate(applicationDate);
                   logInfo('📅 Tentando abrir DateTimePicker - Próxima Dose', {
-                    currentDate: nextDoseDate?.toISOString(),
-                    applicationDate: applicationDate?.toISOString(),
+                    currentDate: nextDoseDate ? safeNextDate.toISOString() : 'null',
+                    applicationDate: safeAppDate.toISOString(),
+                    dateValid: !isNaN(safeNextDate.getTime()),
                     platform: Platform.OS,
                     platformVersion: Platform.Version,
                   });
-                  setShowNextDoseDatePicker(true);
-                  logInfo('📅 DateTimePicker state atualizado para true (Próxima Dose)');
+                  
+                  // Usar delay para evitar renderização imediata que pode causar crash
+                  setPendingPickerType('nextDose');
+                  logInfo('📅 DateTimePicker agendado para mostrar (Próxima Dose)');
                 } catch (error) {
                   logError('❌ Erro ao tentar abrir DateTimePicker - Próxima Dose', error);
                   captureError(error, { context: 'DateTimePicker - Próxima Dose' });
@@ -236,40 +343,80 @@ export default function AddVaccinationScreen({navigation, route}) {
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
-            {showNextDoseDatePicker && (
-              <DateTimePicker
-                value={nextDoseDate || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selectedDate) => {
-                  try {
-                    logInfo('📅 DateTimePicker onChange - Próxima Dose', {
-                      eventType: event?.type,
-                      hasSelectedDate: !!selectedDate,
-                      selectedDate: selectedDate?.toISOString(),
-                      platform: Platform.OS,
-                    });
-                    
-                    // Fechar picker no Android após seleção
-                    if (Platform.OS === 'android') {
-                      setShowNextDoseDatePicker(false);
-                    }
-                    // No iOS, manter aberto até cancelar
-                    if (event.type === 'dismissed' && Platform.OS === 'ios') {
-                      setShowNextDoseDatePicker(false);
-                    }
-                    if (selectedDate) {
-                      setNextDoseDate(selectedDate);
-                      logInfo('📅 Data de próxima dose atualizada', { date: selectedDate.toISOString() });
-                    }
-                  } catch (error) {
-                    logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
-                    captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
-                    setShowNextDoseDatePicker(false);
-                  }
-                }}
-              />
-            )}
+            {showNextDoseDatePicker && (() => {
+              try {
+                const safeDate = validateDate(nextDoseDate || new Date());
+                if (Platform.OS === 'android') {
+                  // No Android, usar renderização direta mas com validação
+                  return (
+                    <DateTimePicker
+                      value={safeDate}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        try {
+                          logInfo('📅 DateTimePicker onChange - Próxima Dose', {
+                            eventType: event?.type,
+                            hasSelectedDate: !!selectedDate,
+                            selectedDate: selectedDate?.toISOString(),
+                            platform: Platform.OS,
+                          });
+                          
+                          setShowNextDoseDatePicker(false);
+                          
+                          if (selectedDate) {
+                            const validatedDate = validateDate(selectedDate);
+                            setNextDoseDate(validatedDate);
+                            logInfo('📅 Data de próxima dose atualizada', { date: validatedDate.toISOString() });
+                          }
+                        } catch (error) {
+                          logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
+                          captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
+                          setShowNextDoseDatePicker(false);
+                        }
+                      }}
+                    />
+                  );
+                } else {
+                  // iOS
+                  return (
+                    <DateTimePicker
+                      value={safeDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        try {
+                          logInfo('📅 DateTimePicker onChange - Próxima Dose', {
+                            eventType: event?.type,
+                            hasSelectedDate: !!selectedDate,
+                            selectedDate: selectedDate?.toISOString(),
+                            platform: Platform.OS,
+                          });
+                          
+                          if (event.type === 'dismissed') {
+                            setShowNextDoseDatePicker(false);
+                          }
+                          
+                          if (selectedDate) {
+                            const validatedDate = validateDate(selectedDate);
+                            setNextDoseDate(validatedDate);
+                            logInfo('📅 Data de próxima dose atualizada', { date: validatedDate.toISOString() });
+                          }
+                        } catch (error) {
+                          logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
+                          captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
+                          setShowNextDoseDatePicker(false);
+                        }
+                      }}
+                    />
+                  );
+                }
+              } catch (error) {
+                logError('❌ Erro ao renderizar DateTimePicker - Próxima Dose', error);
+                captureError(error, { context: 'DateTimePicker render - Próxima Dose' });
+                return null;
+              }
+            })()}
           </View>
 
           <View style={styles.inputGroup}>
