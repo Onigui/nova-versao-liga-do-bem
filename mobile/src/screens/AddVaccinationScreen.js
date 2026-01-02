@@ -13,26 +13,59 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { logError, logInfo, captureError } from '../services/RemoteLogger';
 
-// Função para validar e normalizar data
-const validateDate = (date) => {
-  if (!date) return new Date();
-  if (date instanceof Date && !isNaN(date.getTime())) {
-    return date;
+// Função para formatar data para DD/MM/YYYY
+const formatDateToPT = (date) => {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return '';
   }
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+// Função para parsear data de DD/MM/YYYY
+const parseDateFromPT = (dateString) => {
+  if (!dateString || !dateString.trim()) {
+    return null;
+  }
+  
+  // Remove espaços e caracteres extras
+  const cleaned = dateString.trim().replace(/[^\d]/g, '');
+  
+  // Se tiver 8 dígitos (DDMMYYYY), parsear
+  if (cleaned.length === 8) {
+    const day = parseInt(cleaned.substring(0, 2), 10);
+    const month = parseInt(cleaned.substring(2, 4), 10) - 1; // Month é 0-indexed
+    const year = parseInt(cleaned.substring(4, 8), 10);
+    
+    const date = new Date(year, month, day);
+    
+    // Validar se a data é válida
+    if (
+      date.getDate() === day &&
+      date.getMonth() === month &&
+      date.getFullYear() === year &&
+      date.getTime() > 0
+    ) {
+      return date;
+    }
+  }
+  
+  // Tentar parsear formato ISO ou outro formato
   try {
-    const parsed = new Date(date);
-    if (!isNaN(parsed.getTime())) {
+    const parsed = new Date(dateString);
+    if (!isNaN(parsed.getTime()) && parsed.getTime() > 0) {
       return parsed;
     }
   } catch (e) {
-    logError('Erro ao validar data', e);
+    // Ignorar
   }
-  return new Date();
+  
+  return null;
 };
 
 export default function AddVaccinationScreen({navigation, route}) {
@@ -43,70 +76,81 @@ export default function AddVaccinationScreen({navigation, route}) {
   const [vaccineType, setVaccineType] = useState(vaccination?.vaccineType || '');
   const [applicationDate, setApplicationDate] = useState(() => {
     try {
-      return validateDate(vaccination?.applicationDate ? new Date(vaccination.applicationDate) : new Date());
+      if (vaccination?.applicationDate) {
+        const date = new Date(vaccination.applicationDate);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      }
+      return new Date();
     } catch (e) {
-      logError('Erro ao inicializar applicationDate', e);
       return new Date();
     }
   });
-  const [showApplicationDatePicker, setShowApplicationDatePicker] = useState(false);
+  const [showApplicationDateModal, setShowApplicationDateModal] = useState(false);
+  const [applicationDateInput, setApplicationDateInput] = useState('');
+  
   const [nextDoseDate, setNextDoseDate] = useState(() => {
     try {
-      return vaccination?.nextDoseDate ? validateDate(new Date(vaccination.nextDoseDate)) : null;
+      if (vaccination?.nextDoseDate) {
+        const date = new Date(vaccination.nextDoseDate);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      }
+      return null;
     } catch (e) {
-      logError('Erro ao inicializar nextDoseDate', e);
       return null;
     }
   });
-  const [showNextDoseDatePicker, setShowNextDoseDatePicker] = useState(false);
+  const [showNextDoseDateModal, setShowNextDoseDateModal] = useState(false);
+  const [nextDoseDateInput, setNextDoseDateInput] = useState('');
+  
   const [batchNumber, setBatchNumber] = useState(vaccination?.batchNumber || '');
   const [veterinarian, setVeterinarian] = useState(vaccination?.veterinarian || '');
   const [veterinarianCRMV, setVeterinarianCRMV] = useState(vaccination?.veterinarianCRMV || '');
   const [clinicName, setClinicName] = useState(vaccination?.clinicName || '');
   const [notes, setNotes] = useState(vaccination?.notes || '');
   const [saving, setSaving] = useState(false);
-  const [isMounted, setIsMounted] = useState(true);
-  const [pendingPickerType, setPendingPickerType] = useState(null);
 
-  // Cleanup ao desmontar o componente
+  // Inicializar inputs de data quando modal abrir
   useEffect(() => {
-    return () => {
-      setIsMounted(false);
-    };
-  }, []);
-
-  // Delay para mostrar picker (pode ajudar a evitar crashes de renderização imediata)
-  useEffect(() => {
-    if (pendingPickerType === 'application') {
-      const timer = setTimeout(() => {
-        if (isMounted) {
-          try {
-            logInfo('📅 Mostrando DateTimePicker após delay - Data de Aplicação');
-            setShowApplicationDatePicker(true);
-            setPendingPickerType(null);
-          } catch (error) {
-            logError('❌ Erro ao mostrar DateTimePicker após delay', error);
-            setPendingPickerType(null);
-          }
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    } else if (pendingPickerType === 'nextDose') {
-      const timer = setTimeout(() => {
-        if (isMounted) {
-          try {
-            logInfo('📅 Mostrando DateTimePicker após delay - Próxima Dose');
-            setShowNextDoseDatePicker(true);
-            setPendingPickerType(null);
-          } catch (error) {
-            logError('❌ Erro ao mostrar DateTimePicker após delay', error);
-            setPendingPickerType(null);
-          }
-        }
-      }, 100);
-      return () => clearTimeout(timer);
+    if (showApplicationDateModal) {
+      setApplicationDateInput(formatDateToPT(applicationDate));
     }
-  }, [pendingPickerType, isMounted]);
+  }, [showApplicationDateModal]);
+
+  useEffect(() => {
+    if (showNextDoseDateModal) {
+      setNextDoseDateInput(nextDoseDate ? formatDateToPT(nextDoseDate) : '');
+    }
+  }, [showNextDoseDateModal]);
+
+  const handleApplicationDateConfirm = () => {
+    const parsed = parseDateFromPT(applicationDateInput);
+    if (parsed) {
+      setApplicationDate(parsed);
+      setShowApplicationDateModal(false);
+    } else {
+      Alert.alert('Data inválida', 'Por favor, insira uma data válida no formato DD/MM/AAAA');
+    }
+  };
+
+  const handleNextDoseDateConfirm = () => {
+    if (!nextDoseDateInput.trim()) {
+      setNextDoseDate(null);
+      setShowNextDoseDateModal(false);
+      return;
+    }
+    
+    const parsed = parseDateFromPT(nextDoseDateInput);
+    if (parsed) {
+      setNextDoseDate(parsed);
+      setShowNextDoseDateModal(false);
+    } else {
+      Alert.alert('Data inválida', 'Por favor, insira uma data válida no formato DD/MM/AAAA');
+    }
+  };
 
   const handleSave = async () => {
     if (!vaccineName.trim() || !applicationDate) {
@@ -211,212 +255,24 @@ export default function AddVaccinationScreen({navigation, route}) {
             <Text style={styles.label}>Data de Aplicação *</Text>
             <TouchableOpacity
               style={styles.input}
-              onPress={() => {
-                try {
-                  const safeDate = validateDate(applicationDate);
-                  logInfo('📅 Tentando abrir DateTimePicker - Data de Aplicação', {
-                    currentDate: safeDate.toISOString(),
-                    dateValid: !isNaN(safeDate.getTime()),
-                    platform: Platform.OS,
-                    platformVersion: Platform.Version,
-                  });
-                  
-                  // Usar delay para evitar renderização imediata que pode causar crash
-                  setPendingPickerType('application');
-                  logInfo('📅 DateTimePicker agendado para mostrar');
-                } catch (error) {
-                  logError('❌ Erro ao tentar abrir DateTimePicker - Data de Aplicação', error);
-                  captureError(error, { context: 'DateTimePicker - Data de Aplicação' });
-                  Alert.alert('Erro', 'Não foi possível abrir o calendário. Tente novamente.');
-                }
-              }}>
+              onPress={() => setShowApplicationDateModal(true)}>
               <Text style={styles.inputText}>
-                {applicationDate.toLocaleDateString('pt-BR')}
+                {formatDateToPT(applicationDate)}
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
-            {showApplicationDatePicker && (() => {
-              try {
-                const safeDate = validateDate(applicationDate);
-                if (Platform.OS === 'android') {
-                  // No Android, usar renderização direta mas com validação
-                  return (
-                    <DateTimePicker
-                      value={safeDate}
-                      mode="date"
-                      display="default"
-                      onChange={(event, selectedDate) => {
-                        try {
-                          logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
-                            eventType: event?.type,
-                            hasSelectedDate: !!selectedDate,
-                            selectedDate: selectedDate?.toISOString(),
-                            platform: Platform.OS,
-                          });
-                          
-                          setShowApplicationDatePicker(false);
-                          
-                          if (selectedDate) {
-                            const validatedDate = validateDate(selectedDate);
-                            setApplicationDate(validatedDate);
-                            logInfo('📅 Data de aplicação atualizada', { date: validatedDate.toISOString() });
-                          }
-                        } catch (error) {
-                          logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
-                          captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
-                          setShowApplicationDatePicker(false);
-                        }
-                      }}
-                    />
-                  );
-                } else {
-                  // iOS
-                  return (
-                    <DateTimePicker
-                      value={safeDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={(event, selectedDate) => {
-                        try {
-                          logInfo('📅 DateTimePicker onChange - Data de Aplicação', {
-                            eventType: event?.type,
-                            hasSelectedDate: !!selectedDate,
-                            selectedDate: selectedDate?.toISOString(),
-                            platform: Platform.OS,
-                          });
-                          
-                          if (event.type === 'dismissed') {
-                            setShowApplicationDatePicker(false);
-                          }
-                          
-                          if (selectedDate) {
-                            const validatedDate = validateDate(selectedDate);
-                            setApplicationDate(validatedDate);
-                            logInfo('📅 Data de aplicação atualizada', { date: validatedDate.toISOString() });
-                          }
-                        } catch (error) {
-                          logError('❌ Erro no onChange do DateTimePicker - Data de Aplicação', error);
-                          captureError(error, { context: 'DateTimePicker onChange - Data de Aplicação' });
-                          setShowApplicationDatePicker(false);
-                        }
-                      }}
-                    />
-                  );
-                }
-              } catch (error) {
-                logError('❌ Erro ao renderizar DateTimePicker - Data de Aplicação', error);
-                captureError(error, { context: 'DateTimePicker render - Data de Aplicação' });
-                return null;
-              }
-            })()}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Próxima Dose</Text>
             <TouchableOpacity
               style={styles.input}
-              onPress={() => {
-                try {
-                  const safeNextDate = validateDate(nextDoseDate || new Date());
-                  const safeAppDate = validateDate(applicationDate);
-                  logInfo('📅 Tentando abrir DateTimePicker - Próxima Dose', {
-                    currentDate: nextDoseDate ? safeNextDate.toISOString() : 'null',
-                    applicationDate: safeAppDate.toISOString(),
-                    dateValid: !isNaN(safeNextDate.getTime()),
-                    platform: Platform.OS,
-                    platformVersion: Platform.Version,
-                  });
-                  
-                  // Usar delay para evitar renderização imediata que pode causar crash
-                  setPendingPickerType('nextDose');
-                  logInfo('📅 DateTimePicker agendado para mostrar (Próxima Dose)');
-                } catch (error) {
-                  logError('❌ Erro ao tentar abrir DateTimePicker - Próxima Dose', error);
-                  captureError(error, { context: 'DateTimePicker - Próxima Dose' });
-                  Alert.alert('Erro', 'Não foi possível abrir o calendário. Tente novamente.');
-                }
-              }}>
+              onPress={() => setShowNextDoseDateModal(true)}>
               <Text style={nextDoseDate ? styles.inputText : styles.inputPlaceholder}>
-                {nextDoseDate
-                  ? nextDoseDate.toLocaleDateString('pt-BR')
-                  : 'Toque para selecionar a data'}
+                {nextDoseDate ? formatDateToPT(nextDoseDate) : 'Toque para selecionar a data'}
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
-            {showNextDoseDatePicker && (() => {
-              try {
-                const safeDate = validateDate(nextDoseDate || new Date());
-                if (Platform.OS === 'android') {
-                  // No Android, usar renderização direta mas com validação
-                  return (
-                    <DateTimePicker
-                      value={safeDate}
-                      mode="date"
-                      display="default"
-                      onChange={(event, selectedDate) => {
-                        try {
-                          logInfo('📅 DateTimePicker onChange - Próxima Dose', {
-                            eventType: event?.type,
-                            hasSelectedDate: !!selectedDate,
-                            selectedDate: selectedDate?.toISOString(),
-                            platform: Platform.OS,
-                          });
-                          
-                          setShowNextDoseDatePicker(false);
-                          
-                          if (selectedDate) {
-                            const validatedDate = validateDate(selectedDate);
-                            setNextDoseDate(validatedDate);
-                            logInfo('📅 Data de próxima dose atualizada', { date: validatedDate.toISOString() });
-                          }
-                        } catch (error) {
-                          logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
-                          captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
-                          setShowNextDoseDatePicker(false);
-                        }
-                      }}
-                    />
-                  );
-                } else {
-                  // iOS
-                  return (
-                    <DateTimePicker
-                      value={safeDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={(event, selectedDate) => {
-                        try {
-                          logInfo('📅 DateTimePicker onChange - Próxima Dose', {
-                            eventType: event?.type,
-                            hasSelectedDate: !!selectedDate,
-                            selectedDate: selectedDate?.toISOString(),
-                            platform: Platform.OS,
-                          });
-                          
-                          if (event.type === 'dismissed') {
-                            setShowNextDoseDatePicker(false);
-                          }
-                          
-                          if (selectedDate) {
-                            const validatedDate = validateDate(selectedDate);
-                            setNextDoseDate(validatedDate);
-                            logInfo('📅 Data de próxima dose atualizada', { date: validatedDate.toISOString() });
-                          }
-                        } catch (error) {
-                          logError('❌ Erro no onChange do DateTimePicker - Próxima Dose', error);
-                          captureError(error, { context: 'DateTimePicker onChange - Próxima Dose' });
-                          setShowNextDoseDatePicker(false);
-                        }
-                      }}
-                    />
-                  );
-                }
-              } catch (error) {
-                logError('❌ Erro ao renderizar DateTimePicker - Próxima Dose', error);
-                captureError(error, { context: 'DateTimePicker render - Próxima Dose' });
-                return null;
-              }
-            })()}
           </View>
 
           <View style={styles.inputGroup}>
@@ -498,6 +354,80 @@ export default function AddVaccinationScreen({navigation, route}) {
           </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Modal para Data de Aplicação */}
+      <Modal
+        visible={showApplicationDateModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowApplicationDateModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Data de Aplicação</Text>
+            <Text style={styles.modalSubtitle}>Digite a data no formato DD/MM/AAAA</Text>
+            
+            <TextInput
+              style={styles.modalInput}
+              value={applicationDateInput}
+              onChangeText={setApplicationDateInput}
+              placeholder="DD/MM/AAAA"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+              maxLength={10}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowApplicationDateModal(false)}>
+                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleApplicationDateConfirm}>
+                <Text style={styles.modalButtonConfirmText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Próxima Dose */}
+      <Modal
+        visible={showNextDoseDateModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowNextDoseDateModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Próxima Dose</Text>
+            <Text style={styles.modalSubtitle}>Digite a data no formato DD/MM/AAAA (ou deixe vazio)</Text>
+            
+            <TextInput
+              style={styles.modalInput}
+              value={nextDoseDateInput}
+              onChangeText={setNextDoseDateInput}
+              placeholder="DD/MM/AAAA"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+              maxLength={10}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowNextDoseDateModal(false)}>
+                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleNextDoseDateConfirm}>
+                <Text style={styles.modalButtonConfirmText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -566,11 +496,6 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
   },
-  helperText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 4,
-  },
   saveButton: {
     borderRadius: 12,
     overflow: 'hidden',
@@ -592,5 +517,65 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  modalInput: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 18,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F3F4F6',
+  },
+  modalButtonCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalButtonConfirm: {
+    backgroundColor: '#8B5CF6',
+  },
+  modalButtonConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
 });
-
