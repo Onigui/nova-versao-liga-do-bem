@@ -138,13 +138,21 @@ export default function AddVaccinationScreen({navigation, route}) {
     return `${year}-${month}-${day}`;
   };
 
-  // Converter formato YYYY-MM-DD para Date
+  // Converter formato YYYY-MM-DD para Date (corrigindo problema de timezone)
   const parseDateFromCalendar = (dateString) => {
     if (!dateString) return null;
     try {
-      const date = new Date(dateString);
-      if (!isNaN(date.getTime())) {
-        return date;
+      // Dividir a string YYYY-MM-DD em partes
+      const parts = dateString.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // Mês é 0-indexed
+        const day = parseInt(parts[2], 10);
+        // Criar data no timezone local para evitar problema de um dia a menos
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
       }
     } catch (e) {
       // Ignorar

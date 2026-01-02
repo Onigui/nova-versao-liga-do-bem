@@ -178,8 +178,22 @@ export default function VaccinationCardScreen({navigation, route}) {
                     {pet.breed && ` • ${pet.breed}`}
                     {pet.birthDate && ` • ${calculateAge(pet.birthDate)}`}
                   </Text>
+                  {(pet.gender || pet.color || pet.weight) && (
+                    <Text style={styles.petAdditionalInfo}>
+                      {pet.gender && `${pet.gender}`}
+                      {pet.gender && pet.color && ` • `}
+                      {pet.color && `${pet.color}`}
+                      {pet.weight && (pet.gender || pet.color) && ` • `}
+                      {pet.weight && `${pet.weight} kg`}
+                    </Text>
+                  )}
                   {pet.microchip && (
                     <Text style={styles.microchipText}>Microchip: {pet.microchip}</Text>
+                  )}
+                  {pet.notes && (
+                    <Text style={styles.petNotesText} numberOfLines={2}>
+                      {pet.notes}
+                    </Text>
                   )}
                 </View>
               </View>
@@ -419,10 +433,21 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 4,
   },
+  petAdditionalInfo: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
   microchipText: {
     fontSize: 14,
     color: '#9CA3AF',
     marginTop: 4,
+  },
+  petNotesText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   cardBadge: {
     width: 50,
