@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Calendar } from 'react-native-calendars';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -126,6 +127,41 @@ export default function AddVaccinationScreen({navigation, route}) {
     }
   }, [showNextDoseDateModal]);
 
+  // Converter Date para formato YYYY-MM-DD usado pelo calendário
+  const formatDateForCalendar = (date) => {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      return '';
+    }
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Converter formato YYYY-MM-DD para Date
+  const parseDateFromCalendar = (dateString) => {
+    if (!dateString) return null;
+    try {
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    } catch (e) {
+      // Ignorar
+    }
+    return null;
+  };
+
+  const handleApplicationDateSelect = (day) => {
+    if (day && day.dateString) {
+      const selectedDate = parseDateFromCalendar(day.dateString);
+      if (selectedDate) {
+        setApplicationDate(selectedDate);
+        setShowApplicationDateModal(false);
+      }
+    }
+  };
+
   const handleApplicationDateConfirm = () => {
     const parsed = parseDateFromPT(applicationDateInput);
     if (parsed) {
@@ -133,6 +169,16 @@ export default function AddVaccinationScreen({navigation, route}) {
       setShowApplicationDateModal(false);
     } else {
       Alert.alert('Data inválida', 'Por favor, insira uma data válida no formato DD/MM/AAAA');
+    }
+  };
+
+  const handleNextDoseDateSelect = (day) => {
+    if (day && day.dateString) {
+      const selectedDate = parseDateFromCalendar(day.dateString);
+      if (selectedDate) {
+        setNextDoseDate(selectedDate);
+        setShowNextDoseDateModal(false);
+      }
     }
   };
 
@@ -364,17 +410,53 @@ export default function AddVaccinationScreen({navigation, route}) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Data de Aplicação</Text>
-            <Text style={styles.modalSubtitle}>Digite a data no formato DD/MM/AAAA</Text>
+            <Text style={styles.modalSubtitle}>Selecione a data no calendário</Text>
             
-            <TextInput
-              style={styles.modalInput}
-              value={applicationDateInput}
-              onChangeText={setApplicationDateInput}
-              placeholder="DD/MM/AAAA"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-              maxLength={10}
+            <Calendar
+              onDayPress={handleApplicationDateSelect}
+              markedDates={{
+                [formatDateForCalendar(applicationDate)]: {
+                  selected: true,
+                  selectedColor: '#8B5CF6',
+                },
+              }}
+              current={formatDateForCalendar(applicationDate)}
+              minDate={formatDateForCalendar(new Date(1900, 0, 1))}
+              maxDate={formatDateForCalendar(new Date(2100, 11, 31))}
+              theme={{
+                calendarBackground: '#FFFFFF',
+                textSectionTitleColor: '#8B5CF6',
+                selectedDayBackgroundColor: '#8B5CF6',
+                selectedDayTextColor: '#FFFFFF',
+                todayTextColor: '#8B5CF6',
+                dayTextColor: '#111827',
+                textDisabledColor: '#D1D5DB',
+                dotColor: '#8B5CF6',
+                selectedDotColor: '#FFFFFF',
+                arrowColor: '#8B5CF6',
+                monthTextColor: '#111827',
+                textDayFontWeight: '500',
+                textMonthFontWeight: 'bold',
+                textDayHeaderFontWeight: '600',
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14,
+              }}
+              style={styles.calendar}
             />
+
+            <View style={styles.modalInputContainer}>
+              <Text style={styles.modalInputLabel}>Ou digite manualmente:</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={applicationDateInput}
+                onChangeText={setApplicationDateInput}
+                placeholder="DD/MM/AAAA"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -385,7 +467,7 @@ export default function AddVaccinationScreen({navigation, route}) {
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonConfirm]}
                 onPress={handleApplicationDateConfirm}>
-                <Text style={styles.modalButtonConfirmText}>Confirmar</Text>
+                <Text style={styles.modalButtonConfirmText}>Usar Data Digitada</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -401,17 +483,57 @@ export default function AddVaccinationScreen({navigation, route}) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Próxima Dose</Text>
-            <Text style={styles.modalSubtitle}>Digite a data no formato DD/MM/AAAA (ou deixe vazio)</Text>
+            <Text style={styles.modalSubtitle}>Selecione a data no calendário (opcional)</Text>
             
-            <TextInput
-              style={styles.modalInput}
-              value={nextDoseDateInput}
-              onChangeText={setNextDoseDateInput}
-              placeholder="DD/MM/AAAA"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-              maxLength={10}
+            <Calendar
+              onDayPress={handleNextDoseDateSelect}
+              markedDates={
+                nextDoseDate
+                  ? {
+                      [formatDateForCalendar(nextDoseDate)]: {
+                        selected: true,
+                        selectedColor: '#8B5CF6',
+                      },
+                    }
+                  : {}
+              }
+              current={nextDoseDate ? formatDateForCalendar(nextDoseDate) : formatDateForCalendar(new Date())}
+              minDate={formatDateForCalendar(applicationDate)}
+              maxDate={formatDateForCalendar(new Date(2100, 11, 31))}
+              theme={{
+                calendarBackground: '#FFFFFF',
+                textSectionTitleColor: '#8B5CF6',
+                selectedDayBackgroundColor: '#8B5CF6',
+                selectedDayTextColor: '#FFFFFF',
+                todayTextColor: '#8B5CF6',
+                dayTextColor: '#111827',
+                textDisabledColor: '#D1D5DB',
+                dotColor: '#8B5CF6',
+                selectedDotColor: '#FFFFFF',
+                arrowColor: '#8B5CF6',
+                monthTextColor: '#111827',
+                textDayFontWeight: '500',
+                textMonthFontWeight: 'bold',
+                textDayHeaderFontWeight: '600',
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14,
+              }}
+              style={styles.calendar}
             />
+
+            <View style={styles.modalInputContainer}>
+              <Text style={styles.modalInputLabel}>Ou digite manualmente (deixe vazio para remover):</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={nextDoseDateInput}
+                onChangeText={setNextDoseDateInput}
+                placeholder="DD/MM/AAAA"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -420,9 +542,17 @@ export default function AddVaccinationScreen({navigation, route}) {
                 <Text style={styles.modalButtonCancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setNextDoseDate(null);
+                  setShowNextDoseDateModal(false);
+                }}>
+                <Text style={styles.modalButtonSecondaryText}>Remover</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonConfirm]}
                 onPress={handleNextDoseDateConfirm}>
-                <Text style={styles.modalButtonConfirmText}>Confirmar</Text>
+                <Text style={styles.modalButtonConfirmText}>Usar Data Digitada</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -539,26 +669,39 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 14,
     color: '#6B7280',
+    marginBottom: 16,
+  },
+  calendar: {
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  modalInputContainer: {
     marginBottom: 20,
+  },
+  modalInputLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
   },
   modalInput: {
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
-    fontSize: 18,
+    fontSize: 16,
     color: '#111827',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    marginBottom: 24,
     textAlign: 'center',
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   modalButton: {
     flex: 1,
-    padding: 16,
+    minWidth: 100,
+    padding: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
@@ -574,8 +717,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#8B5CF6',
   },
   modalButtonConfirmText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#F3F4F6',
+  },
+  modalButtonSecondaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
   },
 });
