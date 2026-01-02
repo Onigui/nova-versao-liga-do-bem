@@ -418,11 +418,16 @@ export default function AddVaccinationScreen({navigation, route}) {
                 [formatDateForCalendar(applicationDate)]: {
                   selected: true,
                   selectedColor: '#8B5CF6',
+                  selectedTextColor: '#FFFFFF',
                 },
               }}
               current={formatDateForCalendar(applicationDate)}
               minDate={formatDateForCalendar(new Date(1900, 0, 1))}
               maxDate={formatDateForCalendar(new Date(2100, 11, 31))}
+              monthFormat={'MMMM yyyy'}
+              hideArrows={false}
+              firstDay={1}
+              enableSwipeMonths={true}
               theme={{
                 calendarBackground: '#FFFFFF',
                 textSectionTitleColor: '#8B5CF6',
@@ -493,6 +498,7 @@ export default function AddVaccinationScreen({navigation, route}) {
                       [formatDateForCalendar(nextDoseDate)]: {
                         selected: true,
                         selectedColor: '#8B5CF6',
+                        selectedTextColor: '#FFFFFF',
                       },
                     }
                   : {}
@@ -500,6 +506,10 @@ export default function AddVaccinationScreen({navigation, route}) {
               current={nextDoseDate ? formatDateForCalendar(nextDoseDate) : formatDateForCalendar(new Date())}
               minDate={formatDateForCalendar(applicationDate)}
               maxDate={formatDateForCalendar(new Date(2100, 11, 31))}
+              monthFormat={'MMMM yyyy'}
+              hideArrows={false}
+              firstDay={1}
+              enableSwipeMonths={true}
               theme={{
                 calendarBackground: '#FFFFFF',
                 textSectionTitleColor: '#8B5CF6',
@@ -674,6 +684,7 @@ const styles = StyleSheet.create({
   calendar: {
     borderRadius: 12,
     marginBottom: 16,
+    width: '100%',
   },
   modalInputContainer: {
     marginBottom: 20,
