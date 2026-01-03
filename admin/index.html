@@ -6211,32 +6211,65 @@
 
         function openHelpInfoModal(infoId = null) {
             editingHelpInfo = infoId;
+            helpInfoItems = [];
+            helpInfoItemCounter = 0;
+            
             const modal = document.getElementById('helpInfoModal') || createHelpInfoModal();
+            const titleEl = document.getElementById('helpInfoModalTitle');
+            if (titleEl) {
+                titleEl.textContent = infoId ? 'Editar Informação de Ajuda' : 'Adicionar Informação de Ajuda';
+            }
             modal.style.display = 'flex';
+            
             if (infoId) {
                 const info = helpInfoList.find(i => i.id === infoId);
                 if (info) {
-                    document.getElementById('helpInfoForm').category.value = info.category;
-                    document.getElementById('helpInfoForm').title.value = info.title;
-                    document.getElementById('helpInfoForm').description.value = info.description || '';
-                    document.getElementById('helpInfoForm').order.value = info.order;
-                    document.getElementById('helpInfoForm').isActive.checked = info.isActive;
-                    document.getElementById('helpInfoForm').items.value = JSON.stringify(info.items || [], null, 2);
+                    const form = document.getElementById('helpInfoForm');
+                    form.category.value = info.category;
+                    form.title.value = info.title;
+                    form.description.value = info.description || '';
+                    form.order.value = info.order;
+                    form.isActive.checked = info.isActive;
+                    
+                    // Converter items para o formato do formulário
+                    const items = Array.isArray(info.items) ? info.items : [];
+                    items.forEach(item => {
+                        let type = 'text';
+                        if (item.phone) type = 'phone';
+                        else if (item.address) type = 'address';
+                        else if (item.email) type = 'email';
+                        else if (item.website) type = 'website';
+                        
+                        addHelpInfoItem({
+                            id: `item-${helpInfoItemCounter++}`,
+                            type: type,
+                            title: item.title || '',
+                            phone: item.phone || '',
+                            address: item.address || '',
+                            email: item.email || '',
+                            website: item.website || '',
+                            subtitle: item.subtitle || '',
+                            description: item.description || item.copy?.text || ''
+                        });
+                    });
                 }
             } else {
                 document.getElementById('helpInfoForm').reset();
-                document.getElementById('helpInfoForm').items.value = '[]';
+                renderHelpInfoItems();
             }
         }
+
+        let helpInfoItems = [];
+        let helpInfoItemCounter = 0;
 
         function createHelpInfoModal() {
             const modal = document.createElement('div');
             modal.id = 'helpInfoModal';
             modal.className = 'modal-overlay';
             modal.innerHTML = `
-                <div class="modal" style="max-width: 700px;">
+                <div class="modal" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
                     <div class="modal-header">
-                        <h3 class="modal-title">${editingHelpInfo ? 'Editar' : 'Adicionar'} Informação de Ajuda</h3>
+                        <h3 class="modal-title" id="helpInfoModalTitle">Adicionar Informação de Ajuda</h3>
                         <button class="modal-close" onclick="closeModal('helpInfoModal')">&times;</button>
                     </div>
                     <div class="modal-body">
@@ -6244,28 +6277,46 @@
                             <div class="form-group">
                                 <label class="form-label">Categoria *</label>
                                 <input type="text" class="form-input" name="category" required placeholder="Ex: liga-do-bem, canil-municipal">
+                                <small style="color: var(--text-gray);">Identificador único para esta seção</small>
                             </div>
+                            
                             <div class="form-group">
                                 <label class="form-label">Título *</label>
                                 <input type="text" class="form-input" name="title" required placeholder="Ex: Liga do Bem">
                             </div>
+                            
                             <div class="form-group">
                                 <label class="form-label">Descrição</label>
-                                <textarea class="form-input" name="description" rows="3" placeholder="Descrição opcional"></textarea>
+                                <textarea class="form-input" name="description" rows="2" placeholder="Descrição opcional da seção"></textarea>
                             </div>
+                            
                             <div class="form-group">
                                 <label class="form-label">Ordem de Exibição</label>
                                 <input type="number" class="form-input" name="order" value="0" min="0">
+                                <small style="color: var(--text-gray);">Número menor aparece primeiro</small>
                             </div>
+                            
                             <div class="form-group">
-                                <label class="form-label">Itens (JSON) *</label>
-                                <textarea class="form-input" name="items" rows="10" required placeholder='[{"title": "Telefone", "subtitle": "(14) 99999-9999", "phone": "(14) 99999-9999", "icon": "call"}]'></textarea>
-                                <small style="color: var(--text-gray);">Formato JSON com array de itens (telefone, endereço, email, etc.)</small>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <label class="form-label" style="margin-bottom: 0;">Itens de Contato *</label>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="addHelpInfoItem()" style="padding: 6px 12px; font-size: 14px;">
+                                        ➕ Adicionar Item
+                                    </button>
+                                </div>
+                                <div id="helpInfoItemsContainer" style="border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; background: #F9FAFB; min-height: 80px;">
+                                    <div id="helpInfoItemsEmpty" style="text-align: center; color: #9CA3AF; padding: 20px;">
+                                        Nenhum item adicionado. Clique em "Adicionar Item" para começar.
+                                    </div>
+                                </div>
+                                <small style="color: var(--text-gray); display: block; margin-top: 8px;">
+                                    Adicione telefones, endereços, emails ou outras informações de contato
+                                </small>
                             </div>
+                            
                             <div class="form-group">
                                 <label>
                                     <input type="checkbox" name="isActive" checked style="margin-right: 8px;">
-                                    Ativo
+                                    Ativo (visível no aplicativo)
                                 </label>
                             </div>
                         </form>
@@ -6277,19 +6328,249 @@
                 </div>
             `;
             document.body.appendChild(modal);
+            
+            // Adicionar estilos
+            if (!document.getElementById('helpInfoModalStyles')) {
+                const style = document.createElement('style');
+                style.id = 'helpInfoModalStyles';
+                style.textContent = `
+                    .help-info-item {
+                        background: white;
+                        border: 1px solid #E5E7EB;
+                        border-radius: 8px;
+                        padding: 16px;
+                        margin-bottom: 12px;
+                        position: relative;
+                    }
+                    .help-info-item-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 12px;
+                    }
+                    .help-info-item-title {
+                        font-weight: 600;
+                        color: #111827;
+                        font-size: 14px;
+                    }
+                    .help-info-item-remove {
+                        background: #EF4444;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 4px 12px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    }
+                    .help-info-item-remove:hover {
+                        background: #DC2626;
+                    }
+                    .help-info-item-fields {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 12px;
+                    }
+                    .help-info-item-field-full {
+                        grid-column: 1 / -1;
+                    }
+                    .help-info-item-field label {
+                        display: block;
+                        font-size: 12px;
+                        font-weight: 500;
+                        color: #374151;
+                        margin-bottom: 4px;
+                    }
+                    .help-info-item-field input,
+                    .help-info-item-field select {
+                        width: 100%;
+                        padding: 8px;
+                        border: 1px solid #D1D5DB;
+                        border-radius: 4px;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                    }
+                    .help-info-item-field input:focus,
+                    .help-info-item-field select:focus {
+                        outline: none;
+                        border-color: #8B5CF6;
+                        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
             return modal;
+        }
+
+        function addHelpInfoItem(item = null) {
+            helpInfoItemCounter++;
+            const itemId = item ? item.id || `item-${helpInfoItemCounter}` : `item-${helpInfoItemCounter}`;
+            
+            if (!item) {
+                item = {
+                    id: itemId,
+                    type: 'phone',
+                    title: '',
+                    phone: '',
+                    address: '',
+                    email: '',
+                    website: '',
+                    subtitle: '',
+                    description: ''
+                };
+            }
+            
+            helpInfoItems.push(item);
+            renderHelpInfoItems();
+        }
+
+        function removeHelpInfoItem(itemId) {
+            helpInfoItems = helpInfoItems.filter(item => item.id !== itemId);
+            renderHelpInfoItems();
+        }
+
+        function renderHelpInfoItems() {
+            const container = document.getElementById('helpInfoItemsContainer');
+            const emptyMsg = document.getElementById('helpInfoItemsEmpty');
+            
+            if (!container) return;
+            
+            if (helpInfoItems.length === 0) {
+                if (!emptyMsg) {
+                    container.innerHTML = '<div id="helpInfoItemsEmpty" style="text-align: center; color: #9CA3AF; padding: 20px;">Nenhum item adicionado. Clique em "Adicionar Item" para começar.</div>';
+                } else {
+                    emptyMsg.style.display = 'block';
+                }
+                return;
+            }
+            
+            if (emptyMsg) emptyMsg.style.display = 'none';
+            
+            container.innerHTML = helpInfoItems.map((item, index) => `
+                <div class="help-info-item" data-item-id="${item.id}">
+                    <div class="help-info-item-header">
+                        <span class="help-info-item-title">Item ${index + 1}</span>
+                        <button type="button" class="help-info-item-remove" onclick="removeHelpInfoItem('${item.id}')">🗑️ Remover</button>
+                    </div>
+                    <div class="help-info-item-fields">
+                        <div class="help-info-item-field">
+                            <label>Tipo de Contato *</label>
+                            <select onchange="updateHelpInfoItemType('${item.id}', this.value)" required>
+                                <option value="phone" ${item.type === 'phone' ? 'selected' : ''}>Telefone</option>
+                                <option value="address" ${item.type === 'address' ? 'selected' : ''}>Endereço</option>
+                                <option value="email" ${item.type === 'email' ? 'selected' : ''}>Email</option>
+                                <option value="website" ${item.type === 'website' ? 'selected' : ''}>Website</option>
+                                <option value="text" ${item.type === 'text' ? 'selected' : ''}>Texto</option>
+                            </select>
+                        </div>
+                        <div class="help-info-item-field">
+                            <label>Título *</label>
+                            <input type="text" value="${item.title || ''}" onchange="updateHelpInfoItemField('${item.id}', 'title', this.value)" placeholder="Ex: Celular do Gui" required>
+                        </div>
+                        <div class="help-info-item-field help-info-item-field-full" id="field-phone-${item.id}" style="display: ${item.type === 'phone' ? 'block' : 'none'};">
+                            <label>Telefone *</label>
+                            <input type="text" value="${item.phone || ''}" onchange="updateHelpInfoItemField('${item.id}', 'phone', this.value)" placeholder="(14) 99999-9999" ${item.type === 'phone' ? 'required' : ''}>
+                        </div>
+                        <div class="help-info-item-field help-info-item-field-full" id="field-address-${item.id}" style="display: ${item.type === 'address' ? 'block' : 'none'};">
+                            <label>Endereço *</label>
+                            <input type="text" value="${item.address || ''}" onchange="updateHelpInfoItemField('${item.id}', 'address', this.value)" placeholder="Rua, Número, Bairro, Cidade" ${item.type === 'address' ? 'required' : ''}>
+                        </div>
+                        <div class="help-info-item-field help-info-item-field-full" id="field-email-${item.id}" style="display: ${item.type === 'email' ? 'block' : 'none'};">
+                            <label>Email *</label>
+                            <input type="email" value="${item.email || ''}" onchange="updateHelpInfoItemField('${item.id}', 'email', this.value)" placeholder="contato@exemplo.com" ${item.type === 'email' ? 'required' : ''}>
+                        </div>
+                        <div class="help-info-item-field help-info-item-field-full" id="field-website-${item.id}" style="display: ${item.type === 'website' ? 'block' : 'none'};">
+                            <label>Website *</label>
+                            <input type="url" value="${item.website || ''}" onchange="updateHelpInfoItemField('${item.id}', 'website', this.value)" placeholder="https://exemplo.com" ${item.type === 'website' ? 'required' : ''}>
+                        </div>
+                        <div class="help-info-item-field help-info-item-field-full" id="field-text-${item.id}" style="display: ${item.type === 'text' ? 'block' : 'none'};">
+                            <label>Texto *</label>
+                            <textarea style="width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 4px; font-size: 14px; min-height: 60px; box-sizing: border-box;" onchange="updateHelpInfoItemField('${item.id}', 'description', this.value)" placeholder="Informação de texto" ${item.type === 'text' ? 'required' : ''}>${item.description || ''}</textarea>
+                        </div>
+                        <div class="help-info-item-field">
+                            <label>Subtítulo (opcional)</label>
+                            <input type="text" value="${item.subtitle || ''}" onchange="updateHelpInfoItemField('${item.id}', 'subtitle', this.value)" placeholder="Texto secundário">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateHelpInfoItemType(itemId, type) {
+            const item = helpInfoItems.find(i => i.id === itemId);
+            if (item) {
+                item.type = type;
+                // Limpar campos não relacionados
+                if (type !== 'phone') item.phone = '';
+                if (type !== 'address') item.address = '';
+                if (type !== 'email') item.email = '';
+                if (type !== 'website') item.website = '';
+                if (type !== 'text') item.description = '';
+                renderHelpInfoItems();
+            }
+        }
+
+        function updateHelpInfoItemField(itemId, field, value) {
+            const item = helpInfoItems.find(i => i.id === itemId);
+            if (item) {
+                item[field] = value;
+            }
         }
 
         async function saveHelpInfo(event) {
             event.preventDefault();
             const form = event.target;
+            
+            // Validar que há pelo menos um item
+            if (helpInfoItems.length === 0) {
+                showNotification('Adicione pelo menos um item de contato', 'error');
+                return;
+            }
+            
+            // Converter items para o formato esperado pela API
+            const items = helpInfoItems.map(item => {
+                const result = {
+                    title: item.title
+                };
+                
+                if (item.subtitle) result.subtitle = item.subtitle;
+                
+                switch(item.type) {
+                    case 'phone':
+                        result.phone = item.phone;
+                        break;
+                    case 'address':
+                        result.address = item.address;
+                        break;
+                    case 'email':
+                        result.email = item.email;
+                        break;
+                    case 'website':
+                        result.website = item.website;
+                        break;
+                    case 'text':
+                        result.description = item.description;
+                        if (item.description) {
+                            result.copy = { text: item.description, label: item.title };
+                        }
+                        break;
+                }
+                
+                return result;
+            }).filter(item => item.title); // Remover itens sem título
+            
+            if (items.length === 0) {
+                showNotification('Todos os itens devem ter um título', 'error');
+                return;
+            }
+            
             const formData = {
                 category: form.category.value,
                 title: form.title.value,
                 description: form.description.value || null,
                 order: parseInt(form.order.value) || 0,
                 isActive: form.isActive.checked,
-                items: JSON.parse(form.items.value)
+                items: items
             };
 
             try {

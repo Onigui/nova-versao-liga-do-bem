@@ -75,62 +75,69 @@ export default function InfoScreen({navigation}) {
     navigation.navigate('Parceiros', { initialCategory: 'veterinária' });
   };
 
-  const getItemIcon = (item) => {
-    if (item.icon) return item.icon;
-    if (item.phone) return 'call';
-    if (item.address) return 'location';
-    if (item.email) return 'mail';
-    if (item.website) return 'globe';
-    return 'information-circle';
-  };
-
-  const getItemIconColor = (item) => {
-    if (item.phone) return '#10B981';
-    if (item.address) return '#3B82F6';
-    if (item.email) return '#F59E0B';
-    if (item.website) return '#8B5CF6';
-    return '#6B7280';
-  };
 
   const renderHelpItem = (item, index) => {
-    const iconName = getItemIcon(item);
-    const iconColor = getItemIconColor(item);
+    // Determinar tipo e ícone
+    let iconName = 'information-circle-outline';
+    let iconColor = '#6B7280';
+    let displayValue = '';
+    let onPressAction = null;
     
-    // Determinar o texto principal e secundário
-    const mainText = item.title || item.subtitle || '';
-    const secondaryText = item.phone || item.subtitle || item.description || '';
-    const displayPhone = item.phone || (item.subtitle && /[\d()\s-]/.test(item.subtitle) ? item.subtitle : null);
+    if (item.phone) {
+      iconName = 'call-outline';
+      iconColor = '#10B981';
+      displayValue = item.phone;
+      onPressAction = () => handleCall(item.phone);
+    } else if (item.address) {
+      iconName = 'map-outline';
+      iconColor = '#3B82F6';
+      displayValue = item.address;
+      onPressAction = () => handleOpenMaps(item.address);
+    } else if (item.email) {
+      iconName = 'mail-outline';
+      iconColor = '#F59E0B';
+      displayValue = item.email;
+      onPressAction = () => handleOpenUrl(`mailto:${item.email}`);
+    } else if (item.website) {
+      iconName = 'globe-outline';
+      iconColor = '#EC4899';
+      displayValue = item.website;
+      onPressAction = () => handleOpenUrl(item.website);
+    } else if (item.copy && item.copy.text) {
+      iconName = 'copy-outline';
+      iconColor = '#8B5CF6';
+      displayValue = item.copy.text;
+      onPressAction = () => handleCopy(item.copy.text, item.copy.label || item.title);
+    } else if (item.description) {
+      iconName = 'document-text-outline';
+      iconColor = '#6B7280';
+      displayValue = item.description;
+      onPressAction = () => handleCopy(item.description, item.title);
+    }
+
+    const title = item.title || '';
+    const subtitle = item.subtitle || '';
 
     return (
       <TouchableOpacity
-        key={item.id || index}
+        key={item.id || `item-${index}`}
         style={styles.helpItemCard}
         activeOpacity={0.7}
-        onPress={() => {
-          if (item.phone) {
-            handleCall(item.phone);
-          } else if (item.address) {
-            handleOpenMaps(item.address);
-          } else if (item.email) {
-            handleOpenUrl(`mailto:${item.email}`);
-          } else if (item.website) {
-            handleOpenUrl(item.website);
-          }
-        }}>
+        onPress={onPressAction || (() => {})}>
         <View style={styles.helpItemContent}>
-          <View style={[styles.helpItemIconContainer, { backgroundColor: `${iconColor}15` }]}>
+          <View style={[styles.helpItemIconContainer, { backgroundColor: `${iconColor}20` }]}>
             <Ionicons name={iconName} size={24} color={iconColor} />
           </View>
           <View style={styles.helpItemTextContainer}>
-            <Text style={styles.helpItemTitle}>{mainText}</Text>
-            {displayPhone && (
-              <Text style={styles.helpItemPhone}>{displayPhone}</Text>
-            )}
-            {item.description && !displayPhone && (
-              <Text style={styles.helpItemDescription}>{item.description}</Text>
-            )}
+            {title ? <Text style={styles.helpItemTitle}>{title}</Text> : null}
+            {subtitle ? <Text style={styles.helpItemSubtitle}>{subtitle}</Text> : null}
+            {displayValue ? (
+              <Text style={[styles.helpItemValue, { color: iconColor }]}>{displayValue}</Text>
+            ) : null}
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          {onPressAction && (
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -330,16 +337,16 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 4,
   },
-  helpItemPhone: {
+  helpItemSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  helpItemValue: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#10B981',
     marginTop: 2,
-  },
-  helpItemDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
   },
   emptyItemsContainer: {
     alignItems: 'center',
