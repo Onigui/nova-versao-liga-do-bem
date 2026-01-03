@@ -6156,6 +6156,8 @@
         // ========== FUNÇÕES DE AJUDA & SUPORTE ==========
         let helpInfoList = [];
         let editingHelpInfo = null;
+        let helpInfoItems = [];
+        let helpInfoItemCounter = 0;
 
         async function loadHelpInfo() {
             try {
@@ -6258,9 +6260,6 @@
                 renderHelpInfoItems();
             }
         }
-
-        let helpInfoItems = [];
-        let helpInfoItemCounter = 0;
 
         function createHelpInfoModal() {
             const modal = document.createElement('div');
