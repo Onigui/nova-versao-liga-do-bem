@@ -11,6 +11,32 @@ const http = require('http');
 const API_BASE_URL = process.env.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app';
 const ANDROID_RES_PATH = path.join(__dirname, '../android/app/src/main/res');
 
+/** Evita sobrescrever mipmaps com HTML/JSON ou imagem inválida da API. */
+function isPngFile(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(8);
+      const n = fs.readSync(fd, buf, 0, 8, 0);
+      if (n < 8) return false;
+      return (
+        buf[0] === 0x89 &&
+        buf[1] === 0x50 &&
+        buf[2] === 0x4e &&
+        buf[3] === 0x47 &&
+        buf[4] === 0x0d &&
+        buf[5] === 0x0a &&
+        buf[6] === 0x1a &&
+        buf[7] === 0x0a
+      );
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
 // Tamanhos de ícone para diferentes densidades
 const ICON_SIZES = {
   'mipmap-mdpi': 48,
@@ -87,6 +113,12 @@ async function updateAppIcon() {
     } else {
       tempImagePath = path.join(__dirname, '../temp_icon.png');
       await downloadImage(iconImage, tempImagePath);
+    }
+
+    if (!isPngFile(tempImagePath)) {
+      console.warn('⚠️ Arquivo baixado não é PNG válido; mantendo ícones do repositório');
+      if (fs.existsSync(tempImagePath)) fs.unlinkSync(tempImagePath);
+      return;
     }
     
     console.log('📝 Atualizando ícones do app...');

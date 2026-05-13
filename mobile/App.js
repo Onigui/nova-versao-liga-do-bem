@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { StatusBar } from 'react-native';
+import React, { useEffect } from 'react';
+import { StatusBar, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -16,12 +16,17 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 
 const Stack = createStackNavigator();
 
-function RootNavigator() {
-  const { isAuthenticated, loading } = useAuth();
+const styles = StyleSheet.create({
+  bootSplash: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+});
 
-  if (loading) {
-    return null; // ou um splash screen
-  }
+function RootNavigator() {
+  const { isAuthenticated } = useAuth();
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -31,6 +36,29 @@ function RootNavigator() {
         <Stack.Screen name="Auth" component={AuthStack} />
       )}
     </Stack.Navigator>
+  );
+}
+
+/**
+ * Nunca renderizar NavigationContainer sem um Navigator filho.
+ * Retornar `null` durante loading quebrava o app na abertura (crash imediato).
+ */
+function AppNavigation() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={styles.bootSplash}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <RootNavigator />
+    </NavigationContainer>
   );
 }
 
@@ -131,10 +159,7 @@ export default function App() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <PaperProvider>
             <AuthProvider>
-              <NavigationContainer>
-                <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-                <RootNavigator />
-              </NavigationContainer>
+              <AppNavigation />
               <UpdateChecker />
             </AuthProvider>
           </PaperProvider>
@@ -149,10 +174,7 @@ export default function App() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <PaperProvider>
             <AuthProvider>
-              <NavigationContainer>
-                <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-                <RootNavigator />
-              </NavigationContainer>
+              <AppNavigation />
               <UpdateChecker />
             </AuthProvider>
           </PaperProvider>
