@@ -11,24 +11,47 @@ const http = require('http');
 const API_BASE_URL = process.env.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app';
 const ANDROID_RES_PATH = path.join(__dirname, '../android/app/src/main/res');
 
-/** Evita sobrescrever mipmaps com HTML/JSON ou imagem inválida da API. */
-function isPngFile(filePath) {
+/** Evita sobrescrever mipmaps com HTML/JSON da API; aceita PNG/JPEG/GIF/WebP. */
+function isRasterImageFile(filePath) {
   try {
     const fd = fs.openSync(filePath, 'r');
     try {
-      const buf = Buffer.alloc(8);
-      const n = fs.readSync(fd, buf, 0, 8, 0);
-      if (n < 8) return false;
-      return (
+      const buf = Buffer.alloc(12);
+      const n = fs.readSync(fd, buf, 0, 12, 0);
+      if (n < 3) return false;
+      // PNG
+      if (
+        n >= 8 &&
         buf[0] === 0x89 &&
         buf[1] === 0x50 &&
         buf[2] === 0x4e &&
-        buf[3] === 0x47 &&
-        buf[4] === 0x0d &&
-        buf[5] === 0x0a &&
-        buf[6] === 0x1a &&
-        buf[7] === 0x0a
-      );
+        buf[3] === 0x47
+      ) {
+        return true;
+      }
+      // JPEG
+      if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+        return true;
+      }
+      // GIF
+      if (n >= 6 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) {
+        return true;
+      }
+      // WebP (RIFF....WEBP)
+      if (
+        n >= 12 &&
+        buf[0] === 0x52 &&
+        buf[1] === 0x49 &&
+        buf[2] === 0x46 &&
+        buf[3] === 0x46 &&
+        buf[8] === 0x57 &&
+        buf[9] === 0x45 &&
+        buf[10] === 0x42 &&
+        buf[11] === 0x50
+      ) {
+        return true;
+      }
+      return false;
     } finally {
       fs.closeSync(fd);
     }
@@ -115,8 +138,8 @@ async function updateAppIcon() {
       await downloadImage(iconImage, tempImagePath);
     }
 
-    if (!isPngFile(tempImagePath)) {
-      console.warn('⚠️ Arquivo baixado não é PNG válido; mantendo ícones do repositório');
+    if (!isRasterImageFile(tempImagePath)) {
+      console.warn('⚠️ Arquivo não é imagem raster reconhecida (PNG/JPEG/GIF/WebP); mantendo ícones do repositório');
       if (fs.existsSync(tempImagePath)) fs.unlinkSync(tempImagePath);
       return;
     }
