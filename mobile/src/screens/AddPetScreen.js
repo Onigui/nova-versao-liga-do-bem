@@ -22,12 +22,16 @@ export default function AddPetScreen({navigation, route}) {
   const {pet, onSave} = route.params || {};
   const isEditing = !!pet;
 
+  const parsedInitialBirthDate = (() => {
+    if (!pet?.birthDate) return null;
+    const d = new Date(pet.birthDate);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+
   const [name, setName] = useState(pet?.name || '');
   const [species, setSpecies] = useState(pet?.species || '');
   const [breed, setBreed] = useState(pet?.breed || '');
-  const [birthDate, setBirthDate] = useState(
-    pet?.birthDate ? new Date(pet.birthDate) : null,
-  );
+  const [birthDate, setBirthDate] = useState(parsedInitialBirthDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState(pet?.gender || '');
   const [color, setColor] = useState(pet?.color || '');
@@ -223,27 +227,6 @@ export default function AddPetScreen({navigation, route}) {
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
             </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={birthDate || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selectedDate) => {
-                  // Fechar picker no Android após seleção
-                  if (Platform.OS === 'android') {
-                    setShowDatePicker(false);
-                  }
-                  // No iOS, manter aberto até cancelar
-                  if (event.type === 'dismissed' && Platform.OS === 'ios') {
-                    setShowDatePicker(false);
-                  }
-                  if (selectedDate) {
-                    setBirthDate(selectedDate);
-                  }
-                }}
-                maximumDate={new Date()}
-              />
-            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -343,6 +326,33 @@ export default function AddPetScreen({navigation, route}) {
           </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={
+            birthDate && !isNaN(birthDate.getTime()) ? birthDate : new Date()
+          }
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, selectedDate) => {
+            // No Android, o DateTimePicker tende a fechar sozinho quando muda,
+            // mas vamos garantir que o estado acompanha para evitar inconsistências.
+            if (Platform.OS === 'android') {
+              setShowDatePicker(false);
+            }
+
+            if (event?.type === 'dismissed' && Platform.OS === 'ios') {
+              setShowDatePicker(false);
+              return;
+            }
+
+            if (selectedDate && !isNaN(selectedDate.getTime())) {
+              setBirthDate(selectedDate);
+            }
+          }}
+          maximumDate={new Date()}
+        />
+      )}
     </View>
   );
 }

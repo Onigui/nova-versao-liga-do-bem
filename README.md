@@ -9,7 +9,7 @@ Plataforma completa para a ONG Liga do Bem Botucatu, incluindo aplicativo mobile
 - **⚙️ Backend API** - Node.js + Express + TypeScript
 - **🗄️ Database** - PostgreSQL + Prisma ORM
 - **📧 Notifications** - Firebase FCM
-- **🚀 Deploy** - Render.com
+- **🚀 Deploy** - Vercel (API, admin, web) + Supabase (banco de dados)
 
 ## 🚀 Quick Start
 
@@ -126,8 +126,10 @@ npm start
 
 ## 🚀 Deploy
 
-### Render.com
-Veja o guia completo em [DEPLOY.md](./docs/DEPLOY.md)
+### Vercel + Supabase
+- **API, Admin e Web:** Vercel  
+- **Banco de dados:** Supabase (PostgreSQL)  
+- Referência atual do projeto: [CONTEXTO_PROJETO_ATUAL.md](./CONTEXTO_PROJETO_ATUAL.md)
 
 ### Variáveis de Ambiente
 Configure as variáveis necessárias em cada ambiente:
