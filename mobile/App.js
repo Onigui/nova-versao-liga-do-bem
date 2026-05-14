@@ -1,5 +1,11 @@
 import React, { useEffect } from 'react';
-import { StatusBar, View, ActivityIndicator, StyleSheet } from 'react-native';
+import {
+  StatusBar,
+  View,
+  ActivityIndicator,
+  StyleSheet,
+  InteractionManager,
+} from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -28,13 +34,15 @@ const styles = StyleSheet.create({
 function RootNavigator() {
   const { isAuthenticated } = useAuth();
 
+  // Nunca montar só um Stack.Screen condicional — quebra o React Navigation / screens no Android.
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <Stack.Screen name="App" component={AppStack} />
-      ) : (
-        <Stack.Screen name="Auth" component={AuthStack} />
-      )}
+    <Stack.Navigator
+      key={isAuthenticated ? 'signed-in' : 'signed-out'}
+      initialRouteName={isAuthenticated ? 'App' : 'Auth'}
+      screenOptions={{ headerShown: false }}
+    >
+      <Stack.Screen name="Auth" component={AuthStack} />
+      <Stack.Screen name="App" component={AppStack} />
     </Stack.Navigator>
   );
 }
@@ -66,86 +74,90 @@ export default function App() {
   // Removido: updateInfo e showUpdateModal movidos para LoginScreen
 
   useEffect(() => {
-    // Removido: Verificação de atualizações agora é feita na tela de login
-    // Configurar captura global de erros (se disponível)
-    try {
-      const ErrorUtils = require('react-native').ErrorUtils;
-      if (ErrorUtils) {
-        const originalHandler = ErrorUtils.getGlobalHandler();
-        
-        ErrorUtils.setGlobalHandler((error, isFatal) => {
-          try {
-            const { captureError, logError } = require('./src/services/RemoteLogger');
-            
-            // Capturar erro com contexto adicional
-            const errorContext = {
-              isFatal: isFatal || false,
-              timestamp: new Date().toISOString(),
-              context: 'Global Error Handler',
-              errorType: error?.name || 'Unknown',
-              errorMessage: error?.message || String(error),
-              stack: error?.stack || 'No stack trace',
-            };
-            
-            // Logar erro crítico
-            logError('🚨 CRASH - Global Error Handler capturou erro fatal', errorContext);
-            
-            // Capturar erro também
-            captureError(error, errorContext);
-            
-            // Tentar salvar logs imediatamente para erros fatais
-            if (isFatal) {
-              try {
-                const remoteLogger = require('./src/services/RemoteLogger').default;
-                if (remoteLogger && remoteLogger.saveLogsToStorage) {
-                  remoteLogger.saveLogsToStorage().catch(() => {});
-                }
-              } catch (saveError) {
-                // Ignorar erros ao salvar
-              }
-            }
-          } catch (logError) {
-            console.error('Erro ao capturar erro global:', logError);
-            // Tentar salvar pelo menos no console
-            console.error('🚨 CRASH FATAL:', error);
-          }
-          
-          // Chamar handler original também
-          if (originalHandler) {
-            originalHandler(error, isFatal);
-          }
-        });
-      }
-    } catch (error) {
-      console.warn('ErrorUtils não disponível:', error);
-    }
-
-    // Configurar listeners de notificação
     let unsubscribe;
-    try {
-      unsubscribe = NotificationService.setupNotificationListeners();
-    } catch (error) {
-      console.warn('Erro ao configurar notificações:', error);
-    }
-    
+    let cancelled = false;
+    let deferredTimer;
+    /** Referência ao handler global anterior, para restaurar no unmount sem circularidade. */
+    let globalHandlerToRestore = null;
+
+    const interactionHandle = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) {
+        return;
+      }
+      deferredTimer = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        try {
+          const ErrorUtils = require('react-native').ErrorUtils;
+          if (ErrorUtils) {
+            globalHandlerToRestore = ErrorUtils.getGlobalHandler();
+
+            ErrorUtils.setGlobalHandler((error, isFatal) => {
+              try {
+                const { captureError, logError } = require('./src/services/RemoteLogger');
+                const errorContext = {
+                  isFatal: isFatal || false,
+                  timestamp: new Date().toISOString(),
+                  context: 'Global Error Handler',
+                  errorType: error?.name || 'Unknown',
+                  errorMessage: error?.message || String(error),
+                  stack: error?.stack || 'No stack trace',
+                };
+                logError('🚨 CRASH - Global Error Handler capturou erro fatal', errorContext);
+                captureError(error, errorContext);
+                if (isFatal) {
+                  try {
+                    const remoteLogger = require('./src/services/RemoteLogger').default;
+                    if (remoteLogger && remoteLogger.saveLogsToStorage) {
+                      remoteLogger.saveLogsToStorage().catch(() => {});
+                    }
+                  } catch (saveError) {
+                    /* noop */
+                  }
+                }
+              } catch (logError) {
+                console.error('Erro ao capturar erro global:', logError);
+                console.error('🚨 CRASH FATAL:', error);
+              }
+              if (globalHandlerToRestore) {
+                globalHandlerToRestore(error, isFatal);
+              }
+            });
+          }
+        } catch (error) {
+          console.warn('ErrorUtils não disponível:', error);
+        }
+
+        try {
+          unsubscribe = NotificationService.setupNotificationListeners();
+        } catch (error) {
+          console.warn('Erro ao configurar notificações:', error);
+        }
+      }, 120);
+    });
+
     return () => {
+      cancelled = true;
+      if (deferredTimer) {
+        clearTimeout(deferredTimer);
+      }
+      if (typeof interactionHandle?.cancel === 'function') {
+        interactionHandle.cancel();
+      }
       try {
         const ErrorUtils = require('react-native').ErrorUtils;
-        if (ErrorUtils) {
-          const originalHandler = ErrorUtils.getGlobalHandler();
-          if (originalHandler) {
-            ErrorUtils.setGlobalHandler(originalHandler);
-          }
+        if (ErrorUtils && globalHandlerToRestore) {
+          ErrorUtils.setGlobalHandler(globalHandlerToRestore);
         }
       } catch (error) {
-        // Ignorar
+        /* noop */
       }
-      
       if (unsubscribe) {
         try {
           unsubscribe();
         } catch (error) {
-          // Ignorar
+          /* noop */
         }
       }
     };

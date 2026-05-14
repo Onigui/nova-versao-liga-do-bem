@@ -63,6 +63,10 @@ jobs:
           
           echo "✅ Dependências instaladas com sucesso!"
 
+      - name: Instalar sharp (gerar mipmaps a partir de JPEG/PNG no CI)
+        working-directory: ./mobile
+        run: npm install sharp@0.33.5 --no-save --legacy-peer-deps
+
       - name: 🔑 Setup Release Keystore
         if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
         working-directory: ./mobile/android/app
