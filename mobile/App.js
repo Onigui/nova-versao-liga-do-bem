@@ -1,11 +1,5 @@
 import React, { useEffect } from 'react';
-import {
-  StatusBar,
-  View,
-  ActivityIndicator,
-  StyleSheet,
-  InteractionManager,
-} from 'react-native';
+import { StatusBar, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -13,10 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import NotificationService from './src/services/NotificationService';
 import UpdateChecker from './src/components/UpdateChecker';
 
-// Navigation
 import { AuthStack, AppStack } from './src/navigation/AppNavigator';
-
-// Services
 import { AuthProvider, useAuth } from './src/services/AuthService';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
@@ -34,23 +25,18 @@ const styles = StyleSheet.create({
 function RootNavigator() {
   const { isAuthenticated } = useAuth();
 
-  // Nunca montar só um Stack.Screen condicional — quebra o React Navigation / screens no Android.
   return (
-    <Stack.Navigator
-      key={isAuthenticated ? 'signed-in' : 'signed-out'}
-      initialRouteName={isAuthenticated ? 'App' : 'Auth'}
-      screenOptions={{ headerShown: false }}
-    >
-      <Stack.Screen name="Auth" component={AuthStack} />
-      <Stack.Screen name="App" component={AppStack} />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {isAuthenticated ? (
+        <Stack.Screen name="App" component={AppStack} />
+      ) : (
+        <Stack.Screen name="Auth" component={AuthStack} />
+      )}
     </Stack.Navigator>
   );
 }
 
-/**
- * Nunca renderizar NavigationContainer sem um Navigator filho.
- * Retornar `null` durante loading quebrava o app na abertura (crash imediato).
- */
+/** Splash fora do NavigationContainer — evita crash com filho null no Android. */
 function AppNavigation() {
   const { loading } = useAuth();
 
@@ -63,92 +49,71 @@ function AppNavigation() {
   }
 
   return (
-    <NavigationContainer>
+    <>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <RootNavigator />
-    </NavigationContainer>
+    </>
   );
 }
 
 export default function App() {
-  // Removido: updateInfo e showUpdateModal movidos para LoginScreen
-
   useEffect(() => {
-    let unsubscribe;
-    let cancelled = false;
-    let deferredTimer;
-    /** Referência ao handler global anterior, para restaurar no unmount sem circularidade. */
-    let globalHandlerToRestore = null;
+    try {
+      const ErrorUtils = require('react-native').ErrorUtils;
+      if (ErrorUtils) {
+        const originalHandler = ErrorUtils.getGlobalHandler();
 
-    const interactionHandle = InteractionManager.runAfterInteractions(() => {
-      if (cancelled) {
-        return;
-      }
-      deferredTimer = setTimeout(() => {
-        if (cancelled) {
-          return;
-        }
-        try {
-          const ErrorUtils = require('react-native').ErrorUtils;
-          if (ErrorUtils) {
-            globalHandlerToRestore = ErrorUtils.getGlobalHandler();
-
-            ErrorUtils.setGlobalHandler((error, isFatal) => {
+        ErrorUtils.setGlobalHandler((error, isFatal) => {
+          try {
+            const { captureError, logError } = require('./src/services/RemoteLogger');
+            const errorContext = {
+              isFatal: isFatal || false,
+              timestamp: new Date().toISOString(),
+              context: 'Global Error Handler',
+              errorType: error?.name || 'Unknown',
+              errorMessage: error?.message || String(error),
+              stack: error?.stack || 'No stack trace',
+            };
+            logError('🚨 CRASH - Global Error Handler capturou erro fatal', errorContext);
+            captureError(error, errorContext);
+            if (isFatal) {
               try {
-                const { captureError, logError } = require('./src/services/RemoteLogger');
-                const errorContext = {
-                  isFatal: isFatal || false,
-                  timestamp: new Date().toISOString(),
-                  context: 'Global Error Handler',
-                  errorType: error?.name || 'Unknown',
-                  errorMessage: error?.message || String(error),
-                  stack: error?.stack || 'No stack trace',
-                };
-                logError('🚨 CRASH - Global Error Handler capturou erro fatal', errorContext);
-                captureError(error, errorContext);
-                if (isFatal) {
-                  try {
-                    const remoteLogger = require('./src/services/RemoteLogger').default;
-                    if (remoteLogger && remoteLogger.saveLogsToStorage) {
-                      remoteLogger.saveLogsToStorage().catch(() => {});
-                    }
-                  } catch (saveError) {
-                    /* noop */
-                  }
+                const remoteLogger = require('./src/services/RemoteLogger').default;
+                if (remoteLogger?.saveLogsToStorage) {
+                  remoteLogger.saveLogsToStorage().catch(() => {});
                 }
-              } catch (logError) {
-                console.error('Erro ao capturar erro global:', logError);
-                console.error('🚨 CRASH FATAL:', error);
+              } catch (saveError) {
+                /* noop */
               }
-              if (globalHandlerToRestore) {
-                globalHandlerToRestore(error, isFatal);
-              }
-            });
+            }
+          } catch (logError) {
+            console.error('Erro ao capturar erro global:', logError);
+            console.error('🚨 CRASH FATAL:', error);
           }
-        } catch (error) {
-          console.warn('ErrorUtils não disponível:', error);
-        }
+          if (originalHandler) {
+            originalHandler(error, isFatal);
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('ErrorUtils não disponível:', error);
+    }
 
-        try {
-          unsubscribe = NotificationService.setupNotificationListeners();
-        } catch (error) {
-          console.warn('Erro ao configurar notificações:', error);
-        }
-      }, 120);
-    });
+    let unsubscribe;
+    try {
+      unsubscribe = NotificationService.setupNotificationListeners();
+    } catch (error) {
+      console.warn('Erro ao configurar notificações:', error);
+    }
 
     return () => {
-      cancelled = true;
-      if (deferredTimer) {
-        clearTimeout(deferredTimer);
-      }
-      if (typeof interactionHandle?.cancel === 'function') {
-        interactionHandle.cancel();
-      }
       try {
         const ErrorUtils = require('react-native').ErrorUtils;
-        if (ErrorUtils && globalHandlerToRestore) {
-          ErrorUtils.setGlobalHandler(globalHandlerToRestore);
+        if (ErrorUtils) {
+          const originalHandler = ErrorUtils.getGlobalHandler();
+          if (originalHandler) {
+            ErrorUtils.setGlobalHandler(originalHandler);
+          }
         }
       } catch (error) {
         /* noop */
@@ -163,35 +128,18 @@ export default function App() {
     };
   }, []);
 
-  // Removido: checkForUpdates movido para LoginScreen
-
-  try {
-    return (
-      <ErrorBoundary>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <PaperProvider>
-            <AuthProvider>
+  return (
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <PaperProvider>
+          <AuthProvider>
+            <NavigationContainer>
               <AppNavigation />
-              <UpdateChecker />
-            </AuthProvider>
-          </PaperProvider>
-        </GestureHandlerRootView>
-      </ErrorBoundary>
-    );
-  } catch (error) {
-    console.error('Erro crítico no App:', error);
-    // Retornar uma tela de erro simples
-    return (
-      <ErrorBoundary>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <PaperProvider>
-            <AuthProvider>
-              <AppNavigation />
-              <UpdateChecker />
-            </AuthProvider>
-          </PaperProvider>
-        </GestureHandlerRootView>
-      </ErrorBoundary>
-    );
-  }
+            </NavigationContainer>
+            <UpdateChecker />
+          </AuthProvider>
+        </PaperProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
+  );
 }

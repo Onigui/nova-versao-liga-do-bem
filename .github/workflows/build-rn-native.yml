@@ -63,10 +63,6 @@ jobs:
           
           echo "✅ Dependências instaladas com sucesso!"
 
-      - name: Instalar sharp (gerar mipmaps a partir de JPEG/PNG no CI)
-        working-directory: ./mobile
-        run: npm install sharp@0.33.5 --no-save --legacy-peer-deps
-
       - name: 🔑 Setup Release Keystore
         if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
         working-directory: ./mobile/android/app
@@ -94,14 +90,6 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "✅ local.properties criado!"
           
-      - name: 🎨 Atualizar Ícone do App
-        working-directory: ./mobile
-        run: |
-          echo "🎨 Atualizando ícone do app com configurações do admin..."
-          node scripts/update-app-icon.js || echo "⚠️ Script de ícone falhou, usando ícone padrão"
-        env:
-          API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
-
       - name: 🖼️ Atualizar Assets do App (Logo e Ícone)
         working-directory: ./mobile
         run: |

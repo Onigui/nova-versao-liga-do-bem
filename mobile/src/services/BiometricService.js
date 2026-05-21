@@ -2,21 +2,15 @@ import ReactNativeBiometrics from 'react-native-biometrics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-let rnBiometricsInstance = null;
-function getRnBiometrics() {
-  if (!rnBiometricsInstance) {
-    rnBiometricsInstance = new ReactNativeBiometrics({
-      allowDeviceCredentials: true,
-    });
-  }
-  return rnBiometricsInstance;
-}
+const rnBiometrics = new ReactNativeBiometrics({
+  allowDeviceCredentials: true,
+});
 
 class BiometricService {
   // Verificar se o dispositivo suporta biometria
   async isAvailable() {
     try {
-      const { available, biometryType } = await getRnBiometrics().isSensorAvailable();
+      const { available, biometryType } = await rnBiometrics.isSensorAvailable();
       return {
         available,
         biometryType, // 'FaceID', 'TouchID', 'Biometrics', ou null
@@ -36,12 +30,12 @@ class BiometricService {
       }
 
       // Criar chaves biométricas
-      const { publicKey } = await getRnBiometrics().createKeys();
+      const { publicKey } = await rnBiometrics.createKeys();
 
       // Criptografar credenciais usando a chave pública
       // Usar a API de criptografia da biblioteca
       const payload = JSON.stringify({ email, password });
-      const { success, signature } = await getRnBiometrics().createSignature({
+      const { success, signature } = await rnBiometrics.createSignature({
         promptMessage: 'Confirme para habilitar login biométrico',
         payload: payload,
       });
@@ -86,7 +80,7 @@ class BiometricService {
       const payload = JSON.stringify({ email: credentials.email, password: credentials.password });
 
       // Solicitar autenticação biométrica e verificar assinatura
-      const { success, signature } = await getRnBiometrics().createSignature({
+      const { success, signature } = await rnBiometrics.createSignature({
         promptMessage: 'Autentique-se para fazer login',
         payload: payload,
       });
@@ -131,7 +125,7 @@ class BiometricService {
       
       // Deletar chaves biométricas
       try {
-        await getRnBiometrics().deleteKeys();
+        await rnBiometrics.deleteKeys();
       } catch (keyError) {
         console.warn('Erro ao deletar chaves biométricas:', keyError);
       }

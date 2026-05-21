@@ -41,18 +41,6 @@ jobs:
         run: |
           npm ci --legacy-peer-deps
 
-      - name: Instalar sharp (gerar mipmaps a partir de JPEG/PNG no CI)
-        working-directory: ./mobile
-        run: npm install sharp@0.33.5 --no-save --legacy-peer-deps
-
-      - name: Atualizar ícone e assets do app (API admin)
-        working-directory: ./mobile
-        run: |
-          node scripts/update-app-icon.js || echo "⚠️ Ícone: mantendo mipmaps do repositório"
-          node scripts/update-app-assets.js || echo "⚠️ Assets: mantendo padrão do repositório"
-        env:
-          API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:

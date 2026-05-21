@@ -101,52 +101,39 @@ export class NotificationService {
   }
 
   static setupNotificationListeners({onMessage, onOpened} = {}) {
-    try {
-      const foregroundSubscription = messaging().onMessage(
-        async remoteMessage => {
-          console.log('Notificação recebida em primeiro plano:', remoteMessage);
-          if (onMessage) {
-            onMessage(remoteMessage);
-          }
-        },
+    const foregroundSubscription = messaging().onMessage(
+      async remoteMessage => {
+        console.log('Notificação recebida em primeiro plano:', remoteMessage);
+        if (onMessage) {
+          onMessage(remoteMessage);
+        }
+      },
+    );
+
+    const backgroundSubscription = messaging().onNotificationOpenedApp(
+      remoteMessage => {
+        console.log('Notificação aberta pelo usuário:', remoteMessage);
+        if (onOpened) {
+          onOpened(remoteMessage);
+        }
+      },
+    );
+
+    messaging()
+      .getInitialNotification()
+      .then(remoteMessage => {
+        if (remoteMessage && onOpened) {
+          onOpened(remoteMessage);
+        }
+      })
+      .catch(error =>
+        console.error('Erro ao obter notificação inicial:', error),
       );
 
-      const backgroundSubscription = messaging().onNotificationOpenedApp(
-        remoteMessage => {
-          console.log('Notificação aberta pelo usuário:', remoteMessage);
-          if (onOpened) {
-            onOpened(remoteMessage);
-          }
-        },
-      );
-
-      messaging()
-        .getInitialNotification()
-        .then(remoteMessage => {
-          if (remoteMessage && onOpened) {
-            onOpened(remoteMessage);
-          }
-        })
-        .catch(error =>
-          console.error('Erro ao obter notificação inicial:', error),
-        );
-
-      return () => {
-        try {
-          foregroundSubscription();
-        } catch (e) {
-          /* noop */
-        }
-        try {
-          backgroundSubscription();
-        } catch (e) {
-          /* noop */
-        }
-      };
-    } catch (error) {
-      console.warn('NotificationService.setupNotificationListeners:', error?.message || error);
-      return () => {};
-    }
+    return () => {
+      foregroundSubscription();
+      backgroundSubscription();
+    };
   }
 
   static async sendTestNotification(userToken) {

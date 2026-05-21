@@ -4,11 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationService from './NotificationService';
 import { API_BASE_PATH } from '../config/apiConfig';
 
-const AuthContext = createContext(undefined);
+const AuthContext = createContext({});
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth deve ser usado dentro de AuthProvider');
   }
   return context;
@@ -20,22 +20,26 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
-
+    // Marcar timestamp de quando o app foi iniciado
+    const appStartTime = Date.now();
+    AsyncStorage.setItem('app_last_active', appStartTime.toString()).catch(() => {});
+    
+    loadStoredAuth();
+    
     // Sistema de timeout inteligente para logout
     let backgroundTime = null;
     let timeoutId = null;
     let previousAppState = AppState.currentState;
     const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos de inatividade
     const TEMPORARY_STATE_THRESHOLD = 5000; // 5 segundos - mudanças menores que isso são temporárias (permissões, etc)
-
+    
     // Atualizar timestamp de última atividade periodicamente enquanto o app está ativo
     const updateActiveTimestamp = setInterval(() => {
       if (AppState.currentState === 'active') {
         AsyncStorage.setItem('app_last_active', Date.now().toString()).catch(() => {});
       }
     }, 10000); // Atualizar a cada 10 segundos
-
+    
     const handleAppStateChange = (nextAppState) => {
       console.log('📱 Mudança de estado do app:', { previous: previousAppState, next: nextAppState });
       
@@ -111,17 +115,7 @@ export const AuthProvider = ({ children }) => {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    (async () => {
-      await loadStoredAuth();
-      if (cancelled) {
-        return;
-      }
-      const appStartTime = Date.now();
-      await AsyncStorage.setItem('app_last_active', appStartTime.toString()).catch(() => {});
-    })();
-
     return () => {
-      cancelled = true;
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
