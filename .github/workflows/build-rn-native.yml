@@ -90,6 +90,14 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "✅ local.properties criado!"
           
+      - name: Instalar sharp e atualizar ícone do launcher (se API retornar imagem)
+        working-directory: ./mobile
+        run: |
+          npm install sharp@0.33.5 --no-save --legacy-peer-deps
+          node scripts/update-app-icon.js || echo "⚠️ Launcher: mantendo mipmaps do repositório"
+        env:
+          API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
+
       - name: 🖼️ Atualizar Assets do App (Logo e Ícone)
         working-directory: ./mobile
         run: |

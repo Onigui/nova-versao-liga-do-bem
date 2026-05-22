@@ -161,11 +161,6 @@ async function writeIconsFromSource(sourcePath) {
 }
 
 async function updateAppIcon() {
-  // Desativado: sobrescrever mipmaps no CI gerava APK com ícone inválido e piorava instabilidade.
-  // Ícones do launcher vêm de mobile/android/app/src/main/res/mipmap-* versionados no git.
-  console.log('ℹ️ update-app-icon: ignorado (use mipmaps do repositório)');
-  return;
-
   try {
     const iconImage = await fetchAppIcon();
 

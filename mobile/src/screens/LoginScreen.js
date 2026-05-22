@@ -45,32 +45,14 @@ export default function LoginScreen({navigation}) {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometryType, setBiometryType] = useState('Biometria');
   
-  // Tentar carregar assets locais
+  // Assets locais versionados no repositório (evita require undefined no release)
   useEffect(() => {
-    try {
-      const localLogo = require('../assets/images/login-logo.png');
-      setLocalAssets(prev => ({ ...prev, logo: localLogo }));
-      logInfo('✅ Logo local de login encontrado');
-    } catch (error) {
-      logDebug('ℹ️ Logo local de login não encontrado');
-    }
-    
-    try {
-      const localIcon = require('../assets/images/app-icon.png');
-      setLocalAssets(prev => ({ ...prev, icon: localIcon }));
-      logInfo('✅ Ícone local encontrado');
-    } catch (error) {
-      logDebug('ℹ️ Ícone local não encontrado');
-    }
-    
-    // Tentar carregar configuração do ícone emoji
-    try {
-      const iconConfig = require('../assets/images/icon-config.json');
-      setLocalAssets(prev => ({ ...prev, iconEmoji: iconConfig.icon || '🐾' }));
-      logInfo('✅ Configuração do ícone local encontrada');
-    } catch (error) {
-      logDebug('ℹ️ Configuração do ícone local não encontrada');
-    }
+    const iconConfig = require('../assets/images/icon-config.json');
+    setLocalAssets({
+      logo: require('../assets/images/login-logo.png'),
+      icon: require('../assets/images/app-icon.png'),
+      iconEmoji: iconConfig?.icon || '🐾',
+    });
   }, []);
 
   // Carregar configurações do app da API

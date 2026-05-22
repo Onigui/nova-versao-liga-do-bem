@@ -2,17 +2,14 @@ import React from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-// Importação segura do logger
-let logError = null;
-try {
-  const logger = require('../services/RemoteLogger');
-  logError = logger.logError;
-} catch (e) {
-  // Se o logger não estiver disponível, usar console.error
-  logError = (message, data) => {
-    console.error(message, data);
-  };
-}
+import {logError as remoteLogError} from '../services/RemoteLogger';
+
+const logError =
+  typeof remoteLogError === 'function'
+    ? remoteLogError
+    : (message, data) => {
+        console.error(message, data);
+      };
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

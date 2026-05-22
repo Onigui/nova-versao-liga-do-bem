@@ -31,19 +31,10 @@ export default function HomeScreen({navigation}) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  
-  // Tentar carregar asset local do logo ANTES de definir o estado
-  let logoLocalAsset = null;
-  try {
-    logoLocalAsset = require('../assets/images/app-logo.png');
-    logInfo('✅ Logo local encontrado');
-  } catch (error) {
-    logDebug('ℹ️ Logo local não encontrado, usando API');
-  }
-  
+
   const [appConfig, setAppConfig] = useState({
     logoUrl: null,
-    logoLocal: logoLocalAsset, // Definir logo local no estado inicial
+    logoLocal: require('../assets/images/app-logo.png'),
     appName: APP_CONFIG.appName,
     appSubtitle: APP_CONFIG.appSubtitle,
   });

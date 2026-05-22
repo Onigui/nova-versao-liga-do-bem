@@ -27,24 +27,10 @@ export default function MembershipCardScreen() {
   const [localIcon, setLocalIcon] = useState(null);
   const [localIconEmoji, setLocalIconEmoji] = useState('🐾');
   
-  // Tentar carregar asset local do ícone
   useEffect(() => {
-    try {
-      const localIconAsset = require('../assets/images/app-icon.png');
-      setLocalIcon(localIconAsset);
-      logInfo('✅ Ícone local do cartão encontrado');
-    } catch (error) {
-      logDebug('ℹ️ Ícone local do cartão não encontrado');
-    }
-    
-    // Tentar carregar configuração do ícone emoji
-    try {
-      const iconConfig = require('../assets/images/icon-config.json');
-      setLocalIconEmoji(iconConfig.icon || '🐾');
-      logInfo('✅ Configuração do ícone local do cartão encontrada');
-    } catch (error) {
-      logDebug('ℹ️ Configuração do ícone local do cartão não encontrada');
-    }
+    const iconConfig = require('../assets/images/icon-config.json');
+    setLocalIcon(require('../assets/images/app-icon.png'));
+    setLocalIconEmoji(iconConfig?.icon || '🐾');
   }, []);
 
   useEffect(() => {

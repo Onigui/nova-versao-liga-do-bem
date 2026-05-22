@@ -41,6 +41,21 @@ jobs:
         run: |
           npm ci --legacy-peer-deps
 
+      - name: Atualizar assets in-app (logo/ícone login) via API
+        working-directory: ./mobile
+        run: |
+          node scripts/update-app-assets.js || echo "⚠️ Assets: usando arquivos versionados em src/assets/images"
+        env:
+          API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
+
+      - name: Instalar sharp e atualizar ícone do launcher (se API retornar imagem)
+        working-directory: ./mobile
+        run: |
+          npm install sharp@0.33.5 --no-save --legacy-peer-deps
+          node scripts/update-app-icon.js || echo "⚠️ Launcher: mantendo mipmaps do repositório"
+        env:
+          API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
