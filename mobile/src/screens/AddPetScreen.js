@@ -9,14 +9,108 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Platform,
+  Modal,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {launchImageLibrary} from 'react-native-image-picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import {Calendar} from 'react-native-calendars';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const formatDateToPT = (date) => {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return '';
+  }
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const parseDateFromPT = (dateString) => {
+  if (!dateString || !dateString.trim()) {
+    return null;
+  }
+
+  const cleaned = dateString.trim().replace(/[^\d]/g, '');
+
+  if (cleaned.length === 8) {
+    const day = parseInt(cleaned.substring(0, 2), 10);
+    const month = parseInt(cleaned.substring(2, 4), 10) - 1;
+    const year = parseInt(cleaned.substring(4, 8), 10);
+    const date = new Date(year, month, day);
+
+    if (
+      date.getDate() === day &&
+      date.getMonth() === month &&
+      date.getFullYear() === year &&
+      date.getTime() > 0
+    ) {
+      return date;
+    }
+  }
+
+  try {
+    const parsed = new Date(dateString);
+    if (!isNaN(parsed.getTime()) && parsed.getTime() > 0) {
+      return parsed;
+    }
+  } catch (e) {
+    // ignorar
+  }
+
+  return null;
+};
+
+const formatDateForCalendar = (date) => {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return '';
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateFromCalendar = (dateString) => {
+  if (!dateString) return null;
+  try {
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+  } catch (e) {
+    // ignorar
+  }
+  return null;
+};
+
+const calendarTheme = {
+  calendarBackground: '#FFFFFF',
+  textSectionTitleColor: '#8B5CF6',
+  selectedDayBackgroundColor: '#8B5CF6',
+  selectedDayTextColor: '#FFFFFF',
+  todayTextColor: '#8B5CF6',
+  dayTextColor: '#111827',
+  textDisabledColor: '#D1D5DB',
+  dotColor: '#8B5CF6',
+  selectedDotColor: '#FFFFFF',
+  arrowColor: '#8B5CF6',
+  monthTextColor: '#111827',
+  textDayFontWeight: '500',
+  textMonthFontWeight: 'bold',
+  textDayHeaderFontWeight: '600',
+  textDayFontSize: 16,
+  textMonthFontSize: 18,
+  textDayHeaderFontSize: 14,
+};
 
 export default function AddPetScreen({navigation, route}) {
   const {pet, onSave} = route.params || {};
@@ -32,7 +126,8 @@ export default function AddPetScreen({navigation, route}) {
   const [species, setSpecies] = useState(pet?.species || '');
   const [breed, setBreed] = useState(pet?.breed || '');
   const [birthDate, setBirthDate] = useState(parsedInitialBirthDate);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showBirthDateModal, setShowBirthDateModal] = useState(false);
+  const [birthDateInput, setBirthDateInput] = useState('');
   const [gender, setGender] = useState(pet?.gender || '');
   const [color, setColor] = useState(pet?.color || '');
   const [weight, setWeight] = useState(pet?.weight ? String(pet.weight) : '');
@@ -40,6 +135,44 @@ export default function AddPetScreen({navigation, route}) {
   const [notes, setNotes] = useState(pet?.notes || '');
   const [photo, setPhoto] = useState(pet?.photo || null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (showBirthDateModal) {
+      setBirthDateInput(birthDate ? formatDateToPT(birthDate) : '');
+    }
+  }, [showBirthDateModal, birthDate]);
+
+  const handleBirthDateSelect = (day) => {
+    if (day?.dateString) {
+      const selectedDate = parseDateFromCalendar(day.dateString);
+      if (selectedDate) {
+        setBirthDate(selectedDate);
+        setShowBirthDateModal(false);
+      }
+    }
+  };
+
+  const handleBirthDateConfirm = () => {
+    if (!birthDateInput.trim()) {
+      setBirthDate(null);
+      setShowBirthDateModal(false);
+      return;
+    }
+
+    const parsed = parseDateFromPT(birthDateInput);
+    if (parsed) {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (parsed > today) {
+        Alert.alert('Data inválida', 'A data de nascimento não pode ser no futuro');
+        return;
+      }
+      setBirthDate(parsed);
+      setShowBirthDateModal(false);
+    } else {
+      Alert.alert('Data inválida', 'Por favor, insira uma data válida no formato DD/MM/AAAA');
+    }
+  };
 
   const handleImagePicker = () => {
     launchImageLibrary(
@@ -108,7 +241,7 @@ export default function AddPetScreen({navigation, route}) {
         name: name.trim(),
         species: species.trim(),
         breed: breed.trim() || null,
-        birthDate: birthDate ? birthDate.toISOString().split('T')[0] : null,
+        birthDate: birthDate ? formatDateForCalendar(birthDate) : null,
         gender: gender.trim() || null,
         color: color.trim() || null,
         weight: weight ? parseFloat(weight) : null,
@@ -219,10 +352,10 @@ export default function AddPetScreen({navigation, route}) {
             <Text style={styles.label}>Data de Nascimento</Text>
             <TouchableOpacity
               style={styles.input}
-              onPress={() => setShowDatePicker(true)}>
+              onPress={() => setShowBirthDateModal(true)}>
               <Text style={birthDate ? styles.inputText : styles.inputPlaceholder}>
                 {birthDate
-                  ? birthDate.toLocaleDateString('pt-BR')
+                  ? formatDateToPT(birthDate)
                   : 'Toque para selecionar a data'}
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
@@ -327,32 +460,72 @@ export default function AddPetScreen({navigation, route}) {
         </TouchableOpacity>
       </ScrollView>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={
-            birthDate && !isNaN(birthDate.getTime()) ? birthDate : new Date()
-          }
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
-            // No Android, o DateTimePicker tende a fechar sozinho quando muda,
-            // mas vamos garantir que o estado acompanha para evitar inconsistências.
-            if (Platform.OS === 'android') {
-              setShowDatePicker(false);
-            }
+      <Modal
+        visible={showBirthDateModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBirthDateModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Data de Nascimento</Text>
+            <Text style={styles.modalSubtitle}>Selecione a data no calendário</Text>
 
-            if (event?.type === 'dismissed' && Platform.OS === 'ios') {
-              setShowDatePicker(false);
-              return;
-            }
+            <Calendar
+              onDayPress={handleBirthDateSelect}
+              markedDates={
+                birthDate
+                  ? {
+                      [formatDateForCalendar(birthDate)]: {
+                        selected: true,
+                        selectedColor: '#8B5CF6',
+                        selectedTextColor: '#FFFFFF',
+                      },
+                    }
+                  : {}
+              }
+              current={
+                birthDate
+                  ? formatDateForCalendar(birthDate)
+                  : formatDateForCalendar(new Date())
+              }
+              minDate={formatDateForCalendar(new Date(1900, 0, 1))}
+              maxDate={formatDateForCalendar(new Date())}
+              monthFormat="MMMM yyyy"
+              hideArrows={false}
+              firstDay={1}
+              enableSwipeMonths
+              theme={calendarTheme}
+              style={styles.calendar}
+            />
 
-            if (selectedDate && !isNaN(selectedDate.getTime())) {
-              setBirthDate(selectedDate);
-            }
-          }}
-          maximumDate={new Date()}
-        />
-      )}
+            <View style={styles.modalInputContainer}>
+              <Text style={styles.modalInputLabel}>Ou digite manualmente:</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={birthDateInput}
+                onChangeText={setBirthDateInput}
+                placeholder="DD/MM/AAAA"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowBirthDateModal(false)}>
+                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleBirthDateConfirm}>
+                <Text style={styles.modalButtonConfirmText}>Usar Data Digitada</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -507,6 +680,81 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  calendar: {
+    borderRadius: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  modalInputContainer: {
+    marginBottom: 20,
+  },
+  modalInputLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  modalButton: {
+    flex: 1,
+    minWidth: 100,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F3F4F6',
+  },
+  modalButtonCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalButtonConfirm: {
+    backgroundColor: '#8B5CF6',
+  },
+  modalButtonConfirmText: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
   },
