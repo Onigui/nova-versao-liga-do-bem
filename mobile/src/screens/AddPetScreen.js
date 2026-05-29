@@ -275,7 +275,8 @@ export default function AddPetScreen({navigation, route}) {
         Alert.alert('Erro', error.error || 'Não foi possível salvar o pet');
       }
     } catch (error) {
-      Alert.alert('Erro', 'Erro ao salvar pet');
+      console.error('Erro ao salvar pet:', error);
+      Alert.alert('Erro', 'Erro ao salvar pet. Verifique sua conexão e tente novamente.');
     } finally {
       setSaving(false);
     }

@@ -2276,7 +2276,13 @@ export default async function handler(req: any, res: any) {
         return res.status(201).json({ pet });
       } catch (error: any) {
         console.error('❌ Error creating pet:', error);
-        return res.status(500).json({ error: 'Error creating pet' });
+        if (error.code === 'P2003') {
+          return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.' });
+        }
+        if (error.message?.includes('does not exist') || error.code === 'P2021') {
+          return res.status(503).json({ error: 'Tabela de pets não configurada no banco. Contate o suporte.' });
+        }
+        return res.status(500).json({ error: 'Erro ao criar pet. Tente novamente.' });
       }
     }
 
