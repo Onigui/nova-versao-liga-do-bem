@@ -170,6 +170,142 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    // GET transparency summary (public)
+    if (path === '/api/transparency/summary' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const period = (req.query?.period || 'month').toString();
+        const now = new Date();
+        let start = new Date(now.getFullYear(), now.getMonth(), 1);
+        if (period === 'quarter') {
+          const q = Math.floor(now.getMonth() / 3) * 3;
+          start = new Date(now.getFullYear(), q, 1);
+        } else if (period === 'year') {
+          start = new Date(now.getFullYear(), 0, 1);
+        }
+
+        const donationsAgg: any[] = await db.$queryRawUnsafe(
+          `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*)::int AS count
+           FROM donations
+           WHERE status = 'APPROVED' AND "createdAt" >= $1`,
+          start
+        );
+
+        const membershipsAgg: any[] = await db.$queryRawUnsafe(
+          `SELECT COALESCE(SUM("monthlyFee"), 0) AS total, COUNT(*)::int AS count
+           FROM memberships
+           WHERE status = 'ACTIVE'`
+        );
+
+        const expenseRows: any[] = await db.$queryRawUnsafe(
+          `SELECT e.category, COALESCE(SUM(e.amount), 0) AS total
+           FROM financial_expenses e
+           INNER JOIN financial_reports r ON r.id = e."reportId"
+           WHERE r."isPublished" = true
+             AND r.year = $1
+             AND (r.month IS NULL OR r.month >= $2)
+           GROUP BY e.category
+           ORDER BY total DESC`,
+          now.getFullYear(),
+          period === 'year' ? 1 : period === 'quarter' ? Math.floor(now.getMonth() / 3) * 3 + 1 : now.getMonth() + 1
+        );
+
+        const categoryLabels: Record<string, { name: string; color: string }> = {
+          FOOD: { name: 'Alimentação', color: '#10B981' },
+          VETERINARY: { name: 'Veterinário', color: '#3B82F6' },
+          INFRASTRUCTURE: { name: 'Abrigo', color: '#F59E0B' },
+          MEDICATIONS: { name: 'Medicamentos', color: '#8B5CF6' },
+          EVENTS: { name: 'Eventos', color: '#EC4899' },
+          ADMINISTRATIVE: { name: 'Administrativo', color: '#6B7280' },
+          TRANSPORT: { name: 'Transporte', color: '#14B8A6' },
+          OTHER: { name: 'Outros', color: '#EC4899' },
+        };
+
+        const expensesTotal = (expenseRows || []).reduce(
+          (sum, row) => sum + parseFloat(row.total?.toString?.() || '0'),
+          0
+        );
+
+        const categories = (expenseRows || []).map((row) => {
+          const value = parseFloat(row.total?.toString?.() || '0');
+          const meta = categoryLabels[row.category] || {
+            name: row.category,
+            color: '#6B7280',
+          };
+          return {
+            name: meta.name,
+            value,
+            percentage: expensesTotal > 0 ? (value / expensesTotal) * 100 : 0,
+            color: meta.color,
+          };
+        });
+
+        const donationsTotal = parseFloat(donationsAgg?.[0]?.total?.toString?.() || '0');
+        const membershipsTotal = parseFloat(membershipsAgg?.[0]?.total?.toString?.() || '0');
+        // Receita do período: doações no período + mensalidades ativas (referência)
+        const income = donationsTotal + (period === 'month' ? membershipsTotal : membershipsTotal);
+        const expenses = expensesTotal;
+        const balance = income - expenses;
+
+        const recentDonations: any[] = await db.$queryRawUnsafe(
+          `SELECT d.amount, d."createdAt", d."isAnonymous", d."donorName", u.name AS user_name
+           FROM donations d
+           LEFT JOIN users u ON u.id = d."userId"
+           WHERE d.status = 'APPROVED'
+           ORDER BY d."createdAt" DESC
+           LIMIT 8`
+        );
+
+        const recentExpenses: any[] = await db.$queryRawUnsafe(
+          `SELECT e.description, e.amount, e."createdAt", e.category
+           FROM financial_expenses e
+           INNER JOIN financial_reports r ON r.id = e."reportId"
+           WHERE r."isPublished" = true
+           ORDER BY e."createdAt" DESC
+           LIMIT 8`
+        );
+
+        const transactions = [
+          ...(recentDonations || []).map((d) => ({
+            type: 'income',
+            title: d.isAnonymous
+              ? 'Doação anônima'
+              : `Doação - ${d.donorName || d.user_name || 'Membro'}`,
+            amount: parseFloat(d.amount?.toString?.() || '0'),
+            date: d.createdAt,
+          })),
+          ...(recentExpenses || []).map((e) => ({
+            type: 'expense',
+            title: e.description || e.category,
+            amount: parseFloat(e.amount?.toString?.() || '0'),
+            date: e.createdAt,
+          })),
+        ]
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 10);
+
+        return res.status(200).json({
+          period,
+          income,
+          expenses,
+          balance,
+          donations: donationsTotal,
+          memberships: membershipsTotal,
+          categories,
+          transactions,
+        });
+      } catch (error: any) {
+        console.error('❌ Erro transparency summary:', error);
+        return res.status(500).json({
+          error: 'Erro ao carregar transparência',
+          detail: error?.message || String(error),
+        });
+      }
+    }
+
     // Ping
     if (path === '/api/ping' || path === '/ping') {
       return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString(), hasDb: !!process.env.DATABASE_URL });

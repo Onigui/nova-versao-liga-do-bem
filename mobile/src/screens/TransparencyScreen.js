@@ -1,63 +1,83 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
-const {width} = Dimensions.get('window');
+import {API_BASE_PATH} from '../config/apiConfig';
 
 export default function TransparencyScreen() {
-  const [period, setPeriod] = useState('month'); // 'month', 'quarter', 'year'
+  const [period, setPeriod] = useState('month');
   const [financialData, setFinancialData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadFinancialData();
-  }, [period]);
-
-  const loadFinancialData = async () => {
+  const loadFinancialData = useCallback(async () => {
     try {
-      // Dados mockados
+      setError(null);
+      const response = await fetch(
+        `${API_BASE_PATH}/transparency/summary?period=${period}`,
+        {
+          method: 'GET',
+          headers: {'Content-Type': 'application/json'},
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data.error || 'Não foi possível carregar os dados');
+        return;
+      }
       setFinancialData({
-        income: 45000,
-        expenses: 38000,
-        balance: 7000,
-        donations: 35000,
-        memberships: 10000,
-        categories: [
-          {
-            name: 'Alimentação',
-            value: 15000,
-            percentage: 39.5,
-            color: '#10B981',
-          },
-          {
-            name: 'Veterinário',
-            value: 12000,
-            percentage: 31.6,
-            color: '#3B82F6',
-          },
-          {name: 'Abrigo', value: 8000, percentage: 21.1, color: '#F59E0B'},
-          {name: 'Outros', value: 3000, percentage: 7.9, color: '#EC4899'},
-        ],
+        income: Number(data.income) || 0,
+        expenses: Number(data.expenses) || 0,
+        balance: Number(data.balance) || 0,
+        donations: Number(data.donations) || 0,
+        memberships: Number(data.memberships) || 0,
+        categories: data.categories || [],
+        transactions: data.transactions || [],
       });
-    } catch (error) {
-      console.error('Erro ao carregar dados financeiros:', error);
+    } catch (err) {
+      console.error('Erro ao carregar dados financeiros:', err);
+      setError('Falha de conexão ao carregar transparência');
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadFinancialData();
+  }, [loadFinancialData]);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadFinancialData();
+  };
+
+  const formatMoney = value =>
+    Number(value || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const formatTxDate = dateValue => {
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const periods = [
@@ -73,7 +93,6 @@ export default function TransparencyScreen() {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
-      {/* Header */}
       <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <Ionicons name="pie-chart" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Transparência Financeira</Text>
@@ -82,7 +101,6 @@ export default function TransparencyScreen() {
         </Text>
       </LinearGradient>
 
-      {/* Period Selector */}
       <View style={styles.periodSelector}>
         {periods.map(p => (
           <TouchableOpacity
@@ -103,167 +121,172 @@ export default function TransparencyScreen() {
         ))}
       </View>
 
-      {/* Summary Cards */}
-      <View style={styles.summaryContainer}>
-        <View style={[styles.summaryCard, {backgroundColor: '#D1FAE5'}]}>
-          <Ionicons name="trending-up" size={24} color="#10B981" />
-          <Text style={styles.summaryValue}>
-            R$ {financialData?.income.toLocaleString('pt-BR')}
-          </Text>
-          <Text style={styles.summaryLabel}>Receitas</Text>
+      {loading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#8B5CF6" />
+          <Text style={styles.loadingText}>Carregando dados...</Text>
         </View>
-
-        <View style={[styles.summaryCard, {backgroundColor: '#FEE2E2'}]}>
-          <Ionicons name="trending-down" size={24} color="#EF4444" />
-          <Text style={styles.summaryValue}>
-            R$ {financialData?.expenses.toLocaleString('pt-BR')}
-          </Text>
-          <Text style={styles.summaryLabel}>Despesas</Text>
+      ) : error ? (
+        <View style={styles.loadingBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadFinancialData}>
+            <Text style={styles.retryButtonText}>Tentar novamente</Text>
+          </TouchableOpacity>
         </View>
-
-        <View style={[styles.summaryCard, {backgroundColor: '#DBEAFE'}]}>
-          <Ionicons name="wallet" size={24} color="#3B82F6" />
-          <Text style={styles.summaryValue}>
-            R$ {financialData?.balance.toLocaleString('pt-BR')}
-          </Text>
-          <Text style={styles.summaryLabel}>Saldo</Text>
-        </View>
-      </View>
-
-      {/* Income Sources */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Origem das Receitas</Text>
-
-        <View style={styles.incomeCard}>
-          <View style={styles.incomeRow}>
-            <View style={styles.incomeLeft}>
-              <View style={[styles.incomeIcon, {backgroundColor: '#FEF3C7'}]}>
-                <Ionicons name="heart" size={20} color="#F59E0B" />
-              </View>
-              <Text style={styles.incomeLabel}>Doações</Text>
+      ) : (
+        <>
+          <View style={styles.summaryContainer}>
+            <View style={[styles.summaryCard, {backgroundColor: '#D1FAE5'}]}>
+              <Ionicons name="trending-up" size={24} color="#10B981" />
+              <Text style={styles.summaryValue}>
+                R$ {formatMoney(financialData?.income)}
+              </Text>
+              <Text style={styles.summaryLabel}>Receitas</Text>
             </View>
-            <Text style={styles.incomeValue}>
-              R$ {financialData?.donations.toLocaleString('pt-BR')}
-            </Text>
+
+            <View style={[styles.summaryCard, {backgroundColor: '#FEE2E2'}]}>
+              <Ionicons name="trending-down" size={24} color="#EF4444" />
+              <Text style={styles.summaryValue}>
+                R$ {formatMoney(financialData?.expenses)}
+              </Text>
+              <Text style={styles.summaryLabel}>Despesas</Text>
+            </View>
+
+            <View style={[styles.summaryCard, {backgroundColor: '#DBEAFE'}]}>
+              <Ionicons name="wallet" size={24} color="#3B82F6" />
+              <Text style={styles.summaryValue}>
+                R$ {formatMoney(financialData?.balance)}
+              </Text>
+              <Text style={styles.summaryLabel}>Saldo</Text>
+            </View>
           </View>
 
-          <View style={styles.incomeRow}>
-            <View style={styles.incomeLeft}>
-              <View style={[styles.incomeIcon, {backgroundColor: '#DBEAFE'}]}>
-                <Ionicons name="card" size={20} color="#3B82F6" />
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Origem das Receitas</Text>
+            <View style={styles.incomeCard}>
+              <View style={styles.incomeRow}>
+                <View style={styles.incomeLeft}>
+                  <View style={[styles.incomeIcon, {backgroundColor: '#FEF3C7'}]}>
+                    <Ionicons name="heart" size={20} color="#F59E0B" />
+                  </View>
+                  <Text style={styles.incomeLabel}>Doações</Text>
+                </View>
+                <Text style={styles.incomeValue}>
+                  R$ {formatMoney(financialData?.donations)}
+                </Text>
               </View>
-              <Text style={styles.incomeLabel}>Mensalidades</Text>
+
+              <View style={styles.incomeRow}>
+                <View style={styles.incomeLeft}>
+                  <View style={[styles.incomeIcon, {backgroundColor: '#DBEAFE'}]}>
+                    <Ionicons name="card" size={20} color="#3B82F6" />
+                  </View>
+                  <Text style={styles.incomeLabel}>Mensalidades</Text>
+                </View>
+                <Text style={styles.incomeValue}>
+                  R$ {formatMoney(financialData?.memberships)}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.incomeValue}>
-              R$ {financialData?.memberships.toLocaleString('pt-BR')}
-            </Text>
           </View>
-        </View>
-      </View>
 
-      {/* Expenses Breakdown */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Distribuição das Despesas</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Distribuição das Despesas</Text>
+            {(financialData?.categories || []).length === 0 ? (
+              <Text style={styles.emptyHint}>
+                Nenhuma despesa publicada para este período.
+              </Text>
+            ) : (
+              financialData.categories.map((category, index) => (
+                <View key={`${category.name}-${index}`} style={styles.categoryCard}>
+                  <View style={styles.categoryHeader}>
+                    <Text style={styles.categoryName}>{category.name}</Text>
+                    <Text style={styles.categoryValue}>
+                      R$ {formatMoney(category.value)}
+                    </Text>
+                  </View>
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressBar}>
+                      <LinearGradient
+                        colors={[category.color, category.color]}
+                        style={[
+                          styles.progressFill,
+                          {width: `${Math.min(category.percentage || 0, 100)}%`},
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.progressPercentage}>
+                      {(category.percentage || 0).toFixed(1)}%
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
 
-        {financialData?.categories.map((category, index) => (
-          <View key={index} style={styles.categoryCard}>
-            <View style={styles.categoryHeader}>
-              <Text style={styles.categoryName}>{category.name}</Text>
-              <Text style={styles.categoryValue}>
-                R$ {category.value.toLocaleString('pt-BR')}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Transações Recentes</Text>
+            {(financialData?.transactions || []).length === 0 ? (
+              <Text style={styles.emptyHint}>
+                Ainda não há transações registradas.
+              </Text>
+            ) : (
+              financialData.transactions.map((tx, index) => {
+                const isIncome = tx.type === 'income';
+                return (
+                  <View key={`${tx.title}-${index}`} style={styles.transactionCard}>
+                    <View style={styles.transactionLeft}>
+                      <View
+                        style={[
+                          styles.transactionIcon,
+                          {backgroundColor: isIncome ? '#D1FAE5' : '#FEE2E2'},
+                        ]}>
+                        <Ionicons
+                          name={isIncome ? 'add' : 'remove'}
+                          size={20}
+                          color={isIncome ? '#10B981' : '#EF4444'}
+                        />
+                      </View>
+                      <View style={styles.transactionInfo}>
+                        <Text style={styles.transactionTitle}>{tx.title}</Text>
+                        <Text style={styles.transactionDate}>
+                          {formatTxDate(tx.date)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={
+                        isIncome
+                          ? styles.transactionValuePositive
+                          : styles.transactionValueNegative
+                      }>
+                      {isIncome ? '+' : '-'}R$ {formatMoney(tx.amount)}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
+          </View>
+
+          <View style={styles.infoBanner}>
+            <Ionicons name="shield-checkmark" size={24} color="#8B5CF6" />
+            <View style={styles.infoBannerText}>
+              <Text style={styles.infoBannerTitle}>Transparência Total</Text>
+              <Text style={styles.infoBannerSubtitle}>
+                Valores baseados em doações aprovadas, mensalidades ativas e
+                relatórios financeiros publicados no admin.
               </Text>
             </View>
-
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <LinearGradient
-                  colors={[category.color, category.color]}
-                  style={[
-                    styles.progressFill,
-                    {width: `${category.percentage}%`},
-                  ]}
-                />
-              </View>
-              <Text style={styles.progressPercentage}>
-                {category.percentage.toFixed(1)}%
-              </Text>
-            </View>
           </View>
-        ))}
-      </View>
-
-      {/* Recent Transactions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Transações Recentes</Text>
-
-        <View style={styles.transactionCard}>
-          <View style={styles.transactionLeft}>
-            <View
-              style={[styles.transactionIcon, {backgroundColor: '#D1FAE5'}]}>
-              <Ionicons name="add" size={20} color="#10B981" />
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={styles.transactionTitle}>Doação - João Silva</Text>
-              <Text style={styles.transactionDate}>Hoje, 14:30</Text>
-            </View>
-          </View>
-          <Text style={styles.transactionValuePositive}>+R$ 100,00</Text>
-        </View>
-
-        <View style={styles.transactionCard}>
-          <View style={styles.transactionLeft}>
-            <View
-              style={[styles.transactionIcon, {backgroundColor: '#FEE2E2'}]}>
-              <Ionicons name="remove" size={20} color="#EF4444" />
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={styles.transactionTitle}>Ração Premium - 20kg</Text>
-              <Text style={styles.transactionDate}>Ontem, 10:15</Text>
-            </View>
-          </View>
-          <Text style={styles.transactionValueNegative}>-R$ 250,00</Text>
-        </View>
-
-        <View style={styles.transactionCard}>
-          <View style={styles.transactionLeft}>
-            <View
-              style={[styles.transactionIcon, {backgroundColor: '#D1FAE5'}]}>
-              <Ionicons name="add" size={20} color="#10B981" />
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={styles.transactionTitle}>
-                Mensalidade - Maria Santos
-              </Text>
-              <Text style={styles.transactionDate}>02/10/2025</Text>
-            </View>
-          </View>
-          <Text style={styles.transactionValuePositive}>+R$ 50,00</Text>
-        </View>
-      </View>
-
-      {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <Ionicons name="shield-checkmark" size={24} color="#8B5CF6" />
-        <View style={styles.infoBannerText}>
-          <Text style={styles.infoBannerTitle}>Transparência Total</Text>
-          <Text style={styles.infoBannerSubtitle}>
-            Todos os valores são auditados mensalmente por contador independente
-          </Text>
-        </View>
-      </View>
+        </>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    padding: 40,
-    alignItems: 'center',
-  },
+  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  header: {padding: 40, alignItems: 'center'},
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
@@ -271,10 +294,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
+  headerSubtitle: {fontSize: 14, color: 'rgba(255, 255, 255, 0.9)'},
   periodSelector: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -282,10 +302,6 @@ const styles = StyleSheet.create({
     marginTop: -30,
     padding: 4,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
     elevation: 5,
   },
   periodButton: {
@@ -294,17 +310,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  periodButtonActive: {
+  periodButtonActive: {backgroundColor: '#8B5CF6'},
+  periodText: {fontSize: 14, fontWeight: '600', color: '#6B7280'},
+  periodTextActive: {color: '#FFFFFF'},
+  loadingBox: {padding: 40, alignItems: 'center'},
+  loadingText: {marginTop: 12, color: '#6B7280'},
+  errorText: {color: '#EF4444', textAlign: 'center', marginBottom: 12},
+  retryButton: {
     backgroundColor: '#8B5CF6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
-  periodText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  periodTextActive: {
-    color: '#FFFFFF',
-  },
+  retryButtonText: {color: '#FFFFFF', fontWeight: '600'},
+  emptyHint: {color: '#6B7280', fontSize: 14, marginBottom: 8},
   summaryContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -318,185 +337,110 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#1F2937',
     marginTop: 8,
     marginBottom: 4,
   },
-  summaryLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
+  summaryLabel: {fontSize: 11, color: '#6B7280'},
+  section: {paddingHorizontal: 20, marginBottom: 24},
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 16,
   },
-  incomeCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
+  incomeCard: {backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16},
   incomeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    marginBottom: 12,
   },
-  incomeLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  incomeLeft: {flexDirection: 'row', alignItems: 'center'},
   incomeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
   },
-  incomeLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  incomeValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#10B981',
-  },
+  incomeLabel: {fontSize: 15, color: '#374151', fontWeight: '500'},
+  incomeValue: {fontSize: 15, fontWeight: '700', color: '#1F2937'},
   categoryCard: {
     backgroundColor: '#FFFFFF',
-    padding: 16,
     borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
   },
   categoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  categoryName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  categoryValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  categoryName: {fontSize: 15, fontWeight: '600', color: '#1F2937'},
+  categoryValue: {fontSize: 14, fontWeight: '600', color: '#6B7280'},
+  progressContainer: {flexDirection: 'row', alignItems: 'center'},
   progressBar: {
     flex: 1,
     height: 8,
     backgroundColor: '#E5E7EB',
     borderRadius: 4,
     overflow: 'hidden',
+    marginRight: 10,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
+  progressFill: {height: '100%', borderRadius: 4},
   progressPercentage: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
     color: '#6B7280',
-    width: 50,
+    width: 48,
     textAlign: 'right',
   },
   transactionCard: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    padding: 14,
+    marginBottom: 10,
   },
   transactionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    marginRight: 8,
   },
   transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  transactionInfo: {
-    flex: 1,
-  },
-  transactionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  transactionDate: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  transactionValuePositive: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  transactionValueNegative: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#EF4444',
-  },
+  transactionInfo: {flex: 1},
+  transactionTitle: {fontSize: 14, fontWeight: '600', color: '#1F2937'},
+  transactionDate: {fontSize: 12, color: '#9CA3AF', marginTop: 2},
+  transactionValuePositive: {fontSize: 14, fontWeight: '700', color: '#10B981'},
+  transactionValueNegative: {fontSize: 14, fontWeight: '700', color: '#EF4444'},
   infoBanner: {
     flexDirection: 'row',
     backgroundColor: '#F5F3FF',
-    margin: 20,
+    marginHorizontal: 20,
+    marginBottom: 40,
     padding: 16,
     borderRadius: 12,
     gap: 12,
-    marginBottom: 40,
   },
-  infoBannerText: {
-    flex: 1,
-  },
+  infoBannerText: {flex: 1},
   infoBannerTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1F2937',
     marginBottom: 4,
   },
-  infoBannerSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-  },
+  infoBannerSubtitle: {fontSize: 13, color: '#6B7280', lineHeight: 18},
 });
