@@ -1120,10 +1120,16 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
         }
 
-        const rows: any[] = await db.$queryRawUnsafe(
+        const rows: Array<{
+          id: string;
+          email: string;
+          code: string;
+          expiresAt: Date;
+          usedAt: Date | null;
+        }> = await db.$queryRawUnsafe(
           `SELECT id, email, code, "expiresAt", "usedAt"
            FROM password_reset_tokens
-           WHERE email = $1 AND code = $2 AND "usedAt" IS NULL
+           WHERE lower(email) = lower($1) AND code = $2 AND "usedAt" IS NULL
            ORDER BY "createdAt" DESC
            LIMIT 1`,
           email,
@@ -1135,23 +1141,26 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ error: 'Código inválido ou já utilizado' });
         }
 
-        if (new Date(token.expiresAt).getTime() < Date.now()) {
+        const expiresAt = new Date(token.expiresAt).getTime();
+        if (Number.isNaN(expiresAt) || expiresAt < Date.now()) {
           return res.status(400).json({ error: 'Código expirado. Solicite um novo.' });
         }
 
-        const user = await db.user.findUnique({
-          where: { email },
-          select: { id: true },
-        });
+        const users: Array<{ id: string }> = await db.$queryRawUnsafe(
+          `SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+          email
+        );
+        const user = users?.[0];
         if (!user) {
           return res.status(400).json({ error: 'Usuário não encontrado' });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 12);
-        await db.user.update({
-          where: { id: user.id },
-          data: { password: hashedPassword },
-        });
+        await db.$executeRawUnsafe(
+          `UPDATE users SET password = $1, "updatedAt" = NOW() WHERE id = $2`,
+          hashedPassword,
+          user.id
+        );
 
         await db.$executeRawUnsafe(
           `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE id = $1`,
@@ -1163,7 +1172,10 @@ export default async function handler(req: any, res: any) {
         });
       } catch (error: any) {
         console.error('❌ Reset password error:', error);
-        return res.status(500).json({ error: 'Erro ao redefinir senha' });
+        return res.status(500).json({
+          error: 'Erro ao redefinir senha',
+          detail: error?.message || String(error),
+        });
       }
     }
 
