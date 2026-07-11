@@ -13,16 +13,19 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { API_BASE_PATH } from '../config/apiConfig';
-
-const API_BASE_URL = API_BASE_PATH;
+import {API_BASE_PATH} from '../config/apiConfig';
 
 export default function ForgotPasswordScreen({navigation}) {
+  const [step, setStep] = useState('email'); // email | code | success
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [displayedCode, setDisplayedCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
 
-  const handleResetPassword = async () => {
+  const handleRequestCode = async () => {
     if (!email) {
       Alert.alert('Atenção', 'Digite seu e-mail');
       return;
@@ -36,64 +39,96 @@ export default function ForgotPasswordScreen({navigation}) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      const response = await fetch(`${API_BASE_PATH}/auth/forgot-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({email}),
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: email.trim().toLowerCase()}),
       });
 
-      if (response.ok) {
-        setEmailSent(true);
-      } else {
-        Alert.alert('Erro', 'E-mail não encontrado em nossa base de dados');
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        Alert.alert('Erro', data.error || 'Não foi possível solicitar o código');
+        return;
       }
+
+      if (data.resetCode) {
+        setDisplayedCode(data.resetCode);
+        setCode(data.resetCode);
+      } else {
+        setDisplayedCode('');
+        setCode('');
+      }
+      setStep('code');
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível enviar o e-mail. Tente novamente.');
+      Alert.alert('Erro', 'Não foi possível conectar. Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (emailSent) {
+  const handleResetPassword = async () => {
+    if (!code || code.length < 4) {
+      Alert.alert('Atenção', 'Digite o código de recuperação');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert('Atenção', 'A nova senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Atenção', 'As senhas não coincidem');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_PATH}/auth/reset-password`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code: code.trim(),
+          newPassword,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        Alert.alert('Erro', data.error || 'Não foi possível redefinir a senha');
+        return;
+      }
+
+      setStep('success');
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível conectar. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (step === 'success') {
     return (
       <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Success Icon */}
           <View style={styles.successContainer}>
             <View style={styles.successCircle}>
               <Ionicons name="checkmark-circle" size={80} color="#10B981" />
             </View>
-            <Text style={styles.successTitle}>E-mail Enviado!</Text>
+            <Text style={styles.successTitle}>Senha atualizada!</Text>
             <Text style={styles.successText}>
-              Enviamos um link de recuperação para {'\n'}
-              <Text style={styles.successEmail}>{email}</Text>
-            </Text>
-            <Text style={styles.successSubtext}>
-              Verifique sua caixa de entrada e siga as instruções para redefinir
-              sua senha.
+              Sua senha foi redefinida com sucesso. Faça login com a nova senha.
             </Text>
 
-            {/* Back to Login Button */}
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.navigate('Login')}>
               <LinearGradient
                 colors={['#FFFFFF', '#FFFFFF']}
                 style={styles.backButtonGradient}>
-                <Text style={styles.backButtonText}>Voltar para Login</Text>
+                <Text style={styles.backButtonText}>Ir para Login</Text>
               </LinearGradient>
-            </TouchableOpacity>
-
-            {/* Resend Link */}
-            <TouchableOpacity
-              onPress={() => setEmailSent(false)}
-              style={styles.resendLink}>
-              <Text style={styles.resendLinkText}>
-                Não recebeu?{' '}
-                <Text style={styles.resendLinkBold}>Reenviar e-mail</Text>
-              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -109,10 +144,15 @@ export default function ForgotPasswordScreen({navigation}) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                if (step === 'code') {
+                  setStep('email');
+                } else {
+                  navigation.goBack();
+                }
+              }}
               style={styles.headerBackButton}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
@@ -120,73 +160,180 @@ export default function ForgotPasswordScreen({navigation}) {
             <View style={{width: 40}} />
           </View>
 
-          {/* Icon */}
           <View style={styles.iconContainer}>
             <View style={styles.iconCircle}>
-              <Ionicons name="key-outline" size={40} color="#FFFFFF" />
+              <Ionicons
+                name={step === 'code' ? 'lock-closed-outline' : 'key-outline'}
+                size={40}
+                color="#FFFFFF"
+              />
             </View>
           </View>
 
-          {/* Form Card */}
           <View style={styles.card}>
-            <Text style={styles.title}>Esqueceu sua senha?</Text>
-            <Text style={styles.subtitle}>
-              Não se preocupe! Digite seu e-mail e enviaremos um link para você
-              redefinir sua senha.
-            </Text>
+            {step === 'email' ? (
+              <>
+                <Text style={styles.title}>Esqueceu sua senha?</Text>
+                <Text style={styles.subtitle}>
+                  Digite seu e-mail para receber um código de recuperação.
+                </Text>
 
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Seu e-mail"
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            </View>
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={20}
+                    color="#6B7280"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Seu e-mail"
+                    placeholderTextColor="#9CA3AF"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                  />
+                </View>
 
-            {/* Submit Button */}
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                loading && styles.submitButtonDisabled,
-              ]}
-              onPress={handleResetPassword}
-              disabled={loading}>
-              <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
-                style={styles.submitButtonGradient}
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 0}}>
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="mail"
-                      size={20}
-                      color="#FFFFFF"
-                      style={{marginRight: 8}}
-                    />
-                    <Text style={styles.submitButtonText}>
-                      Enviar Link de Recuperação
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    loading && styles.submitButtonDisabled,
+                  ]}
+                  onPress={handleRequestCode}
+                  disabled={loading}>
+                  <LinearGradient
+                    colors={['#8B5CF6', '#7C3AED']}
+                    style={styles.submitButtonGradient}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 0}}>
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="mail"
+                          size={20}
+                          color="#FFFFFF"
+                          style={{marginRight: 8}}
+                        />
+                        <Text style={styles.submitButtonText}>
+                          Enviar código
+                        </Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.title}>Nova senha</Text>
+                <Text style={styles.subtitle}>
+                  Informe o código e escolha uma nova senha para{'\n'}
+                  <Text style={styles.emailHighlight}>{email}</Text>
+                </Text>
+
+                {displayedCode ? (
+                  <View style={styles.codeBanner}>
+                    <Text style={styles.codeBannerLabel}>Seu código</Text>
+                    <Text style={styles.codeBannerValue}>{displayedCode}</Text>
+                    <Text style={styles.codeBannerHint}>
+                      Válido por 30 minutos. Em breve este código será enviado
+                      por e-mail.
                     </Text>
-                  </>
+                  </View>
+                ) : (
+                  <Text style={styles.subtitleSmall}>
+                    Se o e-mail estiver cadastrado, use o código recebido.
+                  </Text>
                 )}
-              </LinearGradient>
-            </TouchableOpacity>
 
-            {/* Back to Login Link */}
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="keypad-outline"
+                    size={20}
+                    color="#6B7280"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Código de 6 dígitos"
+                    placeholderTextColor="#9CA3AF"
+                    value={code}
+                    onChangeText={setCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#6B7280"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nova senha"
+                    placeholderTextColor="#9CA3AF"
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={20}
+                      color="#6B7280"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#6B7280"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirmar nova senha"
+                    placeholderTextColor="#9CA3AF"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    loading && styles.submitButtonDisabled,
+                  ]}
+                  onPress={handleResetPassword}
+                  disabled={loading}>
+                  <LinearGradient
+                    colors={['#8B5CF6', '#7C3AED']}
+                    style={styles.submitButtonGradient}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 0}}>
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>
+                        Redefinir senha
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+
             <TouchableOpacity
               onPress={() => navigation.navigate('Login')}
               style={styles.loginLink}>
@@ -268,9 +415,44 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#6B7280',
-    marginBottom: 32,
+    marginBottom: 24,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  subtitleSmall: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  emailHighlight: {
+    fontWeight: '700',
+    color: '#8B5CF6',
+  },
+  codeBanner: {
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  codeBannerLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  codeBannerValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#8B5CF6',
+    letterSpacing: 6,
+    marginBottom: 8,
+  },
+  codeBannerHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -278,7 +460,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     paddingHorizontal: 16,
-    marginBottom: 24,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -295,6 +477,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 24,
+    marginTop: 8,
   },
   submitButtonDisabled: {
     opacity: 0.7,
@@ -320,7 +503,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // Success Screen Styles
   successContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -340,27 +522,14 @@ const styles = StyleSheet.create({
   successText: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  successEmail: {
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  successSubtext: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 40,
     textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 24,
+    lineHeight: 24,
   },
   backButton: {
     borderRadius: 12,
     overflow: 'hidden',
     width: '100%',
-    marginBottom: 16,
   },
   backButtonGradient: {
     height: 54,
@@ -370,17 +539,6 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#8B5CF6',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  resendLink: {
-    alignItems: 'center',
-  },
-  resendLinkText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-  },
-  resendLinkBold: {
-    color: '#FFFFFF',
     fontWeight: '600',
   },
 });

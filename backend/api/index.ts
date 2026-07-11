@@ -1035,6 +1035,138 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // Auth - Forgot password (gera código de 6 dígitos)
+    if (path === '/api/auth/forgot-password' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const email = (body?.email || '').toString().trim().toLowerCase();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({ error: 'Informe um e-mail válido' });
+        }
+
+        const user = await db.user.findUnique({
+          where: { email },
+          select: { id: true, email: true, isActive: true },
+        });
+
+        // Resposta genérica para não revelar se o e-mail existe
+        const genericMessage =
+          'Se o e-mail estiver cadastrado, você receberá um código para redefinir a senha.';
+
+        if (!user || !user.isActive) {
+          return res.status(200).json({
+            message: genericMessage,
+            sent: false,
+          });
+        }
+
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const tokenId = require('crypto').randomUUID();
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min
+
+        // Invalida códigos anteriores não usados
+        await db.$executeRawUnsafe(
+          `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE email = $1 AND "usedAt" IS NULL`,
+          email
+        );
+
+        await db.$executeRawUnsafe(
+          `INSERT INTO password_reset_tokens (id, email, code, "expiresAt", "createdAt")
+           VALUES ($1, $2, $3, $4, NOW())`,
+          tokenId,
+          email,
+          code,
+          expiresAt
+        );
+
+        // Sem provedor de e-mail configurado: devolve o código para o app exibir.
+        // Quando houver SMTP/Resend, enviar por e-mail e remover resetCode da resposta.
+        console.log(`🔑 Código de recuperação gerado para ${email}`);
+
+        return res.status(200).json({
+          message: genericMessage,
+          sent: true,
+          expiresInMinutes: 30,
+          resetCode: code,
+          delivery: 'app',
+          hint: 'Digite o código abaixo na próxima tela para criar uma nova senha.',
+        });
+      } catch (error: any) {
+        console.error('❌ Forgot password error:', error);
+        return res.status(500).json({ error: 'Erro ao processar recuperação de senha' });
+      }
+    }
+
+    // Auth - Reset password with code
+    if (path === '/api/auth/reset-password' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const email = (body?.email || '').toString().trim().toLowerCase();
+        const code = (body?.code || '').toString().trim();
+        const newPassword = (body?.newPassword || body?.password || '').toString();
+
+        if (!email || !code || !newPassword) {
+          return res.status(400).json({
+            error: 'E-mail, código e nova senha são obrigatórios',
+          });
+        }
+        if (newPassword.length < 6) {
+          return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
+        }
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, email, code, "expiresAt", "usedAt"
+           FROM password_reset_tokens
+           WHERE email = $1 AND code = $2 AND "usedAt" IS NULL
+           ORDER BY "createdAt" DESC
+           LIMIT 1`,
+          email,
+          code
+        );
+
+        const token = rows?.[0];
+        if (!token) {
+          return res.status(400).json({ error: 'Código inválido ou já utilizado' });
+        }
+
+        if (new Date(token.expiresAt).getTime() < Date.now()) {
+          return res.status(400).json({ error: 'Código expirado. Solicite um novo.' });
+        }
+
+        const user = await db.user.findUnique({
+          where: { email },
+          select: { id: true },
+        });
+        if (!user) {
+          return res.status(400).json({ error: 'Usuário não encontrado' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await db.user.update({
+          where: { id: user.id },
+          data: { password: hashedPassword },
+        });
+
+        await db.$executeRawUnsafe(
+          `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE id = $1`,
+          token.id
+        );
+
+        return res.status(200).json({
+          message: 'Senha redefinida com sucesso. Faça login com a nova senha.',
+        });
+      } catch (error: any) {
+        console.error('❌ Reset password error:', error);
+        return res.status(500).json({ error: 'Erro ao redefinir senha' });
+      }
+    }
+
     // Partners - GET all (public, only active)
     if (path === '/api/partners' && method === 'GET') {
       const db = getPrisma();
