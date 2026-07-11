@@ -4558,6 +4558,526 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // ========== ADMIN NOTIFICATIONS ==========
+    if (path === '/api/notifications/admin/stats' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const stats: any[] = await db.$queryRawUnsafe(
+          `SELECT
+             (SELECT COUNT(*)::int FROM device_tokens WHERE "isActive" = true) AS "activeDeviceTokens",
+             (SELECT COUNT(*)::int FROM notifications) AS "totalNotifications",
+             (SELECT COUNT(*)::int FROM notifications WHERE "sentAt" >= NOW() - INTERVAL '1 day') AS "notificationsToday",
+             (SELECT COUNT(*)::int FROM notifications WHERE "isRead" = false) AS "unreadNotifications"`
+        );
+        return res.status(200).json({
+          activeDeviceTokens: stats?.[0]?.activeDeviceTokens || 0,
+          totalNotifications: stats?.[0]?.totalNotifications || 0,
+          notificationsToday: stats?.[0]?.notificationsToday || 0,
+          unreadNotifications: stats?.[0]?.unreadNotifications || 0,
+        });
+      } catch (error: any) {
+        console.error('❌ Admin notif stats:', error);
+        return res.status(500).json({ error: 'Erro ao carregar estatísticas', detail: error?.message });
+      }
+    }
+
+    if (path === '/api/admin/notifications' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT n.id, n.title, n.message, n.type, n."isRead", n."sentAt",
+                  u.name AS user_name, u.email AS user_email
+           FROM notifications n
+           LEFT JOIN users u ON u.id = n."userId"
+           ORDER BY n."sentAt" DESC
+           LIMIT 100`
+        );
+        return res.status(200).json({
+          notifications: (rows || []).map((n) => ({
+            id: n.id,
+            title: n.title,
+            body: n.message,
+            type: n.type,
+            isRead: n.isRead,
+            sentAt: n.sentAt,
+            userName: n.user_name,
+            userEmail: n.user_email,
+          })),
+          total: rows?.length || 0,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao listar notificações', detail: error?.message });
+      }
+    }
+
+    const isAdminNotifSend =
+      method === 'POST' &&
+      (path === '/api/notifications/admin/send-to-all' ||
+        path === '/api/notifications/admin/send-to-role' ||
+        path === '/api/notifications/admin/send-payment-reminder' ||
+        path === '/api/notifications/admin/send-event' ||
+        path === '/api/admin/notifications/send');
+
+    if (isAdminNotifSend) {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const title = (body?.title || '').toString().trim();
+        const message = (body?.body || body?.message || '').toString().trim();
+        if (!title || !message) {
+          return res.status(400).json({ error: 'Título e mensagem são obrigatórios', message: 'Título e mensagem são obrigatórios' });
+        }
+
+        let notifType = 'GENERAL';
+        let userIds: string[] = [];
+
+        if (path.includes('send-payment-reminder')) {
+          notifType = 'PAYMENT_REMINDER';
+          const targetUserId = body?.targetUserId || body?.userId;
+          if (!targetUserId) {
+            return res.status(400).json({ error: 'targetUserId é obrigatório', message: 'Informe o usuário' });
+          }
+          userIds = [String(targetUserId)];
+        } else if (path.includes('send-event')) {
+          notifType = 'EVENT_REMINDER';
+          const eventId = body?.eventId;
+          if (eventId) {
+            const regs: any[] = await db.$queryRawUnsafe(
+              `SELECT DISTINCT "userId" FROM event_registrations WHERE "eventId" = $1`,
+              eventId
+            );
+            userIds = (regs || []).map((r) => r.userId).filter(Boolean);
+          }
+          if (userIds.length === 0) {
+            const all: any[] = await db.$queryRawUnsafe(
+              `SELECT id FROM users WHERE "isActive" = true`
+            );
+            userIds = (all || []).map((u) => u.id);
+          }
+        } else if (path.includes('send-to-role')) {
+          const roleRaw = (body?.role || '').toString().toUpperCase();
+          const role =
+            roleRaw === 'VOLUNTEERS' || roleRaw === 'VOLUNTEER'
+              ? 'VOLUNTEER'
+              : roleRaw === 'PARTNERS' || roleRaw === 'PARTNER'
+                ? 'PARTNER'
+                : roleRaw === 'MEMBERS' || roleRaw === 'MEMBER'
+                  ? 'MEMBER'
+                  : roleRaw;
+
+          if (role === 'VOLUNTEER') {
+            const rows: any[] = await db.$queryRawUnsafe(
+              `SELECT DISTINCT "userId" FROM volunteer_works WHERE "isActive" = true`
+            );
+            userIds = (rows || []).map((r) => r.userId);
+            notifType = 'VOLUNTEER_OPPORTUNITY';
+          } else if (role === 'PARTNER' || role === 'MEMBER' || role === 'ADMIN') {
+            const rows: any[] = await db.$queryRawUnsafe(
+              `SELECT id FROM users WHERE "isActive" = true AND role = $1::"UserRole"`,
+              role
+            );
+            userIds = (rows || []).map((r) => r.id);
+          } else {
+            return res.status(400).json({ error: 'Role inválida', message: 'Role inválida' });
+          }
+        } else {
+          // send-to-all / admin/notifications/send
+          const rows: any[] = await db.$queryRawUnsafe(
+            `SELECT id FROM users WHERE "isActive" = true`
+          );
+          userIds = (rows || []).map((r) => r.id);
+          notifType = 'GENERAL';
+        }
+
+        // Deduplicate
+        userIds = [...new Set(userIds.filter(Boolean))];
+        if (userIds.length === 0) {
+          return res.status(400).json({
+            error: 'Nenhum destinatário encontrado',
+            message: 'Nenhum destinatário encontrado',
+            successCount: 0,
+          });
+        }
+
+        const dataJson = JSON.stringify(body?.data || { screen: 'Notifications' });
+        let successCount = 0;
+        for (const userId of userIds) {
+          const id = require('crypto').randomUUID();
+          try {
+            await db.$executeRawUnsafe(
+              `INSERT INTO notifications
+                (id, "userId", title, message, type, data, "isRead", "sentAt")
+               VALUES ($1, $2, $3, $4, $5::"NotificationType", $6::jsonb, false, NOW())`,
+              id,
+              userId,
+              title,
+              message,
+              notifType,
+              dataJson
+            );
+            successCount += 1;
+          } catch (e) {
+            console.warn('Falha ao criar notificação para', userId, e);
+          }
+        }
+
+        return res.status(200).json({
+          message: 'Notificações criadas com sucesso',
+          successCount,
+          totalTargets: userIds.length,
+        });
+      } catch (error: any) {
+        console.error('❌ Admin send notification:', error);
+        return res.status(500).json({
+          error: 'Erro ao enviar notificação',
+          message: error?.message || 'Erro ao enviar notificação',
+        });
+      }
+    }
+
+    // ========== ADMIN MEMBERSHIPS ==========
+    if (path === '/api/admin/memberships' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT m.id, m."userId", m."memberId", m.status, m."startDate", m."endDate",
+                  m."monthlyFee", m."nextPayment", m."paymentMethod", m."qrCode",
+                  u.name AS user_name, u.email AS user_email, u.phone AS user_phone
+           FROM memberships m
+           LEFT JOIN users u ON u.id = m."userId"
+           ORDER BY m."updatedAt" DESC
+           LIMIT 200`
+        );
+        return res.status(200).json({
+          memberships: (rows || []).map((m) => ({
+            id: m.id,
+            userId: m.userId,
+            memberId: m.memberId,
+            status: m.status,
+            startDate: m.startDate,
+            endDate: m.endDate,
+            monthlyFee: parseFloat(m.monthlyFee?.toString?.() || '29.9'),
+            nextPayment: m.nextPayment,
+            paymentMethod: m.paymentMethod,
+            qrCode: m.qrCode,
+            user: { name: m.user_name, email: m.user_email, phone: m.user_phone },
+          })),
+          total: rows?.length || 0,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao listar memberships', detail: error?.message });
+      }
+    }
+
+    if (path === '/api/admin/memberships/renew' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const membershipId = body?.membershipId || body?.id;
+        const days = Math.max(1, parseInt(String(body?.days || '30'), 10) || 30);
+        if (!membershipId) return res.status(400).json({ error: 'membershipId é obrigatório' });
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "endDate" FROM memberships WHERE id = $1 LIMIT 1`,
+          membershipId
+        );
+        if (!rows?.[0]) return res.status(404).json({ error: 'Membership não encontrada' });
+
+        const base =
+          rows[0].endDate && new Date(rows[0].endDate).getTime() > Date.now()
+            ? new Date(rows[0].endDate).getTime()
+            : Date.now();
+        const newEnd = new Date(base + days * 24 * 60 * 60 * 1000);
+
+        await db.$executeRawUnsafe(
+          `UPDATE memberships
+           SET status = 'ACTIVE', "endDate" = $1, "nextPayment" = $1, "updatedAt" = NOW()
+           WHERE id = $2`,
+          newEnd,
+          membershipId
+        );
+        return res.status(200).json({ message: `Renovada por ${days} dias`, endDate: newEnd });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao renovar membership', detail: error?.message });
+      }
+    }
+
+    if (path === '/api/admin/memberships/status' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const membershipId = body?.membershipId || body?.id;
+        const status = (body?.status || '').toString().toUpperCase();
+        if (!membershipId || !['ACTIVE', 'INACTIVE', 'PENDING_PAYMENT', 'SUSPENDED'].includes(status)) {
+          return res.status(400).json({ error: 'membershipId e status válidos são obrigatórios' });
+        }
+        await db.$executeRawUnsafe(
+          `UPDATE memberships SET status = $1::"MembershipStatus", "updatedAt" = NOW() WHERE id = $2`,
+          status,
+          membershipId
+        );
+        return res.status(200).json({ message: `Status atualizado para ${status}` });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao atualizar status', detail: error?.message });
+      }
+    }
+
+    // ========== ADMIN FINANCIAL REPORTS ==========
+    if (path === '/api/admin/financial-reports' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const reports: any[] = await db.$queryRawUnsafe(
+          `SELECT id, year, month, type, title, description, income, expenses,
+                  "fileUrl", "isPublished", "createdAt", "updatedAt"
+           FROM financial_reports
+           ORDER BY year DESC, month DESC NULLS LAST
+           LIMIT 100`
+        );
+        const withExpenses = [];
+        for (const r of reports || []) {
+          const expenses: any[] = await db.$queryRawUnsafe(
+            `SELECT id, category, description, amount, "createdAt"
+             FROM financial_expenses WHERE "reportId" = $1 ORDER BY "createdAt" DESC`,
+            r.id
+          );
+          withExpenses.push({
+            ...r,
+            income: parseFloat(r.income?.toString?.() || '0'),
+            expenses: parseFloat(r.expenses?.toString?.() || '0'),
+            expenseItems: (expenses || []).map((e) => ({
+              ...e,
+              amount: parseFloat(e.amount?.toString?.() || '0'),
+            })),
+          });
+        }
+        return res.status(200).json({ reports: withExpenses, total: withExpenses.length });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao listar relatórios', detail: error?.message });
+      }
+    }
+
+    if (path === '/api/admin/financial-reports' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const title = (body?.title || '').toString().trim();
+        const year = parseInt(String(body?.year || new Date().getFullYear()), 10);
+        const month = body?.month != null && body?.month !== '' ? parseInt(String(body.month), 10) : null;
+        const type = (body?.type || 'MONTHLY').toString().toUpperCase();
+        const income = parseFloat(String(body?.income || '0')) || 0;
+        const expenses = parseFloat(String(body?.expenses || '0')) || 0;
+        const description = body?.description ? String(body.description) : null;
+        const isPublished = !!body?.isPublished;
+        if (!title) return res.status(400).json({ error: 'Título é obrigatório' });
+
+        const id = require('crypto').randomUUID();
+        await db.$executeRawUnsafe(
+          `INSERT INTO financial_reports
+            (id, year, month, type, title, description, income, expenses, "isPublished", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4::"ReportType", $5, $6, $7, $8, $9, NOW(), NOW())`,
+          id,
+          year,
+          month,
+          type,
+          title,
+          description,
+          income,
+          expenses,
+          isPublished
+        );
+
+        const expenseItems = Array.isArray(body?.expenseItems) ? body.expenseItems : [];
+        for (const item of expenseItems) {
+          const expId = require('crypto').randomUUID();
+          const cat = (item.category || 'OTHER').toString().toUpperCase();
+          await db.$executeRawUnsafe(
+            `INSERT INTO financial_expenses (id, "reportId", category, description, amount, "createdAt")
+             VALUES ($1, $2, $3::"ExpenseCategory", $4, $5, NOW())`,
+            expId,
+            id,
+            cat,
+            String(item.description || cat),
+            parseFloat(String(item.amount || 0)) || 0
+          );
+        }
+
+        return res.status(201).json({ message: 'Relatório criado', id });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao criar relatório', detail: error?.message });
+      }
+    }
+
+    if (path === '/api/admin/financial-reports/publish' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const reportId = body?.reportId || body?.id;
+        const isPublished = body?.isPublished !== false;
+        if (!reportId) return res.status(400).json({ error: 'reportId é obrigatório' });
+
+        await db.$executeRawUnsafe(
+          `UPDATE financial_reports SET "isPublished" = $1, "updatedAt" = NOW() WHERE id = $2`,
+          !!isPublished,
+          reportId
+        );
+        return res.status(200).json({
+          message: isPublished ? 'Relatório publicado no app' : 'Relatório despublicado',
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao publicar relatório', detail: error?.message });
+      }
+    }
+
+    // ========== ADMIN VOLUNTEERS ==========
+    if (path === '/api/admin/volunteers' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT vw.id, vw."userId", vw.role, vw.description, vw."startDate", vw."endDate",
+                  vw."isActive", vw."createdAt",
+                  u.name AS user_name, u.email AS user_email, u.phone AS user_phone
+           FROM volunteer_works vw
+           LEFT JOIN users u ON u.id = vw."userId"
+           ORDER BY vw."createdAt" DESC
+           LIMIT 200`
+        );
+        return res.status(200).json({
+          volunteers: (rows || []).map((v) => ({
+            id: v.id,
+            userId: v.userId,
+            role: v.role,
+            description: v.description,
+            startDate: v.startDate,
+            endDate: v.endDate,
+            isActive: v.isActive,
+            createdAt: v.createdAt,
+            user: { name: v.user_name, email: v.user_email, phone: v.user_phone },
+          })),
+          total: rows?.length || 0,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao listar voluntários', detail: error?.message });
+      }
+    }
+
+    if (path === '/api/admin/volunteers/status' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let ok = token.startsWith('demo-token-');
+        if (!ok) {
+          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
+        }
+        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+
+        const volunteerId = body?.volunteerId || body?.id;
+        const isActive = body?.isActive !== false && body?.isActive !== 'false';
+        if (!volunteerId) return res.status(400).json({ error: 'volunteerId é obrigatório' });
+
+        await db.$executeRawUnsafe(
+          `UPDATE volunteer_works
+           SET "isActive" = $1,
+               "endDate" = CASE WHEN $1 = false THEN NOW() ELSE "endDate" END,
+               "updatedAt" = NOW()
+           WHERE id = $2`,
+          !!isActive,
+          volunteerId
+        );
+        return res.status(200).json({
+          message: isActive ? 'Voluntário ativado' : 'Voluntário desativado',
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao atualizar voluntário', detail: error?.message });
+      }
+    }
+
     // GET user notifications
     if (path === '/api/user/notifications' && method === 'GET') {
       const db = getPrisma();
