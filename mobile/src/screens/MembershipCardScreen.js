@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,38 @@ import {
   Alert,
   ScrollView,
   Image,
+  Share,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import QRCode from 'react-native-qrcode-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAuth} from '../services/AuthService';
-import { API_BASE_PATH } from '../config/apiConfig';
-import { APP_CONFIG } from '../config/appConfig';
+import {API_BASE_PATH} from '../config/apiConfig';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 
+const STATUS_LABELS = {
+  ACTIVE: 'ATIVO',
+  INACTIVE: 'INATIVO',
+  PENDING_PAYMENT: 'PENDENTE',
+  SUSPENDED: 'SUSPENSO',
+};
+
+const STATUS_COLORS = {
+  ACTIVE: '#10B981',
+  INACTIVE: '#6B7280',
+  PENDING_PAYMENT: '#F59E0B',
+  SUSPENDED: '#EF4444',
+};
+
 export default function MembershipCardScreen() {
-  const {user, isAuthenticated, login} = useAuth();
+  const {user, isAuthenticated} = useAuth();
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [renewing, setRenewing] = useState(false);
   const [iconConfig, setIconConfig] = useState({
     iconImage: null,
     icon: '🐾',
@@ -26,117 +46,239 @@ export default function MembershipCardScreen() {
   const [iconError, setIconError] = useState(false);
   const [localIcon, setLocalIcon] = useState(null);
   const [localIconEmoji, setLocalIconEmoji] = useState('🐾');
-  
+
   useEffect(() => {
-    const iconConfig = require('../assets/images/icon-config.json');
-    setLocalIcon(require('../assets/images/app-icon.png'));
-    setLocalIconEmoji(iconConfig?.icon || '🐾');
+    try {
+      const cfg = require('../assets/images/icon-config.json');
+      setLocalIcon(require('../assets/images/app-icon.png'));
+      setLocalIconEmoji(cfg?.icon || '🐾');
+    } catch (e) {
+      // assets opcionais
+    }
+  }, []);
+
+  const loadIconConfig = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_PATH}/app/config`, {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json'},
+        cache: 'no-store',
+      });
+
+      if (response.ok) {
+        const config = await response.json();
+        const loginIconImage = config['login.iconImage'];
+        setIconConfig({
+          iconImage:
+            loginIconImage && loginIconImage.trim() !== ''
+              ? loginIconImage
+              : null,
+          icon: config['login.icon'] || '🐾',
+        });
+        if (loginIconImage) setIconError(false);
+      }
+    } catch (error) {
+      logError('❌ Erro ao carregar ícone do cartão', error);
+    }
+  }, []);
+
+  const loadMembership = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        setMembership(null);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_PATH}/user/membership`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        logError('❌ Erro ao carregar membership', {
+          status: response.status,
+          error: data.error,
+        });
+        Alert.alert(
+          'Erro',
+          data.error || 'Não foi possível carregar o cartão de membro',
+        );
+        return;
+      }
+
+      setMembership(data.membership || null);
+      logInfo('✅ Membership carregada', {
+        memberId: data.membership?.memberId,
+        status: data.membership?.status,
+      });
+    } catch (error) {
+      console.error('Erro ao carregar membership:', error);
+      logError('❌ Erro ao carregar membership', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
     loadIconConfig();
     if (isAuthenticated) {
+      setLoading(true);
       loadMembership();
     } else {
       setLoading(false);
+      setMembership(null);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadIconConfig, loadMembership]);
 
-  // Carregar configuração do ícone da API
-  const loadIconConfig = async () => {
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadMembership();
+  };
+
+  const formatDate = dateValue => {
+    if (!dateValue) return '—';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  const statusKey = membership?.status || 'INACTIVE';
+  const statusLabel = STATUS_LABELS[statusKey] || statusKey;
+  const statusColor = STATUS_COLORS[statusKey] || '#6B7280';
+  const qrValue =
+    membership?.qrCode ||
+    (membership?.memberId && user?.id
+      ? `LIGADOBEM|${membership.memberId}|${user.id}`
+      : null);
+
+  const handleShareCard = async () => {
+    if (!membership) return;
     try {
-      logInfo('🔄 Carregando configuração do ícone para cartão', {url: `${API_BASE_PATH}/app/config`});
-      const response = await fetch(`${API_BASE_PATH}/app/config`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
+      await Share.share({
+        message:
+          `Cartão de Membro — Liga do Bem Botucatu\n` +
+          `Nome: ${user?.name || 'Membro'}\n` +
+          `ID: ${membership.memberId}\n` +
+          `Status: ${statusLabel}\n` +
+          `Válido até: ${formatDate(membership.endDate)}\n` +
+          `Código: ${qrValue || membership.memberId}`,
       });
-      
-      logDebug('📡 Resposta do servidor (cartão)', {status: response.status, statusText: response.statusText});
-      
-      if (response.ok) {
-        const config = await response.json();
-        logInfo('✅ Configuração do ícone recebida', config);
-        
-        const loginIconImage = config['login.iconImage'];
-        const newIconConfig = {
-          iconImage: (loginIconImage && loginIconImage.trim() !== '') ? loginIconImage : null,
-          icon: config['login.icon'] || '🐾',
-        };
-        
-        logInfo('📝 Configuração do ícone aplicada', newIconConfig);
-        setIconConfig(newIconConfig);
-        if (newIconConfig.iconImage) {
-          setIconError(false);
-        }
-      } else {
-        const errorText = await response.text();
-        logError('❌ Erro ao carregar configuração do ícone', {status: response.status, error: errorText});
+    } catch (error) {
+      if (error?.message !== 'User did not share') {
+        Alert.alert('Erro', 'Não foi possível compartilhar o cartão');
       }
-    } catch (error) {
-      logError('❌ Erro ao carregar configuração do ícone do cartão', error);
     }
   };
 
-  const loadMembership = async () => {
-    try {
-      // Simular carregamento de dados da membership
-      // Em produção, isso viria da API
-      setMembership({
-        memberId: 'MEM' + Date.now(),
-        status: 'ACTIVE',
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
-        qrCode: user ? `${user.id}_${Date.now()}` : 'demo_qr_code',
-      });
-    } catch (error) {
-      console.error('Erro ao carregar membership:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const LoginPrompt = () => (
-    <View style={styles.loginContainer}>
-      <View style={styles.loginCard}>
-        <Ionicons
-          name="card"
-          size={64}
-          color="#8B5CF6"
-          style={styles.loginIcon}
-        />
-        <Text style={styles.loginTitle}>Acesse seu Cartão de Membro</Text>
-        <Text style={styles.loginSubtitle}>
-          Faça login para visualizar e usar seu cartão digital da Liga do Bem
-        </Text>
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={() => handleLogin()}>
-          <Text style={styles.loginButtonText}>Fazer Login</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const handleLogin = () => {
+  const handleRenewMembership = () => {
     Alert.alert(
-      'Login',
-      'Para acessar seu cartão, você precisa fazer login. Esta funcionalidade será implementada em breve.',
-      [{text: 'OK'}],
+      'Renovar mensalidade',
+      `Deseja renovar por mais 30 dias?\nValor de referência: R$ ${Number(
+        membership?.monthlyFee || 29.9,
+      ).toFixed(2)}`,
+      [
+        {text: 'Cancelar', style: 'cancel'},
+        {
+          text: 'Renovar',
+          onPress: async () => {
+            setRenewing(true);
+            try {
+              const token = await AsyncStorage.getItem('auth_token');
+              const response = await fetch(
+                `${API_BASE_PATH}/user/membership/renew`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                  },
+                },
+              );
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) {
+                Alert.alert(
+                  'Erro',
+                  data.error || 'Não foi possível renovar a mensalidade',
+                );
+                return;
+              }
+              setMembership(data.membership);
+              Alert.alert(
+                'Pronto!',
+                data.message ||
+                  'Mensalidade renovada. Em breve a renovação será cobrada via PIX.',
+              );
+            } catch (error) {
+              Alert.alert('Erro', 'Falha de conexão ao renovar.');
+            } finally {
+              setRenewing(false);
+            }
+          },
+        },
+      ],
     );
   };
 
-  const MembershipCard = () => (
-    <ScrollView style={styles.container}>
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={styles.loadingText}>Carregando cartão...</Text>
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.loginContainer}>
+        <View style={styles.loginCard}>
+          <Ionicons
+            name="card"
+            size={64}
+            color="#8B5CF6"
+            style={styles.loginIcon}
+          />
+          <Text style={styles.loginTitle}>Acesse seu Cartão de Membro</Text>
+          <Text style={styles.loginSubtitle}>
+            Faça login pelo app para visualizar e usar seu cartão digital da Liga
+            do Bem.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!membership) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="card-outline" size={48} color="#9CA3AF" />
+        <Text style={styles.loadingText}>Cartão indisponível no momento</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadMembership}>
+          <Text style={styles.retryButtonText}>Tentar novamente</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }>
       <View style={styles.cardContainer}>
         <LinearGradient
           colors={['#8B5CF6', '#A855F7']}
           style={styles.card}
           start={{x: 0, y: 0}}
           end={{x: 1, y: 1}}>
-          {/* Header do Cartão */}
           <View style={styles.cardHeader}>
             <View style={styles.logoContainer}>
               {localIcon ? (
@@ -144,34 +286,28 @@ export default function MembershipCardScreen() {
                   source={localIcon}
                   style={styles.logoImage}
                   resizeMode="contain"
-                  onLoad={() => {
-                    logInfo('✅ Ícone local do cartão carregado com sucesso');
-                  }}
                 />
               ) : iconConfig.iconImage && !iconError ? (
                 <Image
-                  source={{ uri: iconConfig.iconImage }}
+                  source={{uri: iconConfig.iconImage}}
                   style={styles.logoImage}
                   resizeMode="contain"
-                  onError={(error) => {
-                    logError('❌ Erro ao carregar ícone do cartão', {error, url: iconConfig.iconImage});
-                    setIconError(true);
-                  }}
-                  onLoad={() => {
-                    logInfo('✅ Ícone do cartão carregado com sucesso', {url: iconConfig.iconImage});
-                  }}
+                  onError={() => setIconError(true)}
                 />
               ) : (
-                <Text style={styles.logo}>{localIconEmoji || iconConfig.icon}</Text>
+                <Text style={styles.logo}>
+                  {localIconEmoji || iconConfig.icon}
+                </Text>
               )}
             </View>
             <View style={styles.statusContainer}>
-              <View style={[styles.statusDot, {backgroundColor: '#10B981'}]} />
-              <Text style={styles.statusText}>ATIVO</Text>
+              <View
+                style={[styles.statusDot, {backgroundColor: statusColor}]}
+              />
+              <Text style={styles.statusText}>{statusLabel}</Text>
             </View>
           </View>
 
-          {/* Informações do Membro */}
           <View style={styles.memberInfo}>
             <Text style={styles.memberName}>
               {user?.name || 'Membro Liga do Bem'}
@@ -179,32 +315,36 @@ export default function MembershipCardScreen() {
             <Text style={styles.memberEmail}>
               {user?.email || 'membro@ligadobem.com'}
             </Text>
-            <Text style={styles.memberId}>ID: {membership?.memberId}</Text>
+            <Text style={styles.memberId}>ID: {membership.memberId}</Text>
           </View>
 
-          {/* QR Code */}
           <View style={styles.qrContainer}>
             <View style={styles.qrBackground}>
-              <Text style={styles.qrPlaceholder}>QR Code</Text>
+              {qrValue ? (
+                <QRCode
+                  value={qrValue}
+                  size={140}
+                  backgroundColor="#FFFFFF"
+                  color="#1F2937"
+                />
+              ) : (
+                <Text style={styles.qrPlaceholder}>QR indisponível</Text>
+              )}
             </View>
             <Text style={styles.qrLabel}>
               Apresente este QR Code nos estabelecimentos parceiros
             </Text>
           </View>
 
-          {/* Validade */}
           <View style={styles.validityContainer}>
             <Text style={styles.validityLabel}>Válido até:</Text>
             <Text style={styles.validityDate}>
-              {membership?.endDate
-                ? membership.endDate.toLocaleDateString('pt-BR')
-                : '31/12/2025'}
+              {formatDate(membership.endDate)}
             </Text>
           </View>
         </LinearGradient>
       </View>
 
-      {/* Informações Adicionais */}
       <View style={styles.infoContainer}>
         <View style={styles.infoCard}>
           <Ionicons name="information-circle" size={24} color="#8B5CF6" />
@@ -231,16 +371,16 @@ export default function MembershipCardScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="card" size={24} color="#F59E0B" />
           <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>Renovação automática</Text>
+            <Text style={styles.infoTitle}>Mensalidade</Text>
             <Text style={styles.infoText}>
-              Sua mensalidade é renovada automaticamente. Você receberá
-              lembretes antes do vencimento.
+              Valor de referência: R${' '}
+              {Number(membership.monthlyFee || 29.9).toFixed(2)}. Próximo
+              pagamento: {formatDate(membership.nextPayment)}.
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Ações */}
       <View style={styles.actionsContainer}>
         <TouchableOpacity style={styles.actionButton} onPress={handleShareCard}>
           <Ionicons name="share-outline" size={20} color="#8B5CF6" />
@@ -249,48 +389,23 @@ export default function MembershipCardScreen() {
 
         <TouchableOpacity
           style={[styles.actionButton, styles.secondaryButton]}
-          onPress={handleRenewMembership}>
-          <Ionicons name="refresh-outline" size={20} color="#6B7280" />
-          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
-            Renovar Mensalidade
-          </Text>
+          onPress={handleRenewMembership}
+          disabled={renewing}>
+          {renewing ? (
+            <ActivityIndicator color="#6B7280" />
+          ) : (
+            <>
+              <Ionicons name="refresh-outline" size={20} color="#6B7280" />
+              <Text
+                style={[styles.actionButtonText, styles.secondaryButtonText]}>
+                Renovar Mensalidade
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
   );
-
-  const handleShareCard = () => {
-    Alert.alert(
-      'Compartilhar Cartão',
-      'Funcionalidade de compartilhamento será implementada em breve.',
-      [{text: 'OK'}],
-    );
-  };
-
-  const handleRenewMembership = () => {
-    Alert.alert(
-      'Renovar Mensalidade',
-      'Você será redirecionado para a página de pagamento.',
-      [
-        {text: 'Cancelar', style: 'cancel'},
-        {text: 'Continuar', onPress: () => console.log('Ir para pagamento')},
-      ],
-    );
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Carregando...</Text>
-      </View>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <LoginPrompt />;
-  }
-
-  return <MembershipCard />;
 }
 
 const styles = StyleSheet.create({
@@ -303,10 +418,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
+    padding: 24,
   },
   loadingText: {
     fontSize: 16,
     color: '#6B7280',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   loginContainer: {
     flex: 1,
@@ -341,18 +470,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 24,
-  },
-  loginButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  loginButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
   cardContainer: {
     padding: 20,
@@ -360,7 +477,11 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
     padding: 24,
-    minHeight: 400,
+    shadowColor: '#8B5CF6',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -369,24 +490,25 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoContainer: {
-    width: 50,
-    height: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  logo: {
-    fontSize: 24,
+    overflow: 'hidden',
   },
   logoImage: {
-    width: 30,
-    height: 30,
+    width: 40,
+    height: 40,
+  },
+  logo: {
+    fontSize: 28,
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -398,123 +520,119 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   memberInfo: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   memberName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   memberEmail: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: 8,
   },
   memberId: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '600',
   },
   qrContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
   },
   qrBackground: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    borderRadius: 12,
     marginBottom: 12,
+    minWidth: 172,
+    minHeight: 172,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 120,
-    height: 120,
   },
   qrPlaceholder: {
-    fontSize: 16,
-    color: '#9CA3AF',
+    color: '#6B7280',
     fontWeight: '600',
   },
   qrLabel: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
     textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 12,
   },
   validityContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+    paddingTop: 16,
   },
   validityLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
-    marginBottom: 4,
   },
   validityDate: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   infoContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    gap: 12,
   },
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: 12,
   },
   infoContent: {
     flex: 1,
-    marginLeft: 12,
   },
   infoTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 4,
   },
   infoText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   actionsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    padding: 20,
+    paddingBottom: 40,
+    gap: 12,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'white',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#8B5CF6',
+    gap: 8,
   },
   secondaryButton: {
-    backgroundColor: '#F9FAFB',
+    borderColor: '#E5E7EB',
   },
   actionButtonText: {
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: '600',
     color: '#8B5CF6',
+    fontSize: 15,
+    fontWeight: '600',
   },
   secondaryButtonText: {
     color: '#6B7280',

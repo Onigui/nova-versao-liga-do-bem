@@ -4231,6 +4231,206 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // GET user membership (cria automaticamente se não existir)
+    if (path === '/api/user/membership' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const users: Array<{ id: string; name: string; email: string }> =
+          await db.$queryRawUnsafe(
+            `SELECT id, name, email FROM users WHERE id = $1 LIMIT 1`,
+            userId
+          );
+        const user = users?.[0];
+        if (!user) {
+          return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+
+        let rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "userId", "memberId", status, "startDate", "endDate",
+                  "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+                  "createdAt", "updatedAt"
+           FROM memberships WHERE "userId" = $1 LIMIT 1`,
+          userId
+        );
+
+        if (!rows?.[0]) {
+          const membershipId = require('crypto').randomUUID();
+          const memberId = `MEM${Date.now().toString().slice(-8)}`;
+          const qrCode = `LIGADOBEM|${memberId}|${userId}`;
+          const startDate = new Date();
+          const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          const nextPayment = endDate;
+
+          await db.$executeRawUnsafe(
+            `INSERT INTO memberships
+              (id, "userId", "memberId", status, "startDate", "endDate",
+               "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+               "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, 'ACTIVE', $4, $5, 29.90, $6, 'PIX', $7, NOW(), NOW())`,
+            membershipId,
+            userId,
+            memberId,
+            startDate,
+            endDate,
+            nextPayment,
+            qrCode
+          );
+
+          rows = await db.$queryRawUnsafe(
+            `SELECT id, "userId", "memberId", status, "startDate", "endDate",
+                    "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+                    "createdAt", "updatedAt"
+             FROM memberships WHERE "userId" = $1 LIMIT 1`,
+            userId
+          );
+        } else if (!rows[0].qrCode) {
+          const qrCode = `LIGADOBEM|${rows[0].memberId}|${userId}`;
+          await db.$executeRawUnsafe(
+            `UPDATE memberships SET "qrCode" = $1, "updatedAt" = NOW() WHERE id = $2`,
+            qrCode,
+            rows[0].id
+          );
+          rows[0].qrCode = qrCode;
+        }
+
+        // Se vencida, marcar como PENDING_PAYMENT (sem apagar o cartão)
+        const membership = rows[0];
+        const end = membership.endDate ? new Date(membership.endDate) : null;
+        let status = membership.status;
+        if (end && end.getTime() < Date.now() && status === 'ACTIVE') {
+          status = 'PENDING_PAYMENT';
+          await db.$executeRawUnsafe(
+            `UPDATE memberships SET status = 'PENDING_PAYMENT', "updatedAt" = NOW() WHERE id = $1`,
+            membership.id
+          );
+        }
+
+        return res.status(200).json({
+          membership: {
+            id: membership.id,
+            userId: membership.userId,
+            memberId: membership.memberId,
+            status,
+            startDate: membership.startDate,
+            endDate: membership.endDate,
+            monthlyFee: parseFloat(membership.monthlyFee?.toString?.() || '29.9'),
+            nextPayment: membership.nextPayment,
+            paymentMethod: membership.paymentMethod,
+            qrCode: membership.qrCode,
+            createdAt: membership.createdAt,
+            updatedAt: membership.updatedAt,
+          },
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar membership:', error);
+        return res.status(500).json({
+          error: 'Erro ao carregar cartão de membro',
+          detail: error?.message || String(error),
+        });
+      }
+    }
+
+    // POST renew membership (+30 dias)
+    if (path === '/api/user/membership/renew' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "memberId", "endDate", "monthlyFee", "qrCode"
+           FROM memberships WHERE "userId" = $1 LIMIT 1`,
+          userId
+        );
+
+        if (!rows?.[0]) {
+          return res.status(404).json({
+            error: 'Cartão não encontrado. Abra a aba Cartão para gerar o seu.',
+          });
+        }
+
+        const current = rows[0];
+        const base =
+          current.endDate && new Date(current.endDate).getTime() > Date.now()
+            ? new Date(current.endDate).getTime()
+            : Date.now();
+        const newEnd = new Date(base + 30 * 24 * 60 * 60 * 1000);
+        const qrCode =
+          current.qrCode || `LIGADOBEM|${current.memberId}|${userId}`;
+
+        await db.$executeRawUnsafe(
+          `UPDATE memberships
+           SET status = 'ACTIVE',
+               "endDate" = $1,
+               "nextPayment" = $1,
+               "paymentMethod" = 'PIX',
+               "qrCode" = $2,
+               "updatedAt" = NOW()
+           WHERE id = $3`,
+          newEnd,
+          qrCode,
+          current.id
+        );
+
+        const updated: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "userId", "memberId", status, "startDate", "endDate",
+                  "monthlyFee", "nextPayment", "paymentMethod", "qrCode"
+           FROM memberships WHERE id = $1 LIMIT 1`,
+          current.id
+        );
+
+        return res.status(200).json({
+          message: 'Mensalidade renovada por mais 30 dias',
+          membership: {
+            ...updated[0],
+            monthlyFee: parseFloat(updated[0].monthlyFee?.toString?.() || '29.9'),
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao renovar membership:', error);
+        return res.status(500).json({
+          error: 'Erro ao renovar mensalidade',
+          detail: error?.message || String(error),
+        });
+      }
+    }
+
     // GET user donations
     if (path === '/api/user/donations' && method === 'GET') {
       const db = getPrisma();
