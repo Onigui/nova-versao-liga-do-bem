@@ -2740,33 +2740,6 @@
             if (targetSection) {
                 targetSection.classList.add('active');
                 targetSection.style.display = 'block';
-                
-                // Carregar dados específicos da seção
-                if (sectionId === 'animals') {
-                    loadAnimals();
-                } else if (sectionId === 'members') {
-                } else if (sectionId === 'app-config') {
-                    loadVersions();
-                    loadMembers();
-                } else if (sectionId === 'companies') {
-                    loadCompanies();
-                } else if (sectionId === 'events') {
-                    loadEvents();
-                } else if (sectionId === 'app-config') {
-                    loadAppConfig();
-                } else if (sectionId === 'app-versions') {
-                    loadAppVersions();
-                } else if (sectionId === 'help-support') {
-                    loadHelpInfo();
-                } else if (sectionId === 'app-versions') {
-                    loadAppVersions();
-                }
-            }
-            
-            // Carregar dados específicos da seção (duplicado para garantir)
-            if (sectionId === 'app-config') {
-                loadVersions();
-                loadAppConfig();
             }
             
             // Adicionar active ao link selecionado
@@ -2784,6 +2757,16 @@
             } else if (sectionId === 'members') {
                 loadMembers();
                 loadMemberships();
+            } else if (sectionId === 'animals') {
+                loadAnimals();
+            } else if (sectionId === 'events') {
+                loadEvents();
+            } else if (sectionId === 'app-config') {
+                loadAppConfig();
+            } else if (sectionId === 'app-versions') {
+                loadAppVersions();
+            } else if (sectionId === 'help-support') {
+                loadHelpInfo();
             } else if (sectionId === 'payments') {
                 loadPaymentStats();
                 loadPayments(1);
