@@ -7,115 +7,73 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {API_BASE_PATH} from '../config/apiConfig';
 import NotificationService from '../services/NotificationService';
-
-const SAMPLE_NOTIFICATIONS = [
-  {
-    id: '1',
-    title: 'Nova Promoção no Pet Shop Central!',
-    body: '15% de desconto em todos os produtos para membros da Liga do Bem. Válido até domingo!',
-    type: 'PROMOTION',
-    data: {
-      partnerId: '1',
-      discount: '15%',
-      partnerName: 'Pet Shop Central',
-    },
-    isRead: false,
-    sentAt: '2024-01-05T14:30:00Z',
-    imageUrl: 'https://via.placeholder.com/300x200/4CAF50/ffffff?text=Promoção',
-  },
-  {
-    id: '2',
-    title: 'Evento de Adoção - Sábado',
-    body: 'Não perca nosso evento de adoção neste sábado das 9h às 17h na Praça da Matriz!',
-    type: 'EVENT',
-    data: {
-      eventId: '1',
-      location: 'Praça da Matriz',
-      date: '2024-01-06',
-    },
-    isRead: true,
-    sentAt: '2024-01-04T10:15:00Z',
-    imageUrl: 'https://via.placeholder.com/300x200/2196F3/ffffff?text=Evento',
-  },
-  {
-    id: '3',
-    title: 'Lembrete de Pagamento',
-    body: 'Sua mensalidade da Liga do Bem vence em 5 dias. Mantenha-se em dia!',
-    type: 'PAYMENT_REMINDER',
-    data: {
-      dueDate: '2024-01-10',
-      amount: 'R$ 25,00',
-    },
-    isRead: false,
-    sentAt: '2024-01-03T09:00:00Z',
-  },
-  {
-    id: '4',
-    title: 'Bem-vindo à Liga do Bem!',
-    body: 'Obrigado por se tornar um membro da nossa comunidade. Aproveite todos os benefícios!',
-    type: 'WELCOME',
-    data: {},
-    isRead: true,
-    sentAt: '2024-01-01T08:00:00Z',
-    imageUrl:
-      'https://via.placeholder.com/300x200/8B5CF6/ffffff?text=Bem-vindo',
-  },
-  {
-    id: '5',
-    title: 'Nova Parceira: Clínica Veterinária Amigo',
-    body: 'Conheça nossa nova parceira que oferece 10% de desconto para membros!',
-    type: 'NEW_PARTNER',
-    data: {
-      partnerId: '2',
-      partnerName: 'Clínica Veterinária Amigo',
-      discount: '10%',
-    },
-    isRead: false,
-    sentAt: '2024-01-02T16:45:00Z',
-    imageUrl:
-      'https://via.placeholder.com/300x200/FF9800/ffffff?text=Nova+Parceira',
-  },
-];
 
 export default function NotificationsScreen({navigation}) {
   const [notifications, setNotifications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const registerForPushNotifications = useCallback(async () => {
     try {
       const granted = await NotificationService.requestPermissions();
+      if (!granted) return;
+      await NotificationService.getDeviceToken();
+    } catch (error) {
+      console.log('Push notifications indisponíveis neste build:', error?.message);
+    }
+  }, []);
 
-      if (!granted) {
+  const loadNotifications = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_PATH}/user/notifications`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
         Alert.alert(
-          'Permissão Negada',
-          'Notificações push não foram permitidas.',
+          'Erro',
+          data.error || 'Não foi possível carregar as notificações',
         );
         return;
       }
 
-      const token = await NotificationService.getDeviceToken();
-      if (token) {
-        console.log('Token de notificação:', token);
-      }
+      const list = (data.notifications || []).map(n => ({
+        ...n,
+        body: n.body || n.message,
+      }));
+      setNotifications(list);
+      setUnreadCount(
+        typeof data.unreadCount === 'number'
+          ? data.unreadCount
+          : list.filter(n => !n.isRead).length,
+      );
     } catch (error) {
-      console.error('Erro ao registrar notificações:', error);
-    }
-  }, []);
-
-  const loadNotifications = useCallback(() => {
-    setRefreshing(true);
-
-    // Simular carregamento de notificações
-    setTimeout(() => {
-      setNotifications(SAMPLE_NOTIFICATIONS);
-      const unread = SAMPLE_NOTIFICATIONS.filter(n => !n.isRead).length;
-      setUnreadCount(unread);
+      console.error('Erro ao carregar notificações:', error);
+      Alert.alert('Erro', 'Falha de conexão ao carregar notificações');
+    } finally {
+      setLoading(false);
       setRefreshing(false);
-    }, 1000);
+    }
   }, []);
 
   useEffect(() => {
@@ -124,80 +82,96 @@ export default function NotificationsScreen({navigation}) {
   }, [loadNotifications, registerForPushNotifications]);
 
   const markAsRead = async notificationId => {
-    const updatedNotifications = notifications.map(notification =>
-      notification.id === notificationId
-        ? {...notification, isRead: true}
-        : notification,
-    );
+    setNotifications(prev => {
+      const updated = prev.map(notification =>
+        notification.id === notificationId
+          ? {...notification, isRead: true}
+          : notification,
+      );
+      setUnreadCount(updated.filter(n => !n.isRead).length);
+      return updated;
+    });
 
-    setNotifications(updatedNotifications);
-
-    // Atualizar contador
-    const unread = updatedNotifications.filter(n => !n.isRead).length;
-    setUnreadCount(unread);
-
-    // Em produção, fazer chamada para API
-    console.log(`Notificação ${notificationId} marcada como lida`);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) return;
+      await fetch(`${API_BASE_PATH}/user/notifications/read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({notificationId}),
+      });
+    } catch (error) {
+      console.error('Erro ao marcar notificação:', error);
+    }
   };
 
   const markAllAsRead = async () => {
-    const updatedNotifications = notifications.map(notification => ({
-      ...notification,
-      isRead: true,
-    }));
-
-    setNotifications(updatedNotifications);
+    setNotifications(prev => prev.map(n => ({...n, isRead: true})));
     setUnreadCount(0);
 
-    // Em produção, fazer chamada para API
-    console.log('Todas as notificações marcadas como lidas');
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) return;
+      await fetch(`${API_BASE_PATH}/user/notifications/read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({markAll: true}),
+      });
+    } catch (error) {
+      console.error('Erro ao marcar todas:', error);
+    }
   };
 
   const handleNotificationPress = notification => {
-    // Marcar como lida
     if (!notification.isRead) {
       markAsRead(notification.id);
     }
 
-    // Navegar baseado no tipo
+    const screen = notification.data?.screen;
     switch (notification.type) {
-      case 'PROMOTION':
-      case 'NEW_PARTNER':
-        if (notification.data.partnerId) {
-          // Navegar para detalhes do parceiro
-          navigation.navigate('PartnerDetail', {
-            partnerId: notification.data.partnerId,
-          });
-        }
-        break;
-      case 'EVENT':
-        if (notification.data.eventId) {
-          // Navegar para detalhes do evento
-          navigation.navigate('Eventos');
-        }
+      case 'EVENT_REMINDER':
+        navigation.navigate(screen || 'EventsCalendar');
         break;
       case 'PAYMENT_REMINDER':
-        // Navegar para área de pagamentos
-        Alert.alert('Pagamento', 'Redirecionando para área de pagamentos...');
+        navigation.navigate(screen || 'Cartão');
+        break;
+      case 'DONATION_CONFIRMATION':
+        navigation.navigate(screen || 'Donation');
+        break;
+      case 'ADOPTION_UPDATE':
+        navigation.navigate(screen || 'MyAdoptions');
+        break;
+      case 'VOLUNTEER_OPPORTUNITY':
+        navigation.navigate(screen || 'Volunteer');
+        break;
+      case 'GENERAL':
+        if (screen) navigation.navigate(screen);
         break;
       default:
-        // Não fazer nada para outros tipos
         break;
     }
   };
 
   const getNotificationIcon = type => {
     switch (type) {
-      case 'PROMOTION':
-        return 'pricetag';
-      case 'EVENT':
+      case 'EVENT_REMINDER':
         return 'calendar';
       case 'PAYMENT_REMINDER':
         return 'card';
-      case 'NEW_PARTNER':
-        return 'business';
-      case 'WELCOME':
+      case 'DONATION_CONFIRMATION':
         return 'heart';
+      case 'ADOPTION_UPDATE':
+        return 'paw';
+      case 'VOLUNTEER_OPPORTUNITY':
+        return 'people';
+      case 'GENERAL':
+        return 'notifications';
       default:
         return 'notifications';
     }
@@ -205,16 +179,18 @@ export default function NotificationsScreen({navigation}) {
 
   const getNotificationColor = type => {
     switch (type) {
-      case 'PROMOTION':
-        return '#10B981';
-      case 'EVENT':
+      case 'EVENT_REMINDER':
         return '#3B82F6';
       case 'PAYMENT_REMINDER':
         return '#F59E0B';
-      case 'NEW_PARTNER':
-        return '#8B5CF6';
-      case 'WELCOME':
+      case 'DONATION_CONFIRMATION':
         return '#EC4899';
+      case 'ADOPTION_UPDATE':
+        return '#10B981';
+      case 'VOLUNTEER_OPPORTUNITY':
+        return '#8B5CF6';
+      case 'GENERAL':
+        return '#6B7280';
       default:
         return '#6B7280';
     }
@@ -292,6 +268,15 @@ export default function NotificationsScreen({navigation}) {
     </View>
   );
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingBox]}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={styles.loadingText}>Carregando notificações...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -317,17 +302,20 @@ export default function NotificationsScreen({navigation}) {
         data={notifications}
         renderItem={renderNotificationItem}
         keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          notifications.length === 0 ? styles.emptyList : styles.list
+        }
+        ListEmptyComponent={renderEmptyState}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={loadNotifications}
+            onRefresh={() => {
+              setRefreshing(true);
+              loadNotifications();
+            }}
             colors={['#8B5CF6']}
-            tintColor="#8B5CF6"
           />
         }
-        ListEmptyComponent={renderEmptyState}
       />
     </View>
   );
@@ -338,77 +326,82 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  loadingBox: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#6B7280',
+  },
   header: {
-    backgroundColor: 'white',
-    padding: 20,
-    paddingTop: 60,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1F2937',
   },
   unreadBadge: {
+    marginLeft: 10,
     backgroundColor: '#EF4444',
     borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
     minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 6,
   },
   unreadBadgeText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   markAllButton: {
-    alignSelf: 'flex-end',
+    marginTop: 10,
+    alignSelf: 'flex-start',
   },
   markAllText: {
     color: '#8B5CF6',
     fontSize: 14,
     fontWeight: '600',
   },
-  listContainer: {
+  list: {
     padding: 16,
+  },
+  emptyList: {
+    flexGrow: 1,
   },
   notificationCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    marginBottom: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   unreadNotification: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#8B5CF6',
-    backgroundColor: '#FAFAFA',
+    borderColor: '#C4B5FD',
+    backgroundColor: '#F5F3FF',
   },
   notificationHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
   },
   notificationIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   notificationContent: {
@@ -420,13 +413,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   notificationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
     flex: 1,
-    marginRight: 8,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
   },
   unreadTitle: {
+    color: '#1F2937',
     fontWeight: '700',
   },
   unreadDot: {
@@ -434,6 +427,7 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#8B5CF6',
+    marginLeft: 8,
   },
   notificationBody: {
     fontSize: 14,
@@ -447,16 +441,16 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    alignItems: 'center',
+    padding: 40,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#374151',
     marginTop: 16,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,

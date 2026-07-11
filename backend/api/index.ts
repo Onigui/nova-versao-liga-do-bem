@@ -4231,6 +4231,116 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // GET user notifications
+    if (path === '/api/user/notifications' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "userId", title, message, type, data, "isRead", "sentAt", "readAt"
+           FROM notifications
+           WHERE "userId" = $1
+           ORDER BY "sentAt" DESC
+           LIMIT 100`,
+          userId
+        );
+
+        const notifications = (rows || []).map((n) => ({
+          id: n.id,
+          title: n.title,
+          body: n.message,
+          message: n.message,
+          type: n.type,
+          data: n.data || {},
+          isRead: !!n.isRead,
+          sentAt: n.sentAt,
+          readAt: n.readAt,
+        }));
+
+        const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+        return res.status(200).json({
+          notifications,
+          unreadCount,
+          total: notifications.length,
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar notificações:', error);
+        return res.status(500).json({
+          error: 'Erro ao carregar notificações',
+          detail: error?.message || String(error),
+        });
+      }
+    }
+
+    // POST mark notification(s) as read
+    if (path === '/api/user/notifications/read' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const { notificationId, markAll } = body || {};
+
+        if (markAll) {
+          await db.$executeRawUnsafe(
+            `UPDATE notifications
+             SET "isRead" = true, "readAt" = NOW()
+             WHERE "userId" = $1 AND "isRead" = false`,
+            userId
+          );
+          return res.status(200).json({ message: 'Todas as notificações foram marcadas como lidas' });
+        }
+
+        if (!notificationId) {
+          return res.status(400).json({ error: 'notificationId é obrigatório' });
+        }
+
+        await db.$executeRawUnsafe(
+          `UPDATE notifications
+           SET "isRead" = true, "readAt" = NOW()
+           WHERE id = $1 AND "userId" = $2`,
+          notificationId,
+          userId
+        );
+
+        return res.status(200).json({ message: 'Notificação marcada como lida' });
+      } catch (error: any) {
+        console.error('❌ Erro ao marcar notificação:', error);
+        return res.status(500).json({ error: 'Erro ao atualizar notificação' });
+      }
+    }
+
     // GET user membership (cria automaticamente se não existir)
     if (path === '/api/user/membership' && method === 'GET') {
       const db = getPrisma();
