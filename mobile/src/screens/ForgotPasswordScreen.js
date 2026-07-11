@@ -19,7 +19,6 @@ export default function ForgotPasswordScreen({navigation}) {
   const [step, setStep] = useState('email'); // email | code | success
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [displayedCode, setDisplayedCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -48,18 +47,21 @@ export default function ForgotPasswordScreen({navigation}) {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        Alert.alert('Erro', data.error || 'Não foi possível solicitar o código');
+        Alert.alert(
+          'Recuperação indisponível',
+          data.error ||
+            'Não foi possível enviar o código. Contate a Liga do Bem se precisar redefinir sua senha.',
+        );
         return;
       }
 
-      if (data.resetCode) {
-        setDisplayedCode(data.resetCode);
-        setCode(data.resetCode);
-      } else {
-        setDisplayedCode('');
-        setCode('');
-      }
+      setCode('');
       setStep('code');
+      Alert.alert(
+        'Verifique seu e-mail',
+        data.message ||
+          'Se o e-mail estiver cadastrado, enviamos um código de 6 dígitos. Confira também a pasta de spam.',
+      );
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível conectar. Tente novamente.');
     } finally {
@@ -68,8 +70,8 @@ export default function ForgotPasswordScreen({navigation}) {
   };
 
   const handleResetPassword = async () => {
-    if (!code || code.length < 4) {
-      Alert.alert('Atenção', 'Digite o código de recuperação');
+    if (!code || code.length !== 6) {
+      Alert.alert('Atenção', 'Digite o código de 6 dígitos recebido por e-mail');
       return;
     }
     if (!newPassword || newPassword.length < 6) {
@@ -175,7 +177,8 @@ export default function ForgotPasswordScreen({navigation}) {
               <>
                 <Text style={styles.title}>Esqueceu sua senha?</Text>
                 <Text style={styles.subtitle}>
-                  Digite seu e-mail para receber um código de recuperação.
+                  Digite seu e-mail. Enviaremos um código de 6 dígitos para você
+                  redefinir a senha.
                 </Text>
 
                 <View style={styles.inputContainer}>
@@ -220,7 +223,7 @@ export default function ForgotPasswordScreen({navigation}) {
                           style={{marginRight: 8}}
                         />
                         <Text style={styles.submitButtonText}>
-                          Enviar código
+                          Enviar código por e-mail
                         </Text>
                       </>
                     )}
@@ -231,24 +234,14 @@ export default function ForgotPasswordScreen({navigation}) {
               <>
                 <Text style={styles.title}>Nova senha</Text>
                 <Text style={styles.subtitle}>
-                  Informe o código e escolha uma nova senha para{'\n'}
+                  Digite o código enviado para{'\n'}
                   <Text style={styles.emailHighlight}>{email}</Text>
+                  {'\n'}e escolha uma nova senha.
                 </Text>
 
-                {displayedCode ? (
-                  <View style={styles.codeBanner}>
-                    <Text style={styles.codeBannerLabel}>Seu código</Text>
-                    <Text style={styles.codeBannerValue}>{displayedCode}</Text>
-                    <Text style={styles.codeBannerHint}>
-                      Válido por 30 minutos. Em breve este código será enviado
-                      por e-mail.
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.subtitleSmall}>
-                    Se o e-mail estiver cadastrado, use o código recebido.
-                  </Text>
-                )}
+                <Text style={styles.subtitleSmall}>
+                  O código vale por 15 minutos. Confira também a pasta de spam.
+                </Text>
 
                 <View style={styles.inputContainer}>
                   <Ionicons
@@ -265,6 +258,8 @@ export default function ForgotPasswordScreen({navigation}) {
                     onChangeText={setCode}
                     keyboardType="number-pad"
                     maxLength={6}
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
                   />
                 </View>
 
@@ -330,6 +325,15 @@ export default function ForgotPasswordScreen({navigation}) {
                       </Text>
                     )}
                   </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleRequestCode}
+                  disabled={loading}
+                  style={styles.resendLink}>
+                  <Text style={styles.resendLinkText}>
+                    Não recebeu? Reenviar código
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -429,31 +433,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#8B5CF6',
   },
-  codeBanner: {
-    backgroundColor: '#F5F3FF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  codeBannerLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  codeBannerValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#8B5CF6',
-    letterSpacing: 6,
-    marginBottom: 8,
-  },
-  codeBannerHint: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -476,7 +455,7 @@ const styles = StyleSheet.create({
   submitButton: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: 16,
     marginTop: 8,
   },
   submitButtonDisabled: {
@@ -492,6 +471,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  resendLink: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  resendLinkText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '500',
   },
   loginLink: {
     flexDirection: 'row',

@@ -29,6 +29,76 @@ let prisma: PrismaClient | null = null;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
 
+/** Envia e-mail de recuperação de senha. Nunca loga o código. */
+async function sendPasswordResetEmail(to: string, code: string): Promise<{ ok: boolean; error?: string }> {
+  const from =
+    process.env.SMTP_FROM ||
+    process.env.EMAIL_FROM ||
+    process.env.SMTP_USER ||
+    '';
+
+  // Preferência: Resend API
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: from || 'Liga do Bem <onboarding@resend.dev>',
+          to: [to],
+          subject: 'Código para redefinir sua senha — Liga do Bem',
+          text: `Seu código de recuperação é: ${code}\n\nEle vale por 15 minutos.\nSe você não pediu isso, ignore este e-mail.`,
+          html: `<p>Seu código de recuperação é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p><p>Ele vale por <strong>15 minutos</strong>.</p><p>Se você não pediu isso, ignore este e-mail.</p>`,
+        }),
+      });
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => '');
+        return { ok: false, error: `Resend: ${resp.status} ${detail}` };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Falha Resend' };
+    }
+  }
+
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) {
+    return { ok: false, error: 'SMTP/Resend não configurado' };
+  }
+
+  try {
+    const nodemailer = require('nodemailer');
+    const port = parseInt(process.env.SMTP_PORT || '587', 10);
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+    await transporter.sendMail({
+      from: from || user,
+      to,
+      subject: 'Código para redefinir sua senha — Liga do Bem',
+      text: `Seu código de recuperação é: ${code}\n\nEle vale por 15 minutos.\nSe você não pediu isso, ignore este e-mail.`,
+      html: `<p>Seu código de recuperação é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p><p>Ele vale por <strong>15 minutos</strong>.</p><p>Se você não pediu isso, ignore este e-mail.</p>`,
+    });
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || 'Falha SMTP' };
+  }
+}
+
+function isEmailDeliveryConfigured(): boolean {
+  if (process.env.RESEND_API_KEY) return true;
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
 /** Estima birthDate a partir da idade atual informada (em meses). */
 function birthDateFromAgeMonths(months: number, fromDate: Date = new Date()): Date {
   const d = new Date(fromDate.getTime());
@@ -1216,7 +1286,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Auth - Forgot password (gera código de 6 dígitos)
+    // Auth - Forgot password (código SOMENTE por e-mail — nunca na resposta)
     if (path === '/api/auth/forgot-password' && method === 'POST') {
       const db = getPrisma();
       if (!db) {
@@ -1228,27 +1298,51 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ error: 'Informe um e-mail válido' });
         }
 
+        // Sem e-mail configurado: bloqueia o fluxo (nunca devolver código no app)
+        if (!isEmailDeliveryConfigured()) {
+          console.error('❌ Recuperação de senha: SMTP/Resend não configurado');
+          return res.status(503).json({
+            error:
+              'Recuperação de senha temporariamente indisponível. Entre em contato com a Liga do Bem para redefinir sua senha.',
+            emailRequired: true,
+          });
+        }
+
+        const genericMessage =
+          'Se o e-mail estiver cadastrado, enviamos um código para redefinir a senha. Verifique sua caixa de entrada e o spam.';
+
+        // Rate limit simples: no máximo 3 pedidos em 15 min por e-mail
+        const recent: any[] = await db.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS c FROM password_reset_tokens
+           WHERE lower(email) = lower($1) AND "createdAt" > NOW() - INTERVAL '15 minutes'`,
+          email
+        );
+        if ((recent?.[0]?.c || 0) >= 3) {
+          return res.status(429).json({
+            error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+          });
+        }
+
         const user = await db.user.findUnique({
           where: { email },
           select: { id: true, email: true, isActive: true },
         });
 
-        // Resposta genérica para não revelar se o e-mail existe
-        const genericMessage =
-          'Se o e-mail estiver cadastrado, você receberá um código para redefinir a senha.';
-
+        // Sempre a mesma resposta se o e-mail não existir (anti-enumeração)
         if (!user || !user.isActive) {
           return res.status(200).json({
             message: genericMessage,
-            sent: false,
+            sent: true,
+            expiresInMinutes: 15,
           });
         }
 
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        const tokenId = require('crypto').randomUUID();
-        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min
+        const crypto = require('crypto');
+        const code = String(crypto.randomInt(100000, 1000000));
+        const codeHash = await bcrypt.hash(code, 10);
+        const tokenId = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
 
-        // Invalida códigos anteriores não usados
         await db.$executeRawUnsafe(
           `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE email = $1 AND "usedAt" IS NULL`,
           email
@@ -1259,21 +1353,30 @@ export default async function handler(req: any, res: any) {
            VALUES ($1, $2, $3, $4, NOW())`,
           tokenId,
           email,
-          code,
+          codeHash,
           expiresAt
         );
 
-        // Sem provedor de e-mail configurado: devolve o código para o app exibir.
-        // Quando houver SMTP/Resend, enviar por e-mail e remover resetCode da resposta.
-        console.log(`🔑 Código de recuperação gerado para ${email}`);
+        const mail = await sendPasswordResetEmail(email, code);
+        if (!mail.ok) {
+          await db.$executeRawUnsafe(
+            `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE id = $1`,
+            tokenId
+          );
+          console.error('❌ Falha ao enviar e-mail de recuperação:', mail.error);
+          return res.status(503).json({
+            error:
+              'Não foi possível enviar o e-mail de recuperação. Tente novamente mais tarde ou contate a Liga do Bem.',
+          });
+        }
+
+        console.log(`📧 Código de recuperação enviado por e-mail para ${email}`);
 
         return res.status(200).json({
           message: genericMessage,
           sent: true,
-          expiresInMinutes: 30,
-          resetCode: code,
-          delivery: 'app',
-          hint: 'Digite o código abaixo na próxima tela para criar uma nova senha.',
+          expiresInMinutes: 15,
+          delivery: 'email',
         });
       } catch (error: any) {
         console.error('❌ Forgot password error:', error);
@@ -1297,6 +1400,9 @@ export default async function handler(req: any, res: any) {
             error: 'E-mail, código e nova senha são obrigatórios',
           });
         }
+        if (!/^\d{6}$/.test(code)) {
+          return res.status(400).json({ error: 'Código inválido' });
+        }
         if (newPassword.length < 6) {
           return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
         }
@@ -1310,21 +1416,27 @@ export default async function handler(req: any, res: any) {
         }> = await db.$queryRawUnsafe(
           `SELECT id, email, code, "expiresAt", "usedAt"
            FROM password_reset_tokens
-           WHERE lower(email) = lower($1) AND code = $2 AND "usedAt" IS NULL
+           WHERE lower(email) = lower($1) AND "usedAt" IS NULL AND "expiresAt" > NOW()
            ORDER BY "createdAt" DESC
-           LIMIT 1`,
-          email,
-          code
+           LIMIT 5`,
+          email
         );
 
-        const token = rows?.[0];
-        if (!token) {
-          return res.status(400).json({ error: 'Código inválido ou já utilizado' });
+        let matched: (typeof rows)[0] | null = null;
+        for (const row of rows || []) {
+          const stored = (row.code || '').toString();
+          // Aceita hash bcrypt (novo) — nunca plaintext em produção
+          if (stored.startsWith('$2')) {
+            const ok = await bcrypt.compare(code, stored);
+            if (ok) {
+              matched = row;
+              break;
+            }
+          }
         }
 
-        const expiresAt = new Date(token.expiresAt).getTime();
-        if (Number.isNaN(expiresAt) || expiresAt < Date.now()) {
-          return res.status(400).json({ error: 'Código expirado. Solicite um novo.' });
+        if (!matched) {
+          return res.status(400).json({ error: 'Código inválido ou expirado' });
         }
 
         const users: Array<{ id: string }> = await db.$queryRawUnsafe(
@@ -1333,7 +1445,7 @@ export default async function handler(req: any, res: any) {
         );
         const user = users?.[0];
         if (!user) {
-          return res.status(400).json({ error: 'Usuário não encontrado' });
+          return res.status(400).json({ error: 'Código inválido ou expirado' });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 12);
@@ -1343,9 +1455,10 @@ export default async function handler(req: any, res: any) {
           user.id
         );
 
+        // Invalida este e quaisquer outros códigos pendentes do e-mail
         await db.$executeRawUnsafe(
-          `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE id = $1`,
-          token.id
+          `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE lower(email) = lower($1) AND "usedAt" IS NULL`,
+          email
         );
 
         return res.status(200).json({
@@ -1355,7 +1468,6 @@ export default async function handler(req: any, res: any) {
         console.error('❌ Reset password error:', error);
         return res.status(500).json({
           error: 'Erro ao redefinir senha',
-          detail: error?.message || String(error),
         });
       }
     }
