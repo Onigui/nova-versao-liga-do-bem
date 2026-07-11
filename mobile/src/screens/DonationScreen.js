@@ -186,7 +186,9 @@ export default function DonationScreen({navigation}) {
       setPixModalVisible(false);
       Alert.alert(
         'Obrigado!',
-        `Sua doação de R$ ${parseFloat(amount).toFixed(2)} foi registrada. Você pode vê-la em Minhas Doações.`,
+        data.awaitingAdmin
+          ? `Recebemos o aviso do seu PIX de R$ ${parseFloat(amount).toFixed(2)}. A Liga do Bem vai confirmar e a doação aparecerá como aprovada no histórico.`
+          : `Sua doação de R$ ${parseFloat(amount).toFixed(2)} foi registrada. Você pode vê-la em Minhas Doações.`,
         [
           {
             text: 'Ver minhas doações',

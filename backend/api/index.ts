@@ -2234,7 +2234,18 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Invalid token' });
         }
 
-        const { logoUrl, appName, appSubtitle, loginLogoUrl, loginAppName, loginIcon, loginIconImage } = body;
+        const {
+          logoUrl,
+          appName,
+          appSubtitle,
+          loginLogoUrl,
+          loginAppName,
+          loginIcon,
+          loginIconImage,
+          pixKey,
+          pixHolderName,
+          pixCity,
+        } = body;
 
         // Update or create configs
         const configsToUpdate = [
@@ -2246,6 +2257,32 @@ export default async function handler(req: any, res: any) {
           { key: 'login.icon', value: loginIcon || '🐾', type: 'STRING', isPublic: true },
           { key: 'login.iconImage', value: loginIconImage || '', type: 'STRING', isPublic: true },
         ];
+
+        // PIX: só atualiza se o campo veio no body (permite salvar branding sem apagar PIX)
+        if (pixKey !== undefined) {
+          configsToUpdate.push({
+            key: 'donation.pixKey',
+            value: String(pixKey || '').replace(/\D/g, '') || String(pixKey || ''),
+            type: 'STRING',
+            isPublic: true,
+          });
+        }
+        if (pixHolderName !== undefined) {
+          configsToUpdate.push({
+            key: 'donation.pixHolderName',
+            value: String(pixHolderName || 'Liga do Bem Botucatu'),
+            type: 'STRING',
+            isPublic: true,
+          });
+        }
+        if (pixCity !== undefined) {
+          configsToUpdate.push({
+            key: 'donation.pixCity',
+            value: String(pixCity || 'Botucatu'),
+            type: 'STRING',
+            isPublic: true,
+          });
+        }
 
         for (const config of configsToUpdate) {
           await db.systemConfig.upsert({
@@ -4343,16 +4380,17 @@ export default async function handler(req: any, res: any) {
           });
         }
 
+        // Usuário declara que pagou; permanece PENDING até o admin aprovar
         const updated = await db.donation.update({
           where: { id: donationId },
           data: {
-            status: 'APPROVED',
-            transactionId: donation.transactionId || `PIX_APP_${Date.now()}`,
+            status: 'PENDING',
+            transactionId: donation.transactionId || `PIX_CLAIMED_${Date.now()}`,
           },
         });
 
         return res.status(200).json({
-          message: 'Obrigado! Sua doação foi registrada.',
+          message: 'Pagamento informado! A Liga do Bem vai confirmar e liberar no seu histórico.',
           donation: {
             id: updated.id,
             amount: parseFloat(updated.amount.toString()),
@@ -4360,10 +4398,163 @@ export default async function handler(req: any, res: any) {
             method: updated.method,
             transactionId: updated.transactionId,
           },
+          awaitingAdmin: true,
         });
       } catch (error: any) {
         console.error('❌ Erro ao confirmar doação:', error);
         return res.status(500).json({ error: 'Erro ao confirmar doação' });
+      }
+    }
+
+    // GET admin donations (+ stats)
+    if (path === '/api/admin/donations' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let isAuthorized = token.startsWith('demo-token-');
+        if (!isAuthorized) {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            isAuthorized = decoded.role === 'ADMIN';
+          } catch { /* ignore */ }
+        }
+        if (!isAuthorized) return res.status(401).json({ error: 'Invalid token' });
+
+        const status = (req.query?.status || '').toString();
+        const page = Math.max(1, parseInt(String(req.query?.page || '1'), 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(String(req.query?.limit || '20'), 10) || 20));
+        const offset = (page - 1) * limit;
+
+        const whereSql = status ? `WHERE d.status = $1` : '';
+        const params: any[] = status ? [status] : [];
+
+        const countRows: any[] = await db.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS total FROM donations d ${whereSql}`,
+          ...params
+        );
+        const total = countRows?.[0]?.total || 0;
+
+        const listParams = status ? [status, limit, offset] : [limit, offset];
+        const limitIdx = status ? 2 : 1;
+        const offsetIdx = status ? 3 : 2;
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT d.id, d.amount, d.method, d.status, d.description, d."isAnonymous",
+                  d."donorName", d."donorEmail", d."transactionId", d."createdAt",
+                  u.id AS user_id, u.name AS user_name, u.email AS user_email
+           FROM donations d
+           LEFT JOIN users u ON u.id = d."userId"
+           ${whereSql}
+           ORDER BY d."createdAt" DESC
+           LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+          ...listParams
+        );
+
+        const donations = (rows || []).map((d) => ({
+          id: d.id,
+          amount: parseFloat(d.amount?.toString?.() || '0'),
+          method: d.method,
+          type: 'DONATION',
+          status: d.status,
+          description: d.description,
+          isAnonymous: d.isAnonymous,
+          donorName: d.donorName,
+          donorEmail: d.donorEmail,
+          transactionId: d.transactionId,
+          gateway: d.method || 'PIX',
+          createdAt: d.createdAt,
+          user: d.user_id
+            ? { id: d.user_id, name: d.user_name, email: d.user_email }
+            : null,
+          userName: d.donorName || d.user_name || null,
+        }));
+
+        const statsRows: any[] = await db.$queryRawUnsafe(
+          `SELECT
+             COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN amount ELSE 0 END), 0) AS total_revenue,
+             COALESCE(SUM(CASE WHEN status = 'APPROVED' AND "createdAt" >= date_trunc('month', NOW()) THEN amount ELSE 0 END), 0) AS monthly_revenue,
+             COUNT(*)::int AS total_transactions,
+             COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending_payments
+           FROM donations`
+        );
+
+        return res.status(200).json({
+          donations,
+          payments: donations,
+          total,
+          pagination: {
+            page,
+            limit,
+            pages: Math.max(1, Math.ceil(total / limit)),
+            total,
+          },
+          stats: {
+            totalRevenue: parseFloat(statsRows?.[0]?.total_revenue?.toString?.() || '0'),
+            monthlyRevenue: parseFloat(statsRows?.[0]?.monthly_revenue?.toString?.() || '0'),
+            totalTransactions: statsRows?.[0]?.total_transactions || 0,
+            pendingPayments: statsRows?.[0]?.pending_payments || 0,
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Admin donations error:', error);
+        return res.status(500).json({ error: 'Erro ao listar doações', detail: error?.message });
+      }
+    }
+
+    // POST admin donation status
+    if (path === '/api/admin/donations/status' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        let isAuthorized = token.startsWith('demo-token-');
+        if (!isAuthorized) {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            isAuthorized = decoded.role === 'ADMIN';
+          } catch { /* ignore */ }
+        }
+        if (!isAuthorized) return res.status(401).json({ error: 'Invalid token' });
+
+        const donationId = body?.donationId;
+        const status = (body?.status || '').toString().toUpperCase();
+        if (!donationId || !['APPROVED', 'REJECTED', 'CANCELLED', 'PENDING'].includes(status)) {
+          return res.status(400).json({ error: 'donationId e status válidos são obrigatórios' });
+        }
+
+        await db.$executeRawUnsafe(
+          `UPDATE donations
+           SET status = $1::"PaymentStatus",
+               "transactionId" = CASE
+                 WHEN $1 = 'APPROVED' THEN COALESCE("transactionId", $2)
+                 ELSE "transactionId"
+               END,
+               "updatedAt" = NOW()
+           WHERE id = $3`,
+          status,
+          `ADMIN_${Date.now()}`,
+          donationId
+        );
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, amount, method, status, "transactionId", "createdAt" FROM donations WHERE id = $1`,
+          donationId
+        );
+
+        return res.status(200).json({
+          message: `Doação marcada como ${status}`,
+          donation: rows?.[0] || null,
+        });
+      } catch (error: any) {
+        console.error('❌ Admin donation status error:', error);
+        return res.status(500).json({ error: 'Erro ao atualizar doação', detail: error?.message });
       }
     }
 

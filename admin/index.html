@@ -1121,6 +1121,27 @@
                                 </div>
                             </div>
 
+                            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+                            <h3 style="font-size: 1.125rem; font-weight: 600; color: var(--text-dark); margin-bottom: 1rem;">Doações via PIX</h3>
+                            <p style="font-size: 0.875rem; color: var(--text-gray); margin-top: -0.5rem; margin-bottom: 1rem;">
+                                Chave usada no aplicativo quando o usuário doa. CNPJ da Liga: 27.644.955/0001-38
+                            </p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Chave PIX (CNPJ/e-mail/telefone)</label>
+                                    <input type="text" class="form-input" id="pixKey" name="pixKey" placeholder="27644955000138">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Nome do recebedor</label>
+                                    <input type="text" class="form-input" id="pixHolderName" name="pixHolderName" placeholder="Liga do Bem Botucatu">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Cidade</label>
+                                <input type="text" class="form-input" id="pixCity" name="pixCity" placeholder="Botucatu">
+                            </div>
+
                             <div style="display: flex; gap: 1rem; margin-top: 1rem;">
                                 <button type="button" class="btn btn-primary" onclick="saveAppConfig()">
                                     <span>💾</span>
@@ -1842,8 +1863,8 @@
                 <div class="header">
                     <div class="header-content">
                         <div>
-                            <h1 class="header-title">Gestão de Pagamentos</h1>
-                            <p class="header-subtitle">Monitore doações, mensalidades e transações da plataforma</p>
+                            <h1 class="header-title">Doações e Pagamentos</h1>
+                            <p class="header-subtitle">Aprove doações PIX do aplicativo e acompanhe o histórico</p>
                         </div>
                         <div class="header-actions">
                             <button class="btn btn-secondary" onclick="loadPaymentStats()">
@@ -4129,30 +4150,36 @@
                     return;
                 }
 
-                const response = await fetch(`${API_BASE_URL}/api/payments/stats`, {
+                const response = await fetch(`${API_BASE_URL}/api/admin/donations?page=1&limit=1`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
+                        'X-Admin-Token': token,
                         'Content-Type': 'application/json'
                     }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    updatePaymentStats(data.stats);
+                    updatePaymentStats(data.stats || {
+                        totalRevenue: 0,
+                        monthlyRevenue: 0,
+                        totalTransactions: 0,
+                        pendingPayments: 0
+                    });
                 } else {
-                    console.error('Erro ao carregar estatísticas de pagamentos:', response.status);
+                    console.error('Erro ao carregar estatísticas de doações:', response.status);
                 }
             } catch (error) {
-                console.error('Erro ao carregar estatísticas de pagamentos:', error);
+                console.error('Erro ao carregar estatísticas de doações:', error);
             }
         }
 
         function updatePaymentStats(stats) {
-            document.getElementById('totalRevenue').textContent = `R$ ${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-            document.getElementById('monthlyRevenue').textContent = `R$ ${stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-            document.getElementById('totalTransactions').textContent = stats.totalTransactions.toLocaleString();
-            document.getElementById('pendingPayments').textContent = stats.pendingPayments.toLocaleString();
+            document.getElementById('totalRevenue').textContent = `R$ ${Number(stats.totalRevenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('monthlyRevenue').textContent = `R$ ${Number(stats.monthlyRevenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('totalTransactions').textContent = Number(stats.totalTransactions || 0).toLocaleString();
+            document.getElementById('pendingPayments').textContent = Number(stats.pendingPayments || 0).toLocaleString();
         }
 
         async function loadPayments(page = 1) {
@@ -4163,66 +4190,69 @@
                     return;
                 }
 
+                currentPaymentPage = page;
                 const queryParams = new URLSearchParams({
                     page: page.toString(),
                     limit: '20',
-                    ...paymentFilters
                 });
+                if (paymentFilters.status) queryParams.set('status', paymentFilters.status);
 
-                const response = await fetch(`${API_BASE_URL}/api/payments?${queryParams}`, {
+                const response = await fetch(`${API_BASE_URL}/api/admin/donations?${queryParams}`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
+                        'X-Admin-Token': token,
                         'Content-Type': 'application/json'
                     }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    renderPaymentsTable(data.payments);
-                    updatePaymentPagination(data.pagination);
+                    renderPaymentsTable(data.donations || data.payments || []);
+                    updatePaymentPagination(data.pagination || { page: 1, pages: 1 });
+                    if (data.stats) updatePaymentStats(data.stats);
                 } else {
-                    console.error('Erro ao carregar pagamentos:', response.status);
+                    console.error('Erro ao carregar doações:', response.status);
+                    const tbody = document.getElementById('payments-table-body');
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center">Erro ao carregar doações</td></tr>';
                 }
             } catch (error) {
-                console.error('Erro ao carregar pagamentos:', error);
+                console.error('Erro ao carregar doações:', error);
             }
         }
 
         function renderPaymentsTable(payments) {
             const tbody = document.getElementById('payments-table-body');
             
-            if (payments.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum pagamento encontrado</td></tr>';
+            if (!payments || payments.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhuma doação encontrada</td></tr>';
                 return;
             }
 
             tbody.innerHTML = payments.map(payment => `
                 <tr>
-                    <td>${payment.id.substring(0, 8)}...</td>
+                    <td>${String(payment.id).substring(0, 8)}...</td>
                     <td>${new Date(payment.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td>
-                        <span class="badge badge-${getPaymentTypeClass(payment.type)}">
-                            ${getPaymentTypeLabel(payment.type)}
+                        <span class="badge badge-${getPaymentTypeClass(payment.type || 'DONATION')}">
+                            ${getPaymentTypeLabel(payment.type || 'DONATION')}
                         </span>
                     </td>
                     <td>R$ ${parseFloat(payment.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     <td>
-                        <span class="status-badge status-${payment.status.toLowerCase()}">
+                        <span class="status-badge status-${String(payment.status || '').toLowerCase()}">
                             ${getPaymentStatusLabel(payment.status)}
                         </span>
                     </td>
-                    <td>${payment.user ? payment.user.name : payment.userName || 'N/A'}</td>
-                    <td>${payment.gateway}</td>
+                    <td>${payment.user ? payment.user.name : payment.userName || payment.donorName || 'N/A'}</td>
+                    <td>${payment.gateway || payment.method || 'PIX'}</td>
                     <td>
-                        <button class="btn-action btn-view" onclick="viewPayment('${payment.id}')" title="Ver detalhes">
-                            <i class="fas fa-eye"></i>
-                        </button>
                         ${payment.status === 'PENDING' ? `
-                            <button class="btn-action btn-approve" onclick="approvePayment('${payment.id}')" title="Aprovar">
-                                <i class="fas fa-check"></i>
-                            </button>
-                        ` : ''}
+                            <button class="btn-action btn-approve" onclick="approvePayment('${payment.id}')" title="Aprovar">✓</button>
+                            <button class="btn-action btn-view" onclick="rejectPayment('${payment.id}')" title="Rejeitar">✕</button>
+                        ` : `
+                            <button class="btn-action btn-view" onclick="viewPayment('${payment.id}')" title="Ver">👁</button>
+                        `}
                     </td>
                 </tr>
             `).join('');
@@ -4306,41 +4336,48 @@
         }
 
         function viewPayment(paymentId) {
-            alert(`Visualizando pagamento: ${paymentId}`);
-            // Implementar modal de visualização de pagamento
+            alert(`Doação: ${paymentId}`);
         }
 
-        async function approvePayment(paymentId) {
-            if (!confirm('Deseja aprovar este pagamento?')) {
-                return;
-            }
-
+        async function updateDonationStatus(donationId, status) {
             try {
                 const token = localStorage.getItem('admin_token');
-                const response = await fetch(`${API_BASE_URL}/api/payments/${paymentId}/simulate-approval`, {
+                const response = await fetch(`${API_BASE_URL}/api/admin/donations/status`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
+                        'X-Admin-Token': token,
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({ donationId, status })
                 });
 
+                const data = await response.json().catch(() => ({}));
                 if (response.ok) {
-                    alert('Pagamento aprovado com sucesso!');
+                    alert(data.message || 'Status atualizado!');
                     refreshPayments();
                     loadPaymentStats();
                 } else {
-                    alert('Erro ao aprovar pagamento.');
+                    alert(data.error || 'Erro ao atualizar doação.');
                 }
             } catch (error) {
-                console.error('Erro ao aprovar pagamento:', error);
-                alert('Erro ao aprovar pagamento.');
+                console.error('Erro ao atualizar doação:', error);
+                alert('Erro ao atualizar doação.');
             }
         }
 
+        async function approvePayment(paymentId) {
+            if (!confirm('Deseja aprovar esta doação?')) return;
+            await updateDonationStatus(paymentId, 'APPROVED');
+        }
+
+        async function rejectPayment(paymentId) {
+            if (!confirm('Deseja rejeitar esta doação?')) return;
+            await updateDonationStatus(paymentId, 'REJECTED');
+        }
+
         function exportPayments() {
-            alert('Exportando relatório de pagamentos...');
-            // Implementar exportação de dados
+            alert('Use a lista de doações na tela. Exportação CSV em breve.');
         }
 
         // Carregar dados quando a seção de pagamentos for exibida
@@ -5617,6 +5654,14 @@
                     
                     // Atualizar preview
                     updateLogoPreview(logoUrlValue);
+
+                    // PIX
+                    const pixKeyEl = document.getElementById('pixKey');
+                    const pixHolderEl = document.getElementById('pixHolderName');
+                    const pixCityEl = document.getElementById('pixCity');
+                    if (pixKeyEl) pixKeyEl.value = data['donation.pixKey'] || '';
+                    if (pixHolderEl) pixHolderEl.value = data['donation.pixHolderName'] || 'Liga do Bem Botucatu';
+                    if (pixCityEl) pixCityEl.value = data['donation.pixCity'] || 'Botucatu';
                 } else {
                     console.error('❌ Erro ao carregar configurações:', data);
                 }
@@ -5768,7 +5813,10 @@
                         loginLogoUrl: loginLogoUrl || null,
                         loginAppName: loginAppName || null,
                         loginIcon: loginIcon || '🐾',
-                        loginIconImage: loginIconImage || null
+                        loginIconImage: loginIconImage || null,
+                        pixKey: document.getElementById('pixKey')?.value?.trim() || '',
+                        pixHolderName: document.getElementById('pixHolderName')?.value?.trim() || 'Liga do Bem Botucatu',
+                        pixCity: document.getElementById('pixCity')?.value?.trim() || 'Botucatu'
                     })
                 });
 
