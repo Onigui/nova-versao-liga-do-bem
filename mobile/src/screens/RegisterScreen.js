@@ -287,9 +287,22 @@ export default function RegisterScreen({navigation}) {
                 )}
               </View>
               <Text style={styles.checkboxText}>
-                Aceito os <Text style={styles.checkboxLink}>termos de uso</Text>{' '}
+                Aceito os{' '}
+                <Text
+                  style={styles.checkboxLink}
+                  onPress={() =>
+                    navigation.navigate('Legal', {section: 'terms'})
+                  }>
+                  termos de uso
+                </Text>{' '}
                 e a{' '}
-                <Text style={styles.checkboxLink}>política de privacidade</Text>
+                <Text
+                  style={styles.checkboxLink}
+                  onPress={() =>
+                    navigation.navigate('Legal', {section: 'privacy'})
+                  }>
+                  política de privacidade
+                </Text>
               </Text>
             </TouchableOpacity>
 

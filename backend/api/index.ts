@@ -4477,6 +4477,232 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // GET user volunteer status/stats
+    if (path === '/api/user/volunteer' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const works: any[] = await db.$queryRawUnsafe(
+          `SELECT id, role, description, "startDate", "endDate", "isActive", "createdAt"
+           FROM volunteer_works
+           WHERE "userId" = $1
+           ORDER BY "createdAt" DESC`,
+          userId
+        );
+
+        const activeWork = (works || []).find((w) => w.isActive) || null;
+
+        const eventRegs: any[] = await db.$queryRawUnsafe(
+          `SELECT er.id, er.status, er."createdAt",
+                  e.id AS event_id, e.title, e."startDate", e."endDate", e.location
+           FROM event_registrations er
+           INNER JOIN events e ON e.id = er."eventId"
+           WHERE er."userId" = $1
+           ORDER BY e."startDate" DESC
+           LIMIT 20`,
+          userId
+        );
+
+        const eventsAttended = (eventRegs || []).filter(
+          (e) => e.status === 'CONFIRMED' || e.status === 'REGISTERED'
+        ).length;
+        // Estimativa simples: 3h por evento + 2h/semana se voluntário ativo
+        let totalHours = eventsAttended * 3;
+        if (activeWork?.startDate) {
+          const start = new Date(activeWork.startDate).getTime();
+          const weeks = Math.max(1, Math.floor((Date.now() - start) / (7 * 24 * 60 * 60 * 1000)));
+          totalHours += weeks * 2;
+        }
+        const points = totalHours * 10;
+
+        const rankingRows: any[] = await db.$queryRawUnsafe(
+          `SELECT vw."userId", u.name,
+                  COUNT(er.id)::int AS events_count
+           FROM volunteer_works vw
+           INNER JOIN users u ON u.id = vw."userId"
+           LEFT JOIN event_registrations er ON er."userId" = vw."userId"
+           WHERE vw."isActive" = true
+           GROUP BY vw."userId", u.name
+           ORDER BY events_count DESC, u.name ASC
+           LIMIT 50`
+        );
+
+        let rank = 0;
+        const ranking = (rankingRows || []).map((row, index) => {
+          const entry = {
+            position: index + 1,
+            userId: row.userId,
+            name: row.name,
+            eventsCount: row.events_count || 0,
+            points: (row.events_count || 0) * 30,
+          };
+          if (row.userId === userId) rank = entry.position;
+          return entry;
+        });
+
+        if (!rank && activeWork) {
+          rank = ranking.length + 1;
+        }
+
+        let level = 'Bronze';
+        let nextLevelPoints = 100;
+        let progress = Math.min(100, (points / 100) * 100);
+        if (points >= 300) {
+          level = 'Ouro';
+          nextLevelPoints = 0;
+          progress = 100;
+        } else if (points >= 100) {
+          level = 'Prata';
+          nextLevelPoints = 300 - points;
+          progress = ((points - 100) / 200) * 100;
+        } else {
+          nextLevelPoints = 100 - points;
+          progress = (points / 100) * 100;
+        }
+
+        const now = Date.now();
+        const events = (eventRegs || []).map((e) => {
+          const start = new Date(e.startDate).getTime();
+          return {
+            id: e.event_id,
+            title: e.title,
+            date: e.startDate,
+            location: e.location,
+            hours: 3,
+            status: start >= now ? 'upcoming' : 'completed',
+            registrationStatus: e.status,
+          };
+        });
+
+        return res.status(200).json({
+          isVolunteer: !!activeWork,
+          volunteerWork: activeWork,
+          stats: {
+            totalHours,
+            eventsAttended,
+            rank,
+            points,
+            level,
+            nextLevelPoints,
+            progress,
+          },
+          events,
+          ranking: ranking.slice(0, 10),
+        });
+      } catch (error: any) {
+        console.error('❌ Erro volunteer status:', error);
+        return res.status(500).json({
+          error: 'Erro ao carregar voluntariado',
+          detail: error?.message || String(error),
+        });
+      }
+    }
+
+    // POST register as volunteer
+    if (path === '/api/volunteers/register' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) {
+          return res.status(401).json({ error: 'Token de autenticação necessário' });
+        }
+
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const role = (body?.role || '').toString().trim();
+        const description = (body?.description || '').toString().trim();
+        if (!role || role.length < 2) {
+          return res.status(400).json({ error: 'Informe a área de atuação' });
+        }
+
+        const existing: any[] = await db.$queryRawUnsafe(
+          `SELECT id FROM volunteer_works WHERE "userId" = $1 AND "isActive" = true LIMIT 1`,
+          userId
+        );
+        if (existing?.[0]) {
+          return res.status(400).json({ error: 'Você já está cadastrado como voluntário' });
+        }
+
+        const id = require('crypto').randomUUID();
+        const startDate = body?.startDate ? new Date(body.startDate) : new Date();
+
+        await db.$executeRawUnsafe(
+          `INSERT INTO volunteer_works
+            (id, "userId", role, description, "startDate", "endDate", "isActive", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, NULL, true, NOW(), NOW())`,
+          id,
+          userId,
+          role,
+          description || null,
+          startDate
+        );
+
+        // Notificação de boas-vindas ao voluntariado
+        try {
+          const notifId = require('crypto').randomUUID();
+          await db.$executeRawUnsafe(
+            `INSERT INTO notifications
+              (id, "userId", title, message, type, data, "isRead", "sentAt")
+             VALUES ($1, $2, $3, $4, 'VOLUNTEER_OPPORTUNITY', $5::jsonb, false, NOW())`,
+            notifId,
+            userId,
+            'Bem-vindo ao voluntariado!',
+            `Você se cadastrou como voluntário na área: ${role}. Confira os próximos eventos.`,
+            JSON.stringify({ screen: 'EventsCalendar' })
+          );
+        } catch (notifErr) {
+          console.warn('Não foi possível criar notificação de voluntário:', notifErr);
+        }
+
+        return res.status(201).json({
+          message: 'Cadastro de voluntário realizado com sucesso',
+          volunteerWork: {
+            id,
+            userId,
+            role,
+            description: description || null,
+            startDate,
+            isActive: true,
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Erro register volunteer:', error);
+        return res.status(500).json({
+          error: 'Erro ao cadastrar voluntário',
+          detail: error?.message || String(error),
+        });
+      }
+    }
+
+    // GET user volunteer status/stats - placeholder removed
+    // GET transparency summary already above
+
     // GET user membership (cria automaticamente se não existir)
     if (path === '/api/user/membership' && method === 'GET') {
       const db = getPrisma();

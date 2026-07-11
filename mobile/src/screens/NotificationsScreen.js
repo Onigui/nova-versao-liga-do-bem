@@ -151,7 +151,11 @@ export default function NotificationsScreen({navigation}) {
         navigation.navigate(screen || 'Volunteer');
         break;
       case 'GENERAL':
-        if (screen) navigation.navigate(screen);
+        if (screen === 'MembershipCard') {
+          navigation.navigate('Cartão');
+        } else if (screen) {
+          navigation.navigate(screen);
+        }
         break;
       default:
         break;

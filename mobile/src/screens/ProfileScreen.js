@@ -230,8 +230,7 @@ export default function ProfileScreen({navigation}) {
       icon: 'shield-checkmark-outline',
       title: 'Privacidade',
       subtitle: 'Termos de uso e privacidade',
-      onPress: () =>
-        Alert.alert('Em desenvolvimento', 'Funcionalidade em breve!'),
+      onPress: () => navigation.navigate('Legal', {section: 'both'}),
     },
   ];
 

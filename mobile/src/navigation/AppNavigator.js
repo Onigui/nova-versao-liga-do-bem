@@ -20,6 +20,7 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import VolunteerScreen from '../screens/VolunteerScreen';
 import TransparencyScreen from '../screens/TransparencyScreen';
 import EventsCalendarScreen from '../screens/EventsCalendarScreen';
+import LegalScreen from '../screens/LegalScreen';
 
 // Detail Screens
 import SearchPartnerScreen from '../screens/SearchPartnerScreen';
@@ -52,6 +53,16 @@ export function AuthStack() {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen
+        name="Legal"
+        component={LegalScreen}
+        options={{
+          headerShown: true,
+          title: 'Termos e Privacidade',
+          headerStyle: {backgroundColor: '#ffffff'},
+          headerTintColor: '#8B5CF6',
+        }}
+      />
     </Stack.Navigator>
   );
 }
@@ -223,6 +234,18 @@ export function AppStack() {
         options={{
           headerShown: true,
           title: 'Voluntariado',
+          headerStyle: {
+            backgroundColor: '#ffffff',
+          },
+          headerTintColor: '#8B5CF6',
+        }}
+      />
+      <Stack.Screen
+        name="Legal"
+        component={LegalScreen}
+        options={{
+          headerShown: true,
+          title: 'Termos e Privacidade',
           headerStyle: {
             backgroundColor: '#ffffff',
           },

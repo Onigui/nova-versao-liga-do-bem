@@ -38,12 +38,26 @@ export default function PartnersScreen({navigation, route}) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   // Se vier filtro via route params, usar ele, senão 'all'
-  const filterFromRoute = route?.params?.filter;
-  const initialCategory = filterFromRoute === 'veterinario' || filterFromRoute === 'veterinária' 
-    ? 'veterinária' 
-    : 'all';
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const filterFromRoute = route?.params?.filter || route?.params?.initialCategory;
+  const resolvedInitialCategory =
+    filterFromRoute === 'veterinario' ||
+    filterFromRoute === 'veterinária' ||
+    filterFromRoute === 'veterinaria'
+      ? 'veterinária'
+      : 'all';
+  const [selectedCategory, setSelectedCategory] = useState(resolvedInitialCategory);
   const [userLocation, setUserLocation] = useState(null);
+
+  useEffect(() => {
+    const nextFilter = route?.params?.filter || route?.params?.initialCategory;
+    if (
+      nextFilter === 'veterinario' ||
+      nextFilter === 'veterinária' ||
+      nextFilter === 'veterinaria'
+    ) {
+      setSelectedCategory('veterinária');
+    }
+  }, [route?.params?.filter, route?.params?.initialCategory]);
 
   const requestLocationPermission = useCallback(async () => {
     try {
