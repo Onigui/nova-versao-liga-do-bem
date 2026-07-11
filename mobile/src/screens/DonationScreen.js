@@ -8,10 +8,14 @@ import {
   TextInput,
   Alert,
   Clipboard,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAuth} from '../services/AuthService';
+import {API_BASE_PATH} from '../config/apiConfig';
 
 export default function DonationScreen({navigation}) {
   const {user} = useAuth();
@@ -19,6 +23,11 @@ export default function DonationScreen({navigation}) {
   const [amount, setAmount] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState(null); // 'pix', 'card', 'boleto'
+  const [submitting, setSubmitting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [pixModalVisible, setPixModalVisible] = useState(false);
+  const [pixData, setPixData] = useState(null);
+  const [donationId, setDonationId] = useState(null);
 
   const predefinedAmounts = [
     {value: 10, label: 'R$ 10'},
@@ -50,10 +59,18 @@ export default function DonationScreen({navigation}) {
       Alert.alert('Atenção', 'Selecione um valor para doar');
       return;
     }
+    if (method !== 'pix') {
+      Alert.alert(
+        'Em breve',
+        'No momento só aceitamos doações via PIX. Cartão e boleto estarão disponíveis em breve.',
+      );
+      setPaymentMethod('pix');
+      return;
+    }
     setPaymentMethod(method);
   };
 
-  const handleDonate = () => {
+  const handleDonate = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert('Atenção', 'Selecione um valor para doar');
       return;
@@ -64,57 +81,144 @@ export default function DonationScreen({navigation}) {
       return;
     }
 
-    if (paymentMethod === 'pix') {
-      showPixPayment();
-    } else if (paymentMethod === 'card') {
+    if (paymentMethod !== 'pix') {
       Alert.alert(
-        'Pagamento com Cartão',
-        'Você será redirecionado para a página de pagamento seguro.',
-        [{text: 'OK'}],
+        'Em breve',
+        'No momento só aceitamos doações via PIX. Selecione PIX para continuar.',
       );
-    } else if (paymentMethod === 'boleto') {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_PATH}/donations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          amount: parseFloat(amount),
+          method: 'PIX',
+          recurring: donationType === 'recurring',
+          description:
+            donationType === 'recurring'
+              ? 'Doação mensal via app'
+              : 'Doação única via app',
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        Alert.alert('Erro', data.error || 'Não foi possível criar a doação');
+        return;
+      }
+
+      if (!data.pix?.key) {
+        Alert.alert(
+          'Atenção',
+          data.error ||
+            'Doação registrada, mas a chave PIX ainda não está configurada. Contate a Liga do Bem.',
+        );
+        return;
+      }
+
+      setDonationId(data.donation?.id || null);
+      setPixData({
+        key: data.pix.key,
+        holderName: data.pix.holderName,
+        city: data.pix.city,
+        amount: data.pix.amount || parseFloat(amount),
+      });
+      setPixModalVisible(true);
+    } catch (error) {
+      console.error('Erro ao criar doação:', error);
       Alert.alert(
-        'Boleto Bancário',
-        'O boleto será enviado para seu e-mail em instantes.',
-        [{text: 'OK'}],
+        'Erro',
+        'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const showPixPayment = () => {
-    const pixKey = 'ligadobem@exemplo.com';
+  const copyPixKey = () => {
+    if (!pixData?.key) return;
+    Clipboard.setString(pixData.key);
+    Alert.alert('Copiado!', 'Chave PIX copiada para a área de transferência.');
+  };
 
-    Alert.alert(
-      'Pagamento via PIX',
-      `Chave PIX: ${pixKey}\n\nValor: R$ ${parseFloat(amount).toFixed(2)}`,
-      [
-        {
-          text: 'Copiar Chave',
-          onPress: () => {
-            Clipboard.setString(pixKey);
-            Alert.alert(
-              'Sucesso!',
-              'Chave PIX copiada para a área de transferência!',
-            );
+  const confirmPayment = async () => {
+    if (!donationId) {
+      Alert.alert('Erro', 'Doação não encontrada. Tente novamente.');
+      return;
+    }
+
+    setConfirming(true);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_PATH}/donations/confirm`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({donationId}),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        Alert.alert('Erro', data.error || 'Não foi possível confirmar a doação');
+        return;
+      }
+
+      setPixModalVisible(false);
+      Alert.alert(
+        'Obrigado!',
+        `Sua doação de R$ ${parseFloat(amount).toFixed(2)} foi registrada. Você pode vê-la em Minhas Doações.`,
+        [
+          {
+            text: 'Ver minhas doações',
+            onPress: () => navigation.navigate('MyDonations'),
           },
-        },
-        {text: 'OK'},
-      ],
-    );
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ],
+      );
+    } catch (error) {
+      console.error('Erro ao confirmar doação:', error);
+      Alert.alert('Erro', 'Falha ao confirmar. Tente novamente.');
+    } finally {
+      setConfirming(false);
+    }
   };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
       <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
         <Ionicons name="heart" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Fazer Doação</Text>
         <Text style={styles.headerSubtitle}>
           Sua generosidade transforma vidas!
         </Text>
+        {user?.name ? (
+          <Text style={styles.headerUser}>Olá, {user.name.split(' ')[0]}</Text>
+        ) : null}
       </LinearGradient>
 
-      {/* Donation Type Selector */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Tipo de Doação</Text>
         <View style={styles.typeSelector}>
@@ -158,9 +262,14 @@ export default function DonationScreen({navigation}) {
             </Text>
           </TouchableOpacity>
         </View>
+        {donationType === 'recurring' ? (
+          <Text style={styles.recurringHint}>
+            A doação mensal registra sua intenção. O PIX deste mês é feito agora;
+            a renovação automática chega em breve.
+          </Text>
+        ) : null}
       </View>
 
-      {/* Amount Selection */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Valor da Doação</Text>
         <View style={styles.amountGrid}>
@@ -184,7 +293,6 @@ export default function DonationScreen({navigation}) {
           ))}
         </View>
 
-        {/* Custom Amount */}
         <View style={styles.customAmountContainer}>
           <Text style={styles.customAmountLabel}>Outro valor:</Text>
           <View style={styles.customAmountInput}>
@@ -201,7 +309,6 @@ export default function DonationScreen({navigation}) {
         </View>
       </View>
 
-      {/* Payment Methods */}
       {amount && parseFloat(amount) > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Forma de Pagamento</Text>
@@ -219,7 +326,7 @@ export default function DonationScreen({navigation}) {
               <View>
                 <Text style={styles.paymentMethodTitle}>PIX</Text>
                 <Text style={styles.paymentMethodSubtitle}>
-                  Aprovação instantânea
+                  Disponível agora
                 </Text>
               </View>
             </View>
@@ -229,10 +336,7 @@ export default function DonationScreen({navigation}) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.paymentMethod,
-              paymentMethod === 'card' && styles.paymentMethodActive,
-            ]}
+            style={styles.paymentMethod}
             onPress={() => handlePaymentMethod('card')}>
             <View style={styles.paymentMethodLeft}>
               <View style={[styles.paymentIcon, {backgroundColor: '#DBEAFE'}]}>
@@ -240,21 +344,13 @@ export default function DonationScreen({navigation}) {
               </View>
               <View>
                 <Text style={styles.paymentMethodTitle}>Cartão de Crédito</Text>
-                <Text style={styles.paymentMethodSubtitle}>
-                  Parcelamento disponível
-                </Text>
+                <Text style={styles.paymentMethodSubtitle}>Em breve</Text>
               </View>
             </View>
-            {paymentMethod === 'card' && (
-              <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
-            )}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.paymentMethod,
-              paymentMethod === 'boleto' && styles.paymentMethodActive,
-            ]}
+            style={styles.paymentMethod}
             onPress={() => handlePaymentMethod('boleto')}>
             <View style={styles.paymentMethodLeft}>
               <View style={[styles.paymentIcon, {backgroundColor: '#FEF3C7'}]}>
@@ -262,19 +358,13 @@ export default function DonationScreen({navigation}) {
               </View>
               <View>
                 <Text style={styles.paymentMethodTitle}>Boleto Bancário</Text>
-                <Text style={styles.paymentMethodSubtitle}>
-                  Vencimento em 3 dias
-                </Text>
+                <Text style={styles.paymentMethodSubtitle}>Em breve</Text>
               </View>
             </View>
-            {paymentMethod === 'boleto' && (
-              <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
-            )}
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Summary */}
       {amount && parseFloat(amount) > 0 && (
         <View style={styles.summary}>
           <LinearGradient
@@ -292,39 +382,41 @@ export default function DonationScreen({navigation}) {
                 R$ {parseFloat(amount).toFixed(2)}
               </Text>
             </View>
-            {donationType === 'recurring' && (
-              <Text style={styles.recurringNote}>
-                💜 Esta doação será renovada automaticamente todos os meses
-              </Text>
-            )}
           </LinearGradient>
         </View>
       )}
 
-      {/* Donate Button */}
       {amount && paymentMethod && (
         <View style={styles.donateButtonContainer}>
-          <TouchableOpacity style={styles.donateButton} onPress={handleDonate}>
+          <TouchableOpacity
+            style={styles.donateButton}
+            onPress={handleDonate}
+            disabled={submitting}>
             <LinearGradient
               colors={['#8B5CF6', '#7C3AED']}
               style={styles.donateButtonGradient}
               start={{x: 0, y: 0}}
               end={{x: 1, y: 0}}>
-              <Ionicons
-                name="heart"
-                size={20}
-                color="#FFFFFF"
-                style={{marginRight: 8}}
-              />
-              <Text style={styles.donateButtonText}>
-                Doar R$ {parseFloat(amount).toFixed(2)}
-              </Text>
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons
+                    name="heart"
+                    size={20}
+                    color="#FFFFFF"
+                    style={{marginRight: 8}}
+                  />
+                  <Text style={styles.donateButtonText}>
+                    Doar R$ {parseFloat(amount).toFixed(2)}
+                  </Text>
+                </>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Impact Section */}
       <View style={styles.impactSection}>
         <Text style={styles.impactTitle}>Seu Impacto</Text>
         <Text style={styles.impactSubtitle}>Veja como sua doação ajuda:</Text>
@@ -359,6 +451,64 @@ export default function DonationScreen({navigation}) {
           </View>
         </View>
       </View>
+
+      <Modal
+        visible={pixModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPixModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="qr-code" size={28} color="#10B981" />
+              <Text style={styles.modalTitle}>Pagar com PIX</Text>
+            </View>
+
+            <Text style={styles.modalAmount}>
+              R$ {pixData ? Number(pixData.amount).toFixed(2) : '0,00'}
+            </Text>
+            <Text style={styles.modalHolder}>
+              {pixData?.holderName || 'Liga do Bem Botucatu'}
+              {pixData?.city ? ` · ${pixData.city}` : ''}
+            </Text>
+
+            <Text style={styles.modalLabel}>Chave PIX</Text>
+            <View style={styles.pixKeyBox}>
+              <Text style={styles.pixKeyText} selectable>
+                {pixData?.key}
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.copyButton} onPress={copyPixKey}>
+              <Ionicons name="copy-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.copyButtonText}>Copiar chave PIX</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.modalHint}>
+              Abra o app do seu banco, cole a chave, confira o valor e finalize o
+              PIX. Depois toque em “Já paguei”.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={confirmPayment}
+              disabled={confirming}>
+              {confirming ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.confirmButtonText}>Já paguei</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setPixModalVisible(false)}
+              disabled={confirming}>
+              <Text style={styles.cancelButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -383,6 +533,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
+  },
+  headerUser: {
+    marginTop: 10,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   section: {
     padding: 20,
@@ -420,6 +575,12 @@ const styles = StyleSheet.create({
   },
   typeButtonTextActive: {
     color: '#FFFFFF',
+  },
+  recurringHint: {
+    marginTop: 12,
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 18,
   },
   amountGrid: {
     flexDirection: 'row',
@@ -497,7 +658,6 @@ const styles = StyleSheet.create({
   paymentMethodLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   paymentIcon: {
     width: 48,
@@ -505,6 +665,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
   },
   paymentMethodTitle: {
     fontSize: 16,
@@ -543,13 +704,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#8B5CF6',
-  },
-  recurringNote: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 18,
   },
   donateButtonContainer: {
     padding: 20,
@@ -607,5 +761,100 @@ const styles = StyleSheet.create({
   impactCardText: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalAmount: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#8B5CF6',
+    marginBottom: 4,
+  },
+  modalHolder: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  pixKeyBox: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  pixKeyText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    height: 48,
+    marginBottom: 16,
+  },
+  copyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  modalHint: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  confirmButton: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  confirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

@@ -3854,6 +3854,239 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // GET PIX donation info (public)
+    if (path === '/api/donations/pix-info' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const configs = await db.systemConfig.findMany({
+          where: {
+            key: { in: ['donation.pixKey', 'donation.pixHolderName', 'donation.pixCity'] },
+          },
+        });
+        const map: Record<string, string> = {};
+        for (const c of configs) map[c.key] = c.value;
+
+        const pixKey = map['donation.pixKey'] || '';
+        if (!pixKey) {
+          return res.status(503).json({
+            error: 'Chave PIX ainda não configurada. Contate a Liga do Bem.',
+          });
+        }
+
+        return res.status(200).json({
+          pixKey,
+          holderName: map['donation.pixHolderName'] || 'Liga do Bem Botucatu',
+          city: map['donation.pixCity'] || 'Botucatu',
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao buscar info PIX:', error);
+        return res.status(500).json({ error: 'Erro ao buscar dados do PIX' });
+      }
+    }
+
+    // POST create donation
+    if (path === '/api/donations' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const { amount, method, description, isAnonymous, donorName, donorEmail, recurring } = body || {};
+        const parsedAmount = parseFloat(amount);
+
+        if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+          return res.status(400).json({ error: 'Informe um valor válido para doar' });
+        }
+        if (parsedAmount > 100000) {
+          return res.status(400).json({ error: 'Valor máximo por doação: R$ 100.000,00' });
+        }
+
+        const allowedMethods = ['PIX', 'CREDIT_CARD', 'BANK_TRANSFER', 'CASH', 'OTHER'];
+        const paymentMethod = (method || 'PIX').toString().toUpperCase();
+        if (!allowedMethods.includes(paymentMethod)) {
+          return res.status(400).json({ error: 'Forma de pagamento inválida' });
+        }
+
+        // Por enquanto só PIX está operacional no app
+        if (paymentMethod !== 'PIX') {
+          return res.status(400).json({
+            error: 'No momento só aceitamos doações via PIX. Cartão e boleto em breve.',
+          });
+        }
+
+        let userId: string | null = null;
+        let userName: string | null = null;
+        let userEmail: string | null = null;
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (token) {
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            userId = decoded.userId || decoded.id || null;
+            if (userId) {
+              const user = await db.user.findUnique({
+                where: { id: userId },
+                select: { name: true, email: true },
+              });
+              userName = user?.name || null;
+              userEmail = user?.email || null;
+            }
+          } catch {
+            // Token inválido: doação anônima/sem vínculo
+            userId = null;
+          }
+        }
+
+        if (isAnonymous && (!donorName || !donorEmail)) {
+          return res.status(400).json({
+            error: 'Para doações anônimas, nome e e-mail são obrigatórios',
+          });
+        }
+
+        const descParts: string[] = [];
+        if (recurring) descParts.push('Doação mensal (intenção)');
+        if (description) descParts.push(String(description).slice(0, 180));
+        const finalDescription = descParts.join(' — ') || 'Doação via app';
+
+        const donation = await db.donation.create({
+          data: {
+            userId,
+            amount: parsedAmount,
+            method: paymentMethod as any,
+            description: finalDescription,
+            isAnonymous: !!isAnonymous,
+            donorName: isAnonymous ? donorName : null,
+            donorEmail: isAnonymous ? donorEmail : null,
+            status: 'PENDING',
+          },
+        });
+
+        const configs = await db.systemConfig.findMany({
+          where: {
+            key: { in: ['donation.pixKey', 'donation.pixHolderName', 'donation.pixCity'] },
+          },
+        });
+        const map: Record<string, string> = {};
+        for (const c of configs) map[c.key] = c.value;
+        const pixKey = map['donation.pixKey'] || '';
+
+        if (!pixKey) {
+          return res.status(503).json({
+            error: 'Chave PIX ainda não configurada. Contate a Liga do Bem.',
+            donation: {
+              id: donation.id,
+              amount: donation.amount,
+              method: donation.method,
+              status: donation.status,
+            },
+          });
+        }
+
+        return res.status(201).json({
+          message: 'Doação criada. Realize o PIX e confirme o pagamento.',
+          donation: {
+            id: donation.id,
+            amount: parseFloat(donation.amount.toString()),
+            method: donation.method,
+            status: donation.status,
+            description: donation.description,
+            createdAt: donation.createdAt,
+          },
+          pix: {
+            key: pixKey,
+            holderName: map['donation.pixHolderName'] || 'Liga do Bem Botucatu',
+            city: map['donation.pixCity'] || 'Botucatu',
+            amount: parsedAmount,
+            copyPaste: pixKey,
+          },
+          donor: {
+            name: isAnonymous ? donorName : userName,
+            email: isAnonymous ? donorEmail : userEmail,
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao criar doação:', error);
+        return res.status(500).json({ error: 'Erro ao criar doação. Tente novamente.' });
+      }
+    }
+
+    // POST confirm donation payment (user confirms PIX was sent)
+    if (path === '/api/donations/confirm' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) {
+        return res.status(503).json({ error: 'Database not configured' });
+      }
+      try {
+        const { donationId } = body || {};
+        if (!donationId) {
+          return res.status(400).json({ error: 'ID da doação é obrigatório' });
+        }
+
+        const donation = await db.donation.findUnique({ where: { id: donationId } });
+        if (!donation) {
+          return res.status(404).json({ error: 'Doação não encontrada' });
+        }
+
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (donation.userId) {
+          if (!token) {
+            return res.status(401).json({ error: 'Token de autenticação necessário' });
+          }
+          try {
+            const decoded: any = jwt.verify(token, JWT_SECRET);
+            const userId = decoded.userId || decoded.id;
+            if (userId !== donation.userId) {
+              return res.status(403).json({ error: 'Acesso negado a esta doação' });
+            }
+          } catch {
+            return res.status(401).json({ error: 'Token inválido' });
+          }
+        }
+
+        if (donation.status === 'APPROVED') {
+          return res.status(200).json({
+            message: 'Doação já confirmada',
+            donation: {
+              id: donation.id,
+              amount: parseFloat(donation.amount.toString()),
+              status: donation.status,
+              method: donation.method,
+            },
+          });
+        }
+
+        if (donation.status !== 'PENDING') {
+          return res.status(400).json({
+            error: `Não é possível confirmar doação com status ${donation.status}`,
+          });
+        }
+
+        const updated = await db.donation.update({
+          where: { id: donationId },
+          data: {
+            status: 'APPROVED',
+            transactionId: donation.transactionId || `PIX_APP_${Date.now()}`,
+          },
+        });
+
+        return res.status(200).json({
+          message: 'Obrigado! Sua doação foi registrada.',
+          donation: {
+            id: updated.id,
+            amount: parseFloat(updated.amount.toString()),
+            status: updated.status,
+            method: updated.method,
+            transactionId: updated.transactionId,
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao confirmar doação:', error);
+        return res.status(500).json({ error: 'Erro ao confirmar doação' });
+      }
+    }
+
     // GET user donations
     if (path === '/api/user/donations' && method === 'GET') {
       const db = getPrisma();
