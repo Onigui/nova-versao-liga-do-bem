@@ -29,6 +29,51 @@ let prisma: PrismaClient | null = null;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
 
+/** Estima birthDate a partir da idade atual informada (em meses). */
+function birthDateFromAgeMonths(months: number, fromDate: Date = new Date()): Date {
+  const d = new Date(fromDate.getTime());
+  const m = Math.max(0, Math.floor(Number(months) || 0));
+  d.setMonth(d.getMonth() - m);
+  return d;
+}
+
+/** Calcula idade em meses completos a partir de birthDate. */
+function ageMonthsFromBirthDate(birthDate: Date | string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let months =
+    (now.getFullYear() - birth.getFullYear()) * 12 +
+    (now.getMonth() - birth.getMonth());
+  if (now.getDate() < birth.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+/** Formata idade para exibição (PT-BR). */
+function formatAnimalAgeLabel(months: number | null | undefined): string {
+  if (months == null || Number.isNaN(months) || months < 0) return 'N/A';
+  if (months < 1) return 'Menos de 1 mês';
+  if (months < 12) return months === 1 ? '1 mês' : `${months} meses`;
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  const yearsLabel = years === 1 ? '1 ano' : `${years} anos`;
+  if (rem === 0) return yearsLabel;
+  const monthsLabel = rem === 1 ? '1 mês' : `${rem} meses`;
+  return `${yearsLabel} e ${monthsLabel}`;
+}
+
+/** Resolve idade atual do animal (prioriza birthDate; fallback no campo age estático). */
+function resolveAnimalAge(animal: { birthDate?: Date | string | null; age?: number | null }) {
+  const fromBirth = ageMonthsFromBirthDate(animal?.birthDate);
+  const months = fromBirth != null ? fromBirth : (animal?.age != null ? Number(animal.age) : null);
+  return {
+    ageMonths: months,
+    ageLabel: formatAnimalAgeLabel(months),
+    age: months, // compatível com admin/forms que usam age em meses
+  };
+}
+
 function getPrisma() {
   if (!prisma && process.env.DATABASE_URL) {
     prisma = new PrismaClient();
@@ -1377,7 +1422,17 @@ export default async function handler(req: any, res: any) {
             }
           }
         });
-        return res.status(200).json({ animals, total: animals.length });
+        const enriched = animals.map((a: any) => {
+          const resolved = resolveAnimalAge(a);
+          return {
+            ...a,
+            age: resolved.ageMonths,
+            ageMonths: resolved.ageMonths,
+            ageLabel: resolved.ageLabel,
+            birthDate: a.birthDate || null,
+          };
+        });
+        return res.status(200).json({ animals: enriched, total: enriched.length });
       } catch (error: any) {
         console.error('❌ Erro ao listar animais:', error);
         return res.status(500).json({ error: error?.message || 'Erro ao listar animais' });
@@ -1391,16 +1446,32 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
-        const { name, species, breed, age, gender, size, description, image, isVaccinated, isCastrated, hasSpecialNeeds, specialNeeds, isActive } = body;
+        const { name, species, breed, age, birthDate, gender, size, description, image, isVaccinated, isCastrated, hasSpecialNeeds, specialNeeds, isActive } = body;
         if (!name || !species || !gender || !size) {
           return res.status(400).json({ error: 'Nome, espécie, gênero e porte são obrigatórios' });
         }
+
+        let resolvedBirthDate: Date | null = null;
+        let ageMonths: number | null = null;
+        if (birthDate) {
+          resolvedBirthDate = new Date(birthDate);
+          ageMonths = ageMonthsFromBirthDate(resolvedBirthDate);
+        } else if (age !== undefined && age !== null && age !== '') {
+          ageMonths = parseInt(String(age), 10);
+          if (!Number.isNaN(ageMonths)) {
+            resolvedBirthDate = birthDateFromAgeMonths(ageMonths);
+          } else {
+            ageMonths = null;
+          }
+        }
+
         const animal = await db.animal.create({
           data: {
             name,
             species,
             breed: breed || null,
-            age: age ? parseInt(age) : null,
+            age: ageMonths,
+            birthDate: resolvedBirthDate,
             gender,
             size,
             description: description || null,
@@ -1411,9 +1482,13 @@ export default async function handler(req: any, res: any) {
             specialNeeds: specialNeeds || null,
             isActive: isActive !== undefined ? isActive : true,
             isAdopted: false
-          }
+          } as any
         });
-        return res.status(201).json({ message: 'Animal cadastrado com sucesso', animal });
+        const resolved = resolveAnimalAge(animal as any);
+        return res.status(201).json({
+          message: 'Animal cadastrado com sucesso',
+          animal: { ...animal, age: resolved.ageMonths, ageMonths: resolved.ageMonths, ageLabel: resolved.ageLabel },
+        });
       } catch (error: any) {
         console.error('❌ Erro ao criar animal:', error);
         return res.status(500).json({ error: error?.message || 'Erro ao criar animal' });
@@ -1433,12 +1508,16 @@ export default async function handler(req: any, res: any) {
         if (!animalId) {
           return res.status(400).json({ error: 'ID do animal é obrigatório' });
         }
-        const { name, species, breed, age, gender, size, description, image, isVaccinated, isCastrated, hasSpecialNeeds, specialNeeds, isActive, isAdopted } = body;
+        const { name, species, breed, age, birthDate, gender, size, description, image, isVaccinated, isCastrated, hasSpecialNeeds, specialNeeds, isActive, isAdopted } = body;
+        const existing: any = await db.animal.findUnique({ where: { id: animalId } });
+        if (!existing) {
+          return res.status(404).json({ error: 'Animal não encontrado' });
+        }
+
         const updateData: any = {};
         if (name) updateData.name = name;
         if (species) updateData.species = species;
         if (breed !== undefined) updateData.breed = breed || null;
-        if (age !== undefined) updateData.age = age ? parseInt(age) : null;
         if (gender) updateData.gender = gender;
         if (size) updateData.size = size;
         if (description !== undefined) updateData.description = description || null;
@@ -1449,11 +1528,48 @@ export default async function handler(req: any, res: any) {
         if (specialNeeds !== undefined) updateData.specialNeeds = specialNeeds || null;
         if (isActive !== undefined) updateData.isActive = isActive;
         if (isAdopted !== undefined) updateData.isAdopted = isAdopted;
+
+        // Idade: birthDate explícito OU correção da idade atual em meses
+        if (birthDate !== undefined) {
+          if (birthDate) {
+            const bd = new Date(birthDate);
+            updateData.birthDate = bd;
+            updateData.age = ageMonthsFromBirthDate(bd);
+          } else {
+            updateData.birthDate = null;
+            if (age !== undefined) updateData.age = age ? parseInt(String(age), 10) : null;
+          }
+        } else if (age !== undefined) {
+          if (age === null || age === '') {
+            updateData.age = null;
+            updateData.birthDate = null;
+          } else {
+            const ageMonths = parseInt(String(age), 10);
+            if (!Number.isNaN(ageMonths)) {
+              const currentMonths = resolveAnimalAge(existing).ageMonths;
+              if (!existing.birthDate) {
+                // Primeira definição: ancora na data de cadastro
+                updateData.age = ageMonths;
+                updateData.birthDate = birthDateFromAgeMonths(ageMonths, existing.createdAt || new Date());
+              } else if (currentMonths !== ageMonths) {
+                // Correção explícita da idade atual
+                updateData.age = ageMonths;
+                updateData.birthDate = birthDateFromAgeMonths(ageMonths);
+              }
+              // Se a idade informada = idade atual calculada, não mexe no birthDate
+            }
+          }
+        }
+
         const animal = await db.animal.update({
           where: { id: animalId },
           data: updateData
         });
-        return res.status(200).json({ message: 'Animal atualizado com sucesso', animal });
+        const resolved = resolveAnimalAge(animal as any);
+        return res.status(200).json({
+          message: 'Animal atualizado com sucesso',
+          animal: { ...animal, age: resolved.ageMonths, ageMonths: resolved.ageMonths, ageLabel: resolved.ageLabel },
+        });
       } catch (error: any) {
         console.error('❌ Erro ao atualizar animal:', error);
         if (error?.code === 'P2025') {
@@ -1501,13 +1617,17 @@ export default async function handler(req: any, res: any) {
           },
           orderBy: { createdAt: 'desc' }
         });
-        // Format for mobile app
-        const formattedAnimals = animals.map(a => ({
+        // Format for mobile app — idade sempre calculada a partir de birthDate
+        const formattedAnimals = animals.map((a: any) => {
+          const resolved = resolveAnimalAge(a);
+          return {
           id: a.id,
           name: a.name,
           species: a.species === 'DOG' ? 'Cachorro' : a.species === 'CAT' ? 'Gato' : a.species === 'BIRD' ? 'Ave' : a.species === 'RABBIT' ? 'Coelho' : 'Outro',
           breed: a.breed || 'Vira-Lata',
-          age: a.age ? `${Math.floor(a.age / 12)} ${Math.floor(a.age / 12) === 1 ? 'ano' : 'anos'}` : 'N/A',
+          age: resolved.ageLabel,
+          ageMonths: resolved.ageMonths,
+          birthDate: a.birthDate || null,
           gender: a.gender === 'MALE' ? 'Macho' : 'Fêmea',
           size: a.size === 'SMALL' ? 'Pequeno' : a.size === 'MEDIUM' ? 'Médio' : 'Grande',
           photo: a.image || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
@@ -1519,7 +1639,8 @@ export default async function handler(req: any, res: any) {
           rescueDate: a.createdAt.toISOString().split('T')[0],
           hasSpecialNeeds: a.hasSpecialNeeds || false,
           specialNeeds: a.specialNeeds || null
-        }));
+        };
+        });
         return res.status(200).json({ animals: formattedAnimals, total: formattedAnimals.length });
       } catch (error: any) {
         console.error('❌ Erro ao listar animais públicos:', error);

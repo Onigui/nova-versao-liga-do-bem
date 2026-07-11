@@ -2350,8 +2350,11 @@
                             <input type="text" class="form-input" name="breed" placeholder="Ex: Vira-Lata">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Idade (meses)</label>
+                            <label class="form-label">Idade atual (meses)</label>
                             <input type="number" class="form-input" name="age" min="0" placeholder="Ex: 12">
+                            <small style="color: var(--text-gray); display: block; margin-top: 4px;">
+                                Informe a idade aproximada <strong>hoje</strong>. O sistema estima a data de nascimento e atualiza a idade automaticamente com o tempo.
+                            </small>
                         </div>
                     </div>
                     <div class="form-row">
@@ -5285,7 +5288,15 @@
                     'MEDIUM': 'Médio',
                     'LARGE': 'Grande'
                 };
-                const ageText = animal.age ? `${Math.floor(animal.age / 12)} ${Math.floor(animal.age / 12) === 1 ? 'ano' : 'anos'}` : 'N/A';
+                const ageText = animal.ageLabel || (animal.ageMonths != null
+                    ? (animal.ageMonths < 12
+                        ? (animal.ageMonths === 1 ? '1 mês' : `${animal.ageMonths} meses`)
+                        : `${Math.floor(animal.ageMonths / 12)} ${Math.floor(animal.ageMonths / 12) === 1 ? 'ano' : 'anos'}`)
+                    : (animal.age != null
+                        ? (animal.age < 12
+                            ? (animal.age === 1 ? '1 mês' : `${animal.age} meses`)
+                            : `${Math.floor(animal.age / 12)} ${Math.floor(animal.age / 12) === 1 ? 'ano' : 'anos'}`)
+                        : 'N/A'));
                 const statusBadge = animal.isAdopted 
                     ? '<span style="background: #FEE2E2; color: #DC2626; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">Adotado</span>'
                     : animal.isActive
@@ -5343,7 +5354,7 @@
                     form.elements.name.value = animal.name || '';
                     form.elements.species.value = animal.species || '';
                     form.elements.breed.value = animal.breed || '';
-                    form.elements.age.value = animal.age || '';
+                    form.elements.age.value = animal.ageMonths ?? animal.age ?? '';
                     form.elements.gender.value = animal.gender || '';
                     form.elements.size.value = animal.size || '';
                     // Configurar tipo de imagem

@@ -157,7 +157,8 @@ model Animal {
   name        String
   species     AnimalType
   breed       String?
-  age         Int? // em meses
+  age         Int? // em meses no momento do cadastro/correção (legado; preferir birthDate)
+  birthDate   DateTime? // data de nascimento estimada — idade atual é calculada a partir dela
   gender      AnimalGender
   size        AnimalSize
   description String?
