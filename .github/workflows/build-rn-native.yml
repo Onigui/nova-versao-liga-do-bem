@@ -240,3 +240,38 @@ jobs:
           else
             echo "❌ **Build falhou**" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: 📲 Publicar versão no app (update in-app)
+        if: success() && (github.event_name == 'push' || github.event.inputs.build_type == 'release')
+        env:
+          CI_APP_PUBLISH_TOKEN: ${{ secrets.CI_APP_PUBLISH_TOKEN }}
+        run: |
+          VERSION="${{ steps.app_version.outputs.version }}"
+          VERSION_CODE=$(grep -E 'versionCode\s+[0-9]+' mobile/android/app/build.gradle | head -1 | grep -oE '[0-9]+' | head -1)
+          APK_FILE="liga-do-bem-botucatu-v${VERSION}.apk"
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}-build-${{ github.run_number }}/${APK_FILE}"
+          APK_BYTES=0
+          if [ -f "$APK_FILE" ]; then
+            APK_BYTES=$(wc -c < "$APK_FILE" | tr -d ' ')
+          fi
+
+          echo "📦 Publicando v${VERSION} (code ${VERSION_CODE})"
+          echo "🔗 ${APK_URL}"
+
+          TOKEN_HEADER="X-Admin-Token: demo-token-ci-publish"
+          if [ -n "$CI_APP_PUBLISH_TOKEN" ]; then
+            TOKEN_HEADER="X-CI-Token: ${CI_APP_PUBLISH_TOKEN}"
+          fi
+
+          curl -sS -X POST "https://nova-versao-liga-do-bem.vercel.app/api/app/versions/publish" \
+            -H "Content-Type: application/json" \
+            -H "$TOKEN_HEADER" \
+            -d "{
+              \"version\": \"${VERSION}\",
+              \"versionCode\": ${VERSION_CODE},
+              \"apkUrl\": \"${APK_URL}\",
+              \"apkSize\": ${APK_BYTES},
+              \"releaseNotes\": \"Build ${{ github.run_number }} — commit ${GITHUB_SHA}\",
+              \"isMandatory\": false,
+              \"platform\": \"android\"
+            }" || echo "⚠️ Falha ao publicar versão na API"

@@ -77,13 +77,13 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
               text: 'Cancelar',
               style: 'cancel',
               onPress: () => {
-                if (!updateInfo.isMandatory) {
+                if (!updateInfo?.latestVersion?.isMandatory) {
                   onDismiss();
                 }
               },
             },
           ],
-          { cancelable: !updateInfo.isMandatory }
+          { cancelable: !updateInfo?.latestVersion?.isMandatory }
         );
         return;
       }
@@ -118,7 +118,7 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
                 if (onUpdateComplete) {
                   onUpdateComplete();
                 }
-                if (!updateInfo.isMandatory) {
+                if (!updateInfo?.latestVersion?.isMandatory) {
                   onDismiss();
                 }
               },
@@ -165,13 +165,13 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
                 if (onUpdateComplete) {
                   onUpdateComplete();
                 }
-                if (!updateInfo.isMandatory) {
+                if (!updateInfo?.latestVersion?.isMandatory) {
                   onDismiss();
                 }
               },
             },
           ],
-          { cancelable: !updateInfo.isMandatory }
+          { cancelable: !updateInfo?.latestVersion?.isMandatory }
         );
       }
     } catch (error) {
@@ -198,13 +198,13 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
               text: 'Cancelar',
               style: 'cancel',
               onPress: () => {
-                if (!updateInfo.isMandatory) {
+                if (!updateInfo?.latestVersion?.isMandatory) {
                   onDismiss();
                 }
               },
             },
           ],
-          { cancelable: !updateInfo.isMandatory }
+          { cancelable: !updateInfo?.latestVersion?.isMandatory }
         );
       } catch (alertError) {
         console.error('❌ [handleUpdateInternal] Erro ao mostrar Alert:', alertError);
@@ -217,7 +217,8 @@ export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateCom
     return null;
   }
 
-  const { latestVersion, isMandatory } = updateInfo;
+  const { latestVersion } = updateInfo;
+  const isMandatory = !!latestVersion?.isMandatory;
 
   return (
     <Modal

@@ -1,5 +1,5 @@
 import { Alert, Linking, Platform, NativeModules } from 'react-native';
-import { API_BASE_PATH } from '../config/apiConfig';
+import { API_BASE_PATH, API_BASE_URL } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PermissionsAndroid } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
@@ -230,8 +230,10 @@ class UpdateService {
       if (!versionId) {
         throw new Error('ID da versão ou URL do APK deve ser fornecido');
       }
-      // URL do endpoint para baixar o APK do backend
       downloadUrl = `${API_BASE_PATH}/app/update/apk/${versionId}`;
+    } else if (downloadUrl.startsWith('/')) {
+      // URL relativa → absoluta
+      downloadUrl = `${API_BASE_URL}${downloadUrl}`;
     }
 
     console.log('🌐 [downloadAPK] URL de download final:', downloadUrl);
