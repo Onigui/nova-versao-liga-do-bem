@@ -106,15 +106,24 @@ jobs:
         env:
           API_BASE_URL: https://nova-versao-liga-do-bem.vercel.app
 
+      - name: 🏷 Ler versão do app
+        id: app_version
+        working-directory: ./mobile
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Versão do app: $VERSION"
+
       - name: 🏗️ Build APK
         working-directory: ./mobile
         run: |
           echo "🏗️ Iniciando build React Native 0.74.5 nativo..."
+          VERSION="${{ steps.app_version.outputs.version }}"
           
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
           
           if [ "$BUILD_TYPE" = "release" ]; then
-            echo "📦 Building RELEASE APK..."
+            echo "📦 Building RELEASE APK v${VERSION}..."
             
             # Build release com Gradle
             cd android
@@ -138,10 +147,10 @@ jobs:
             fi
             
             # Copiar APK
-            cp app/build/outputs/apk/release/app-release.apk ../../liga-do-bem-botucatu-v1.2.3.apk
+            cp app/build/outputs/apk/release/app-release.apk "../../liga-do-bem-botucatu-v${VERSION}.apk"
             echo "✅ Release APK built successfully!"
           else
-            echo "🐛 Building DEBUG APK..."
+            echo "🐛 Building DEBUG APK v${VERSION}..."
             
             # Build debug
             cd android
@@ -165,7 +174,7 @@ jobs:
             fi
             
             # Copiar APK
-            cp app/build/outputs/apk/debug/app-debug.apk ../../liga-do-bem-botucatu-v1.2.3-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk "../../liga-do-bem-botucatu-v${VERSION}-debug.apk"
             echo "✅ Debug APK built successfully!"
           fi
           
@@ -175,7 +184,7 @@ jobs:
       - name: 📦 Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: liga-do-bem-apk-v1.2.3-build-${{ github.run_number }}
+          name: liga-do-bem-apk-v${{ steps.app_version.outputs.version }}-build-${{ github.run_number }}
           path: |
             liga-do-bem-botucatu*.apk
           retention-days: 30
@@ -185,48 +194,22 @@ jobs:
         if: (github.event_name == 'push' || github.event.inputs.build_type == 'release') && success()
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.2.3-build-${{ github.run_number }}
-          name: Liga do Bem v1.2.3 Build ${{ github.run_number }}
+          tag_name: v${{ steps.app_version.outputs.version }}-build-${{ github.run_number }}
+          name: Liga do Bem v${{ steps.app_version.outputs.version }} Build ${{ github.run_number }}
           body: |
-            ## 📱 Liga do Bem Botucatu - v1.2.3
+            ## 📱 Liga do Bem Botucatu - v${{ steps.app_version.outputs.version }}
             
             ### ✨ Build Info
-            - **Versão**: 1.2.3
+            - **Versão**: ${{ steps.app_version.outputs.version }}
             - **Build**: ${{ github.run_number }}
-            - **Método**: React Native 0.74.5 Nativo (100% GRATUITO!)
+            - **Método**: React Native 0.74.5 Nativo
             - **Branch**: ${{ github.ref_name }}
             - **Commit**: ${{ github.sha }}
-            
-            ### 🎯 Novidades desta versão:
-            - ✅ **Projeto completamente reconstruído** com RN 0.74.5
-            - ✅ **TODAS as dependências compatíveis** (sem erros de compilação!)
-            - ✅ Firebase integrado (notificações push)
-            - ✅ React Navigation 7.x
-            - ✅ Gesture Handler 2.16.0
-            - ✅ Reanimated 3.10.1
-            - ✅ Screens 3.31.1
-            - ✅ Vector Icons, Linear Gradient, QR Code
-            - ✅ Vision Camera 4.6.1
-            - ✅ Geolocation, AsyncStorage
-            
-            ### 📱 Features:
-            - 🔐 Login/Registro
-            - 🎫 Carteirinha Digital (QR Code)
-            - 🏪 Parceiros com descontos
-            - 🐾 Adoções de animais
-            - 📅 Eventos
-            - 💰 Doações
-            - 🤝 Voluntariado
-            - 📊 Transparência
-            - 🔔 Notificações Push (Firebase)
-            - 📍 Geolocalização (parceiros próximos)
             
             ### ⬇️ Download:
             Baixe o APK abaixo e instale no seu dispositivo Android.
             
-            **Tamanho:** ~50-60MB
             **Android mínimo:** 6.0 (API 23)
-            **Sincronização com Admin:** ✅ Funcionando
           draft: false
           prerelease: false
           files: |
@@ -235,23 +218,25 @@ jobs:
       - name: 📊 Build Summary
         if: always()
         run: |
+          VERSION="${{ steps.app_version.outputs.version }}"
           echo "## 🎯 Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Type**: React Native 0.74.5 Nativo" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: $VERSION" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ -f "liga-do-bem-botucatu-v1.2.3.apk" ]; then
-            APK_SIZE=$(du -h liga-do-bem-botucatu-v1.2.3.apk | cut -f1)
+          if [ -f "liga-do-bem-botucatu-v${VERSION}.apk" ]; then
+            APK_SIZE=$(du -h "liga-do-bem-botucatu-v${VERSION}.apk" | cut -f1)
             echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "✅ **APK gerado com React Native 0.74.5 Nativo!**" >> $GITHUB_STEP_SUMMARY
-          elif [ -f "liga-do-bem-botucatu-v1.2.3-debug.apk" ]; then
-            APK_SIZE=$(du -h liga-do-bem-botucatu-v1.2.3-debug.apk | cut -f1)
+            echo "✅ **APK v${VERSION} gerado!**" >> $GITHUB_STEP_SUMMARY
+          elif [ -f "liga-do-bem-botucatu-v${VERSION}-debug.apk" ]; then
+            APK_SIZE=$(du -h "liga-do-bem-botucatu-v${VERSION}-debug.apk" | cut -f1)
             echo "- **APK Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "✅ **Debug APK gerado!**" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Debug APK v${VERSION} gerado!**" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Build falhou**" >> $GITHUB_STEP_SUMMARY
           fi
