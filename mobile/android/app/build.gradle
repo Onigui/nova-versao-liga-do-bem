@@ -83,8 +83,8 @@ android {
         applicationId "com.ligadobem.botucatu"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 24
-        versionName "1.2.22"
+        versionCode 25
+        versionName "1.2.23"
         multiDexEnabled true
     }
     
