@@ -6556,7 +6556,8 @@
                     const items = Array.isArray(info.items) ? info.items : [];
                     items.forEach(item => {
                         let type = 'text';
-                        if (item.phone) type = 'phone';
+                        if (Array.isArray(item.steps) && item.steps.length > 0) type = 'guide';
+                        else if (item.phone) type = 'phone';
                         else if (item.address) type = 'address';
                         else if (item.email) type = 'email';
                         else if (item.website) type = 'website';
@@ -6570,7 +6571,10 @@
                             email: item.email || '',
                             website: item.website || '',
                             subtitle: item.subtitle || '',
-                            description: item.description || item.copy?.text || ''
+                            description: item.description || item.copy?.text || '',
+                            steps: Array.isArray(item.steps) ? item.steps : [],
+                            warning: item.warning || '',
+                            tip: item.tip || ''
                         });
                     });
                 }
@@ -6616,7 +6620,7 @@
                             
                             <div class="form-group">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                    <label class="form-label" style="margin-bottom: 0;">Itens de Contato *</label>
+                                    <label class="form-label" style="margin-bottom: 0;">Itens da seção *</label>
                                     <button type="button" class="btn btn-sm btn-primary" onclick="addHelpInfoItem()" style="padding: 6px 12px; font-size: 14px;">
                                         ➕ Adicionar Item
                                     </button>
@@ -6627,7 +6631,7 @@
                                     </div>
                                 </div>
                                 <small style="color: var(--text-gray); display: block; margin-top: 8px;">
-                                    Adicione telefones, endereços, emails ou outras informações de contato
+                                    Telefones, endereços, textos ou guias com passo a passo
                                 </small>
                             </div>
                             
@@ -6734,7 +6738,10 @@
                     email: '',
                     website: '',
                     subtitle: '',
-                    description: ''
+                    description: '',
+                    steps: [],
+                    warning: '',
+                    tip: ''
                 };
             }
             
@@ -6779,6 +6786,7 @@
                                 <option value="email" ${item.type === 'email' ? 'selected' : ''}>Email</option>
                                 <option value="website" ${item.type === 'website' ? 'selected' : ''}>Website</option>
                                 <option value="text" ${item.type === 'text' ? 'selected' : ''}>Texto</option>
+                                <option value="guide" ${item.type === 'guide' ? 'selected' : ''}>Guia (passo a passo)</option>
                             </select>
                         </div>
                         <div class="help-info-item-field">
@@ -6805,6 +6813,16 @@
                             <label>Texto *</label>
                             <textarea style="width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 4px; font-size: 14px; min-height: 60px; box-sizing: border-box;" onchange="updateHelpInfoItemField('${item.id}', 'description', this.value)" placeholder="Informação de texto" ${item.type === 'text' ? 'required' : ''}>${item.description || ''}</textarea>
                         </div>
+                        <div class="help-info-item-field help-info-item-field-full" id="field-guide-${item.id}" style="display: ${item.type === 'guide' ? 'block' : 'none'};">
+                            <label>Resumo do guia</label>
+                            <textarea style="width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 4px; font-size: 14px; min-height: 50px; box-sizing: border-box; margin-bottom: 8px;" onchange="updateHelpInfoItemField('${item.id}', 'description', this.value)" placeholder="Explicação curta do que fazer">${item.description || ''}</textarea>
+                            <label>Passos (um por linha) *</label>
+                            <textarea style="width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 4px; font-size: 14px; min-height: 120px; box-sizing: border-box; margin-bottom: 8px;" onchange="updateHelpInfoItemSteps('${item.id}', this.value)" placeholder="Passo 1&#10;Passo 2&#10;Passo 3" ${item.type === 'guide' ? 'required' : ''}>${Array.isArray(item.steps) ? item.steps.join('\n') : ''}</textarea>
+                            <label>Aviso (opcional)</label>
+                            <input type="text" value="${item.warning || ''}" onchange="updateHelpInfoItemField('${item.id}', 'warning', this.value)" placeholder="Ex: Não force o animal a vomitar" style="margin-bottom: 8px;">
+                            <label>Dica extra (opcional)</label>
+                            <input type="text" value="${item.tip || ''}" onchange="updateHelpInfoItemField('${item.id}', 'tip', this.value)" placeholder="Ex: Leve a embalagem do produto ao veterinário">
+                        </div>
                         <div class="help-info-item-field">
                             <label>Subtítulo (opcional)</label>
                             <input type="text" value="${item.subtitle || ''}" onchange="updateHelpInfoItemField('${item.id}', 'subtitle', this.value)" placeholder="Texto secundário">
@@ -6823,7 +6841,12 @@
                 if (type !== 'address') item.address = '';
                 if (type !== 'email') item.email = '';
                 if (type !== 'website') item.website = '';
-                if (type !== 'text') item.description = '';
+                if (type !== 'text' && type !== 'guide') item.description = '';
+                if (type !== 'guide') {
+                    item.steps = [];
+                    item.warning = '';
+                    item.tip = '';
+                }
                 renderHelpInfoItems();
             }
         }
@@ -6832,6 +6855,16 @@
             const item = helpInfoItems.find(i => i.id === itemId);
             if (item) {
                 item[field] = value;
+            }
+        }
+
+        function updateHelpInfoItemSteps(itemId, value) {
+            const item = helpInfoItems.find(i => i.id === itemId);
+            if (item) {
+                item.steps = String(value || '')
+                    .split('\n')
+                    .map(step => step.trim())
+                    .filter(Boolean);
             }
         }
 
@@ -6872,6 +6905,12 @@
                             result.copy = { text: item.description, label: item.title };
                         }
                         break;
+                    case 'guide':
+                        result.description = item.description || '';
+                        result.steps = Array.isArray(item.steps) ? item.steps.filter(Boolean) : [];
+                        if (item.warning) result.warning = item.warning;
+                        if (item.tip) result.tip = item.tip;
+                        break;
                 }
                 
                 return result;
@@ -6879,6 +6918,13 @@
             
             if (items.length === 0) {
                 showNotification('Todos os itens devem ter um título', 'error');
+                return;
+            }
+
+            // Validar guias: precisam de passos
+            const guideWithoutSteps = helpInfoItems.find(item => item.type === 'guide' && (!item.steps || item.steps.length === 0));
+            if (guideWithoutSteps) {
+                showNotification('Guias precisam ter pelo menos um passo', 'error');
                 return;
             }
             
