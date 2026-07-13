@@ -67,21 +67,20 @@ jobs:
         if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
         working-directory: ./mobile/android/app
         run: |
-          echo "🔑 Criando keystore para assinatura..."
-          
-          keytool -genkeypair \
-            -v \
-            -storetype PKCS12 \
-            -keystore release.keystore \
-            -alias ligadobem \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Liga do Bem, OU=Mobile, O=Liga do Bem Botucatu, L=Botucatu, ST=SP, C=BR"
-          
-          echo "✅ Keystore criado!"
+          # NUNCA gerar keystore novo a cada build — isso muda a assinatura e o Android
+          # recusa a atualização com INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "🔑 Restaurando keystore dos GitHub Secrets..."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+            echo "✅ Keystore restaurado dos secrets"
+          elif [ -f debug.keystore ]; then
+            echo "🔑 Usando debug.keystore como assinatura estável (sideload)..."
+            cp debug.keystore release.keystore
+            echo "✅ release.keystore = debug.keystore (mesma assinatura em todo build)"
+          else
+            echo "❌ Nenhum keystore disponível (secret ANDROID_KEYSTORE_BASE64 ou debug.keystore)"
+            exit 1
+          fi
 
       - name: 📝 Configure local.properties
         working-directory: ./mobile/android
