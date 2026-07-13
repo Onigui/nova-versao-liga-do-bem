@@ -1,7 +1,6 @@
 import { Alert, Linking, Platform, NativeModules } from 'react-native';
 import { API_BASE_PATH, API_BASE_URL } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PermissionsAndroid } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 
 // Importar RNFS de forma segura
@@ -170,45 +169,18 @@ class UpdateService {
     }
 
     try {
-      console.log('🔐 [requestStoragePermission] Solicitando permissões...', {
-        platformVersion: Platform.Version
+      // Pastas do próprio app (ExternalDirectoryPath / DocumentDirectoryPath)
+      // NÃO exigem WRITE_EXTERNAL_STORAGE no Android 10+.
+      // REQUEST_INSTALL_PACKAGES NÃO é permissão runtime — PermissionsAndroid.PERMISSIONS
+      // não tem essa chave (fica null) e crasha com IllegalArgumentException: permission is null.
+      // A autorização de instalar APKs é pedida pelo sistema na hora do Intent de instalação.
+      console.log('🔐 [requestStoragePermission] Sem permissão runtime necessária', {
+        platformVersion: Platform.Version,
       });
-
-      if (Platform.Version >= 33) {
-        console.log('🔐 [requestStoragePermission] Android 13+ - solicitando REQUEST_INSTALL_PACKAGES');
-        const installPermission = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.REQUEST_INSTALL_PACKAGES,
-          {
-            title: 'Permissão de Instalação',
-            message: 'O app precisa de permissão para instalar atualizações',
-            buttonNeutral: 'Perguntar depois',
-            buttonNegative: 'Cancelar',
-            buttonPositive: 'OK',
-          },
-        );
-        const granted = installPermission === PermissionsAndroid.RESULTS.GRANTED;
-        console.log('🔐 [requestStoragePermission] Permissão de instalação:', granted ? 'CONCEDIDA' : 'NEGADA');
-        return granted;
-      } else {
-        console.log('🔐 [requestStoragePermission] Android < 13 - solicitando WRITE_EXTERNAL_STORAGE');
-        const storagePermission = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-          {
-            title: 'Permissão de Armazenamento',
-            message: 'O app precisa de permissão para baixar atualizações',
-            buttonNeutral: 'Perguntar depois',
-            buttonNegative: 'Cancelar',
-            buttonPositive: 'OK',
-          },
-        );
-        const granted = storagePermission === PermissionsAndroid.RESULTS.GRANTED;
-        console.log('🔐 [requestStoragePermission] Permissão de armazenamento:', granted ? 'CONCEDIDA' : 'NEGADA');
-        return granted;
-      }
+      return true;
     } catch (err) {
-      console.error('❌ [requestStoragePermission] Erro ao solicitar permissão:', err);
-      console.error('❌ [requestStoragePermission] Stack:', err?.stack);
-      return false;
+      console.error('❌ [requestStoragePermission] Erro:', err);
+      return true;
     }
   }
 

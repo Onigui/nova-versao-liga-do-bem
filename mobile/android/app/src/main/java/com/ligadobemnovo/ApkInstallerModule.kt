@@ -61,6 +61,33 @@ class ApkInstallerModule(reactContext: ReactApplicationContext) : ReactContextBa
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
 
+            // Android 8+: se o app ainda não pode instalar pacotes, abrir a tela de permissão
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!context.packageManager.canRequestPackageInstalls()) {
+                    try {
+                        val settingsIntent = Intent(
+                            android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:${context.packageName}")
+                        ).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        currentActivity.startActivity(settingsIntent)
+                        promise.reject(
+                            "INSTALL_PERMISSION_REQUIRED",
+                            "Ative a permissão para instalar apps desconhecidos e toque em Baixar novamente."
+                        )
+                        return
+                    } catch (e: Exception) {
+                        promise.reject(
+                            "INSTALL_PERMISSION_REQUIRED",
+                            "Ative em Configurações a permissão para instalar apps deste app e tente de novo.",
+                            e
+                        )
+                        return
+                    }
+                }
+            }
+
             // Verificar se há algum app que pode lidar com a instalação
             val packageManager = currentActivity.packageManager
             val componentName = intent.resolveActivity(packageManager)
