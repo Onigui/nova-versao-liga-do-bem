@@ -17,6 +17,7 @@ import {
   activateMembershipFromPayment,
   ensureMembershipBillingSchema,
   getPlanByCode,
+  isMembershipCurrentlyActive,
   listMembershipPlans,
   syncPaymentFromPagBank,
 } from './lib/membershipBilling';
@@ -1642,6 +1643,69 @@ export default async function handler(req: any, res: any) {
       } catch (error: any) {
         console.error('❌ Error loading partners:', error);
         return res.status(200).json({ partners: [] });
+      }
+    }
+
+    // Validar desconto de parceiro com carteirinha ativa no período
+    if (path.match(/^\/api\/partners\/[^/]+\/validate$/) && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) return res.status(401).json({ error: 'Token de autenticação necessário' });
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const partnerId = path.split('/')[3];
+        const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+        const memberId = body.memberId;
+        if (!partnerId || !memberId) {
+          return res.status(400).json({ error: 'partnerId e memberId são obrigatórios' });
+        }
+
+        const partners: any[] = await db.$queryRawUnsafe(
+          `SELECT id, name FROM partners WHERE id = $1 AND "isActive" = true LIMIT 1`,
+          partnerId,
+        );
+        if (!partners?.[0]) return res.status(404).json({ error: 'Parceiro não encontrado' });
+
+        const memberships: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "memberId", status, "endDate", "planCode", "planMonths"
+           FROM memberships
+           WHERE "memberId" = $1 AND "userId" = $2
+           LIMIT 1`,
+          memberId,
+          userId,
+        );
+        const membership = memberships?.[0];
+        if (!isMembershipCurrentlyActive(membership || {})) {
+          return res.status(400).json({
+            error: 'Carteirinha inválida, inativa ou vencida. Renove a assinatura para usar os descontos.',
+            code: 'MEMBERSHIP_INACTIVE',
+          });
+        }
+
+        return res.status(200).json({
+          message: 'Carteirinha válida para desconto',
+          valid: true,
+          membership: {
+            memberId: membership.memberId,
+            status: membership.status,
+            endDate: membership.endDate,
+            planCode: membership.planCode,
+            planMonths: membership.planMonths,
+          },
+          partner: { id: partners[0].id, name: partners[0].name },
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao validar desconto:', error);
+        return res.status(500).json({ error: 'Erro ao validar carteirinha', detail: error?.message });
       }
     }
 
@@ -5884,7 +5948,7 @@ export default async function handler(req: any, res: any) {
             planCode: membership.planCode || null,
             planMonths: membership.planMonths || null,
             lastPaymentId: membership.lastPaymentId || null,
-            isActiveMember: status === 'ACTIVE' && (!!end && end.getTime() >= Date.now()),
+            isActiveMember: isMembershipCurrentlyActive({ status, endDate: end }),
             createdAt: membership.createdAt,
             updatedAt: membership.updatedAt,
           },

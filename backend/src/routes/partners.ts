@@ -147,17 +147,18 @@ router.post('/:id/validate', [
       return res.status(404).json({ error: 'Parceiro não encontrado' });
     }
 
-    // Find user's membership
+    // Find user's membership — precisa estar ACTIVE e dentro do período pago
     const membership = await prisma.membership.findFirst({
       where: {
         memberId,
         userId,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        endDate: { gte: new Date() },
       }
     });
 
     if (!membership) {
-      return res.status(400).json({ error: 'Carteirinha inválida ou inativa' });
+      return res.status(400).json({ error: 'Carteirinha inválida, inativa ou vencida' });
     }
 
     // Check if discount is valid

@@ -149,8 +149,17 @@ export default function MembershipCardScreen({navigation}) {
   };
 
   const statusKey = membership?.status || 'INACTIVE';
-  const statusLabel = STATUS_LABELS[statusKey] || statusKey;
-  const statusColor = STATUS_COLORS[statusKey] || '#6B7280';
+  const isActiveMember =
+    membership?.isActiveMember === true ||
+    (statusKey === 'ACTIVE' &&
+      membership?.endDate &&
+      new Date(membership.endDate).getTime() >= Date.now());
+  const statusLabel = isActiveMember
+    ? 'ATIVO'
+    : STATUS_LABELS[statusKey] || statusKey;
+  const statusColor = isActiveMember
+    ? STATUS_COLORS.ACTIVE
+    : STATUS_COLORS[statusKey] || '#6B7280';
   const qrValue =
     membership?.qrCode ||
     (membership?.memberId && user?.id
@@ -276,8 +285,8 @@ export default function MembershipCardScreen({navigation}) {
           </View>
 
           <View style={styles.qrContainer}>
-            <View style={styles.qrBackground}>
-              {qrValue ? (
+            <View style={[styles.qrBackground, !isActiveMember && styles.qrInactive]}>
+              {isActiveMember && qrValue ? (
                 <QRCode
                   value={qrValue}
                   size={140}
@@ -285,18 +294,29 @@ export default function MembershipCardScreen({navigation}) {
                   color="#1F2937"
                 />
               ) : (
-                <Text style={styles.qrPlaceholder}>QR indisponível</Text>
+                <View style={styles.qrBlocked}>
+                  <Ionicons name="lock-closed-outline" size={36} color="#9CA3AF" />
+                  <Text style={styles.qrPlaceholder}>
+                    QR liberado após pagamento da assinatura
+                  </Text>
+                </View>
               )}
             </View>
             <Text style={styles.qrLabel}>
-              Apresente este QR Code nos estabelecimentos parceiros
+              {isActiveMember
+                ? `Apresente este QR Code nos parceiros · válido até ${formatDate(
+                    membership.endDate,
+                  )}`
+                : 'Assine um plano para ativar o QR Code e os descontos'}
             </Text>
           </View>
 
           <View style={styles.validityContainer}>
-            <Text style={styles.validityLabel}>Válido até:</Text>
+            <Text style={styles.validityLabel}>
+              {isActiveMember ? 'Válido até:' : 'Situação:'}
+            </Text>
             <Text style={styles.validityDate}>
-              {formatDate(membership.endDate)}
+              {isActiveMember ? formatDate(membership.endDate) : statusLabel}
             </Text>
           </View>
         </LinearGradient>
@@ -350,7 +370,9 @@ export default function MembershipCardScreen({navigation}) {
           onPress={handleRenewMembership}>
           <Ionicons name="card-outline" size={20} color="#6B7280" />
           <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
-            {membership?.status === 'ACTIVE' ? 'Renovar assinatura' : 'Assinar / Pagar'}
+            {membership?.status === 'ACTIVE' && isActiveMember
+              ? 'Renovar assinatura'
+              : 'Assinar / Pagar'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -507,9 +529,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  qrInactive: {
+    backgroundColor: '#F3F4F6',
+  },
+  qrBlocked: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
   qrPlaceholder: {
     color: '#6B7280',
     fontWeight: '600',
+    textAlign: 'center',
+    fontSize: 12,
   },
   qrLabel: {
     color: 'rgba(255,255,255,0.9)',

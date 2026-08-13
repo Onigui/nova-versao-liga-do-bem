@@ -31,10 +31,10 @@ CREATE INDEX IF NOT EXISTS payments_membershipId_idx ON payments ("membershipId"
 
 INSERT INTO subscription_plans (id, code, name, description, months, amount_cents, "isActive", "order", "createdAt", "updatedAt")
 VALUES
-  ('plan_monthly', 'MONTHLY', 'Mensal', 'Assinatura mensal da Liga do Bem', 1, 1990, true, 1, NOW(), NOW()),
-  ('plan_quarterly', 'QUARTERLY', 'Trimestral', '3 meses com desconto mínimo', 3, 5490, true, 2, NOW(), NOW()),
-  ('plan_semiannual', 'SEMIANNUAL', 'Semestral', '6 meses com desconto mínimo', 6, 10990, true, 3, NOW(), NOW()),
-  ('plan_annual', 'ANNUAL', 'Anual', '12 meses com desconto mínimo', 12, 21990, true, 4, NOW(), NOW())
+  ('plan_monthly', 'MONTHLY', 'Mensal', '1 mês de acesso ativo com QR Code', 1, 1990, true, 1, NOW(), NOW()),
+  ('plan_quarterly', 'QUARTERLY', 'Trimestral', '3 meses de acesso ativo com QR Code', 3, 5490, true, 2, NOW(), NOW()),
+  ('plan_semiannual', 'SEMIANNUAL', 'Semestral', '6 meses de acesso ativo com QR Code', 6, 10490, true, 3, NOW(), NOW()),
+  ('plan_annual', 'ANNUAL', 'Anual', '12 meses de acesso ativo com QR Code', 12, 20490, true, 4, NOW(), NOW())
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,

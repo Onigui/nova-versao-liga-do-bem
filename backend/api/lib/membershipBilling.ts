@@ -1,12 +1,22 @@
 import {
   FALLBACK_MEMBERSHIP_PLANS,
   addMonths,
+  planMonthsFromCode,
 } from './membershipPlans';
 import {
   getPagBankOrder,
   isPaidChargeStatus,
   mapPagBankStatusToPayment,
 } from './pagbank';
+
+export function isMembershipCurrentlyActive(membership: {
+  status?: string | null;
+  endDate?: Date | string | null;
+}) {
+  if (String(membership?.status || '') !== 'ACTIVE') return false;
+  if (!membership?.endDate) return false;
+  return new Date(membership.endDate).getTime() >= Date.now();
+}
 
 export async function ensureMembershipBillingSchema(db: any) {
   await db.$executeRawUnsafe(`
@@ -119,31 +129,37 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
   if (!payment?.userId) {
     return { ok: false, reason: 'payment_not_found' };
   }
-  if (payment.status === 'APPROVED') {
-    // já aprovado — ainda assim garantir membership ativa
+
+  // Duração oficial do plano (ex.: ANNUAL = 12 meses inteiros)
+  const monthsFromCode = planMonthsFromCode(payment.planCode);
+  const months = Number(monthsFromCode || payment.planMonths || 1);
+  if (!Number.isFinite(months) || months < 1) {
+    return { ok: false, reason: 'invalid_plan_months' };
   }
 
-  const months = Number(payment.planMonths || 1);
   const memberships: any[] = await db.$queryRawUnsafe(
-    `SELECT id, "endDate" FROM memberships WHERE "userId" = $1 LIMIT 1`,
+    `SELECT id, "memberId", "endDate", "qrCode" FROM memberships WHERE "userId" = $1 LIMIT 1`,
     payment.userId,
   );
 
   let membership = memberships?.[0];
+  const now = new Date();
+
   if (!membership) {
     const membershipId = require('crypto').randomUUID();
     const memberId = `MEM${Date.now().toString().slice(-8)}`;
     const qrCode = `LIGADOBEM|${memberId}|${payment.userId}`;
-    const endDate = addMonths(new Date(), months);
+    const endDate = addMonths(now, months);
     await db.$executeRawUnsafe(
       `INSERT INTO memberships
         (id, "userId", "memberId", status, "startDate", "endDate",
          "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
          "planCode", "planMonths", "lastPaymentId", "createdAt", "updatedAt")
-       VALUES ($1,$2,$3,'ACTIVE',NOW(),$4,$5,$4,$6,$7,$8,$9,$10,NOW(),NOW())`,
+       VALUES ($1,$2,$3,'ACTIVE',$4,$5,$6,$5,$7,$8,$9,$10,$11,NOW(),NOW())`,
       membershipId,
       payment.userId,
       memberId,
+      now,
       endDate,
       Number(payment.amount) || 19.9,
       payment.method || 'PIX',
@@ -152,13 +168,18 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
       months,
       payment.id,
     );
-    membership = { id: membershipId, endDate };
+    membership = { id: membershipId, endDate, memberId, qrCode };
   } else {
+    // Se ainda está no período ativo, acumula tempo a partir do fim atual.
+    // Se já venceu, começa a contar a partir de agora.
+    const currentEnd = membership.endDate ? new Date(membership.endDate) : null;
     const base =
-      membership.endDate && new Date(membership.endDate).getTime() > Date.now()
-        ? new Date(membership.endDate)
-        : new Date();
+      currentEnd && currentEnd.getTime() > now.getTime() ? currentEnd : now;
     const endDate = addMonths(base, months);
+    const qrCode =
+      membership.qrCode ||
+      `LIGADOBEM|${membership.memberId}|${payment.userId}`;
+
     await db.$executeRawUnsafe(
       `UPDATE memberships
        SET status = 'ACTIVE',
@@ -169,16 +190,19 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
            "planCode" = $4,
            "planMonths" = $5,
            "lastPaymentId" = $6,
+           "qrCode" = $7,
            "updatedAt" = NOW()
-       WHERE id = $7`,
+       WHERE id = $8`,
       endDate,
       payment.method || 'PIX',
       Number(payment.amount) || 19.9,
       payment.planCode || 'MONTHLY',
       months,
       payment.id,
+      qrCode,
       membership.id,
     );
+    membership = { ...membership, endDate, qrCode };
   }
 
   await db.$executeRawUnsafe(
@@ -186,10 +210,12 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
      SET status = 'APPROVED',
          "paidAt" = COALESCE("paidAt", NOW()),
          "membershipId" = COALESCE("membershipId", $2),
+         "planMonths" = $3,
          "updatedAt" = NOW()
      WHERE id = $1`,
     payment.id,
     membership.id,
+    months,
   );
 
   try {
@@ -201,14 +227,19 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
       require('crypto').randomUUID(),
       payment.userId,
       Number(payment.amount) || 0,
-      `Assinatura ${payment.planCode || ''}`.trim(),
+      `Assinatura ${payment.planCode || ''} (${months} meses)`.trim(),
       payment.id,
     );
   } catch {
     // transactions pode ter constraints diferentes
   }
 
-  return { ok: true, membershipId: membership.id };
+  return {
+    ok: true,
+    membershipId: membership.id,
+    endDate: membership.endDate,
+    planMonths: months,
+  };
 }
 
 export async function syncPaymentFromPagBank(db: any, paymentId: string) {

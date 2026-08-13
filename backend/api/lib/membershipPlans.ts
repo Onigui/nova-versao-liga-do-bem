@@ -2,7 +2,7 @@ export const FALLBACK_MEMBERSHIP_PLANS = [
   {
     code: 'MONTHLY',
     name: 'Mensal',
-    description: 'Assinatura mensal da Liga do Bem',
+    description: '1 mês de acesso ativo com QR Code',
     months: 1,
     amountCents: 1990,
     order: 1,
@@ -10,7 +10,7 @@ export const FALLBACK_MEMBERSHIP_PLANS = [
   {
     code: 'QUARTERLY',
     name: 'Trimestral',
-    description: '3 meses com desconto mínimo',
+    description: '3 meses de acesso ativo com QR Code',
     months: 3,
     amountCents: 5490,
     order: 2,
@@ -18,17 +18,17 @@ export const FALLBACK_MEMBERSHIP_PLANS = [
   {
     code: 'SEMIANNUAL',
     name: 'Semestral',
-    description: '6 meses com desconto mínimo',
+    description: '6 meses de acesso ativo com QR Code',
     months: 6,
-    amountCents: 10990,
+    amountCents: 10490,
     order: 3,
   },
   {
     code: 'ANNUAL',
     name: 'Anual',
-    description: '12 meses com desconto mínimo',
+    description: '12 meses de acesso ativo com QR Code',
     months: 12,
-    amountCents: 21990,
+    amountCents: 20490,
     order: 4,
   },
 ] as const;
@@ -40,13 +40,20 @@ export function formatBrlFromCents(cents: number) {
   });
 }
 
+/** Soma meses civis preservando o dia (ajuste em fim de mês). */
 export function addMonths(base: Date, months: number) {
   const d = new Date(base.getTime());
   const day = d.getDate();
-  d.setMonth(d.getMonth() + months);
-  // Ajuste fim de mês
+  d.setMonth(d.getMonth() + Number(months || 0));
   if (d.getDate() < day) {
     d.setDate(0);
   }
   return d;
+}
+
+export function planMonthsFromCode(code?: string | null) {
+  const found = FALLBACK_MEMBERSHIP_PLANS.find(
+    (p) => p.code === String(code || '').toUpperCase(),
+  );
+  return found?.months || null;
 }
