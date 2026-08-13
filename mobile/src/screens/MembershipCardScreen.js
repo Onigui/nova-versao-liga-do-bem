@@ -33,12 +33,11 @@ const STATUS_COLORS = {
   SUSPENDED: '#EF4444',
 };
 
-export default function MembershipCardScreen() {
+export default function MembershipCardScreen({navigation}) {
   const {user, isAuthenticated} = useAuth();
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [renewing, setRenewing] = useState(false);
   const [iconConfig, setIconConfig] = useState({
     iconImage: null,
     icon: '🐾',
@@ -178,52 +177,10 @@ export default function MembershipCardScreen() {
   };
 
   const handleRenewMembership = () => {
-    Alert.alert(
-      'Renovar mensalidade',
-      `Deseja renovar por mais 30 dias?\nValor de referência: R$ ${Number(
-        membership?.monthlyFee || 29.9,
-      ).toFixed(2)}`,
-      [
-        {text: 'Cancelar', style: 'cancel'},
-        {
-          text: 'Renovar',
-          onPress: async () => {
-            setRenewing(true);
-            try {
-              const token = await AsyncStorage.getItem('auth_token');
-              const response = await fetch(
-                `${API_BASE_PATH}/user/membership/renew`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                  },
-                },
-              );
-              const data = await response.json().catch(() => ({}));
-              if (!response.ok) {
-                Alert.alert(
-                  'Erro',
-                  data.error || 'Não foi possível renovar a mensalidade',
-                );
-                return;
-              }
-              setMembership(data.membership);
-              Alert.alert(
-                'Pronto!',
-                data.message ||
-                  'Mensalidade renovada. Em breve a renovação será cobrada via PIX.',
-              );
-            } catch (error) {
-              Alert.alert('Erro', 'Falha de conexão ao renovar.');
-            } finally {
-              setRenewing(false);
-            }
-          },
-        },
-      ],
-    );
+    navigation.navigate('MembershipCheckout', {
+      planCode: membership?.planCode || 'MONTHLY',
+      cpf: user?.cpf || '',
+    });
   };
 
   if (loading) {
@@ -374,8 +331,9 @@ export default function MembershipCardScreen() {
             <Text style={styles.infoTitle}>Mensalidade</Text>
             <Text style={styles.infoText}>
               Valor de referência: R${' '}
-              {Number(membership.monthlyFee || 29.9).toFixed(2)}. Próximo
-              pagamento: {formatDate(membership.nextPayment)}.
+              {Number(membership.monthlyFee || 19.9).toFixed(2)}.
+              {membership.planCode ? ` Plano: ${membership.planCode}.` : ''}{' '}
+              Válido até: {formatDate(membership.endDate)}.
             </Text>
           </View>
         </View>
@@ -389,19 +347,11 @@ export default function MembershipCardScreen() {
 
         <TouchableOpacity
           style={[styles.actionButton, styles.secondaryButton]}
-          onPress={handleRenewMembership}
-          disabled={renewing}>
-          {renewing ? (
-            <ActivityIndicator color="#6B7280" />
-          ) : (
-            <>
-              <Ionicons name="refresh-outline" size={20} color="#6B7280" />
-              <Text
-                style={[styles.actionButtonText, styles.secondaryButtonText]}>
-                Renovar Mensalidade
-              </Text>
-            </>
-          )}
+          onPress={handleRenewMembership}>
+          <Ionicons name="card-outline" size={20} color="#6B7280" />
+          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+            {membership?.status === 'ACTIVE' ? 'Renovar assinatura' : 'Assinar / Pagar'}
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

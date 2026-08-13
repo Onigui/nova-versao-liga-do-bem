@@ -6,6 +6,20 @@ import jwt from 'jsonwebtoken';
 import Busboy from 'busboy';
 import fs from 'fs';
 import path from 'path';
+import {
+  createPagBankOrder,
+  getPagBankConfig,
+  getPagBankOrder,
+  isPaidChargeStatus,
+  mapPagBankStatusToPayment,
+} from './lib/pagbank';
+import {
+  activateMembershipFromPayment,
+  ensureMembershipBillingSchema,
+  getPlanByCode,
+  listMembershipPlans,
+  syncPaymentFromPagBank,
+} from './lib/membershipBilling';
 
 // Cloudinary para upload de imagens
 let cloudinary: any = null;
@@ -5768,6 +5782,7 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
+        await ensureMembershipBillingSchema(db);
         const token = req.headers?.authorization?.replace('Bearer ', '') || null;
         if (!token) {
           return res.status(401).json({ error: 'Token de autenticação necessário' });
@@ -5782,9 +5797,9 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token inválido' });
         }
 
-        const users: Array<{ id: string; name: string; email: string }> =
+        const users: Array<{ id: string; name: string; email: string; cpf?: string; phone?: string }> =
           await db.$queryRawUnsafe(
-            `SELECT id, name, email FROM users WHERE id = $1 LIMIT 1`,
+            `SELECT id, name, email, cpf, phone FROM users WHERE id = $1 LIMIT 1`,
             userId
           );
         const user = users?.[0];
@@ -5795,6 +5810,7 @@ export default async function handler(req: any, res: any) {
         let rows: any[] = await db.$queryRawUnsafe(
           `SELECT id, "userId", "memberId", status, "startDate", "endDate",
                   "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+                  "planCode", "planMonths", "lastPaymentId",
                   "createdAt", "updatedAt"
            FROM memberships WHERE "userId" = $1 LIMIT 1`,
           userId
@@ -5805,27 +5821,25 @@ export default async function handler(req: any, res: any) {
           const memberId = `MEM${Date.now().toString().slice(-8)}`;
           const qrCode = `LIGADOBEM|${memberId}|${userId}`;
           const startDate = new Date();
-          const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-          const nextPayment = endDate;
 
+          // Novo membro começa pendente — ativo só após pagamento confirmado
           await db.$executeRawUnsafe(
             `INSERT INTO memberships
               (id, "userId", "memberId", status, "startDate", "endDate",
                "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
-               "createdAt", "updatedAt")
-             VALUES ($1, $2, $3, 'ACTIVE', $4, $5, 29.90, $6, 'PIX', $7, NOW(), NOW())`,
+               "planCode", "planMonths", "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 19.90, $4, NULL, $5, NULL, NULL, NOW(), NOW())`,
             membershipId,
             userId,
             memberId,
             startDate,
-            endDate,
-            nextPayment,
             qrCode
           );
 
           rows = await db.$queryRawUnsafe(
             `SELECT id, "userId", "memberId", status, "startDate", "endDate",
                     "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+                    "planCode", "planMonths", "lastPaymentId",
                     "createdAt", "updatedAt"
              FROM memberships WHERE "userId" = $1 LIMIT 1`,
             userId
@@ -5844,13 +5858,16 @@ export default async function handler(req: any, res: any) {
         const membership = rows[0];
         const end = membership.endDate ? new Date(membership.endDate) : null;
         let status = membership.status;
-        if (end && end.getTime() < Date.now() && status === 'ACTIVE') {
+        if ((!end || end.getTime() < Date.now()) && status === 'ACTIVE') {
           status = 'PENDING_PAYMENT';
           await db.$executeRawUnsafe(
             `UPDATE memberships SET status = 'PENDING_PAYMENT', "updatedAt" = NOW() WHERE id = $1`,
             membership.id
           );
         }
+
+        const plans = await listMembershipPlans(db);
+        const pagbank = getPagBankConfig();
 
         return res.status(200).json({
           membership: {
@@ -5860,17 +5877,25 @@ export default async function handler(req: any, res: any) {
             status,
             startDate: membership.startDate,
             endDate: membership.endDate,
-            monthlyFee: parseFloat(membership.monthlyFee?.toString?.() || '29.9'),
+            monthlyFee: parseFloat(membership.monthlyFee?.toString?.() || '19.9'),
             nextPayment: membership.nextPayment,
             paymentMethod: membership.paymentMethod,
             qrCode: membership.qrCode,
+            planCode: membership.planCode || null,
+            planMonths: membership.planMonths || null,
+            lastPaymentId: membership.lastPaymentId || null,
+            isActiveMember: status === 'ACTIVE' && (!!end && end.getTime() >= Date.now()),
             createdAt: membership.createdAt,
             updatedAt: membership.updatedAt,
           },
+          plans,
+          paymentsEnabled: pagbank.configured,
           user: {
             id: user.id,
             name: user.name,
             email: user.email,
+            cpf: user.cpf || null,
+            phone: user.phone || null,
           },
         });
       } catch (error: any) {
@@ -5882,17 +5907,29 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // POST renew membership (+30 dias)
-    if (path === '/api/user/membership/renew' && method === 'POST') {
+    // GET planos de assinatura
+    if (path === '/api/membership/plans' && method === 'GET') {
       const db = getPrisma();
-      if (!db) {
-        return res.status(503).json({ error: 'Database not configured' });
-      }
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
+        const plans = await listMembershipPlans(db);
+        return res.status(200).json({
+          plans,
+          paymentsEnabled: getPagBankConfig().configured,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao listar planos', detail: error?.message });
+      }
+    }
+
+    // POST checkout assinatura (PIX / BOLETO / CARTÃO)
+    if (path === '/api/membership/checkout' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        await ensureMembershipBillingSchema(db);
         const token = req.headers?.authorization?.replace('Bearer ', '') || null;
-        if (!token) {
-          return res.status(401).json({ error: 'Token de autenticação necessário' });
-        }
+        if (!token) return res.status(401).json({ error: 'Token de autenticação necessário' });
 
         let userId: string;
         try {
@@ -5903,62 +5940,320 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Token inválido' });
         }
 
-        const rows: any[] = await db.$queryRawUnsafe(
-          `SELECT id, "memberId", "endDate", "monthlyFee", "qrCode"
-           FROM memberships WHERE "userId" = $1 LIMIT 1`,
-          userId
-        );
-
-        if (!rows?.[0]) {
-          return res.status(404).json({
-            error: 'Cartão não encontrado. Abra a aba Cartão para gerar o seu.',
+        if (!getPagBankConfig().configured) {
+          return res.status(503).json({
+            error: 'Pagamentos ainda não configurados. Defina PAGBANK_TOKEN no servidor.',
           });
         }
 
-        const current = rows[0];
-        const base =
-          current.endDate && new Date(current.endDate).getTime() > Date.now()
-            ? new Date(current.endDate).getTime()
-            : Date.now();
-        const newEnd = new Date(base + 30 * 24 * 60 * 60 * 1000);
-        const qrCode =
-          current.qrCode || `LIGADOBEM|${current.memberId}|${userId}`;
+        const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+        const planCode = String(body.planCode || body.plan || 'MONTHLY').toUpperCase();
+        const method = String(body.method || 'PIX').toUpperCase();
+        if (!['PIX', 'BOLETO', 'CREDIT_CARD', 'DEBIT_CARD'].includes(method)) {
+          return res.status(400).json({ error: 'Método inválido. Use PIX, BOLETO, CREDIT_CARD ou DEBIT_CARD' });
+        }
+
+        const plan = await getPlanByCode(db, planCode);
+        if (!plan) return res.status(400).json({ error: 'Plano inválido' });
+
+        const users: any[] = await db.$queryRawUnsafe(
+          `SELECT id, name, email, cpf, phone FROM users WHERE id = $1 LIMIT 1`,
+          userId
+        );
+        const user = users?.[0];
+        if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+        const taxId = String(body.cpf || user.cpf || '').replace(/\D/g, '');
+        if (taxId.length !== 11 && taxId.length !== 14) {
+          return res.status(400).json({
+            error: 'CPF necessário para gerar o pagamento. Atualize seu perfil ou informe o CPF.',
+            code: 'CPF_REQUIRED',
+          });
+        }
+
+        // Garante membership
+        let memberships: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "memberId", "endDate", "qrCode" FROM memberships WHERE "userId" = $1 LIMIT 1`,
+          userId
+        );
+        if (!memberships?.[0]) {
+          const membershipId = require('crypto').randomUUID();
+          const memberId = `MEM${Date.now().toString().slice(-8)}`;
+          const qrCode = `LIGADOBEM|${memberId}|${userId}`;
+          await db.$executeRawUnsafe(
+            `INSERT INTO memberships
+              (id, "userId", "memberId", status, "startDate", "endDate",
+               "monthlyFee", "nextPayment", "qrCode", "createdAt", "updatedAt")
+             VALUES ($1,$2,$3,'PENDING_PAYMENT',NOW(),NULL,$4,NOW(),$5,NOW(),NOW())`,
+            membershipId,
+            userId,
+            memberId,
+            plan.amount,
+            qrCode
+          );
+          memberships = await db.$queryRawUnsafe(
+            `SELECT id, "memberId", "endDate", "qrCode" FROM memberships WHERE "userId" = $1 LIMIT 1`,
+            userId
+          );
+        }
+
+        const membership = memberships[0];
+        const paymentId = require('crypto').randomUUID();
+        const referenceId = `MEM-${paymentId.slice(0, 8)}-${plan.code}`;
+        const apiBase =
+          process.env.API_PUBLIC_URL ||
+          process.env.BACKEND_URL ||
+          'https://nova-versao-liga-do-bem.vercel.app';
+        const notificationUrl = `${apiBase.replace(/\/$/, '')}/api/webhooks/pagbank`;
+
+        let order;
+        try {
+          order = await createPagBankOrder({
+            referenceId,
+            amountCents: plan.amountCents,
+            description: `Assinatura ${plan.name} — Liga do Bem`,
+            customer: {
+              name: user.name,
+              email: user.email,
+              taxId,
+              phone: body.phone || user.phone,
+            },
+            method: method as any,
+            notificationUrl,
+            card: body.card
+              ? {
+                  encrypted: body.card.encrypted,
+                  number: body.card.number,
+                  expMonth: body.card.expMonth || body.card.exp_month,
+                  expYear: body.card.expYear || body.card.exp_year,
+                  securityCode: body.card.securityCode || body.card.security_code || body.card.cvv,
+                  holderName: body.card.holderName || body.card.holder_name || user.name,
+                }
+              : undefined,
+            installments: body.installments || 1,
+          });
+        } catch (e: any) {
+          console.error('❌ PagBank checkout error:', e?.payload || e?.message);
+          return res.status(502).json({
+            error: e?.message || 'Falha ao criar pagamento no PagBank',
+            detail: e?.payload || null,
+          });
+        }
+
+        const expiresAt = order.pixExpiration ? new Date(order.pixExpiration) : new Date(Date.now() + 60 * 60 * 1000);
+        const immediatePaid = isPaidChargeStatus(order.chargeStatus);
 
         await db.$executeRawUnsafe(
-          `UPDATE memberships
-           SET status = 'ACTIVE',
-               "endDate" = $1,
-               "nextPayment" = $1,
-               "paymentMethod" = 'PIX',
-               "qrCode" = $2,
-               "updatedAt" = NOW()
-           WHERE id = $3`,
-          newEnd,
-          qrCode,
-          current.id
+          `INSERT INTO payments
+            (id, amount, description, type, status, gateway, "gatewayId", "paymentUrl", "qrCode",
+             "expiresAt", "paidAt", "gatewayData", "userEmail", "userName", "userPhone", "userId",
+             "membershipId", method, "pixCopyPaste", "boletoUrl", "boletoBarcode",
+             "planCode", "planMonths", "createdAt", "updatedAt")
+           VALUES
+            ($1, $2, $3, 'MEMBERSHIP', $4::"PaymentStatus", 'PAGBANK', $5, $6, $7,
+             $8, $9, $10::jsonb, $11, $12, $13, $14,
+             $15, $16, $17, $18, $19,
+             $20, $21, NOW(), NOW())`,
+          paymentId,
+          plan.amount,
+          `Assinatura ${plan.name}`,
+          immediatePaid ? 'APPROVED' : 'PENDING',
+          order.id,
+          order.paymentLink || order.boletoUrl || null,
+          order.pixQrImage || null,
+          expiresAt,
+          immediatePaid ? new Date() : null,
+          JSON.stringify(order.raw || {}),
+          user.email,
+          user.name,
+          user.phone || null,
+          userId,
+          membership.id,
+          method,
+          order.pixCopyPaste || null,
+          order.boletoUrl || null,
+          order.boletoFormattedBarcode || order.boletoBarcode || null,
+          plan.code,
+          plan.months
         );
 
-        const updated: any[] = await db.$queryRawUnsafe(
-          `SELECT id, "userId", "memberId", status, "startDate", "endDate",
-                  "monthlyFee", "nextPayment", "paymentMethod", "qrCode"
-           FROM memberships WHERE id = $1 LIMIT 1`,
-          current.id
-        );
+        if (immediatePaid) {
+          await activateMembershipFromPayment(db, paymentId);
+        } else {
+          await db.$executeRawUnsafe(
+            `UPDATE memberships
+             SET status = 'PENDING_PAYMENT',
+                 "monthlyFee" = $1,
+                 "planCode" = $2,
+                 "planMonths" = $3,
+                 "updatedAt" = NOW()
+             WHERE id = $4`,
+            plan.amount,
+            plan.code,
+            plan.months,
+            membership.id
+          );
+        }
 
         return res.status(200).json({
-          message: 'Mensalidade renovada por mais 30 dias',
-          membership: {
-            ...updated[0],
-            monthlyFee: parseFloat(updated[0].monthlyFee?.toString?.() || '29.9'),
+          payment: {
+            id: paymentId,
+            status: immediatePaid ? 'APPROVED' : 'PENDING',
+            method,
+            amount: plan.amount,
+            amountCents: plan.amountCents,
+            planCode: plan.code,
+            planName: plan.name,
+            planMonths: plan.months,
+            gatewayId: order.id,
+            pixCopyPaste: order.pixCopyPaste || null,
+            pixQrImage: order.pixQrImage || null,
+            pixExpiration: order.pixExpiration || null,
+            boletoUrl: order.boletoUrl || null,
+            boletoBarcode: order.boletoFormattedBarcode || order.boletoBarcode || null,
+            paymentUrl: order.paymentLink || null,
+            chargeStatus: order.chargeStatus || null,
           },
+          message: immediatePaid
+            ? 'Pagamento aprovado! Sua assinatura está ativa.'
+            : method === 'PIX'
+              ? 'PIX gerado. Pague e aguarde a confirmação automática.'
+              : method === 'BOLETO'
+                ? 'Boleto gerado. A ativação ocorre após a compensação.'
+                : 'Pagamento em processamento.',
         });
       } catch (error: any) {
-        console.error('❌ Erro ao renovar membership:', error);
+        console.error('❌ Erro no checkout de membership:', error);
         return res.status(500).json({
-          error: 'Erro ao renovar mensalidade',
+          error: 'Erro ao iniciar pagamento',
           detail: error?.message || String(error),
         });
       }
+    }
+
+    // GET status do pagamento da assinatura
+    if (path.startsWith('/api/membership/payments/') && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
+        if (!token) return res.status(401).json({ error: 'Token de autenticação necessário' });
+        let userId: string;
+        try {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          userId = decoded.userId || decoded.id;
+          if (!userId) throw new Error('no user');
+        } catch {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+
+        const paymentId = path.split('/api/membership/payments/')[1]?.split('/')[0];
+        if (!paymentId) return res.status(400).json({ error: 'paymentId obrigatório' });
+
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "userId", status, method, amount, "planCode", "planMonths",
+                  "pixCopyPaste", "qrCode", "boletoUrl", "boletoBarcode", "paymentUrl",
+                  "gatewayId", "paidAt", "expiresAt", "createdAt"
+           FROM payments WHERE id = $1 LIMIT 1`,
+          paymentId
+        );
+        const payment = rows?.[0];
+        if (!payment || payment.userId !== userId) {
+          return res.status(404).json({ error: 'Pagamento não encontrado' });
+        }
+
+        if (payment.status === 'PENDING' && payment.gatewayId) {
+          try {
+            await syncPaymentFromPagBank(db, payment.id);
+            const refreshed: any[] = await db.$queryRawUnsafe(
+              `SELECT id, status, "paidAt" FROM payments WHERE id = $1 LIMIT 1`,
+              payment.id
+            );
+            if (refreshed?.[0]) {
+              payment.status = refreshed[0].status;
+              payment.paidAt = refreshed[0].paidAt;
+            }
+          } catch (e) {
+            console.warn('⚠️ Sync PagBank falhou:', (e as any)?.message);
+          }
+        }
+
+        return res.status(200).json({ payment });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao consultar pagamento', detail: error?.message });
+      }
+    }
+
+    // Webhook PagBank
+    if (path === '/api/webhooks/pagbank' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+        const orderId =
+          body?.id ||
+          body?.order?.id ||
+          body?.resource?.id ||
+          body?.charges?.[0]?.id ||
+          null;
+
+        // PagBank às vezes manda só o id; buscamos payments pelo gatewayId (order)
+        let paymentRows: any[] = [];
+        if (orderId) {
+          paymentRows = await db.$queryRawUnsafe(
+            `SELECT id, "gatewayId", status FROM payments
+             WHERE "gatewayId" = $1 OR "gatewayData"::text ILIKE $2
+             ORDER BY "createdAt" DESC LIMIT 5`,
+            orderId,
+            `%${orderId}%`
+          );
+        }
+
+        // Se veio charge id, tenta achar order relacionado
+        if (!paymentRows?.[0] && body?.charges?.[0]?.id) {
+          paymentRows = await db.$queryRawUnsafe(
+            `SELECT id, "gatewayId", status FROM payments
+             WHERE "gatewayData"::text ILIKE $1
+             ORDER BY "createdAt" DESC LIMIT 5`,
+            `%${body.charges[0].id}%`
+          );
+        }
+
+        for (const p of paymentRows || []) {
+          if (p.gatewayId) {
+            try {
+              const order = await getPagBankOrder(p.gatewayId);
+              const mapped = mapPagBankStatusToPayment(order.chargeStatus || order.status);
+              if (mapped === 'APPROVED' || isPaidChargeStatus(order.chargeStatus)) {
+                await activateMembershipFromPayment(db, p.id);
+              } else if (p.status === 'PENDING' && mapped !== 'PENDING') {
+                await db.$executeRawUnsafe(
+                  `UPDATE payments SET status = $1::"PaymentStatus", "updatedAt" = NOW(), "gatewayData" = $2::jsonb WHERE id = $3`,
+                  mapped,
+                  JSON.stringify(order.raw || body),
+                  p.id
+                );
+              }
+            } catch (e) {
+              console.warn('⚠️ Webhook sync falhou para', p.id, (e as any)?.message);
+            }
+          }
+        }
+
+        return res.status(200).json({ received: true });
+      } catch (error: any) {
+        console.error('❌ Webhook PagBank:', error);
+        return res.status(200).json({ received: true, warning: error?.message });
+      }
+    }
+
+    // POST renew membership — agora exige checkout (não libera grátis)
+    if (path === '/api/user/membership/renew' && method === 'POST') {
+      return res.status(400).json({
+        error: 'A renovação agora é feita por pagamento (PIX, boleto ou cartão).',
+        code: 'CHECKOUT_REQUIRED',
+        checkoutPath: '/api/membership/checkout',
+      });
     }
 
     // GET user donations

@@ -11,6 +11,7 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 // Main Screens
 import HomeScreen from '../screens/HomeScreen';
 import MembershipCardScreen from '../screens/MembershipCardScreen';
+import MembershipCheckoutScreen from '../screens/MembershipCheckoutScreen';
 import PartnersScreen from '../screens/PartnersScreen';
 import AdoptionsScreen from '../screens/AdoptionsScreen';
 import DonationScreen from '../screens/DonationScreen';
@@ -214,6 +215,13 @@ export function AppStack() {
             backgroundColor: '#ffffff',
           },
           headerTintColor: '#8B5CF6',
+        }}
+      />
+      <Stack.Screen
+        name="MembershipCheckout"
+        component={MembershipCheckoutScreen}
+        options={{
+          headerShown: false,
         }}
       />
       <Stack.Screen 

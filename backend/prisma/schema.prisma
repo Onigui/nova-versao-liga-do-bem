@@ -56,13 +56,16 @@ model Membership {
   userId        String           @unique
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   memberId      String           @unique // ID da carteirinha
-  status        MembershipStatus @default(ACTIVE)
+  status        MembershipStatus @default(PENDING_PAYMENT)
   startDate     DateTime         @default(now())
   endDate       DateTime?
-  monthlyFee    Decimal          @default(29.90)
+  monthlyFee    Decimal          @default(19.90)
   nextPayment   DateTime
   paymentMethod String?
   qrCode        String?          // Código QR para validação
+  planCode      String?
+  planMonths    Int?
+  lastPaymentId String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -355,21 +358,44 @@ model Payment {
   expiresAt   DateTime?
   paidAt      DateTime?
   gatewayData Json?
-  
+
   // Dados do usuário (para pagamentos sem login)
   userEmail   String?
   userName    String?
   userPhone   String?
   userId      String?
   user        User?    @relation(fields: [userId], references: [id])
-  
+
+  membershipId String?
+  method       String?
+  pixCopyPaste String?
+  boletoUrl    String?
+  boletoBarcode String?
+  planCode     String?
+  planMonths   Int?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Relacionamentos
   transactions Transaction[]
 
   @@map("payments")
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  months      Int
+  amountCents Int      @map("amount_cents")
+  isActive    Boolean  @default(true) @map("isActive")
+  order       Int      @default(0) @map("order")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  @@map("subscription_plans")
 }
 
 // Modelo de transações
