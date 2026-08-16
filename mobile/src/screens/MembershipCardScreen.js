@@ -34,10 +34,11 @@ const STATUS_COLORS = {
 };
 
 export default function MembershipCardScreen({navigation}) {
-  const {user, isAuthenticated} = useAuth();
+  const {user, token, isAuthenticated} = useAuth();
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [iconConfig, setIconConfig] = useState({
     iconImage: null,
     icon: '🐾',
@@ -83,9 +84,11 @@ export default function MembershipCardScreen({navigation}) {
 
   const loadMembership = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
+      setLoadError(null);
+      const storedToken = token || (await AsyncStorage.getItem('auth_token'));
+      if (!storedToken) {
         setMembership(null);
+        setLoadError('Faça login para ver seu cartão de membro.');
         return;
       }
 
@@ -93,21 +96,21 @@ export default function MembershipCardScreen({navigation}) {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          Authorization: `Bearer ${String(storedToken).replace(/^Bearer\s+/i, '').trim()}`,
         },
       });
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        logError('❌ Erro ao carregar membership', {
+        const message =
+          data.error || 'Não foi possível carregar o cartão de membro';
+        setLoadError(message);
+        logInfo('Membership não carregada', {
           status: response.status,
-          error: data.error,
+          error: message,
         });
-        Alert.alert(
-          'Erro',
-          data.error || 'Não foi possível carregar o cartão de membro',
-        );
         return;
       }
 
@@ -117,13 +120,15 @@ export default function MembershipCardScreen({navigation}) {
         status: data.membership?.status,
       });
     } catch (error) {
-      console.error('Erro ao carregar membership:', error);
-      logError('❌ Erro ao carregar membership', error);
+      setLoadError('Falha de conexão ao carregar o cartão.');
+      logInfo('Falha de conexão no cartão', {
+        message: error?.message || String(error),
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     loadIconConfig();
@@ -225,7 +230,9 @@ export default function MembershipCardScreen({navigation}) {
     return (
       <View style={styles.loadingContainer}>
         <Ionicons name="card-outline" size={48} color="#9CA3AF" />
-        <Text style={styles.loadingText}>Cartão indisponível no momento</Text>
+        <Text style={styles.loadingText}>
+          {loadError || 'Cartão indisponível no momento'}
+        </Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadMembership}>
           <Text style={styles.retryButtonText}>Tentar novamente</Text>
         </TouchableOpacity>
@@ -288,7 +295,7 @@ export default function MembershipCardScreen({navigation}) {
             <View style={[styles.qrBackground, !isActiveMember && styles.qrInactive]}>
               {isActiveMember && qrValue ? (
                 <QRCode
-                  value={qrValue}
+                  value={String(qrValue)}
                   size={140}
                   backgroundColor="#FFFFFF"
                   color="#1F2937"

@@ -170,6 +170,44 @@ function generateToken(payload: any) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
+function readHeader(req: any, name: string): string | null {
+  const headers = req?.headers || {};
+  const value = headers[name] || headers[name.toLowerCase()] || headers[name.toUpperCase()];
+  if (Array.isArray(value)) return String(value[0] || '');
+  return value ? String(value) : null;
+}
+
+function extractBearerToken(req: any): string | null {
+  const raw = readHeader(req, 'authorization') || readHeader(req, 'Authorization') || '';
+  const token = raw.replace(/^Bearer\s+/i, '').trim();
+  return token || null;
+}
+
+function decodeAuthUser(req: any): { userId: string; email?: string; role?: string } {
+  const token = extractBearerToken(req);
+  if (!token) {
+    const err: any = new Error('Token de autenticação necessário');
+    err.status = 401;
+    throw err;
+  }
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.userId || decoded.id;
+    if (!userId) {
+      const err: any = new Error('Token inválido');
+      err.status = 401;
+      throw err;
+    }
+    return { userId, email: decoded.email, role: decoded.role };
+  } catch (e: any) {
+    if (e?.status === 401) throw e;
+    const expired = e?.name === 'TokenExpiredError';
+    const err: any = new Error(expired ? 'Sessão expirada. Faça login novamente.' : 'Token inválido');
+    err.status = 401;
+    throw err;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   // CORS - Permitir todos os subdomínios Vercel
   // IMPORTANTE: Headers CORS devem ser definidos ANTES de qualquer processamento
@@ -5846,39 +5884,54 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
-        await ensureMembershipBillingSchema(db);
-        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
-        if (!token) {
-          return res.status(401).json({ error: 'Token de autenticação necessário' });
-        }
-
         let userId: string;
         try {
-          const decoded: any = jwt.verify(token, JWT_SECRET);
-          userId = decoded.userId || decoded.id;
-          if (!userId) throw new Error('no user');
-        } catch {
-          return res.status(401).json({ error: 'Token inválido' });
+          userId = decodeAuthUser(req).userId;
+        } catch (authErr: any) {
+          return res.status(401).json({ error: authErr?.message || 'Token inválido' });
         }
 
-        const users: Array<{ id: string; name: string; email: string; cpf?: string; phone?: string }> =
-          await db.$queryRawUnsafe(
-            `SELECT id, name, email, cpf, phone FROM users WHERE id = $1 LIMIT 1`,
+        try {
+          await ensureMembershipBillingSchema(db);
+        } catch (schemaErr) {
+          console.warn('⚠️ Schema de membership não pôde ser atualizado agora:', schemaErr);
+        }
+
+        let user: any = null;
+        try {
+          const users: Array<{ id: string; name: string; email: string; cpf?: string; phone?: string }> =
+            await db.$queryRawUnsafe(
+              `SELECT id, name, email, cpf, phone FROM users WHERE id = $1 LIMIT 1`,
+              userId
+            );
+          user = users?.[0];
+        } catch {
+          const users: any[] = await db.$queryRawUnsafe(
+            `SELECT id, name, email, phone FROM users WHERE id = $1 LIMIT 1`,
             userId
           );
-        const user = users?.[0];
+          user = users?.[0] ? { ...users[0], cpf: null } : null;
+        }
         if (!user) {
           return res.status(404).json({ error: 'Usuário não encontrado' });
         }
 
-        let rows: any[] = await db.$queryRawUnsafe(
-          `SELECT id, "userId", "memberId", status, "startDate", "endDate",
+        const membershipSelectFull = `SELECT id, "userId", "memberId", status, "startDate", "endDate",
                   "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
                   "planCode", "planMonths", "lastPaymentId",
                   "createdAt", "updatedAt"
-           FROM memberships WHERE "userId" = $1 LIMIT 1`,
-          userId
-        );
+           FROM memberships WHERE "userId" = $1 LIMIT 1`;
+        const membershipSelectBasic = `SELECT id, "userId", "memberId", status, "startDate", "endDate",
+                  "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+                  "createdAt", "updatedAt"
+           FROM memberships WHERE "userId" = $1 LIMIT 1`;
+
+        let rows: any[] = [];
+        try {
+          rows = await db.$queryRawUnsafe(membershipSelectFull, userId);
+        } catch {
+          rows = await db.$queryRawUnsafe(membershipSelectBasic, userId);
+        }
 
         if (!rows?.[0]) {
           const membershipId = require('crypto').randomUUID();
@@ -5886,28 +5939,39 @@ export default async function handler(req: any, res: any) {
           const qrCode = `LIGADOBEM|${memberId}|${userId}`;
           const startDate = new Date();
 
-          // Novo membro começa pendente — ativo só após pagamento confirmado
-          await db.$executeRawUnsafe(
-            `INSERT INTO memberships
-              (id, "userId", "memberId", status, "startDate", "endDate",
-               "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
-               "planCode", "planMonths", "createdAt", "updatedAt")
-             VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 19.90, $4, NULL, $5, NULL, NULL, NOW(), NOW())`,
-            membershipId,
-            userId,
-            memberId,
-            startDate,
-            qrCode
-          );
+          try {
+            await db.$executeRawUnsafe(
+              `INSERT INTO memberships
+                (id, "userId", "memberId", status, "startDate", "endDate",
+                 "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+                 "planCode", "planMonths", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 19.90, $4, NULL, $5, NULL, NULL, NOW(), NOW())`,
+              membershipId,
+              userId,
+              memberId,
+              startDate,
+              qrCode
+            );
+          } catch {
+            await db.$executeRawUnsafe(
+              `INSERT INTO memberships
+                (id, "userId", "memberId", status, "startDate", "endDate",
+                 "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+                 "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 19.90, $4, NULL, $5, NOW(), NOW())`,
+              membershipId,
+              userId,
+              memberId,
+              startDate,
+              qrCode
+            );
+          }
 
-          rows = await db.$queryRawUnsafe(
-            `SELECT id, "userId", "memberId", status, "startDate", "endDate",
-                    "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
-                    "planCode", "planMonths", "lastPaymentId",
-                    "createdAt", "updatedAt"
-             FROM memberships WHERE "userId" = $1 LIMIT 1`,
-            userId
-          );
+          try {
+            rows = await db.$queryRawUnsafe(membershipSelectFull, userId);
+          } catch {
+            rows = await db.$queryRawUnsafe(membershipSelectBasic, userId);
+          }
         } else if (!rows[0].qrCode) {
           const qrCode = `LIGADOBEM|${rows[0].memberId}|${userId}`;
           await db.$executeRawUnsafe(
@@ -5918,7 +5982,6 @@ export default async function handler(req: any, res: any) {
           rows[0].qrCode = qrCode;
         }
 
-        // Se vencida, marcar como PENDING_PAYMENT (sem apagar o cartão)
         const membership = rows[0];
         const end = membership.endDate ? new Date(membership.endDate) : null;
         let status = membership.status;
@@ -5930,7 +5993,12 @@ export default async function handler(req: any, res: any) {
           );
         }
 
-        const plans = await listMembershipPlans(db);
+        let plans: any[] = [];
+        try {
+          plans = await listMembershipPlans(db);
+        } catch {
+          plans = [];
+        }
         const pagbank = getPagBankConfig();
 
         return res.status(200).json({
@@ -5992,16 +6060,11 @@ export default async function handler(req: any, res: any) {
       if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
         await ensureMembershipBillingSchema(db);
-        const token = req.headers?.authorization?.replace('Bearer ', '') || null;
-        if (!token) return res.status(401).json({ error: 'Token de autenticação necessário' });
-
         let userId: string;
         try {
-          const decoded: any = jwt.verify(token, JWT_SECRET);
-          userId = decoded.userId || decoded.id;
-          if (!userId) throw new Error('no user');
-        } catch {
-          return res.status(401).json({ error: 'Token inválido' });
+          userId = decodeAuthUser(req).userId;
+        } catch (authErr: any) {
+          return res.status(401).json({ error: authErr?.message || 'Token inválido' });
         }
 
         if (!getPagBankConfig().configured) {

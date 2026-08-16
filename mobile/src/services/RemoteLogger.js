@@ -138,11 +138,11 @@ class RemoteLogger {
         });
       }
 
-      // Log local também
+      // Log local também — NÃO usar console.error (no RN isso vira overlay/crash)
       if (level === 'error') {
-        console.error(`[${level.toUpperCase()}]`, message, data);
+        console.warn(`[${level.toUpperCase()}]`, message, data);
         if (stackTrace) {
-          console.error('Stack Trace:', stackTrace);
+          console.warn('Stack Trace:', stackTrace);
         }
       } else if (level === 'warn') {
         console.warn(`[${level.toUpperCase()}]`, message, data);
