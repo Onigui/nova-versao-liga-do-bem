@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "1004948170161",
-    "project_id": "liga-do-bem-botucatu",
-    "storage_bucket": "liga-do-bem-botucatu.firebasestorage.app"
+    "project_number": "398857279152",
+    "project_id": "liga-do-bem-botucatu-4c696",
+    "storage_bucket": "liga-do-bem-botucatu-4c696.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1004948170161:android:dae383b5e49d3fe8f5c990",
+        "mobilesdk_app_id": "1:398857279152:android:24398742fe38ed32578d75",
         "android_client_info": {
           "package_name": "com.ligadobem.botucatu"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAHo6rKmHo-ydUylkaX-UkoVFA1i4Qc20c"
+          "current_key": "AIzaSyDorHZ_EA9VIRRaVLvxWtwguJ0j_wYdPhU"
         }
       ],
       "services": {

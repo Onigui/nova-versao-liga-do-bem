@@ -1,12 +1,11 @@
 // Configurações do Firebase para o app móvel
 export const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAHo6rKmHo-ydUylkaX-UkoVFA1i4Qc20c",
-  authDomain: "liga-do-bem-botucatu.firebaseapp.com",
-  projectId: "liga-do-bem-botucatu",
-  storageBucket: "liga-do-bem-botucatu.firebasestorage.app",
-  messagingSenderId: "1004948170161",
-  appId: "1:1004948170161:android:dae383b5e49d3fe8f5c990",
-  measurementId: "G-XXXXXXXXXX"
+  apiKey: "AIzaSyDorHZ_EA9VIRRaVLvxWtwguJ0j_wYdPhU",
+  authDomain: "liga-do-bem-botucatu-4c696.firebaseapp.com",
+  projectId: "liga-do-bem-botucatu-4c696",
+  storageBucket: "liga-do-bem-botucatu-4c696.firebasestorage.app",
+  messagingSenderId: "398857279152",
+  appId: "1:398857279152:android:24398742fe38ed32578d75",
 };
 
 // Configurações específicas para notificações push

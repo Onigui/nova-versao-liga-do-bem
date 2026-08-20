@@ -1,14 +1,131 @@
 /**
- * Envio FCM (API legado). Configure FIREBASE_SERVER_KEY na Vercel.
- * Sem a chave, as notificações continuam sendo gravadas no app (in-app).
+ * Push via Firebase Cloud Messaging HTTP v1 (firebase-admin).
+ * Android exige FCM da Google — não existe push “de verdade” no app fechado sem isso.
+ * Configure na Vercel: FIREBASE_SERVICE_ACCOUNT (JSON da conta de serviço)
+ * ou FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY.
  */
 
-export function getFirebaseServerKey() {
-  return (
-    process.env.FIREBASE_SERVER_KEY ||
-    process.env.FCM_SERVER_KEY ||
-    ''
-  ).trim();
+let adminMod: any = null;
+let initAttempted = false;
+
+export const ALL_USERS_TOPIC = 'liga_do_bem_all';
+
+function loadAdmin() {
+  if (adminMod) return adminMod;
+  try {
+    adminMod = require('firebase-admin');
+    return adminMod;
+  } catch {
+    console.warn('⚠️ firebase-admin não instalado');
+    return null;
+  }
+}
+
+function parseServiceAccount() {
+  const raw = (process.env.FIREBASE_SERVICE_ACCOUNT || '').trim();
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT não é um JSON válido');
+    }
+  }
+
+  const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
+  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+  let privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').trim();
+  if (privateKey) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+  if (projectId && clientEmail && privateKey) {
+    return { project_id: projectId, client_email: clientEmail, private_key: privateKey };
+  }
+  return null;
+}
+
+export function isPushConfigured() {
+  return Boolean(parseServiceAccount());
+}
+
+function getMessaging() {
+  const admin = loadAdmin();
+  if (!admin) return null;
+  const account = parseServiceAccount();
+  if (!account) return null;
+
+  if (!initAttempted) {
+    initAttempted = true;
+    if (!admin.apps?.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: account.project_id,
+          clientEmail: account.client_email,
+          privateKey: account.private_key,
+        }),
+      });
+    }
+  }
+
+  if (!admin.apps?.length) return null;
+  return admin.messaging();
+}
+
+function buildMessage(payload: {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}) {
+  const data: Record<string, string> = {};
+  Object.entries(payload.data || {}).forEach(([k, v]) => {
+    data[k] = String(v ?? '');
+  });
+  return {
+    notification: {
+      title: payload.title,
+      body: payload.body,
+    },
+    data,
+    android: {
+      priority: 'high' as const,
+      notification: {
+        channelId: 'liga-do-bem-default',
+        sound: 'default',
+      },
+    },
+  };
+}
+
+export async function subscribeTokenToAllTopic(token: string) {
+  const messaging = getMessaging();
+  if (!messaging || !token) return false;
+  try {
+    await messaging.subscribeToTopic([token], ALL_USERS_TOPIC);
+    return true;
+  } catch (error) {
+    console.warn('⚠️ Falha ao inscrever token no tópico geral:', error);
+    return false;
+  }
+}
+
+export async function sendFcmToTopic(
+  topic: string,
+  payload: { title: string; body: string; data?: Record<string, string> },
+): Promise<{ attempted: number; success: number }> {
+  const messaging = getMessaging();
+  if (!messaging) {
+    console.warn('⚠️ Push não configurado (conta de serviço Firebase ausente)');
+    return { attempted: 0, success: 0 };
+  }
+  try {
+    await messaging.send({
+      topic,
+      ...buildMessage(payload),
+    });
+    return { attempted: 1, success: 1 };
+  } catch (error) {
+    console.warn('⚠️ FCM topic send failed:', error);
+    return { attempted: 1, success: 0 };
+  }
 }
 
 export async function sendFcmToTokens(
@@ -18,43 +135,30 @@ export async function sendFcmToTokens(
   const unique = [...new Set((tokens || []).filter(Boolean))];
   if (!unique.length) return { attempted: 0, success: 0 };
 
-  const serverKey = getFirebaseServerKey();
-  if (!serverKey) {
-    console.warn('⚠️ FIREBASE_SERVER_KEY não configurada — push não enviado');
+  const messaging = getMessaging();
+  if (!messaging) {
+    console.warn('⚠️ Push não configurado (conta de serviço Firebase ausente)');
     return { attempted: unique.length, success: 0 };
   }
 
+  let success = 0;
   try {
-    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `key=${serverKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        registration_ids: unique.slice(0, 1000),
-        notification: {
-          title: payload.title,
-          body: payload.body,
-        },
-        data: payload.data || {},
-        priority: 'high',
-      }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.warn('⚠️ FCM HTTP error:', response.status, text);
-      return { attempted: unique.length, success: 0 };
+    for (let i = 0; i < unique.length; i += 500) {
+      const chunk = unique.slice(i, i + 500);
+      const result = await messaging.sendEachForMulticast({
+        tokens: chunk,
+        ...buildMessage(payload),
+      });
+      success += Number(result.successCount || 0);
     }
-
-    const result: any = await response.json().catch(() => ({}));
-    return {
-      attempted: unique.length,
-      success: Number(result.success || 0),
-    };
+    return { attempted: unique.length, success };
   } catch (error) {
     console.warn('⚠️ FCM send failed:', error);
-    return { attempted: unique.length, success: 0 };
+    return { attempted: unique.length, success };
   }
+}
+
+/** @deprecated use isPushConfigured — mantido para compatibilidade */
+export function getFirebaseServerKey() {
+  return isPushConfigured() ? 'configured' : '';
 }

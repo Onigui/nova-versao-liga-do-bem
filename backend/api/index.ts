@@ -26,7 +26,7 @@ import {
   listCardInstallmentOptions,
   quoteCardInstallment,
 } from './lib/membershipPlans';
-import { getFirebaseServerKey, sendFcmToTokens } from './lib/push';
+import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
 // Cloudinary para upload de imagens
 let cloudinary: any = null;
@@ -794,7 +794,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({
         pagbankConfigured: getPagBankConfig().configured,
         pagbankEnv: getPagBankConfig().env,
-        fcmConfigured: Boolean(getFirebaseServerKey()),
+        fcmConfigured: isPushConfigured(),
         demoAdminEnabled: process.env.ALLOW_DEMO_ADMIN === 'true',
         databaseConfigured: Boolean(getPrisma()),
       });
@@ -844,6 +844,7 @@ export default async function handler(req: any, res: any) {
           token,
           platform === 'ios' ? 'ios' : 'android',
         );
+        subscribeTokenToAllTopic(token).catch(() => {});
         return res.status(200).json({ message: 'Token registrado', ok: true });
       } catch (error: any) {
         return res.status(error?.status || 500).json({
@@ -5562,6 +5563,15 @@ export default async function handler(req: any, res: any) {
           });
           pushAttempted = pushResult.attempted;
           pushSuccess = pushResult.success;
+          if (path.includes('send-to-all') || path === '/api/admin/notifications/send') {
+            const topicResult = await sendFcmToTopic(ALL_USERS_TOPIC, {
+              title,
+              body: message,
+              data: { type: notifType, screen: 'Notifications' },
+            });
+            pushAttempted += topicResult.attempted;
+            pushSuccess += topicResult.success;
+          }
         } catch (pushErr) {
           console.warn('⚠️ Push FCM falhou:', pushErr);
         }
