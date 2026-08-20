@@ -18,7 +18,12 @@ export function isMembershipCurrentlyActive(membership: {
   return new Date(membership.endDate).getTime() >= Date.now();
 }
 
+let schemaEnsuredAt = 0;
+const SCHEMA_TTL_MS = 6 * 60 * 60 * 1000;
+
 export async function ensureMembershipBillingSchema(db: any) {
+  if (Date.now() - schemaEnsuredAt < SCHEMA_TTL_MS) return;
+
   await db.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS subscription_plans (
       id TEXT PRIMARY KEY,
@@ -77,11 +82,52 @@ export async function ensureMembershipBillingSchema(db: any) {
       plan.order,
     );
   }
+
+  schemaEnsuredAt = Date.now();
+}
+
+/** Assinatura só fica ACTIVE com pagamento MEMBERSHIP aprovado. Doação não conta. */
+export async function requirePaidMembership(db: any, membership: any, userId: string) {
+  if (!membership) return membership;
+  const status = String(membership.status || '');
+  if (status !== 'ACTIVE') return membership;
+
+  let paid: any[] = [];
+  try {
+    paid = await db.$queryRawUnsafe(
+      `SELECT id FROM payments
+       WHERE "userId" = $1 AND status = 'APPROVED' AND type = 'MEMBERSHIP'
+       LIMIT 1`,
+      userId,
+    );
+  } catch {
+    paid = [];
+  }
+
+  const hasPaid = Boolean(membership.lastPaymentId || paid?.[0]?.id);
+  const stillValid = isMembershipCurrentlyActive(membership);
+  if (hasPaid && stillValid) return membership;
+
+  try {
+    await db.$executeRawUnsafe(
+      `UPDATE memberships
+       SET status = 'PENDING_PAYMENT', "endDate" = NULL, "updatedAt" = NOW()
+       WHERE id = $1`,
+      membership.id,
+    );
+  } catch {
+    // ignore
+  }
+
+  return {
+    ...membership,
+    status: 'PENDING_PAYMENT',
+    endDate: null,
+  };
 }
 
 export async function listMembershipPlans(db: any) {
   try {
-    await ensureMembershipBillingSchema(db);
     const rows: any[] = await db.$queryRawUnsafe(
       `SELECT code, name, description, months, amount_cents as "amountCents", "order"
        FROM subscription_plans

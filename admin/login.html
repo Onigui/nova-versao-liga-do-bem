@@ -303,10 +303,10 @@
             <p class="login-subtitle">Faça login para acessar o painel</p>
         </div>
 
-        <div class="demo-credentials">
-            <h4>🔑 Credenciais de Demonstração</h4>
-            <p><strong>Email:</strong> admin@ligadobem.com</p>
-            <p><strong>Senha:</strong> admin123</p>
+        <div class="demo-credentials" style="background:#EEF2FF;border:1px solid #C7D2FE;">
+            <h4>🔐 Acesso administrativo</h4>
+            <p>Use a mesma conta com perfil <strong>ADMIN</strong> cadastrada no sistema.</p>
+            <p style="margin-top:6px;font-size:0.875rem;color:#4B5563;">Doações e associação de membro são coisas diferentes — o painel gerencia ambos.</p>
         </div>
 
         <form class="login-form" id="loginForm">
@@ -321,7 +321,6 @@
                     name="email" 
                     class="form-input" 
                     placeholder="seu@email.com"
-                    value="admin@ligadobem.com"
                     required
                 >
             </div>
@@ -334,7 +333,6 @@
                     name="password" 
                     class="form-input" 
                     placeholder="Sua senha"
-                    value="admin123"
                     required
                 >
             </div>
@@ -454,7 +452,7 @@
                     let errorMessage = 'Erro ao fazer login';
                     try {
                         const error = await response.json();
-                        errorMessage = error.message || errorMessage;
+                        errorMessage = error.error || error.message || errorMessage;
                     } catch (e) {
                         errorMessage = `Erro ${response.status}: ${response.statusText}`;
                     }
@@ -464,42 +462,10 @@
                 }
             } catch (error) {
                 clearTimeout(timeoutId);
-                
-                // Verificar se foi timeout ou erro de rede
                 if (error.name === 'AbortError') {
-                    console.warn('⏱️ Timeout na requisição, usando login demo');
+                    showMessage('Tempo esgotado ao conectar no servidor. Tente novamente.');
                 } else {
-                    console.warn('⚠️ Erro na requisição:', error.message);
-                }
-                
-                // Se a API não estiver disponível, usar login demo
-                // Aceitar tanto admin123 quanto demo123
-                if (email === 'admin@ligadobem.com' && (password === 'admin123' || password === 'demo123')) {
-                    console.log('🔑 Usando login demo...');
-                    
-                    // Criar token demo
-                    const demoToken = btoa(JSON.stringify({
-                        userId: 'demo-admin',
-                        email: 'admin@ligadobem.com',
-                        role: 'admin',
-                        exp: Date.now() / 1000 + (24 * 60 * 60) // 24 horas
-                    }));
-                    
-                    localStorage.setItem('admin_token', demoToken);
-                    localStorage.setItem('admin_user', JSON.stringify({
-                        id: 'demo-admin',
-                        name: 'Administrador',
-                        email: 'admin@ligadobem.com',
-                        role: 'admin'
-                    }));
-                    
-                    showMessage('Login demo realizado com sucesso! Redirecionando...', 'success');
-                    
-                    setTimeout(() => {
-                        window.location.href = 'index.html';
-                    }, 1000);
-                } else {
-                    showMessage('Email ou senha incorretos');
+                    showMessage('Não foi possível conectar no servidor. Verifique sua conexão.');
                 }
             }
         }
@@ -570,8 +536,6 @@
         });
 
         console.log('🔐 Sistema de Login da Liga do Bem carregado!');
-        console.log('📧 Email demo: admin@ligadobem.com');
-        console.log('🔑 Senha demo: admin123 ou demo123');
         console.log('🌐 API URL:', (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, ''));
     </script>
 </body>

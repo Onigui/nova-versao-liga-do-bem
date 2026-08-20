@@ -19,8 +19,14 @@ import {
   getPlanByCode,
   isMembershipCurrentlyActive,
   listMembershipPlans,
+  requirePaidMembership,
   syncPaymentFromPagBank,
 } from './lib/membershipBilling';
+import {
+  listCardInstallmentOptions,
+  quoteCardInstallment,
+} from './lib/membershipPlans';
+import { getFirebaseServerKey, sendFcmToTokens } from './lib/push';
 
 // Cloudinary para upload de imagens
 let cloudinary: any = null;
@@ -710,17 +716,140 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Admin login
+    // Admin login (usuário real com role ADMIN no banco)
     if (path === '/api/admin/login' && method === 'POST') {
-      const { email, password } = body;
-      if (email === 'admin@ligadobem.com' && (password === 'admin123' || password === 'demo123')) {
+      const db = getPrisma();
+      const email = String(body?.email || '').trim().toLowerCase();
+      const password = String(body?.password || '');
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+      }
+
+      if (db) {
+        try {
+          const user = await db.user.findUnique({ where: { email } });
+          if (user && user.isActive) {
+            const ok = await bcrypt.compare(password, user.password);
+            if (ok && String(user.role).toUpperCase() === 'ADMIN') {
+              const token = generateToken({
+                userId: user.id,
+                email: user.email,
+                role: 'ADMIN',
+              });
+              return res.status(200).json({
+                success: true,
+                token,
+                user: {
+                  id: user.id,
+                  name: user.name,
+                  email: user.email,
+                  role: 'ADMIN',
+                },
+              });
+            }
+            if (ok && String(user.role).toUpperCase() !== 'ADMIN') {
+              return res.status(403).json({
+                error: 'Esta conta não tem permissão de administrador',
+              });
+            }
+          }
+        } catch (error: any) {
+          console.error('❌ Admin login DB error:', error);
+        }
+      }
+
+      // Fallback demo apenas se ALLOW_DEMO_ADMIN=true (não use em produção)
+      if (
+        process.env.ALLOW_DEMO_ADMIN === 'true' &&
+        email === 'admin@ligadobem.com' &&
+        (password === 'admin123' || password === 'demo123')
+      ) {
         return res.status(200).json({
           success: true,
           token: 'demo-token-' + Date.now(),
-          user: { id: 'demo-1', name: 'Admin Demo', email, role: 'admin' }
+          user: { id: 'demo-1', name: 'Admin Demo', email, role: 'ADMIN' },
         });
       }
+
       return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
+
+    if (path === '/api/admin/verify' && method === 'GET') {
+      try {
+        const auth = decodeAuthUser(req);
+        if (String(auth.role || '').toUpperCase() !== 'ADMIN') {
+          return res.status(403).json({ error: 'Não autorizado' });
+        }
+        return res.status(200).json({ ok: true, userId: auth.userId, role: 'ADMIN' });
+      } catch (e: any) {
+        const token = extractBearerToken(req) || '';
+        if (process.env.ALLOW_DEMO_ADMIN === 'true' && token.startsWith('demo-token-')) {
+          return res.status(200).json({ ok: true, demo: true, role: 'ADMIN' });
+        }
+        return res.status(401).json({ error: e?.message || 'Token inválido' });
+      }
+    }
+
+    if (path === '/api/admin/system-status' && method === 'GET') {
+      return res.status(200).json({
+        pagbankConfigured: getPagBankConfig().configured,
+        pagbankEnv: getPagBankConfig().env,
+        fcmConfigured: Boolean(getFirebaseServerKey()),
+        demoAdminEnabled: process.env.ALLOW_DEMO_ADMIN === 'true',
+        databaseConfigured: Boolean(getPrisma()),
+      });
+    }
+
+    if (path === '/api/admin/users/role' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const email = String(body?.email || '').trim().toLowerCase();
+        const role = String(body?.role || '').toUpperCase();
+        if (!email || !['ADMIN', 'MEMBER', 'VOLUNTEER', 'PARTNER'].includes(role)) {
+          return res.status(400).json({ error: 'email e role válidos são obrigatórios' });
+        }
+        const user = await db.user.update({
+          where: { email },
+          data: { role: role as any },
+          select: { id: true, email: true, name: true, role: true },
+        });
+        return res.status(200).json({ message: 'Perfil atualizado', user });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao atualizar perfil' });
+      }
+    }
+
+    // Registrar token FCM do app
+    if (path === '/api/notifications/register' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const { userId } = decodeAuthUser(req);
+        const token = String(body?.token || '').trim();
+        const platform = String(body?.platform || 'android').toLowerCase();
+        if (!token) return res.status(400).json({ error: 'token é obrigatório' });
+
+        const id = require('crypto').randomUUID();
+        await db.$executeRawUnsafe(
+          `INSERT INTO device_tokens (id, "userId", token, platform, "isActive", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+           ON CONFLICT (token) DO UPDATE SET
+             "userId" = EXCLUDED."userId",
+             platform = EXCLUDED.platform,
+             "isActive" = true,
+             "updatedAt" = NOW()`,
+          id,
+          userId,
+          token,
+          platform === 'ios' ? 'ios' : 'android',
+        );
+        return res.status(200).json({ message: 'Token registrado', ok: true });
+      } catch (error: any) {
+        return res.status(error?.status || 500).json({
+          error: error?.message || 'Erro ao registrar token',
+        });
+      }
     }
 
     // Public stats endpoint (for mobile app)
@@ -778,24 +907,61 @@ export default async function handler(req: any, res: any) {
       const db = getPrisma();
       if (db) {
         try {
-          const [totalMembers, activePartners, totalAdoptions, totalAnimals, totalDonations] = await Promise.all([
-            db.user.count().catch((e) => { console.error('Error counting users:', e); return 0; }),
-            db.partner.count({ where: { isActive: true } }).catch((e) => { console.error('Error counting partners:', e); return 0; }),
-            db.adoption.count({ where: { status: 'COMPLETED' } }).catch((e) => { console.error('Error counting adoptions:', e); return 0; }),
-            db.animal.count({ where: { isActive: true, isAdopted: false } }).catch((e) => { console.error('Error counting animals:', e); return 0; }),
-            db.donation.aggregate({ _sum: { amount: true } }).catch((e) => { console.error('Error summing donations:', e); return { _sum: { amount: 0 } }; })
+          const now = new Date();
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const [
+            totalUsers,
+            activeMembers,
+            activePartners,
+            totalAdoptions,
+            totalAnimals,
+            totalDonations,
+            qrScans,
+            monthlyPayments,
+            recentPartners,
+          ] = await Promise.all([
+            db.user.count().catch(() => 0),
+            db.membership.count({
+              where: { status: 'ACTIVE', endDate: { gte: now } },
+            }).catch(() => 0),
+            db.partner.count({ where: { isActive: true } }).catch(() => 0),
+            db.adoption.count({ where: { status: 'COMPLETED' } }).catch(() => 0),
+            db.animal.count({ where: { isActive: true, isAdopted: false } }).catch(() => 0),
+            db.donation.aggregate({ _sum: { amount: true } }).catch(() => ({ _sum: { amount: 0 } })),
+            db.partnerValidation.count().catch(() => 0),
+            db.payment.aggregate({
+              where: { status: 'APPROVED', type: 'MEMBERSHIP', paidAt: { gte: monthStart } },
+              _sum: { amount: true },
+            }).catch(() => ({ _sum: { amount: 0 } })),
+            db.partner.findMany({
+              orderBy: { createdAt: 'desc' },
+              take: 5,
+              include: { discounts: { take: 1 } },
+            }).catch(() => []),
           ]);
           const donationTotal = totalDonations?._sum?.amount ? parseFloat(totalDonations._sum.amount.toString()) : 0;
+          const monthlyRevenue = monthlyPayments?._sum?.amount ? parseFloat(monthlyPayments._sum.amount.toString()) : 0;
           const response = {
             stats: {
-              totalMembers,
+              totalMembers: activeMembers,
+              totalUsers,
               activePartners,
               totalAdoptions,
+              discountsUsed: qrScans,
+              qrCodesScanned: qrScans,
               totalAnimals: totalAnimals || 0,
               totalPartners: activePartners || 0,
               totalDonations: donationTotal || 0,
-              monthlyRevenue: 0
-            }
+              monthlyRevenue,
+            },
+            recentCompanies: (recentPartners || []).map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              status: p.isActive ? 'active' : 'inactive',
+              discount: p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : 'N/A',
+              location: p.city || p.address || '—',
+              createdAt: p.createdAt,
+            })),
           };
           console.log('✅ Dashboard response:', response);
           return res.status(200).json(response);
@@ -843,7 +1009,10 @@ export default async function handler(req: any, res: any) {
           location: p.city || p.address,
           email: p.email,
           phone: p.phone,
-          description: p.description
+          description: p.description,
+          hours: p.hours || null,
+          latitude: p.latitude,
+          longitude: p.longitude,
         }));
         return res.status(200).json({ companies, total: companies.length });
       }
@@ -857,7 +1026,7 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
-        const { name, category, address, latitude, longitude, phone, email, description, status } = body;
+        const { name, category, address, latitude, longitude, phone, email, description, status, hours } = body;
         if (!name || !category) {
           return res.status(400).json({ error: 'Nome e categoria são obrigatórios' });
         }
@@ -879,6 +1048,7 @@ export default async function handler(req: any, res: any) {
             phone: phone || null,
             email: email || null,
             description: description || null,
+            hours: hours || null,
             isActive: status === 'active' || status === undefined
           }
         });
@@ -966,7 +1136,7 @@ export default async function handler(req: any, res: any) {
         if (!companyId) {
           return res.status(400).json({ error: 'ID da empresa é obrigatório', path, match });
         }
-        const { name, category, city, state, zipCode, address, email, phone, description } = body;
+        const { name, category, city, state, zipCode, address, email, phone, description, hours } = body;
         
         console.log(`💾 Updating company ${companyId} with data:`, { name, category, city, state });
         
@@ -980,6 +1150,7 @@ export default async function handler(req: any, res: any) {
         if (email !== undefined) updateData.email = email || null;
         if (phone !== undefined) updateData.phone = phone || null;
         if (description !== undefined) updateData.description = description || null;
+        if (hours !== undefined) updateData.hours = hours || null;
         
         const partner = await db.partner.update({
           where: { id: companyId },
@@ -1673,6 +1844,8 @@ export default async function handler(req: any, res: any) {
           longitude: p.longitude ? parseFloat(p.longitude.toString()) : null,
           city: p.city,
           state: p.state,
+          hours: p.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
+          logo: p.logo || null,
           discount: p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : null
         }));
 
@@ -1724,9 +1897,22 @@ export default async function handler(req: any, res: any) {
         const membership = memberships?.[0];
         if (!isMembershipCurrentlyActive(membership || {})) {
           return res.status(400).json({
-            error: 'Carteirinha inválida, inativa ou vencida. Renove a assinatura para usar os descontos.',
+            error: 'Carteirinha inválida, inativa ou vencida. A associação só vale após o pagamento de um plano de membro. Doações não ativam o cartão.',
             code: 'MEMBERSHIP_INACTIVE',
           });
+        }
+
+        try {
+          await db.partnerValidation.create({
+            data: {
+              partnerId,
+              userId,
+              amount: 0,
+              discountId: body.discountId || null,
+            },
+          });
+        } catch (validationErr) {
+          console.warn('⚠️ Não foi possível registrar o uso do desconto:', validationErr);
         }
 
         return res.status(200).json({
@@ -1990,6 +2176,41 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    if (path.match(/^\/api\/animals\/[^/]+$/) && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const animalId = path.split('/').pop() as string;
+        const a: any = await db.animal.findUnique({ where: { id: animalId } });
+        if (!a) return res.status(404).json({ error: 'Animal não encontrado' });
+        const resolved = resolveAnimalAge(a);
+        return res.status(200).json({
+          animal: {
+            id: a.id,
+            name: a.name,
+            species: a.species === 'DOG' ? 'Cachorro' : a.species === 'CAT' ? 'Gato' : a.species === 'BIRD' ? 'Ave' : a.species === 'RABBIT' ? 'Coelho' : 'Outro',
+            breed: a.breed || 'Vira-Lata',
+            age: resolved.ageLabel,
+            ageMonths: resolved.ageMonths,
+            birthDate: a.birthDate || null,
+            gender: a.gender === 'MALE' ? 'Macho' : 'Fêmea',
+            size: a.size === 'SMALL' ? 'Pequeno' : a.size === 'MEDIUM' ? 'Médio' : 'Grande',
+            photo: a.image || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400',
+            photos: a.image ? [a.image] : ['https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400'],
+            vaccinated: a.isVaccinated,
+            neutered: a.isCastrated,
+            description: a.description || 'Este animal está procurando um lar cheio de amor!',
+            color: 'Não informado',
+            rescueDate: a.createdAt.toISOString().split('T')[0],
+            hasSpecialNeeds: a.hasSpecialNeeds || false,
+            specialNeeds: a.specialNeeds || null,
+          },
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao buscar animal' });
+      }
+    }
+
     // --- Admin Events Endpoints ---
     // GET all events (admin)
     if (path === '/api/admin/events' && method === 'GET') {
@@ -2200,6 +2421,53 @@ export default async function handler(req: any, res: any) {
       } catch (error: any) {
         console.error('❌ Erro ao listar eventos públicos:', error);
         return res.status(500).json({ error: error?.message || 'Erro ao listar eventos' });
+      }
+    }
+
+    if (path.match(/^\/api\/events\/[^/]+$/) && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const eventId = path.split('/').pop() as string;
+        const e = await db.event.findUnique({
+          where: { id: eventId },
+          include: { registrations: { where: { status: 'REGISTERED' } } },
+        });
+        if (!e) return res.status(404).json({ error: 'Evento não encontrado' });
+        const startDate = new Date(e.startDate);
+        const endDate = e.endDate ? new Date(e.endDate) : null;
+        const categoryMap: any = {
+          ADOPTION_FAIR: 'Adoção',
+          FUNDRAISING: 'Arrecadação',
+          VOLUNTEER_MEETING: 'Voluntariado',
+          MEDICAL_CAMPAIGN: 'Saúde',
+          EDUCATION: 'Educação',
+          OTHER: 'Outro',
+        };
+        let timeStr = '';
+        if (endDate) {
+          const startTime = startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+          const endTime = endDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+          timeStr = `${startTime} - ${endTime}`;
+        }
+        return res.status(200).json({
+          event: {
+            id: e.id,
+            title: e.title,
+            description: e.description || 'Participe e faça a diferença!',
+            date: startDate.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
+            time: timeStr,
+            location: e.location || 'Local a definir',
+            address: e.address || null,
+            category: categoryMap[e.type] || 'Outro',
+            type: e.type,
+            vacancies: e.maxAttendees || 0,
+            registered: e.registrations.length,
+            image: e.image || 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
+          },
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao buscar evento' });
       }
     }
 
@@ -2539,6 +2807,49 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    if (path === '/api/admin/adoptions' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const adoptions = await db.adoption.findMany({
+          include: {
+            animal: { select: { id: true, name: true, species: true, image: true } },
+            user: { select: { id: true, name: true, email: true, phone: true } },
+          },
+          orderBy: { applicationDate: 'desc' },
+          take: 200,
+        });
+        return res.status(200).json({ adoptions, total: adoptions.length });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao listar adoções' });
+      }
+    }
+
+    if (path === '/api/admin/adoptions/status' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const { id, status, notes } = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+        const nextStatus = String(status || '').toUpperCase();
+        if (!id || !['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED', 'CANCELLED'].includes(nextStatus)) {
+          return res.status(400).json({ error: 'id e status válidos são obrigatórios' });
+        }
+        const data: any = { status: nextStatus, notes: notes || undefined };
+        if (nextStatus === 'APPROVED') data.approvedDate = new Date();
+        if (nextStatus === 'COMPLETED') {
+          data.completedDate = new Date();
+          const current = await db.adoption.findUnique({ where: { id } });
+          if (current?.animalId) {
+            await db.animal.update({ where: { id: current.animalId }, data: { isAdopted: true, isActive: false } });
+          }
+        }
+        const adoption = await db.adoption.update({ where: { id }, data });
+        return res.status(200).json({ message: 'Status atualizado', adoption });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao atualizar adoção' });
+      }
+    }
+
     // ==========================================
     // APP CONFIGURATION ENDPOINTS
     // ==========================================
@@ -2742,6 +3053,30 @@ export default async function handler(req: any, res: any) {
           configsToUpdate.push({
             key: 'donation.pixCity',
             value: String(pixCity || 'Botucatu'),
+            type: 'STRING',
+            isPublic: true,
+          });
+        }
+        if (body?.contactEmail !== undefined) {
+          configsToUpdate.push({
+            key: 'org.contactEmail',
+            value: String(body.contactEmail || ''),
+            type: 'STRING',
+            isPublic: true,
+          });
+        }
+        if (body?.contactPhone !== undefined) {
+          configsToUpdate.push({
+            key: 'org.contactPhone',
+            value: String(body.contactPhone || ''),
+            type: 'STRING',
+            isPublic: true,
+          });
+        }
+        if (body?.membershipDisclaimer !== undefined) {
+          configsToUpdate.push({
+            key: 'membership.disclaimer',
+            value: String(body.membershipDisclaimer || ''),
             type: 'STRING',
             isPublic: true,
           });
@@ -5210,10 +5545,33 @@ export default async function handler(req: any, res: any) {
           }
         }
 
+        let pushAttempted = 0;
+        let pushSuccess = 0;
+        try {
+          const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
+          const tokenRows: any[] = await db.$queryRawUnsafe(
+            `SELECT token FROM device_tokens
+             WHERE "isActive" = true AND "userId" IN (${placeholders})`,
+            ...userIds,
+          );
+          const tokens = (tokenRows || []).map((t) => t.token).filter(Boolean);
+          const pushResult = await sendFcmToTokens(tokens, {
+            title,
+            body: message,
+            data: { type: notifType, screen: 'Notifications' },
+          });
+          pushAttempted = pushResult.attempted;
+          pushSuccess = pushResult.success;
+        } catch (pushErr) {
+          console.warn('⚠️ Push FCM falhou:', pushErr);
+        }
+
         return res.status(200).json({
           message: 'Notificações criadas com sucesso',
           successCount,
           totalTargets: userIds.length,
+          pushAttempted,
+          pushSuccess,
         });
       } catch (error: any) {
         console.error('❌ Admin send notification:', error);
@@ -5221,6 +5579,151 @@ export default async function handler(req: any, res: any) {
           error: 'Erro ao enviar notificação',
           message: error?.message || 'Erro ao enviar notificação',
         });
+      }
+    }
+
+    // ========== ADMIN DISCOUNTS ==========
+    if (path === '/api/admin/discounts' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const discounts = await db.partnerDiscount.findMany({
+          include: { partner: { select: { id: true, name: true, category: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        });
+        return res.status(200).json({ discounts, total: discounts.length });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao listar descontos' });
+      }
+    }
+
+    if (path === '/api/admin/discounts' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const partnerId = body?.partnerId;
+        const name = String(body?.name || '').trim();
+        const percentage = body?.percentage != null ? Number(body.percentage) : null;
+        const fixedAmount = body?.fixedAmount != null ? Number(body.fixedAmount) : null;
+        const description = body?.description || null;
+        const validFrom = body?.validFrom ? new Date(body.validFrom) : new Date();
+        const validUntil = body?.validUntil ? new Date(body.validUntil) : null;
+        if (!partnerId || !name) {
+          return res.status(400).json({ error: 'partnerId e name são obrigatórios' });
+        }
+        if (percentage == null && fixedAmount == null) {
+          return res.status(400).json({ error: 'Informe percentage ou fixedAmount' });
+        }
+        const discount = await db.partnerDiscount.create({
+          data: {
+            partnerId,
+            name,
+            description,
+            percentage,
+            fixedAmount,
+            validFrom,
+            validUntil,
+            isActive: body?.isActive !== false,
+          },
+        });
+        return res.status(201).json({ message: 'Desconto criado', discount });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao criar desconto' });
+      }
+    }
+
+    if (path.match(/^\/api\/admin\/discounts\/[^/]+$/) && method === 'PUT') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const id = path.split('/').pop() as string;
+        const data: any = {};
+        if (body?.name != null) data.name = String(body.name).trim();
+        if (body?.description !== undefined) data.description = body.description;
+        if (body?.percentage !== undefined) data.percentage = body.percentage == null ? null : Number(body.percentage);
+        if (body?.fixedAmount !== undefined) data.fixedAmount = body.fixedAmount == null ? null : Number(body.fixedAmount);
+        if (body?.validFrom) data.validFrom = new Date(body.validFrom);
+        if (body?.validUntil !== undefined) data.validUntil = body.validUntil ? new Date(body.validUntil) : null;
+        if (body?.isActive !== undefined) data.isActive = Boolean(body.isActive);
+        if (body?.partnerId) data.partnerId = body.partnerId;
+        const discount = await db.partnerDiscount.update({ where: { id }, data });
+        return res.status(200).json({ message: 'Desconto atualizado', discount });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao atualizar desconto' });
+      }
+    }
+
+    if (path.match(/^\/api\/admin\/discounts\/[^/]+$/) && method === 'DELETE') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const id = path.split('/').pop() as string;
+        await db.partnerDiscount.delete({ where: { id } });
+        return res.status(200).json({ message: 'Desconto removido' });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao excluir desconto' });
+      }
+    }
+
+    // ========== ADMIN MEMBERSHIP PAYMENTS ==========
+    if (path === '/api/admin/membership-payments' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const status = String(body?.status || req.query?.status || '').toUpperCase();
+        const params: any[] = [];
+        let where = `WHERE p.type = 'MEMBERSHIP'`;
+        if (status && ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(status)) {
+          params.push(status);
+          where += ` AND p.status = $${params.length}::"PaymentStatus"`;
+        }
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT p.id, p.amount, p.status, p.method, p."planCode", p."planMonths",
+                  p.gateway, p."gatewayId", p."userName", p."userEmail", p."userId",
+                  p."createdAt", p."paidAt"
+           FROM payments p
+           ${where}
+           ORDER BY p."createdAt" DESC
+           LIMIT 200`,
+          ...params,
+        );
+        const statsRows: any[] = await db.$queryRawUnsafe(
+          `SELECT
+             COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN amount ELSE 0 END), 0) AS total_revenue,
+             COALESCE(SUM(CASE WHEN status = 'APPROVED' AND "paidAt" >= date_trunc('month', NOW()) THEN amount ELSE 0 END), 0) AS monthly_revenue,
+             COUNT(*)::int AS total_transactions,
+             COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending_payments
+           FROM payments
+           WHERE type = 'MEMBERSHIP'`
+        );
+        return res.status(200).json({
+          payments: (rows || []).map((p) => ({
+            id: p.id,
+            amount: parseFloat(p.amount?.toString?.() || '0'),
+            status: p.status,
+            method: p.method,
+            planCode: p.planCode,
+            planMonths: p.planMonths,
+            gateway: p.gateway,
+            gatewayId: p.gatewayId,
+            userName: p.userName,
+            userEmail: p.userEmail,
+            userId: p.userId,
+            createdAt: p.createdAt,
+            paidAt: p.paidAt,
+            type: 'MEMBERSHIP',
+          })),
+          stats: {
+            totalRevenue: parseFloat(statsRows?.[0]?.total_revenue?.toString?.() || '0'),
+            monthlyRevenue: parseFloat(statsRows?.[0]?.monthly_revenue?.toString?.() || '0'),
+            totalTransactions: statsRows?.[0]?.total_transactions || 0,
+            pendingPayments: statsRows?.[0]?.pending_payments || 0,
+          },
+          total: rows?.length || 0,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Erro ao listar pagamentos' });
       }
     }
 
@@ -5982,7 +6485,9 @@ export default async function handler(req: any, res: any) {
           rows[0].qrCode = qrCode;
         }
 
-        const membership = rows[0];
+        let membership = rows[0];
+        membership = await requirePaidMembership(db, membership, userId);
+
         const end = membership.endDate ? new Date(membership.endDate) : null;
         let status = membership.status;
         if ((!end || end.getTime() < Date.now()) && status === 'ACTIVE') {
@@ -5993,12 +6498,6 @@ export default async function handler(req: any, res: any) {
           );
         }
 
-        let plans: any[] = [];
-        try {
-          plans = await listMembershipPlans(db);
-        } catch {
-          plans = [];
-        }
         const pagbank = getPagBankConfig();
 
         return res.status(200).json({
@@ -6020,7 +6519,6 @@ export default async function handler(req: any, res: any) {
             createdAt: membership.createdAt,
             updatedAt: membership.updatedAt,
           },
-          plans,
           paymentsEnabled: pagbank.configured,
           user: {
             id: user.id,
@@ -6044,10 +6542,17 @@ export default async function handler(req: any, res: any) {
       const db = getPrisma();
       if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
+        await ensureMembershipBillingSchema(db);
         const plans = await listMembershipPlans(db);
         return res.status(200).json({
-          plans,
+          plans: plans.map((p) => ({
+            ...p,
+            installmentOptions: listCardInstallmentOptions(p.amountCents),
+          })),
           paymentsEnabled: getPagBankConfig().configured,
+          installmentRateMonthly: 0.0299,
+          installmentNote:
+            'No cartão de crédito, o parcelamento a partir de 2x inclui juros de 2,99% a.m. repassados ao pagador. PIX, boleto e débito são à vista.',
         });
       } catch (error: any) {
         return res.status(500).json({ error: 'Erro ao listar planos', detail: error?.message });
@@ -6082,6 +6587,14 @@ export default async function handler(req: any, res: any) {
 
         const plan = await getPlanByCode(db, planCode);
         if (!plan) return res.status(400).json({ error: 'Plano inválido' });
+
+        const requestedInstallments =
+          method === 'CREDIT_CARD'
+            ? Math.max(1, Math.min(12, Number(body.installments || 1)))
+            : 1;
+        const installmentQuote = quoteCardInstallment(plan.amountCents, requestedInstallments);
+        const chargeAmountCents = installmentQuote.totalCents;
+        const chargeAmount = chargeAmountCents / 100;
 
         const users: any[] = await db.$queryRawUnsafe(
           `SELECT id, name, email, cpf, phone FROM users WHERE id = $1 LIMIT 1`,
@@ -6137,7 +6650,7 @@ export default async function handler(req: any, res: any) {
         try {
           order = await createPagBankOrder({
             referenceId,
-            amountCents: plan.amountCents,
+            amountCents: chargeAmountCents,
             description: `Assinatura ${plan.name} — Liga do Bem`,
             customer: {
               name: user.name,
@@ -6157,7 +6670,7 @@ export default async function handler(req: any, res: any) {
                   holderName: body.card.holderName || body.card.holder_name || user.name,
                 }
               : undefined,
-            installments: body.installments || 1,
+            installments: installmentQuote.installments,
           });
         } catch (e: any) {
           console.error('❌ PagBank checkout error:', e?.payload || e?.message);
@@ -6182,7 +6695,7 @@ export default async function handler(req: any, res: any) {
              $15, $16, $17, $18, $19,
              $20, $21, NOW(), NOW())`,
           paymentId,
-          plan.amount,
+          chargeAmount,
           `Assinatura ${plan.name}`,
           immediatePaid ? 'APPROVED' : 'PENDING',
           order.id,
@@ -6190,7 +6703,11 @@ export default async function handler(req: any, res: any) {
           order.pixQrImage || null,
           expiresAt,
           immediatePaid ? new Date() : null,
-          JSON.stringify(order.raw || {}),
+          JSON.stringify({
+            ...(order.raw || {}),
+            installmentQuote,
+            planAmountCents: plan.amountCents,
+          }),
           user.email,
           user.name,
           user.phone || null,
@@ -6227,8 +6744,12 @@ export default async function handler(req: any, res: any) {
             id: paymentId,
             status: immediatePaid ? 'APPROVED' : 'PENDING',
             method,
-            amount: plan.amount,
-            amountCents: plan.amountCents,
+            amount: chargeAmount,
+            amountCents: chargeAmountCents,
+            planAmount: plan.amount,
+            planAmountCents: plan.amountCents,
+            installments: installmentQuote.installments,
+            installmentQuote,
             planCode: plan.code,
             planName: plan.name,
             planMonths: plan.months,

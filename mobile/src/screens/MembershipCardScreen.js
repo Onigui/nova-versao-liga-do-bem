@@ -92,6 +92,16 @@ export default function MembershipCardScreen({navigation}) {
         return;
       }
 
+      try {
+        const cached = await AsyncStorage.getItem('membership_cache');
+        if (cached) {
+          setMembership(JSON.parse(cached));
+          setLoading(false);
+        }
+      } catch {
+        // cache opcional
+      }
+
       const response = await fetch(`${API_BASE_PATH}/user/membership`, {
         method: 'GET',
         headers: {
@@ -115,6 +125,12 @@ export default function MembershipCardScreen({navigation}) {
       }
 
       setMembership(data.membership || null);
+      if (data.membership) {
+        AsyncStorage.setItem(
+          'membership_cache',
+          JSON.stringify(data.membership),
+        ).catch(() => {});
+      }
       logInfo('✅ Membership carregada', {
         memberId: data.membership?.memberId,
         status: data.membership?.status,
@@ -355,12 +371,11 @@ export default function MembershipCardScreen({navigation}) {
         <View style={styles.infoCard}>
           <Ionicons name="card" size={24} color="#F59E0B" />
           <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>Mensalidade</Text>
+            <Text style={styles.infoTitle}>Como se tornar membro</Text>
             <Text style={styles.infoText}>
-              Valor de referência: R${' '}
-              {Number(membership.monthlyFee || 19.9).toFixed(2)}.
-              {membership.planCode ? ` Plano: ${membership.planCode}.` : ''}{' '}
-              Válido até: {formatDate(membership.endDate)}.
+              O cartão só fica ativo depois que você escolhe um plano e paga a
+              assinatura. Doações ajudam a causa, mas não ativam o QR Code nem
+              os descontos dos parceiros.
             </Text>
           </View>
         </View>

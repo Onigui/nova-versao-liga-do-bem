@@ -57,3 +57,47 @@ export function planMonthsFromCode(code?: string | null) {
   );
   return found?.months || null;
 }
+
+/** Juros mensais repassados ao pagador no crédito (tabela Price). */
+export const CARD_INSTALLMENT_MONTHLY_RATE = 0.0299;
+
+export function quoteCardInstallment(amountCents: number, installments: number) {
+  const n = Math.max(1, Math.min(12, Math.round(Number(installments) || 1)));
+  const principal = Math.max(0, Math.round(Number(amountCents) || 0));
+  if (n <= 1) {
+    return {
+      installments: 1,
+      installmentCents: principal,
+      totalCents: principal,
+      interestCents: 0,
+      monthlyRate: 0,
+    };
+  }
+  const i = CARD_INSTALLMENT_MONTHLY_RATE;
+  const factor = (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
+  const installmentCents = Math.ceil(principal * factor);
+  const totalCents = installmentCents * n;
+  return {
+    installments: n,
+    installmentCents,
+    totalCents,
+    interestCents: Math.max(0, totalCents - principal),
+    monthlyRate: i,
+  };
+}
+
+export function listCardInstallmentOptions(amountCents: number) {
+  return Array.from({ length: 12 }, (_, idx) => {
+    const quote = quoteCardInstallment(amountCents, idx + 1);
+    const ratePct = (quote.monthlyRate * 100).toFixed(2).replace('.', ',');
+    const installment = formatBrlFromCents(quote.installmentCents);
+    const total = formatBrlFromCents(quote.totalCents);
+    return {
+      ...quote,
+      label:
+        quote.installments === 1
+          ? `À vista — ${total}`
+          : `${quote.installments}x de ${installment} (total ${total}, juros ${ratePct}% a.m.)`,
+    };
+  });
+}

@@ -9,6 +9,7 @@ import {
   Alert,
   Dimensions,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -18,32 +19,38 @@ import { API_BASE_PATH } from '../config/apiConfig';
 const {width} = Dimensions.get('window');
 
 export default function EventDetailScreen({route, navigation}) {
-  const {event} = route.params || {};
+  const {event, eventId} = route.params || {};
   const [isRegistered, setIsRegistered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [eventData, setEventData] = useState(event || {
-    id: '1',
-    title: 'Feira de Adoção - Shopping Botucatu',
-    description: 'Venha conhecer nossos pets disponíveis para adoção! Teremos veterinários, atividades para crianças e muito mais.',
-    date: '2025-10-15',
-    time: '10:00 - 17:00',
-    location: 'Shopping Botucatu - Praça de Alimentação',
-    address: 'Av. Dom Lúcio, 1835 - Vila Assunção',
-    category: 'Adoção',
-    vacancies: 50,
-    registered: 23,
-    image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
-  });
+  const [eventData, setEventData] = useState(event || null);
 
-  // Verificar se usuário já está registrado ao carregar
   useEffect(() => {
-    checkRegistrationStatus();
-  }, [eventData.id]);
+    const loadEvent = async () => {
+      const id = eventId || event?.id;
+      if (eventData?.id || !id) return;
+      try {
+        const response = await fetch(`${API_BASE_PATH}/events/${id}`);
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.event) {
+          setEventData(data.event);
+        }
+      } catch {
+        // silencioso
+      }
+    };
+    loadEvent();
+  }, [event, eventId, eventData?.id]);
+
+  useEffect(() => {
+    if (eventData?.id) {
+      checkRegistrationStatus();
+    }
+  }, [eventData?.id]);
 
   const checkRegistrationStatus = async () => {
     try {
       const token = await AsyncStorage.getItem('auth_token');
-      if (!token || !eventData.id) return;
+      if (!token || !eventData?.id) return;
       
       const response = await fetch(`${API_BASE_PATH}/events/${eventData.id}/registration`, {
         headers: {
@@ -171,9 +178,18 @@ export default function EventDetailScreen({route, navigation}) {
     );
   };
 
-  const vacanciesLeft = eventData.vacancies - eventData.registered;
-  const vacanciesPercentage =
-    (eventData.registered / eventData.vacancies) * 100;
+  if (!eventData) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator style={{marginTop: 80}} size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
+
+  const vacanciesLeft = (eventData.vacancies || 0) - (eventData.registered || 0);
+  const vacanciesPercentage = eventData.vacancies
+    ? ((eventData.registered || 0) / eventData.vacancies) * 100
+    : 0;
 
   return (
     <View style={styles.container}>

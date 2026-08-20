@@ -95,6 +95,7 @@ model Partner {
   city        String
   state       String
   zipCode     String
+  hours       String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

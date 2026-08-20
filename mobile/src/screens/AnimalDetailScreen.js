@@ -19,15 +19,39 @@ import { API_BASE_PATH } from '../config/apiConfig';
 const {width} = Dimensions.get('window');
 
 export default function AnimalDetailScreen({route, navigation}) {
-  const {animal} = route.params || {};
+  const initialAnimal = route.params?.animal || null;
+  const animalId = route.params?.animalId || initialAnimal?.id;
+  const [animal, setAnimal] = useState(initialAnimal);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [loadingAnimal, setLoadingAnimal] = useState(!initialAnimal && !!animalId);
 
-  // Safety check: if no animal data, go back
   useEffect(() => {
-    if (!animal) {
+    const loadAnimal = async () => {
+      if (animal || !animalId) return;
+      try {
+        const response = await fetch(`${API_BASE_PATH}/animals/${animalId}`);
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.animal) {
+          setAnimal(data.animal);
+        }
+      } catch {
+        // silencioso
+      } finally {
+        setLoadingAnimal(false);
+      }
+    };
+    loadAnimal();
+  }, [animal, animalId]);
+
+  useEffect(() => {
+    if (!loadingAnimal && !animal) {
       navigation.goBack();
     }
-  }, [animal, navigation]);
+  }, [animal, loadingAnimal, navigation]);
+
+  if (loadingAnimal) {
+    return null;
+  }
 
   // Early return if no animal (prevents crash)
   if (!animal) {

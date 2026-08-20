@@ -727,11 +727,8 @@
                             <div class="card-icon blue">🏢</div>
                             <h3 class="card-title">Empresas Parceiras</h3>
                         </div>
-                        <div class="card-value" id="activePartners">24</div>
-                        <div class="card-change positive">
-                            <span>↗️</span>
-                            +12% este mês
-                        </div>
+                        <div class="card-value" id="activePartners">0</div>
+                        <div class="card-change" id="partnersChange">dados reais</div>
                     </div>
 
                     <div class="dashboard-card">
@@ -739,11 +736,8 @@
                             <div class="card-icon green">👥</div>
                             <h3 class="card-title">Membros Ativos</h3>
                         </div>
-                        <div class="card-value" id="totalMembers">1,247</div>
-                        <div class="card-change positive">
-                            <span>↗️</span>
-                            +8% este mês
-                        </div>
+                        <div class="card-value" id="totalMembers">0</div>
+                        <div class="card-change" id="membersChange">assinatura paga válida</div>
                     </div>
 
                     <div class="dashboard-card">
@@ -751,11 +745,8 @@
                             <div class="card-icon orange">💰</div>
                             <h3 class="card-title">Descontos Utilizados</h3>
                         </div>
-                        <div class="card-value" id="totalAdoptions">3,891</div>
-                        <div class="card-change positive">
-                            <span>↗️</span>
-                            +15% este mês
-                        </div>
+                        <div class="card-value" id="discountsUsed">0</div>
+                        <div class="card-change" id="discountsChange">validações registradas</div>
                     </div>
 
                     <div class="dashboard-card">
@@ -763,11 +754,27 @@
                             <div class="card-icon purple">📱</div>
                             <h3 class="card-title">QR Codes Escaneados</h3>
                         </div>
-                        <div class="card-value">15,642</div>
-                        <div class="card-change positive">
-                            <span>↗️</span>
-                            +22% este mês
+                        <div class="card-value" id="qrCodesScanned">0</div>
+                        <div class="card-change" id="qrChange">uso do cartão nos parceiros</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid" style="margin-top: 16px;">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon green">💵</div>
+                            <h3 class="card-title">Receita do Mês (assinaturas)</h3>
                         </div>
+                        <div class="card-value" id="dashboardMonthlyRevenue">R$ 0</div>
+                        <div class="card-change">pagamentos APPROVED deste mês</div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon orange">🐾</div>
+                            <h3 class="card-title">Adoções Concluídas</h3>
+                        </div>
+                        <div class="card-value" id="totalAdoptions">0</div>
+                        <div class="card-change">status COMPLETED</div>
                     </div>
                 </div>
 
@@ -783,39 +790,11 @@
                                 <th>Desconto</th>
                                 <th>Localização</th>
                                 <th>Data Cadastro</th>
-                                <th>Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="recentCompaniesBody">
                             <tr>
-                                <td>Pet Shop Amigo</td>
-                                <td><span class="status-badge status-active">Ativo</span></td>
-                                <td>15%</td>
-                                <td>Centro</td>
-                                <td>02/10/2025</td>
-                                <td>
-                                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;">Editar</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>Clínica Veterinária Vida</td>
-                                <td><span class="status-badge status-pending">Pendente</span></td>
-                                <td>20%</td>
-                                <td>Vila dos Pássaros</td>
-                                <td>01/10/2025</td>
-                                <td>
-                                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;">Aprovar</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>Farmácia Animal</td>
-                                <td><span class="status-badge status-active">Ativo</span></td>
-                                <td>10%</td>
-                                <td>Jardim América</td>
-                                <td>30/09/2025</td>
-                                <td>
-                                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;">Editar</button>
-                                </td>
+                                <td colspan="5">Carregando...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -974,6 +953,28 @@
                         </thead>
                         <tbody id="animals-table-body">
                             <!-- Dados serão carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-container" style="margin-top: 24px;">
+                    <div class="table-header">
+                        <h3 class="table-title">Solicitações de Adoção</h3>
+                        <button class="btn btn-secondary" onclick="loadAdoptionsAdmin()">Atualizar</button>
+                    </div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Animal</th>
+                                <th>Interessado</th>
+                                <th>Contato</th>
+                                <th>Status</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adoptions-table-body">
+                            <tr><td colspan="6">Carregando...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1201,14 +1202,83 @@
             <!-- Outras seções serão adicionadas aqui -->
             <section id="discounts-section" class="content-section">
                 <div class="header">
-                    <h1 class="header-title">Configuração de Descontos</h1>
-                    <p class="header-subtitle">Gerencie descontos e promoções</p>
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Descontos dos Parceiros</h1>
+                            <p class="header-subtitle">Crie e gerencie promoções vinculadas às empresas parceiras</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="loadDiscountsAdmin()">Atualizar</button>
+                            <button class="btn btn-primary" onclick="openDiscountModal()">Novo Desconto</button>
+                        </div>
+                    </div>
                 </div>
-                <div style="text-align: center; padding: 4rem; color: var(--text-gray);">
-                    <h3>Seção em Desenvolvimento</h3>
-                    <p>Esta funcionalidade será implementada em breve.</p>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Parceiro</th>
+                                <th>Nome</th>
+                                <th>Valor</th>
+                                <th>Validade</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="discounts-table-body">
+                            <tr><td colspan="6">Carregando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
+
+            <div id="discountModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="discountModalTitle">Novo Desconto</h3>
+                        <button class="modal-close" onclick="closeModal('discountModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="discountId">
+                        <div class="form-group">
+                            <label>Parceiro</label>
+                            <select id="discountPartnerId" class="form-input"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Nome do desconto</label>
+                            <input id="discountName" class="form-input" placeholder="Ex: 15% em rações">
+                        </div>
+                        <div class="form-group">
+                            <label>Descrição</label>
+                            <textarea id="discountDescription" class="form-input" rows="2"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Percentual (%)</label>
+                            <input id="discountPercentage" type="number" min="0" max="100" step="0.1" class="form-input" placeholder="15">
+                        </div>
+                        <div class="form-group">
+                            <label>Valor fixo (R$) — opcional</label>
+                            <input id="discountFixed" type="number" min="0" step="0.01" class="form-input" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Válido de</label>
+                            <input id="discountValidFrom" type="date" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Válido até (opcional)</label>
+                            <input id="discountValidUntil" type="date" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label><input type="checkbox" id="discountActive" checked> Ativo</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="closeModal('discountModal')">Cancelar</button>
+                        <button class="btn btn-primary" onclick="saveDiscountAdmin()">Salvar</button>
+                    </div>
+                </div>
+            </div>
 
             <section id="locations-section" class="content-section">
                 <div class="header">
@@ -1715,12 +1785,74 @@
 
             <section id="settings-section" class="content-section">
                 <div class="header">
-                    <h1 class="header-title">Configurações Gerais</h1>
-                    <p class="header-subtitle">Configure a plataforma</p>
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Configurações Gerais</h1>
+                            <p class="header-subtitle">Integrações, contato e papéis de acesso</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="loadSettingsSection()">Atualizar</button>
+                        </div>
+                    </div>
                 </div>
-                <div style="text-align: center; padding: 4rem; color: var(--text-gray);">
-                    <h3>Seção em Desenvolvimento</h3>
-                    <p>Esta funcionalidade será implementada em breve.</p>
+
+                <div class="dashboard-grid" style="margin-bottom: 1.5rem;">
+                    <div class="dashboard-card">
+                        <div class="card-header"><h3 class="card-title">PagBank</h3></div>
+                        <div class="card-value" id="statusPagbank" style="font-size:1.25rem;">—</div>
+                        <div class="card-change" id="statusPagbankEnv">token na Vercel</div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-header"><h3 class="card-title">Push FCM</h3></div>
+                        <div class="card-value" id="statusFcm" style="font-size:1.25rem;">—</div>
+                        <div class="card-change">FIREBASE_SERVER_KEY</div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-header"><h3 class="card-title">Banco de dados</h3></div>
+                        <div class="card-value" id="statusDb" style="font-size:1.25rem;">—</div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-header"><h3 class="card-title">Login demo</h3></div>
+                        <div class="card-value" id="statusDemo" style="font-size:1.25rem;">—</div>
+                        <div class="card-change">ALLOW_DEMO_ADMIN</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title">Contato da associação</h3>
+                    <p class="header-subtitle" style="margin:8px 0 16px;">Esses dados ficam públicos no app quando configurados.</p>
+                    <div class="form-group">
+                        <label>E-mail de contato</label>
+                        <input id="settingsContactEmail" class="form-input" placeholder="contato@ligadobem.org">
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone</label>
+                        <input id="settingsContactPhone" class="form-input" placeholder="(14) 0000-0000">
+                    </div>
+                    <div class="form-group">
+                        <label>Aviso de associação (cartão / doação)</label>
+                        <textarea id="settingsMembershipDisclaimer" class="form-input" rows="3" placeholder="Doações não ativam o cartão de membro..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveSettingsOrg()">Salvar contato</button>
+                </div>
+
+                <div class="dashboard-card">
+                    <h3 class="card-title">Promover usuário a administrador</h3>
+                    <p class="header-subtitle" style="margin:8px 0 16px;">Use o e-mail já cadastrado no aplicativo.</p>
+                    <div class="form-group">
+                        <label>E-mail</label>
+                        <input id="settingsPromoteEmail" class="form-input" placeholder="pessoa@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Perfil</label>
+                        <select id="settingsPromoteRole" class="form-input">
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="MEMBER">MEMBER</option>
+                            <option value="VOLUNTEER">VOLUNTEER</option>
+                            <option value="PARTNER">PARTNER</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveUserRole()">Atualizar perfil</button>
                 </div>
             </section>
 
@@ -1753,7 +1885,7 @@
                             <h3 class="card-title">Receita Total</h3>
                         </div>
                         <div class="card-value" id="totalRevenue">R$ 0,00</div>
-                        <div class="card-change positive">Crescimento de 15% este mês</div>
+                        <div class="card-change">doações + assinaturas</div>
                     </div>
 
                     <div class="dashboard-card">
@@ -1762,7 +1894,7 @@
                             <h3 class="card-title">Receita Mensal</h3>
                         </div>
                         <div class="card-value" id="monthlyRevenue">R$ 0,00</div>
-                        <div class="card-change positive">+12% vs mês anterior</div>
+                        <div class="card-change">mês corrente</div>
                     </div>
 
                     <div class="dashboard-card">
@@ -1771,7 +1903,7 @@
                             <h3 class="card-title">Transações</h3>
                         </div>
                         <div class="card-value" id="totalTransactions">0</div>
-                        <div class="card-change positive">Taxa de sucesso: 98%</div>
+                        <div class="card-change">total no filtro</div>
                     </div>
 
                     <div class="dashboard-card">
@@ -1780,7 +1912,7 @@
                             <h3 class="card-title">Pagamentos Pendentes</h3>
                         </div>
                         <div class="card-value" id="pendingPayments">0</div>
-                        <div class="card-change neutral">Aguardando confirmação</div>
+                        <div class="card-change">aguardando confirmação</div>
                     </div>
                 </div>
 
@@ -2658,14 +2790,19 @@
                 loadMemberships();
             } else if (sectionId === 'animals') {
                 loadAnimals();
+                loadAdoptionsAdmin();
             } else if (sectionId === 'events') {
                 loadEvents();
+            } else if (sectionId === 'discounts') {
+                loadDiscountsAdmin();
             } else if (sectionId === 'app-config') {
                 loadAppConfig();
             } else if (sectionId === 'app-versions') {
                 loadAppVersions();
             } else if (sectionId === 'help-support') {
                 loadHelpInfo();
+            } else if (sectionId === 'settings') {
+                loadSettingsSection();
             } else if (sectionId === 'payments') {
                 loadPaymentStats();
                 loadPayments(1);
@@ -2982,6 +3119,63 @@
         }
 
         // Função para carregar dados do dashboard
+        async function loadSettingsSection() {
+            const token = localStorage.getItem('admin_token');
+            const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+            try {
+                const statusRes = await fetch(`${API_BASE_URL}/api/admin/system-status`, { headers });
+                if (statusRes.ok) {
+                    const s = await statusRes.json();
+                    document.getElementById('statusPagbank').textContent = s.pagbankConfigured ? 'Configurado' : 'Pendente';
+                    document.getElementById('statusPagbankEnv').textContent = s.pagbankEnv || '';
+                    document.getElementById('statusFcm').textContent = s.fcmConfigured ? 'Configurado' : 'Pendente';
+                    document.getElementById('statusDb').textContent = s.databaseConfigured ? 'OK' : 'Ausente';
+                    document.getElementById('statusDemo').textContent = s.demoAdminEnabled ? 'Ativo' : 'Desligado';
+                }
+                const cfgRes = await fetch(`${API_BASE_URL}/api/admin/app/config`, { headers });
+                if (cfgRes.ok) {
+                    const cfg = await cfgRes.json();
+                    document.getElementById('settingsContactEmail').value = cfg['org.contactEmail'] || '';
+                    document.getElementById('settingsContactPhone').value = cfg['org.contactPhone'] || '';
+                    document.getElementById('settingsMembershipDisclaimer').value = cfg['membership.disclaimer'] || '';
+                }
+            } catch (e) {
+                console.error('Erro ao carregar configurações', e);
+            }
+        }
+
+        async function saveSettingsOrg() {
+            const token = localStorage.getItem('admin_token');
+            const response = await fetch(`${API_BASE_URL}/api/admin/app/config`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contactEmail: document.getElementById('settingsContactEmail').value,
+                    contactPhone: document.getElementById('settingsContactPhone').value,
+                    membershipDisclaimer: document.getElementById('settingsMembershipDisclaimer').value,
+                }),
+            });
+            const data = await response.json().catch(() => ({}));
+            alert(response.ok ? 'Configurações salvas' : (data.error || 'Erro ao salvar'));
+        }
+
+        async function saveUserRole() {
+            const token = localStorage.getItem('admin_token');
+            const email = document.getElementById('settingsPromoteEmail').value.trim();
+            const role = document.getElementById('settingsPromoteRole').value;
+            if (!email) {
+                alert('Informe o e-mail');
+                return;
+            }
+            const response = await fetch(`${API_BASE_URL}/api/admin/users/role`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, role }),
+            });
+            const data = await response.json().catch(() => ({}));
+            alert(response.ok ? `Perfil de ${email} atualizado para ${role}` : (data.error || 'Erro ao atualizar'));
+        }
+
         async function loadDashboardData() {
             try {
                 const token = localStorage.getItem('admin_token');
@@ -3009,32 +3203,62 @@
                 }
 
                 const data = await response.json();
-                
-                // Atualizar cards de estatísticas
-                document.getElementById('totalMembers').textContent = data.stats.totalMembers.toLocaleString();
-                document.getElementById('activePartners').textContent = data.stats.activePartners.toLocaleString();
-                document.getElementById('totalAdoptions').textContent = data.stats.totalAdoptions.toLocaleString();
-                document.getElementById('monthlyRevenue').textContent = `R$ ${data.stats.monthlyRevenue.toLocaleString()}`;
+                const stats = data.stats || {};
 
-                // Atualizar gráficos
-                updateCharts(data.stats);
+                const setText = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = value;
+                };
+
+                setText('totalMembers', Number(stats.totalMembers || 0).toLocaleString('pt-BR'));
+                setText('activePartners', Number(stats.activePartners || 0).toLocaleString('pt-BR'));
+                setText('discountsUsed', Number(stats.discountsUsed || stats.qrCodesScanned || 0).toLocaleString('pt-BR'));
+                setText('qrCodesScanned', Number(stats.qrCodesScanned || 0).toLocaleString('pt-BR'));
+                setText('totalAdoptions', Number(stats.totalAdoptions || 0).toLocaleString('pt-BR'));
+                setText(
+                    'dashboardMonthlyRevenue',
+                    `R$ ${Number(stats.monthlyRevenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                );
+
+                const recentBody = document.getElementById('recentCompaniesBody');
+                if (recentBody) {
+                    const companies = data.recentCompanies || [];
+                    if (!companies.length) {
+                        recentBody.innerHTML = '<tr><td colspan="5">Nenhuma empresa cadastrada ainda.</td></tr>';
+                    } else {
+                        recentBody.innerHTML = companies.map(c => {
+                            const date = c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-BR') : '—';
+                            const statusClass = c.status === 'active' ? 'status-active' : 'status-pending';
+                            const statusLabel = c.status === 'active' ? 'Ativo' : 'Inativo';
+                            return `
+                                <tr>
+                                    <td>${c.name || '—'}</td>
+                                    <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                                    <td>${c.discount || 'N/A'}</td>
+                                    <td>${c.location || '—'}</td>
+                                    <td>${date}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
                 
             } catch (error) {
                 console.error('Erro ao carregar dados do dashboard:', error);
-                // Fallback para dados simulados em caso de erro
-                const stats = {
-                    totalMembers: 1247,
-                    activePartners: 89,
-                    totalAdoptions: 342,
-                    monthlyRevenue: 15680
+                const setText = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = value;
                 };
-                
-                document.getElementById('totalMembers').textContent = stats.totalMembers.toLocaleString();
-                document.getElementById('activePartners').textContent = stats.activePartners.toLocaleString();
-                document.getElementById('totalAdoptions').textContent = stats.totalAdoptions.toLocaleString();
-                document.getElementById('monthlyRevenue').textContent = `R$ ${stats.monthlyRevenue.toLocaleString()}`;
-                
-                updateCharts(stats);
+                setText('totalMembers', '0');
+                setText('activePartners', '0');
+                setText('discountsUsed', '0');
+                setText('qrCodesScanned', '0');
+                setText('totalAdoptions', '0');
+                setText('dashboardMonthlyRevenue', 'R$ 0,00');
+                const recentBody = document.getElementById('recentCompaniesBody');
+                if (recentBody) {
+                    recentBody.innerHTML = '<tr><td colspan="5">Não foi possível carregar os dados.</td></tr>';
+                }
             }
         }
 
@@ -4408,33 +4632,28 @@
         async function loadPaymentStats() {
             try {
                 const token = localStorage.getItem('admin_token');
-                if (!token) {
-                    console.error('Token não encontrado');
-                    return;
-                }
-
-                const response = await fetch(`${API_BASE_URL}/api/admin/donations?page=1&limit=1`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'X-Admin-Token': token,
-                        'Content-Type': 'application/json'
-                    }
+                if (!token) return;
+                const headers = {
+                    'Authorization': `Bearer ${token}`,
+                    'X-Admin-Token': token,
+                    'Content-Type': 'application/json'
+                };
+                const [donationsRes, membershipRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/admin/donations?page=1&limit=1`, { headers }),
+                    fetch(`${API_BASE_URL}/api/admin/membership-payments`, { headers }),
+                ]);
+                const donationsData = donationsRes.ok ? await donationsRes.json() : { stats: {} };
+                const membershipData = membershipRes.ok ? await membershipRes.json() : { stats: {} };
+                const d = donationsData.stats || {};
+                const m = membershipData.stats || {};
+                updatePaymentStats({
+                    totalRevenue: Number(d.totalRevenue || 0) + Number(m.totalRevenue || 0),
+                    monthlyRevenue: Number(d.monthlyRevenue || 0) + Number(m.monthlyRevenue || 0),
+                    totalTransactions: Number(d.totalTransactions || 0) + Number(m.totalTransactions || 0),
+                    pendingPayments: Number(d.pendingPayments || 0) + Number(m.pendingPayments || 0),
                 });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    updatePaymentStats(data.stats || {
-                        totalRevenue: 0,
-                        monthlyRevenue: 0,
-                        totalTransactions: 0,
-                        pendingPayments: 0
-                    });
-                } else {
-                    console.error('Erro ao carregar estatísticas de doações:', response.status);
-                }
             } catch (error) {
-                console.error('Erro ao carregar estatísticas de doações:', error);
+                console.error('Erro ao carregar estatísticas de pagamentos:', error);
             }
         }
 
@@ -4448,39 +4667,50 @@
         async function loadPayments(page = 1) {
             try {
                 const token = localStorage.getItem('admin_token');
-                if (!token) {
-                    console.error('Token não encontrado');
-                    return;
-                }
-
+                if (!token) return;
                 currentPaymentPage = page;
-                const queryParams = new URLSearchParams({
-                    page: page.toString(),
-                    limit: '20',
-                });
-                if (paymentFilters.status) queryParams.set('status', paymentFilters.status);
+                const typeFilter = document.getElementById('paymentTypeFilter')?.value || '';
+                const statusFilter = document.getElementById('paymentStatusFilter')?.value || paymentFilters.status || '';
+                const headers = {
+                    'Authorization': `Bearer ${token}`,
+                    'X-Admin-Token': token,
+                    'Content-Type': 'application/json'
+                };
 
-                const response = await fetch(`${API_BASE_URL}/api/admin/donations?${queryParams}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'X-Admin-Token': token,
-                        'Content-Type': 'application/json'
+                let rows = [];
+                if (typeFilter !== 'MEMBERSHIP') {
+                    const queryParams = new URLSearchParams({ page: String(page), limit: '20' });
+                    if (statusFilter) queryParams.set('status', statusFilter);
+                    const response = await fetch(`${API_BASE_URL}/api/admin/donations?${queryParams}`, { headers });
+                    if (response.ok) {
+                        const data = await response.json();
+                        rows = (data.donations || []).map(d => ({
+                            ...d,
+                            type: 'DONATION',
+                            userName: d.userName || d.user?.name || d.donorName || '—',
+                            gateway: d.method || 'PIX',
+                        }));
+                        updatePaymentPagination(data.pagination || { page: 1, pages: 1 });
                     }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    renderPaymentsTable(data.donations || data.payments || []);
-                    updatePaymentPagination(data.pagination || { page: 1, pages: 1 });
-                    if (data.stats) updatePaymentStats(data.stats);
-                } else {
-                    console.error('Erro ao carregar doações:', response.status);
-                    const tbody = document.getElementById('payments-table-body');
-                    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center">Erro ao carregar doações</td></tr>';
                 }
+                if (typeFilter === 'MEMBERSHIP' || typeFilter === '') {
+                    const query = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
+                    const response = await fetch(`${API_BASE_URL}/api/admin/membership-payments${query}`, { headers });
+                    if (response.ok) {
+                        const data = await response.json();
+                        const membershipRows = (data.payments || []).map(p => ({
+                            ...p,
+                            type: 'MEMBERSHIP',
+                            gateway: p.method || p.gateway || 'PAGBANK',
+                        }));
+                        rows = typeFilter === 'MEMBERSHIP' ? membershipRows : rows.concat(membershipRows);
+                    }
+                }
+
+                rows.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+                renderPaymentsTable(rows);
             } catch (error) {
-                console.error('Erro ao carregar doações:', error);
+                console.error('Erro ao carregar pagamentos:', error);
             }
         }
 
@@ -5119,6 +5349,186 @@
         // Funções para gerenciar animais
         let animalsData = [];
         let editingAnimalId = null;
+
+        async function loadAdoptionsAdmin() {
+            const tbody = document.getElementById('adoptions-table-body');
+            if (!tbody) return;
+            try {
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/adoptions`, {
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                });
+                if (!response.ok) throw new Error('Falha ao carregar adoções');
+                const data = await response.json();
+                const rows = data.adoptions || [];
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="6">Nenhuma solicitação encontrada.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = rows.map(a => {
+                    const date = a.applicationDate ? new Date(a.applicationDate).toLocaleDateString('pt-BR') : '—';
+                    return `
+                        <tr>
+                            <td>${a.animal?.name || '—'}</td>
+                            <td>${a.user?.name || '—'}</td>
+                            <td>${a.user?.email || ''}<br>${a.user?.phone || ''}</td>
+                            <td><span class="status-badge">${a.status}</span></td>
+                            <td>${date}</td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.75rem;" onclick="updateAdoptionStatus('${a.id}','APPROVED')">Aprovar</button>
+                                <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.75rem;" onclick="updateAdoptionStatus('${a.id}','REJECTED')">Rejeitar</button>
+                                <button class="btn btn-primary" style="padding:4px 8px;font-size:0.75rem;" onclick="updateAdoptionStatus('${a.id}','COMPLETED')">Concluir</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = '<tr><td colspan="6">Erro ao carregar solicitações.</td></tr>';
+            }
+        }
+
+        async function updateAdoptionStatus(id, status) {
+            try {
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/adoptions/status`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, status })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    alert(data.error || 'Não foi possível atualizar');
+                    return;
+                }
+                loadAdoptionsAdmin();
+                loadAnimals();
+            } catch (error) {
+                alert('Erro de conexão ao atualizar adoção');
+            }
+        }
+
+        let discountsCache = [];
+
+        async function loadDiscountsAdmin() {
+            const tbody = document.getElementById('discounts-table-body');
+            if (!tbody) return;
+            try {
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/discounts`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Falha');
+                const data = await response.json();
+                const rows = data.discounts || [];
+                discountsCache = rows;
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="6">Nenhum desconto cadastrado.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = rows.map(d => {
+                    const value = d.percentage != null ? `${d.percentage}%` : (d.fixedAmount != null ? `R$ ${Number(d.fixedAmount).toFixed(2)}` : '—');
+                    const until = d.validUntil ? new Date(d.validUntil).toLocaleDateString('pt-BR') : 'Sem fim';
+                    const from = d.validFrom ? new Date(d.validFrom).toLocaleDateString('pt-BR') : '—';
+                    return `
+                        <tr>
+                            <td>${d.partner?.name || '—'}</td>
+                            <td>${d.name || '—'}</td>
+                            <td>${value}</td>
+                            <td>${from} → ${until}</td>
+                            <td><span class="status-badge ${d.isActive ? 'status-active' : 'status-pending'}">${d.isActive ? 'Ativo' : 'Inativo'}</span></td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.75rem;" onclick="editDiscountById('${d.id}')">Editar</button>
+                                <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.75rem;" onclick="deleteDiscountAdmin('${d.id}')">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="6">Erro ao carregar descontos.</td></tr>';
+            }
+        }
+
+        async function populateDiscountPartners() {
+            const select = document.getElementById('discountPartnerId');
+            if (!select) return;
+            const token = localStorage.getItem('admin_token');
+            const response = await fetch(`${API_BASE_URL}/api/admin/companies`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = response.ok ? await response.json() : { companies: [] };
+            select.innerHTML = (data.companies || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('') || '<option value="">Nenhuma empresa</option>';
+        }
+
+        async function openDiscountModal(discount = null) {
+            await populateDiscountPartners();
+            document.getElementById('discountModalTitle').textContent = discount ? 'Editar Desconto' : 'Novo Desconto';
+            document.getElementById('discountId').value = discount?.id || '';
+            document.getElementById('discountPartnerId').value = discount?.partnerId || discount?.partner?.id || '';
+            document.getElementById('discountName').value = discount?.name || '';
+            document.getElementById('discountDescription').value = discount?.description || '';
+            document.getElementById('discountPercentage').value = discount?.percentage ?? '';
+            document.getElementById('discountFixed').value = discount?.fixedAmount ?? '';
+            document.getElementById('discountValidFrom').value = discount?.validFrom ? String(discount.validFrom).slice(0, 10) : new Date().toISOString().slice(0, 10);
+            document.getElementById('discountValidUntil').value = discount?.validUntil ? String(discount.validUntil).slice(0, 10) : '';
+            document.getElementById('discountActive').checked = discount?.isActive !== false;
+            openModal('discountModal');
+        }
+
+        function editDiscountById(id) {
+            const discount = discountsCache.find(d => d.id === id);
+            if (discount) openDiscountModal(discount);
+        }
+
+        function editDiscountAdmin(discount) {
+            openDiscountModal(discount);
+        }
+
+        async function saveDiscountAdmin() {
+            const token = localStorage.getItem('admin_token');
+            const id = document.getElementById('discountId').value;
+            const payload = {
+                partnerId: document.getElementById('discountPartnerId').value,
+                name: document.getElementById('discountName').value.trim(),
+                description: document.getElementById('discountDescription').value.trim() || null,
+                percentage: document.getElementById('discountPercentage').value === '' ? null : Number(document.getElementById('discountPercentage').value),
+                fixedAmount: document.getElementById('discountFixed').value === '' ? null : Number(document.getElementById('discountFixed').value),
+                validFrom: document.getElementById('discountValidFrom').value,
+                validUntil: document.getElementById('discountValidUntil').value || null,
+                isActive: document.getElementById('discountActive').checked,
+            };
+            if (!payload.partnerId || !payload.name) {
+                alert('Parceiro e nome são obrigatórios');
+                return;
+            }
+            const response = await fetch(`${API_BASE_URL}/api/admin/discounts${id ? '/' + id : ''}`, {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                alert(data.error || 'Erro ao salvar desconto');
+                return;
+            }
+            closeModal('discountModal');
+            loadDiscountsAdmin();
+        }
+
+        async function deleteDiscountAdmin(id) {
+            if (!confirm('Excluir este desconto?')) return;
+            const token = localStorage.getItem('admin_token');
+            const response = await fetch(`${API_BASE_URL}/api/admin/discounts/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                alert(data.error || 'Erro ao excluir');
+                return;
+            }
+            loadDiscountsAdmin();
+        }
 
         async function loadAnimals() {
             try {

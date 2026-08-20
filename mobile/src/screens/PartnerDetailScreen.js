@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {parseOpeningHours, getTodayHours} from '../utils/openingHours';
 
 const {width} = Dimensions.get('window');
 
@@ -27,9 +28,12 @@ export default function PartnerDetailScreen({route, navigation}) {
     address: 'Rua Exemplo, 123 - Centro',
     phone: '(14) 3811-1234',
     whatsapp: '14981234567',
-    hours: 'Seg-Sex: 9h-18h | Sáb: 9h-13h',
-    logo: 'https://via.placeholder.com/100',
+    hours: 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
+    logo: null,
   };
+
+  const weekHours = parseOpeningHours(partnerData.hours);
+  const todayHours = getTodayHours(partnerData.hours);
 
   const openPhone = () => {
     Linking.openURL(`tel:${partnerData.phone}`);
@@ -52,11 +56,17 @@ export default function PartnerDetailScreen({route, navigation}) {
         {/* Header com Gradient */}
         <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
           <View style={styles.logoContainer}>
-            <Image
-              source={{uri: partnerData.logo}}
-              style={styles.logo}
-              resizeMode="cover"
-            />
+            {partnerData.logo ? (
+              <Image
+                source={{uri: partnerData.logo}}
+                style={styles.logo}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.logoFallback}>
+                <Ionicons name="storefront" size={42} color="#8B5CF6" />
+              </View>
+            )}
           </View>
           <View style={styles.discountBadge}>
             <Text style={styles.discountText}>{partnerData.discount} OFF</Text>
@@ -129,8 +139,49 @@ export default function PartnerDetailScreen({route, navigation}) {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Horário de Funcionamento</Text>
             <View style={styles.hoursCard}>
-              <Ionicons name="time-outline" size={20} color="#6B7280" />
-              <Text style={styles.hoursText}>{partnerData.hours}</Text>
+              <View style={styles.hoursToday}>
+                <View style={styles.hoursTodayIcon}>
+                  <Ionicons
+                    name={todayHours.closed ? 'moon-outline' : 'time-outline'}
+                    size={18}
+                    color="#7C3AED"
+                  />
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={styles.hoursTodayLabel}>Hoje</Text>
+                  <Text
+                    style={[
+                      styles.hoursTodayValue,
+                      todayHours.closed && styles.hoursClosed,
+                    ]}>
+                    {todayHours.closed ? 'Fechado' : todayHours.range}
+                  </Text>
+                </View>
+              </View>
+              {weekHours.map(day => (
+                <View
+                  key={day.key}
+                  style={[
+                    styles.hoursRow,
+                    day.key === todayHours.key && styles.hoursRowToday,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.hoursDay,
+                      day.key === todayHours.key && styles.hoursDayToday,
+                    ]}>
+                    {day.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.hoursRange,
+                      day.closed && styles.hoursClosed,
+                      day.key === todayHours.key && styles.hoursDayToday,
+                    ]}>
+                    {day.range}
+                  </Text>
+                </View>
+              ))}
             </View>
           </View>
 
@@ -197,6 +248,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 56,
+  },
+  logoFallback: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 56,
+    backgroundColor: '#F5F3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   discountBadge: {
     position: 'absolute',
@@ -302,16 +361,64 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   hoursCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#EEF2FF',
+  },
+  hoursToday: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 12,
     gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 6,
   },
-  hoursText: {
-    fontSize: 14,
+  hoursTodayIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hoursTodayLabel: {
+    fontSize: 12,
     color: '#6B7280',
+    fontWeight: '500',
+  },
+  hoursTodayValue: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '700',
+  },
+  hoursRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  hoursRowToday: {
+    backgroundColor: '#EDE9FE',
+  },
+  hoursDay: {
+    fontSize: 14,
+    color: '#4B5563',
+  },
+  hoursDayToday: {
+    color: '#5B21B6',
+    fontWeight: '700',
+  },
+  hoursRange: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  hoursClosed: {
+    color: '#9CA3AF',
     fontWeight: '500',
   },
   howToCard: {

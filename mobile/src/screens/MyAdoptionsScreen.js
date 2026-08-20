@@ -231,7 +231,24 @@ export default function MyAdoptionsScreen({navigation}) {
                 style={styles.adoptionCard}
                 onPress={() => {
                   if (adoption.animal) {
-                    navigation.navigate('AnimalDetail', {animalId: adoption.animal.id});
+                    navigation.navigate('AnimalDetail', {
+                      animalId: adoption.animal.id,
+                      animal: {
+                        id: adoption.animal.id,
+                        name: adoption.animal.name,
+                        species:
+                          adoption.animal.species === 'DOG'
+                            ? 'Cachorro'
+                            : adoption.animal.species === 'CAT'
+                              ? 'Gato'
+                              : adoption.animal.species || 'Animal',
+                        breed: adoption.animal.breed || 'Vira-Lata',
+                        photo: adoption.animal.image,
+                        photos: adoption.animal.image
+                          ? [adoption.animal.image]
+                          : [],
+                      },
+                    });
                   }
                 }}>
                 {/* Animal Image */}

@@ -137,8 +137,8 @@ export default function PartnersScreen({navigation, route}) {
         whatsapp: partner.phone?.replace(/\D/g, ''), // Remove caracteres não numéricos
         latitude: partner.latitude,
         longitude: partner.longitude,
-        hours: 'Seg-Sex: 9h-18h | Sáb: 9h-13h', // TODO: implementar horários
-        logo: 'https://via.placeholder.com/100',
+        hours: partner.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
+        logo: partner.logo || null,
       }));
 
       setPartners(formattedPartners);
@@ -159,8 +159,8 @@ export default function PartnersScreen({navigation, route}) {
           whatsapp: '14981234567',
           latitude: -22.8858,
           longitude: -48.445,
-          hours: 'Seg-Sex: 9h-18h | Sáb: 9h-13h',
-          logo: 'https://via.placeholder.com/100',
+          hours: 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
+          logo: null,
         },
       ];
 

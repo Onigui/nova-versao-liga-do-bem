@@ -283,7 +283,7 @@ export default function HomeScreen({navigation}) {
           <QuickAction
             icon="card"
             title="Cartão"
-            subtitle="Acesse seu cartão de membro"
+            subtitle="Ativo só com plano pago"
             color="#8B5CF6"
             onPress={() => navigation.navigate('Cartão')}
           />
@@ -304,7 +304,7 @@ export default function HomeScreen({navigation}) {
           <QuickAction
             icon="heart"
             title="Doar"
-            subtitle="Ajude nossa causa"
+            subtitle="Apoio pontual, separado da associação"
             color="#EF4444"
             onPress={() => navigation.navigate('Donation')}
           />

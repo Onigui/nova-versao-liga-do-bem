@@ -222,6 +222,13 @@ export default function DonationScreen({navigation}) {
       </LinearGradient>
 
       <View style={styles.section}>
+        <View style={styles.membershipNote}>
+          <Ionicons name="information-circle" size={20} color="#7C3AED" />
+          <Text style={styles.membershipNoteText}>
+            Doação não torna você membro. Para ativar o cartão e o QR Code nos
+            parceiros, entre em Cartão e assine um plano.
+          </Text>
+        </View>
         <Text style={styles.sectionTitle}>Tipo de Doação</Text>
         <View style={styles.typeSelector}>
           <TouchableOpacity
@@ -577,6 +584,20 @@ const styles = StyleSheet.create({
   },
   typeButtonTextActive: {
     color: '#FFFFFF',
+  },
+  membershipNote: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  membershipNoteText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#5B21B6',
+    lineHeight: 18,
   },
   recurringHint: {
     marginTop: 12,

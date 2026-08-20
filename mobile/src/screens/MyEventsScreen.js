@@ -261,7 +261,19 @@ export default function MyEventsScreen({navigation}) {
                   key={registration.id}
                   style={styles.eventCard}
                   onPress={() => {
-                    navigation.navigate('EventDetail', {eventId: event.id});
+                    navigation.navigate('EventDetail', {
+                      eventId: event.id,
+                      event: {
+                        id: event.id,
+                        title: event.title,
+                        description: event.description,
+                        date: event.startDate,
+                        location: event.location,
+                        address: event.address,
+                        image: event.image,
+                        category: event.type,
+                      },
+                    });
                   }}>
                   {/* Event Image */}
                   {event.image ? (
