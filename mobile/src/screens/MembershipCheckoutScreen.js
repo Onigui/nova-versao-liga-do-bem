@@ -50,6 +50,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
   const [cpf, setCpf] = useState(route?.params?.cpf || '');
   const [installments, setInstallments] = useState(1);
   const [installmentNote, setInstallmentNote] = useState('');
+  const [liveInstallments, setLiveInstallments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [payment, setPayment] = useState(null);
@@ -68,9 +69,10 @@ export default function MembershipCheckoutScreen({navigation, route}) {
   );
 
   const installmentOptions = useMemo(() => {
+    if (liveInstallments.length) return liveInstallments;
     if (!selectedPlan?.installmentOptions?.length) return [];
     return selectedPlan.installmentOptions;
-  }, [selectedPlan]);
+  }, [selectedPlan, liveInstallments]);
 
   const selectedInstallment = useMemo(
     () =>
@@ -130,7 +132,44 @@ export default function MembershipCheckoutScreen({navigation, route}) {
 
   useEffect(() => {
     setInstallments(1);
+    setLiveInstallments([]);
   }, [planCode, method]);
+
+  useEffect(() => {
+    const bin = onlyDigits(card.number).slice(0, 6);
+    if (method !== 'CREDIT_CARD' || !planCode || bin.length < 6) {
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const token = await AsyncStorage.getItem('auth_token');
+        const response = await fetch(
+          `${API_BASE_PATH}/membership/installments?planCode=${encodeURIComponent(
+            planCode,
+          )}&bin=${bin}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? {Authorization: `Bearer ${token}`} : {}),
+            },
+          },
+        );
+        const data = await response.json().catch(() => ({}));
+        if (cancelled) return;
+        if (Array.isArray(data.options) && data.options.length) {
+          setLiveInstallments(data.options);
+          if (data.installmentNote) setInstallmentNote(data.installmentNote);
+        }
+      } catch (e) {
+        // Mantém as opções já carregadas dos planos.
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [method, planCode, card.number]);
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -359,7 +398,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
                 value={card.number}
-                onChangeText={v => setCard(prev => ({...prev, number: v}))}
+                onChangeText={v => setCard(prev => ({...prev, number: onlyDigits(v)}))}
                 maxLength={19}
               />
             </Field>
@@ -412,7 +451,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
                 <Text style={styles.fieldLabel}>Parcelamento</Text>
                 <Text style={styles.fieldHint}>
                   {installmentNote ||
-                    'A partir de 2x há juros de 2,99% a.m. repassados ao pagador.'}
+                    'Valores oficiais do PagBank. Digite o número do cartão para atualizar as parcelas da bandeira.'}
                 </Text>
                 {installmentOptions.map(option => {
                   const active = option.installments === installments;

@@ -9,7 +9,9 @@ import path from 'path';
 import {
   createPagBankOrder,
   getPagBankConfig,
+  getPagBankInstallmentPlans,
   getPagBankOrder,
+  cashInstallmentOption,
   isPaidChargeStatus,
   mapPagBankStatusToPayment,
 } from './lib/pagbank';
@@ -22,10 +24,7 @@ import {
   requirePaidMembership,
   syncPaymentFromPagBank,
 } from './lib/membershipBilling';
-import {
-  listCardInstallmentOptions,
-  quoteCardInstallment,
-} from './lib/membershipPlans';
+import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
 // Cloudinary para upload de imagens
@@ -6554,18 +6553,78 @@ export default async function handler(req: any, res: any) {
       try {
         await ensureMembershipBillingSchema(db);
         const plans = await listMembershipPlans(db);
+        const cardBin = String(req.query?.bin || req.query?.cardBin || '').replace(/\D/g, '').slice(0, 6);
+        const pagbankReady = getPagBankConfig().configured;
+        const amounts = [...new Set(plans.map((p) => p.amountCents))];
+        const optionsByAmount = new Map<number, any[]>();
+        await Promise.all(
+          amounts.map(async (cents) => {
+            if (!pagbankReady) {
+              optionsByAmount.set(cents, cashOnlyInstallmentOptions(cents));
+              return;
+            }
+            try {
+              optionsByAmount.set(
+                cents,
+                await getPagBankInstallmentPlans({ valueCents: cents, cardBin: cardBin || undefined }),
+              );
+            } catch (feeErr: any) {
+              console.warn('⚠️ PagBank fees/calculate falhou:', feeErr?.message || feeErr);
+              optionsByAmount.set(cents, [cashInstallmentOption(cents)]);
+            }
+          }),
+        );
         return res.status(200).json({
           plans: plans.map((p) => ({
             ...p,
-            installmentOptions: listCardInstallmentOptions(p.amountCents),
+            installmentOptions: optionsByAmount.get(p.amountCents) || cashOnlyInstallmentOptions(p.amountCents),
           })),
-          paymentsEnabled: getPagBankConfig().configured,
-          installmentRateMonthly: 0.0299,
+          paymentsEnabled: pagbankReady,
+          installmentSource: pagbankReady ? 'pagbank' : 'unavailable',
           installmentNote:
-            'No cartão de crédito, o parcelamento a partir de 2x inclui juros de 2,99% a.m. repassados ao pagador. PIX, boleto e débito são à vista.',
+            'O parcelamento no crédito usa as taxas oficiais do PagBank. PIX, boleto e débito são à vista, no valor do plano.',
         });
       } catch (error: any) {
         return res.status(500).json({ error: 'Erro ao listar planos', detail: error?.message });
+      }
+    }
+
+    // GET parcelas oficiais PagBank (atualiza quando o BIN do cartão é informado)
+    if (path === '/api/membership/installments' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        await ensureMembershipBillingSchema(db);
+        const planCode = String(req.query?.planCode || req.query?.plan || 'MONTHLY').toUpperCase();
+        const plan = await getPlanByCode(db, planCode);
+        if (!plan) return res.status(400).json({ error: 'Plano inválido' });
+        const cardBin = String(req.query?.bin || req.query?.cardBin || '').replace(/\D/g, '').slice(0, 6);
+        if (!getPagBankConfig().configured) {
+          return res.status(200).json({
+            planCode: plan.code,
+            amountCents: plan.amountCents,
+            options: cashOnlyInstallmentOptions(plan.amountCents),
+            source: 'unavailable',
+          });
+        }
+        const options = await getPagBankInstallmentPlans({
+          valueCents: plan.amountCents,
+          cardBin: cardBin || undefined,
+        });
+        return res.status(200).json({
+          planCode: plan.code,
+          amountCents: plan.amountCents,
+          options,
+          source: 'pagbank',
+          installmentNote:
+            'Valores consultados na API de taxas do PagBank para o cartão informado.',
+        });
+      } catch (error: any) {
+        console.warn('⚠️ Erro ao consultar parcelas PagBank:', error?.message || error);
+        return res.status(502).json({
+          error: 'Não foi possível consultar o parcelamento no PagBank',
+          detail: error?.message || String(error),
+        });
       }
     }
 
@@ -6602,7 +6661,37 @@ export default async function handler(req: any, res: any) {
           method === 'CREDIT_CARD'
             ? Math.max(1, Math.min(12, Number(body.installments || 1)))
             : 1;
-        const installmentQuote = quoteCardInstallment(plan.amountCents, requestedInstallments);
+        const cardNumber = String(body.card?.number || '').replace(/\D/g, '');
+        const cardBin = cardNumber.slice(0, 6);
+        let installmentQuote: any = {
+          installments: 1,
+          installmentCents: plan.amountCents,
+          totalCents: plan.amountCents,
+          interestCents: 0,
+          interestFree: true,
+          buyerInterestTotalCents: 0,
+          buyerInterestInstallments: 0,
+        };
+        if (method === 'CREDIT_CARD') {
+          try {
+            const pagbankOptions = await getPagBankInstallmentPlans({
+              valueCents: plan.amountCents,
+              cardBin: cardBin || undefined,
+            });
+            installmentQuote =
+              pagbankOptions.find((o) => o.installments === requestedInstallments) ||
+              pagbankOptions[0] ||
+              cashInstallmentOption(plan.amountCents);
+          } catch (feeErr: any) {
+            console.error('❌ PagBank fees no checkout:', feeErr?.message || feeErr);
+            if (requestedInstallments > 1) {
+              return res.status(502).json({
+                error: 'Não foi possível obter as taxas oficiais de parcelamento do PagBank. Tente à vista ou novamente em instantes.',
+              });
+            }
+            installmentQuote = cashInstallmentOption(plan.amountCents);
+          }
+        }
         const chargeAmountCents = installmentQuote.totalCents;
         const chargeAmount = chargeAmountCents / 100;
 
@@ -6661,6 +6750,7 @@ export default async function handler(req: any, res: any) {
           order = await createPagBankOrder({
             referenceId,
             amountCents: chargeAmountCents,
+            itemAmountCents: plan.amountCents,
             description: `Assinatura ${plan.name} — Liga do Bem`,
             customer: {
               name: user.name,
@@ -6672,7 +6762,7 @@ export default async function handler(req: any, res: any) {
             notificationUrl,
             card: body.card
               ? {
-                  encrypted: body.card.encrypted,
+                  encrypted: body.card.encrypted || body.card.encrypted,
                   number: body.card.number,
                   expMonth: body.card.expMonth || body.card.exp_month,
                   expYear: body.card.expYear || body.card.exp_year,
@@ -6681,6 +6771,13 @@ export default async function handler(req: any, res: any) {
                 }
               : undefined,
             installments: installmentQuote.installments,
+            buyerInterest:
+              method === 'CREDIT_CARD' && installmentQuote.buyerInterestTotalCents > 0
+                ? {
+                    total: installmentQuote.buyerInterestTotalCents,
+                    installments: installmentQuote.buyerInterestInstallments || 1,
+                  }
+                : null,
           });
         } catch (e: any) {
           console.error('❌ PagBank checkout error:', e?.payload || e?.message);

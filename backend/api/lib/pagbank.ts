@@ -62,6 +62,13 @@ export type CreateOrderInput = {
     store?: boolean;
   };
   installments?: number;
+  /** Valor do item sem juros (plano). Se omitido, usa amountCents. */
+  itemAmountCents?: number;
+  /** Repasse de juros da API Fees do PagBank (charges.amount.fees.buyer.interest). */
+  buyerInterest?: {
+    total: number;
+    installments: number;
+  } | null;
 };
 
 export type PagBankOrderResult = {
@@ -163,8 +170,134 @@ function extractPaymentArtifacts(order: any): PagBankOrderResult {
   };
 }
 
+export type PagBankInstallmentOption = {
+  installments: number;
+  installmentCents: number;
+  totalCents: number;
+  interestCents: number;
+  interestFree: boolean;
+  buyerInterestTotalCents: number;
+  buyerInterestInstallments: number;
+  label: string;
+  source: 'pagbank';
+};
+
+const installmentCache = new Map<string, { at: number; options: PagBankInstallmentOption[] }>();
+const INSTALLMENT_CACHE_MS = 5 * 60 * 1000;
+
+function formatBrlCents(cents: number) {
+  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+export function cashInstallmentOption(amountCents: number): PagBankInstallmentOption {
+  const totalCents = Math.max(0, Math.round(amountCents || 0));
+  return {
+    installments: 1,
+    installmentCents: totalCents,
+    totalCents,
+    interestCents: 0,
+    interestFree: true,
+    buyerInterestTotalCents: 0,
+    buyerInterestInstallments: 0,
+    label: `À vista — ${formatBrlCents(totalCents)}`,
+    source: 'pagbank',
+  };
+}
+
+function mapFeePlan(raw: any, originalCents: number): PagBankInstallmentOption | null {
+  const installments = Math.max(1, Number(raw?.installments || 0));
+  if (!installments) return null;
+  const installmentCents = Math.round(
+    Number(raw?.installment_value ?? raw?.installment_value ?? 0),
+  );
+  const totalCents = Math.round(Number(raw?.amount?.value ?? installmentCents * installments));
+  const interestFree = Boolean(raw?.interest_free);
+  const buyerInterestTotalCents = Math.round(Number(raw?.amount?.fees?.buyer?.interest?.total || 0));
+  const buyerInterestInstallments = Math.round(
+    Number(raw?.amount?.fees?.buyer?.interest?.installments || 0),
+  );
+  const interestCents = buyerInterestTotalCents || Math.max(0, totalCents - originalCents);
+  const installmentLabel = formatBrlCents(installmentCents || Math.round(totalCents / installments));
+  const totalLabel = formatBrlCents(totalCents);
+  const interestLabel = formatBrlCents(interestCents);
+  return {
+    installments,
+    installmentCents: installmentCents || Math.round(totalCents / installments),
+    totalCents,
+    interestCents,
+    interestFree,
+    buyerInterestTotalCents,
+    buyerInterestInstallments,
+    label: interestFree || installments === 1
+      ? `${installments === 1 ? 'À vista' : `${installments}x sem juros`} — ${totalLabel}`
+      : `${installments}x de ${installmentLabel} (total ${totalLabel}, juros PagBank ${interestLabel})`,
+    source: 'pagbank',
+  };
+}
+
+function parseFeePlans(payload: any, originalCents: number): PagBankInstallmentOption[] {
+  const credit =
+    payload?.payment_methods?.credit_card ||
+    payload?.payment_methods?.CREDIT_CARD;
+  if (!credit || typeof credit !== 'object') return [];
+  const brands = Object.values(credit) as any[];
+  const rawPlans = brands.flatMap((brand) =>
+    Array.isArray(brand?.installment_plans)
+      ? brand.installment_plans
+      : Array.isArray(brand?.installment_plans)
+        ? brand.installment_plans
+        : [],
+  );
+  const mapped = rawPlans
+    .map((plan) => mapFeePlan(plan, originalCents))
+    .filter(Boolean) as PagBankInstallmentOption[];
+  const unique = new Map<number, PagBankInstallmentOption>();
+  for (const option of mapped) {
+    if (!unique.has(option.installments)) unique.set(option.installments, option);
+  }
+  return [...unique.values()].sort((a, b) => a.installments - b.installments);
+}
+
+/** Consulta os planos reais de parcelamento na API Fees do PagBank. */
+export async function getPagBankInstallmentPlans(params: {
+  valueCents: number;
+  cardBin?: string | null;
+  maxInstallments?: number;
+}): Promise<PagBankInstallmentOption[]> {
+  const valueCents = Math.max(0, Math.round(Number(params.valueCents) || 0));
+  if (!valueCents) return [];
+
+  const maxInstallments = Math.max(1, Math.min(12, Number(params.maxInstallments || 12)));
+  const noInterest = Math.max(
+    1,
+    Math.min(12, Number(process.env.PAGBANK_INTEREST_FREE_INSTALLMENTS || 1)),
+  );
+  const bin = onlyDigits(params.cardBin || process.env.PAGBANK_DEFAULT_CARD_BIN || '411111').slice(0, 6);
+  const cacheKey = `${valueCents}:${maxInstallments}:${noInterest}:${bin}`;
+  const cached = installmentCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < INSTALLMENT_CACHE_MS) {
+    return cached.options;
+  }
+
+  const qs = new URLSearchParams();
+  qs.set('payment_methods', 'CREDIT_CARD');
+  qs.set('value', String(valueCents));
+  qs.set('max_installments', String(maxInstallments));
+  qs.set('max_installments_no_interest', String(noInterest));
+  if (bin.length >= 6) qs.set('credit_card_bin', bin);
+
+  const payload = await pagbankFetch(`/charges/fees/calculate?${qs.toString()}`, {
+    method: 'GET',
+  });
+  const options = parseFeePlans(payload, valueCents);
+  const result = options.length ? options : [cashInstallmentOption(valueCents)];
+  installmentCache.set(cacheKey, { at: Date.now(), options: result });
+  return result;
+}
+
 export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBankOrderResult> {
   const amount = Math.round(input.amountCents);
+  const itemAmount = Math.round(input.itemAmountCents || amount);
   const customer = buildCustomer(input.customer);
 
   const body: any = {
@@ -175,7 +308,7 @@ export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBa
         reference_id: input.referenceId.slice(0, 64),
         name: input.description.slice(0, 100),
         quantity: 1,
-        unit_amount: amount,
+        unit_amount: itemAmount,
       },
     ],
     notification_urls: [input.notificationUrl],
@@ -219,8 +352,9 @@ export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBa
   } else {
     const type = input.method === 'DEBIT_CARD' ? 'DEBIT_CARD' : 'CREDIT_CARD';
     const card: any = {};
-    if (input.card?.encrypted) {
-      card.encrypted = input.card.encrypted;
+    const encryptedCard = input.card?.encrypted || (input.card as any)?.encrypted;
+    if (encryptedCard) {
+      card.encrypted = encryptedCard;
     } else {
       card.number = onlyDigits(input.card?.number);
       card.exp_month = String(input.card?.expMonth || '').padStart(2, '0');
@@ -230,11 +364,23 @@ export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBa
     }
     if (input.card?.store) card.store = true;
 
+    const chargeAmount: any = { value: amount, currency: 'BRL' };
+    if (input.buyerInterest && input.buyerInterest.total > 0) {
+      chargeAmount.fees = {
+        buyer: {
+          interest: {
+            total: Math.round(input.buyerInterest.total),
+            installments: Math.max(1, Math.round(input.buyerInterest.installments || 1)),
+          },
+        },
+      };
+    }
+
     body.charges = [
       {
         reference_id: input.referenceId.slice(0, 64),
         description: input.description.slice(0, 64),
-        amount: { value: amount, currency: 'BRL' },
+        amount: chargeAmount,
         payment_method: {
           type,
           installments: Math.max(1, Math.min(12, input.installments || 1)),
