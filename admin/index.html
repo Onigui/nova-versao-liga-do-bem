@@ -1233,8 +1233,8 @@
                 </div>
             </section>
 
-            <div id="discountModal" class="modal">
-                <div class="modal-content">
+            <div id="discountModal" class="modal-overlay">
+                <div class="modal">
                     <div class="modal-header">
                         <h3 id="discountModalTitle">Novo Desconto</h3>
                         <button class="modal-close" onclick="closeModal('discountModal')">&times;</button>
@@ -2821,13 +2821,17 @@
             const modal = document.getElementById(modalId);
             if (modal) {
                 modal.classList.add('active');
+                modal.style.display = 'flex';
             } else {
                 console.error('Modal não encontrado:', modalId);
             }
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            modal.classList.remove('active');
+            modal.style.display = 'none';
         }
 
         // Form submissions
@@ -5293,17 +5297,20 @@
             }
         }
 
-        // Função para fechar modais
+        // Função para fechar modais (substitui a anterior: esconde os fixos, remove só os criados dinamicamente)
         function closeModal(modalId) {
             const modal = document.getElementById(modalId);
-            if (modal) {
-                // Para modais fixos (animalModal, companyModal, memberModal, eventModal), apenas esconder
-                if (modalId === 'animalModal' || modalId === 'companyModal' || modalId === 'memberModal' || modalId === 'eventModal' || modalId === 'eventRegistrationsModal') {
-                    modal.style.display = 'none';
-                } else {
-                    // Para modais dinâmicos (edit-company-modal, etc.), remover do DOM
-                    modal.remove();
-                }
+            if (!modal) return;
+            const persistentIds = [
+                'animalModal', 'companyModal', 'memberModal', 'eventModal',
+                'eventRegistrationsModal', 'discountModal', 'uploadAPKModal',
+                'notificationModal', 'financialReportModal', 'locationModal'
+            ];
+            modal.classList.remove('active');
+            if (persistentIds.includes(modalId) || modal.classList.contains('modal-overlay')) {
+                modal.style.display = 'none';
+            } else {
+                modal.remove();
             }
         }
 
@@ -5318,6 +5325,11 @@
             }
             
             console.log('✅ Token encontrado - carregando dashboard');
+
+            document.querySelectorAll('.modal-overlay').forEach((modal) => {
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            });
             
             // Verificar autenticação
             if (!checkAuth()) {
