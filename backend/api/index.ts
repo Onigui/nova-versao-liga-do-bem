@@ -6581,6 +6581,7 @@ export default async function handler(req: any, res: any) {
           })),
           paymentsEnabled: pagbankReady,
           installmentSource: pagbankReady ? 'pagbank' : 'unavailable',
+          installmentCount: Math.max(0, ...plans.map((p) => (optionsByAmount.get(p.amountCents) || []).length)),
           installmentNote:
             'O parcelamento no crédito usa as taxas oficiais do PagBank. PIX, boleto e débito são à vista, no valor do plano.',
         });

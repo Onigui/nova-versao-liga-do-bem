@@ -92,14 +92,20 @@ async function pagbankFetch(path: string, init: RequestInit = {}) {
     throw new Error('PAGBANK_TOKEN não configurado no servidor');
   }
 
+  const method = String(init.method || 'GET').toUpperCase();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/json',
+    ...(init.headers as Record<string, string> || {}),
+  };
+  if (method !== 'GET') {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(init.headers || {}),
-    },
+    method,
+    headers,
   });
 
   const text = await response.text();
@@ -179,7 +185,7 @@ export type PagBankInstallmentOption = {
   buyerInterestTotalCents: number;
   buyerInterestInstallments: number;
   label: string;
-  source: 'pagbank';
+  source: 'pagbank' | 'fallback';
 };
 
 const installmentCache = new Map<string, { at: number; options: PagBankInstallmentOption[] }>();
@@ -200,18 +206,20 @@ export function cashInstallmentOption(amountCents: number): PagBankInstallmentOp
     buyerInterestTotalCents: 0,
     buyerInterestInstallments: 0,
     label: `À vista — ${formatBrlCents(totalCents)}`,
-    source: 'pagbank',
+    source: 'fallback',
   };
 }
 
 function mapFeePlan(raw: any, originalCents: number): PagBankInstallmentOption | null {
-  const installments = Math.max(1, Number(raw?.installments || 0));
+  const installments = Math.round(Number(raw?.installments ?? raw?.quantity ?? 0));
   if (!installments) return null;
   const installmentCents = Math.round(
-    Number(raw?.installment_value ?? raw?.installment_value ?? 0),
+    Number(raw?.installment_value ?? raw?.installmentAmount ?? raw?.installment_amount ?? 0),
   );
-  const totalCents = Math.round(Number(raw?.amount?.value ?? installmentCents * installments));
-  const interestFree = Boolean(raw?.interest_free);
+  const totalCents = Math.round(
+    Number(raw?.amount?.value ?? raw?.total_amount ?? raw?.totalAmount ?? installmentCents * installments),
+  );
+  const interestFree = Boolean(raw?.interest_free ?? raw?.interestFree);
   const buyerInterestTotalCents = Math.round(Number(raw?.amount?.fees?.buyer?.interest?.total || 0));
   const buyerInterestInstallments = Math.round(
     Number(raw?.amount?.fees?.buyer?.interest?.installments || 0),
@@ -235,20 +243,33 @@ function mapFeePlan(raw: any, originalCents: number): PagBankInstallmentOption |
   };
 }
 
+function collectInstallmentPlans(node: any, acc: any[] = [], seen = new Set<any>()): any[] {
+  if (!node || typeof node !== 'object' || seen.has(node)) return acc;
+  seen.add(node);
+  if (Array.isArray(node)) {
+    const looksLikePlans = node.some(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        (item.installments != null || item.quantity != null) &&
+        (item.installment_value != null || item.amount != null || item.installmentAmount != null),
+    );
+    if (looksLikePlans) {
+      acc.push(...node);
+      return acc;
+    }
+    for (const item of node) collectInstallmentPlans(item, acc, seen);
+    return acc;
+  }
+  if (Array.isArray(node.installment_plans)) acc.push(...node.installment_plans);
+  for (const value of Object.values(node)) {
+    collectInstallmentPlans(value, acc, seen);
+  }
+  return acc;
+}
+
 function parseFeePlans(payload: any, originalCents: number): PagBankInstallmentOption[] {
-  const credit =
-    payload?.payment_methods?.credit_card ||
-    payload?.payment_methods?.CREDIT_CARD;
-  if (!credit || typeof credit !== 'object') return [];
-  const brands = Object.values(credit) as any[];
-  const rawPlans = brands.flatMap((brand) =>
-    Array.isArray(brand?.installment_plans)
-      ? brand.installment_plans
-      : Array.isArray(brand?.installment_plans)
-        ? brand.installment_plans
-        : [],
-  );
-  const mapped = rawPlans
+  const mapped = collectInstallmentPlans(payload)
     .map((plan) => mapFeePlan(plan, originalCents))
     .filter(Boolean) as PagBankInstallmentOption[];
   const unique = new Map<number, PagBankInstallmentOption>();
@@ -256,6 +277,23 @@ function parseFeePlans(payload: any, originalCents: number): PagBankInstallmentO
     if (!unique.has(option.installments)) unique.set(option.installments, option);
   }
   return [...unique.values()].sort((a, b) => a.installments - b.installments);
+}
+
+async function fetchPagBankFeePayload(params: {
+  valueCents: number;
+  maxInstallments: number;
+  noInterest: number;
+  bin?: string;
+}) {
+  const qs = new URLSearchParams();
+  qs.append('payment_methods', 'CREDIT_CARD');
+  qs.set('value', String(params.valueCents));
+  qs.set('max_installments', String(params.maxInstallments));
+  qs.set('max_installments_no_interest', String(params.noInterest));
+  if (params.bin && params.bin.length >= 6) {
+    qs.set('credit_card_bin', params.bin);
+  }
+  return pagbankFetch(`/charges/fees/calculate?${qs.toString()}`, { method: 'GET' });
 }
 
 /** Consulta os planos reais de parcelamento na API Fees do PagBank. */
@@ -272,27 +310,51 @@ export async function getPagBankInstallmentPlans(params: {
     1,
     Math.min(12, Number(process.env.PAGBANK_INTEREST_FREE_INSTALLMENTS || 1)),
   );
-  const bin = onlyDigits(params.cardBin || process.env.PAGBANK_DEFAULT_CARD_BIN || '411111').slice(0, 6);
-  const cacheKey = `${valueCents}:${maxInstallments}:${noInterest}:${bin}`;
+  const requestedBin = onlyDigits(params.cardBin || '').slice(0, 6);
+  const defaultBin = onlyDigits(process.env.PAGBANK_DEFAULT_CARD_BIN || '552100').slice(0, 6);
+  const binsToTry = [...new Set([requestedBin, defaultBin, ''].filter((bin) => bin.length === 0 || bin.length >= 6))];
+  const cacheKey = `${valueCents}:${maxInstallments}:${noInterest}:${requestedBin || defaultBin}`;
   const cached = installmentCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < INSTALLMENT_CACHE_MS) {
+  if (cached && Date.now() - cached.at < INSTALLMENT_CACHE_MS && cached.options.length > 1) {
     return cached.options;
   }
 
-  const qs = new URLSearchParams();
-  qs.set('payment_methods', 'CREDIT_CARD');
-  qs.set('value', String(valueCents));
-  qs.set('max_installments', String(maxInstallments));
-  qs.set('max_installments_no_interest', String(noInterest));
-  if (bin.length >= 6) qs.set('credit_card_bin', bin);
+  let best: PagBankInstallmentOption[] = [];
+  let lastError: any = null;
+  for (const bin of binsToTry) {
+    try {
+      const payload = await fetchPagBankFeePayload({
+        valueCents,
+        maxInstallments,
+        noInterest,
+        bin,
+      });
+      const options = parseFeePlans(payload, valueCents);
+      if (options.length > best.length) best = options;
+      if (options.length > 1) break;
+      if (options.length <= 1) {
+        console.warn(
+          '⚠️ PagBank fees retornou poucas parcelas',
+          JSON.stringify({ bin, count: options.length, keys: payload && typeof payload === 'object' ? Object.keys(payload) : [] }),
+        );
+      }
+    } catch (error: any) {
+      lastError = error;
+      console.warn('⚠️ PagBank fees/calculate falhou:', error?.message || error, error?.payload || '');
+    }
+  }
 
-  const payload = await pagbankFetch(`/charges/fees/calculate?${qs.toString()}`, {
-    method: 'GET',
-  });
-  const options = parseFeePlans(payload, valueCents);
-  const result = options.length ? options : [cashInstallmentOption(valueCents)];
-  installmentCache.set(cacheKey, { at: Date.now(), options: result });
-  return result;
+  if (best.length) {
+    if (best.length > 1) {
+      installmentCache.set(cacheKey, { at: Date.now(), options: best });
+    }
+    return best;
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+  return [cashInstallmentOption(valueCents)];
 }
 
 export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBankOrderResult> {

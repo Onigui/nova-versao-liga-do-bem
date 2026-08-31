@@ -453,6 +453,13 @@ export default function MembershipCheckoutScreen({navigation, route}) {
                   {installmentNote ||
                     'Valores oficiais do PagBank. Digite o número do cartão para atualizar as parcelas da bandeira.'}
                 </Text>
+                {installmentOptions.length < 2 ? (
+                  <Text style={styles.fieldHint}>
+                    O PagBank só devolveu à vista. Confira no painel PagBank se o parcelamento
+                    está habilitado e use um cartão com BIN válido. Números de teste costumam
+                    não ter parcelas em produção.
+                  </Text>
+                ) : null}
                 {installmentOptions.map(option => {
                   const active = option.installments === installments;
                   return (
