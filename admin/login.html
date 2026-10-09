@@ -342,13 +342,46 @@
                     <input type="checkbox" id="remember" class="checkbox">
                     <label for="remember" class="checkbox-label">Lembrar de mim</label>
                 </div>
-                <a href="#" class="forgot-link">Esqueceu a senha?</a>
+                <a href="#" class="forgot-link" id="forgotLink">Esqueceu a senha?</a>
             </div>
 
             <button type="submit" class="btn btn-primary" id="loginBtn">
                 <span class="loading" id="loadingSpinner" style="display: none;"></span>
                 <span id="loginText">Entrar no Painel</span>
             </button>
+        </form>
+
+        <form class="login-form" id="recoveryForm" style="display: none;" novalidate>
+            <div id="recoveryError" class="error-message" style="display: none;"></div>
+            <div id="recoverySuccess" class="success-message" style="display: none;"></div>
+
+            <div id="recoveryStepEmail">
+                <p style="margin-bottom:16px;color:#4B5563;">Informe o e-mail da conta de administrador. Enviaremos um código de 6 dígitos válido por 15 minutos.</p>
+                <div class="form-group">
+                    <label class="form-label" for="recoveryEmail">Email</label>
+                    <input type="email" id="recoveryEmail" class="form-input" placeholder="seu@email.com" autocomplete="email">
+                </div>
+                <button type="button" class="btn btn-primary" id="recoverySendBtn">Enviar código</button>
+            </div>
+
+            <div id="recoveryStepCode" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label" for="recoveryCode">Código recebido por e-mail</label>
+                    <input type="text" id="recoveryCode" class="form-input" placeholder="000000" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="recoveryPassword">Nova senha</label>
+                    <input type="password" id="recoveryPassword" class="form-input" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="recoveryPassword2">Confirme a nova senha</label>
+                    <input type="password" id="recoveryPassword2" class="form-input" placeholder="Repita a senha" autocomplete="new-password">
+                </div>
+                <button type="button" class="btn btn-primary" id="recoveryResetBtn">Redefinir senha</button>
+                <p style="margin-top:12px;font-size:0.875rem;"><a href="#" id="recoveryResend">Não recebeu? Enviar novo código</a></p>
+            </div>
+
+            <p style="margin-top:16px;font-size:0.875rem;"><a href="#" id="recoveryBack">← Voltar para o login</a></p>
         </form>
 
         <div class="form-footer">
@@ -365,8 +398,19 @@
                 try {
                     const payload = JSON.parse(atob(token.split('.')[1]));
                     if (payload.exp > Date.now() / 1000) {
-                        // Token válido, redirecionar para o painel
-                        window.location.href = 'index.html';
+                        // Confirma com a API antes de redirecionar: tokens assinados com um
+                        // JWT_SECRET antigo ainda "parecem" válidos e causariam loop login <-> painel.
+                        const base = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
+                        fetch(base + '/api/admin/verify', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then((r) => {
+                                if (r.ok) {
+                                    window.location.href = 'index.html';
+                                } else {
+                                    localStorage.removeItem('admin_token');
+                                    localStorage.removeItem('admin_user');
+                                }
+                            })
+                            .catch(() => { /* sem rede: mantém o usuário na tela de login */ });
                         return;
                     } else {
                         // Token expirado, remover
@@ -537,6 +581,108 @@
 
         console.log('🔐 Sistema de Login da Liga do Bem carregado!');
         console.log('🌐 API URL:', (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, ''));
+    </script>
+
+    <script>
+        // Recuperação de senha do admin (usa /api/auth/forgot-password e /api/auth/reset-password)
+        (function () {
+            const apiBase = () => (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
+            const $ = (id) => document.getElementById(id);
+            const loginForm = $('loginForm');
+            const recoveryForm = $('recoveryForm');
+            const subtitle = document.querySelector('.login-subtitle');
+            const originalSubtitle = subtitle ? subtitle.textContent : '';
+
+            function recoveryMessage(text, type) {
+                $('recoveryError').style.display = 'none';
+                $('recoverySuccess').style.display = 'none';
+                if (!text) return;
+                const el = type === 'success' ? $('recoverySuccess') : $('recoveryError');
+                el.textContent = text;
+                el.style.display = 'block';
+            }
+
+            function showRecovery(show) {
+                loginForm.style.display = show ? 'none' : '';
+                recoveryForm.style.display = show ? '' : 'none';
+                if (subtitle) subtitle.textContent = show ? 'Recuperar acesso ao painel' : originalSubtitle;
+                recoveryMessage('');
+                if (show) {
+                    $('recoveryStepEmail').style.display = '';
+                    $('recoveryStepCode').style.display = 'none';
+                    $('recoveryEmail').value = $('email').value || '';
+                    $('recoveryEmail').focus();
+                }
+            }
+
+            async function postJson(path, payload) {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 15000);
+                try {
+                    const res = await fetch(apiBase() + path, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: controller.signal,
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    return { ok: res.ok, data };
+                } catch (e) {
+                    return { ok: false, data: { error: 'Não foi possível conectar ao servidor. Tente novamente.' } };
+                } finally {
+                    clearTimeout(timer);
+                }
+            }
+
+            async function sendCode() {
+                const email = $('recoveryEmail').value.trim().toLowerCase();
+                if (!validateEmail(email)) return recoveryMessage('Informe um e-mail válido.');
+                const btn = $('recoverySendBtn');
+                btn.disabled = true;
+                btn.textContent = 'Enviando...';
+                const { ok, data } = await postJson('/api/auth/forgot-password', { email });
+                btn.disabled = false;
+                btn.textContent = 'Enviar código';
+                if (!ok) return recoveryMessage(data.error || 'Não foi possível enviar o código.');
+                $('recoveryStepEmail').style.display = 'none';
+                $('recoveryStepCode').style.display = '';
+                recoveryMessage(data.message || 'Se o e-mail estiver cadastrado, enviamos um código. Confira também o spam.', 'success');
+                $('recoveryCode').focus();
+            }
+
+            async function resetPassword() {
+                const email = $('recoveryEmail').value.trim().toLowerCase();
+                const code = $('recoveryCode').value.trim();
+                const newPassword = $('recoveryPassword').value;
+                if (!/^\d{6}$/.test(code)) return recoveryMessage('Digite o código de 6 dígitos recebido por e-mail.');
+                if (newPassword.length < 8) return recoveryMessage('A nova senha precisa ter pelo menos 8 caracteres.');
+                if (newPassword !== $('recoveryPassword2').value) return recoveryMessage('As senhas não conferem.');
+                const btn = $('recoveryResetBtn');
+                btn.disabled = true;
+                btn.textContent = 'Redefinindo...';
+                const { ok, data } = await postJson('/api/auth/reset-password', { email, code, newPassword });
+                btn.disabled = false;
+                btn.textContent = 'Redefinir senha';
+                if (!ok) return recoveryMessage(data.error || 'Não foi possível redefinir a senha.');
+                showRecovery(false);
+                $('email').value = email;
+                $('password').value = '';
+                $('password').focus();
+                showMessage('Senha redefinida! Entre com a nova senha.', 'success');
+            }
+
+            $('forgotLink').addEventListener('click', (e) => { e.preventDefault(); showRecovery(true); });
+            $('recoveryBack').addEventListener('click', (e) => { e.preventDefault(); showRecovery(false); });
+            $('recoveryResend').addEventListener('click', (e) => {
+                e.preventDefault();
+                $('recoveryStepEmail').style.display = '';
+                $('recoveryStepCode').style.display = 'none';
+                recoveryMessage('');
+            });
+            $('recoverySendBtn').addEventListener('click', sendCode);
+            $('recoveryResetBtn').addEventListener('click', resetPassword);
+            recoveryForm.addEventListener('submit', (e) => e.preventDefault());
+        })();
     </script>
 </body>
 </html>
