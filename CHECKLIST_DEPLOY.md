@@ -18,8 +18,8 @@ Use este checklist para garantir que todas as alterações sejam deployadas corr
 - [ ] Selecionar o serviço `nova-versao-liga-do-bem-api`
 - [ ] Ir em "Environment"
 - [ ] Atualizar variáveis:
-  - [ ] `DATABASE_URL` = `postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true`
-  - [ ] `DIRECT_URL` = `postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:5432/postgres`
+  - [ ] `DATABASE_URL` = `postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true`
+  - [ ] `DIRECT_URL` = `postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres`
 - [ ] Salvar variáveis
 - [ ] Clicar em "Manual Deploy"
 - [ ] Selecionar "Deploy latest commit"

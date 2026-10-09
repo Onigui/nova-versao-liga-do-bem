@@ -135,7 +135,7 @@ Após executar a migration, você pode verificar se funcionou:
 
 Este endpoint está protegido por token administrativo. Os tokens válidos são:
 - `demo-token-admin`
-- `liga-do-bem-admin-2024`
+- `<REMOVIDO>`
 - Token definido na variável de ambiente `ADMIN_TOKEN`
 
 ## Próximos Passos

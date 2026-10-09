@@ -11,11 +11,11 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        value: postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+        value: postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
       - key: DIRECT_URL
-        value: postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
+        value: postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
       - key: JWT_SECRET
-        value: liga-do-bem-jwt-secret-key-2024-production
+        value: <GERE_UM_SEGREDO_FORTE>
       - key: FRONTEND_URL
         value: https://nova-versao-liga-do-bem-web.onrender.com
       - key: MOBILE_URL

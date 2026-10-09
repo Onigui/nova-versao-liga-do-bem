@@ -36,7 +36,7 @@ O backend não está fazendo deploy porque precisa estar configurado como um **p
      ```
      DATABASE_URL=postgresql://postgres.ushdgkfnxrxwqrnicdns:SUA_SENHA@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
      DIRECT_URL=postgresql://postgres.ushdgkfnxrxwqrnicdns:SUA_SENHA@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
-     JWT_SECRET=liga-do-bem-jwt-secret-key-2024-production
+     JWT_SECRET=<GERE_UM_SEGREDO_FORTE>
      NODE_ENV=production
      ```
    - ⚠️ **IMPORTANTE**: Substitua `SUA_SENHA` pela senha real do Supabase

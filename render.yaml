@@ -16,7 +16,7 @@ services:
           name: liga-do-bem-db
           property: connectionString
       - key: JWT_SECRET
-        value: liga-do-bem-jwt-secret-key-2024-production
+        value: <GERE_UM_SEGREDO_FORTE>
       - key: FRONTEND_URL
         value: https://nova-versao-liga-do-bem-web.onrender.com
       - key: MOBILE_URL
