@@ -306,10 +306,10 @@ export async function getPagBankInstallmentPlans(params: {
   if (!valueCents) return [];
 
   const maxInstallments = Math.max(1, Math.min(12, Number(params.maxInstallments || 12)));
-  const noInterest = Math.max(
-    1,
-    Math.min(12, Number(process.env.PAGBANK_INTEREST_FREE_INSTALLMENTS || 1)),
-  );
+  // PagBank só aceita 0 (nenhuma parcela sem juros além do à vista) ou valores > 1.
+  // Enviar 1 faz a API Fees recusar a consulta (max_installments_no_interest_must_not_be_1).
+  const configuredNoInterest = Math.floor(Number(process.env.PAGBANK_INTEREST_FREE_INSTALLMENTS || 0));
+  const noInterest = configuredNoInterest > 1 ? Math.min(12, configuredNoInterest) : 0;
   const requestedBin = onlyDigits(params.cardBin || '').slice(0, 6);
   const defaultBin = onlyDigits(process.env.PAGBANK_DEFAULT_CARD_BIN || '552100').slice(0, 6);
   const binsToTry = [...new Set([requestedBin, defaultBin, ''].filter((bin) => bin.length === 0 || bin.length >= 6))];
