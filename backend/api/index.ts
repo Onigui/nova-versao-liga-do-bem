@@ -5747,7 +5747,7 @@ export default async function handler(req: any, res: any) {
           `SELECT
              COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN amount ELSE 0 END), 0) AS total_revenue,
              COALESCE(SUM(CASE WHEN status = 'APPROVED' AND "paidAt" >= date_trunc('month', NOW()) THEN amount ELSE 0 END), 0) AS monthly_revenue,
-             COUNT(*)::int AS total_transactions,
+             COUNT(*) FILTER (WHERE gateway IS DISTINCT FROM 'MANUAL')::int AS total_transactions,
              COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending_payments
            FROM payments
            WHERE type = 'MEMBERSHIP'`
@@ -5829,38 +5829,63 @@ export default async function handler(req: any, res: any) {
       const db = getPrisma();
       if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
-        const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
-        if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = isDemoAdminToken(token);
-        if (!ok) {
-          try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
-        }
-        if (!ok) return res.status(401).json({ error: 'Invalid token' });
+        // Autorização: trava global de admin.
+        await ensureMembershipBillingSchema(db);
+        let actor: { userId?: string; email?: string } = {};
+        try { actor = decodeAuthUser(req); } catch { /* token demo/x-admin-token */ }
 
         const membershipId = body?.membershipId || body?.id;
-        const days = Math.max(1, parseInt(String(body?.days || '30'), 10) || 30);
+        const days = Math.max(1, Math.min(3660, parseInt(String(body?.days || '30'), 10) || 30));
         if (!membershipId) return res.status(400).json({ error: 'membershipId é obrigatório' });
 
-        const rows: any[] = await db.$queryRawUnsafe(
-          `SELECT id, "endDate" FROM memberships WHERE id = $1 LIMIT 1`,
-          membershipId
-        );
-        if (!rows?.[0]) return res.status(404).json({ error: 'Membership não encontrada' });
+        const outcome = await db.$transaction(async (tx: any) => {
+          const rows: any[] = await tx.$queryRawUnsafe(
+            `SELECT id, "userId", "endDate" FROM memberships WHERE id = $1 LIMIT 1 FOR UPDATE`,
+            membershipId
+          );
+          const membership = rows?.[0];
+          if (!membership) return null;
 
-        const base =
-          rows[0].endDate && new Date(rows[0].endDate).getTime() > Date.now()
-            ? new Date(rows[0].endDate).getTime()
-            : Date.now();
-        const newEnd = new Date(base + days * 24 * 60 * 60 * 1000);
+          const base =
+            membership.endDate && new Date(membership.endDate).getTime() > Date.now()
+              ? new Date(membership.endDate).getTime()
+              : Date.now();
+          const newEnd = new Date(base + days * 24 * 60 * 60 * 1000);
 
-        await db.$executeRawUnsafe(
-          `UPDATE memberships
-           SET status = 'ACTIVE', "endDate" = $1, "nextPayment" = $1, "updatedAt" = NOW()
-           WHERE id = $2`,
-          newEnd,
-          membershipId
-        );
-        return res.status(200).json({ message: `Renovada por ${days} dias`, endDate: newEnd });
+          // Lançamento MANUAL de valor zero: deixa a renovação auditável (quem, quando, quantos dias)
+          // e faz requirePaidMembership reconhecer a assinatura como legítima.
+          const paymentId = require('crypto').randomUUID();
+          await tx.$executeRawUnsafe(
+            `INSERT INTO payments
+              (id, amount, description, type, status, gateway, method, "userId", "membershipId",
+               "userEmail", "userName", "paidAt", "membershipAppliedAt", "gatewayData", "createdAt", "updatedAt")
+             VALUES ($1, 0, $2, 'MEMBERSHIP', 'APPROVED', 'MANUAL', 'MANUAL', $3, $4,
+               (SELECT email FROM users WHERE id = $3), (SELECT name FROM users WHERE id = $3),
+               NOW(), NOW(), $5::jsonb, NOW(), NOW())`,
+            paymentId,
+            `Renovação manual pelo painel (+${days} dias)`,
+            membership.userId,
+            membership.id,
+            JSON.stringify({ source: 'admin', days, adminUserId: actor.userId || null, adminEmail: actor.email || null })
+          );
+
+          await tx.$executeRawUnsafe(
+            `UPDATE memberships
+             SET status = 'ACTIVE', "endDate" = $1, "nextPayment" = $1, "lastPaymentId" = $2, "updatedAt" = NOW()
+             WHERE id = $3`,
+            newEnd,
+            paymentId,
+            membership.id
+          );
+          return { newEnd, paymentId };
+        });
+
+        if (!outcome) return res.status(404).json({ error: 'Membership não encontrada' });
+        return res.status(200).json({
+          message: `Renovada por ${days} dias`,
+          endDate: outcome.newEnd,
+          manualPaymentId: outcome.paymentId,
+        });
       } catch (error: any) {
         return res.status(500).json({ error: 'Erro ao renovar membership', detail: error?.message });
       }
@@ -6878,6 +6903,8 @@ export default async function handler(req: any, res: any) {
         if (immediatePaid) {
           await activateMembershipFromPayment(db, paymentId);
         } else {
+          // Só marca como pendente quem NÃO está no período pago. Um membro ativo que gera
+          // PIX/boleto de renovação continua ativo até o fim do período (ou até pagar).
           await db.$executeRawUnsafe(
             `UPDATE memberships
              SET status = 'PENDING_PAYMENT',
@@ -6885,7 +6912,8 @@ export default async function handler(req: any, res: any) {
                  "planCode" = $2,
                  "planMonths" = $3,
                  "updatedAt" = NOW()
-             WHERE id = $4`,
+             WHERE id = $4
+               AND NOT (status = 'ACTIVE' AND "endDate" IS NOT NULL AND "endDate" >= NOW())`,
             plan.amount,
             plan.code,
             plan.months,

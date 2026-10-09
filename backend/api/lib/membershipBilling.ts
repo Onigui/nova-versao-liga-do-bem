@@ -50,6 +50,7 @@ export async function ensureMembershipBillingSchema(db: any) {
     `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "boletoBarcode" TEXT`,
     `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "planCode" TEXT`,
     `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "planMonths" INTEGER`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "membershipAppliedAt" TIMESTAMP(3)`,
   ];
 
   for (const sql of alterStatements) {
@@ -165,126 +166,171 @@ export async function getPlanByCode(db: any, code: string) {
   return plans.find((p) => p.code === String(code || '').toUpperCase()) || null;
 }
 
+/**
+ * Credita os meses do plano a partir de um pagamento aprovado.
+ *
+ * Idempotente: cada pagamento credita no máximo UMA vez, mesmo que seja chamado em paralelo
+ * pelo checkout (cartão aprovado na hora), pelo webhook do PagBank (que pode reenviar) e pelo
+ * polling do app. A linha do pagamento é travada (FOR UPDATE) e marcada com
+ * "membershipAppliedAt" na mesma transação que estende a assinatura.
+ */
 export async function activateMembershipFromPayment(db: any, paymentId: string) {
-  const payments: any[] = await db.$queryRawUnsafe(
-    `SELECT id, "userId", "membershipId", status, "planCode", "planMonths", amount, method
-     FROM payments WHERE id = $1 LIMIT 1`,
-    paymentId,
-  );
-  const payment = payments?.[0];
-  if (!payment?.userId) {
-    return { ok: false, reason: 'payment_not_found' };
-  }
-
-  // Duração oficial do plano (ex.: ANNUAL = 12 meses inteiros)
-  const monthsFromCode = planMonthsFromCode(payment.planCode);
-  const months = Number(monthsFromCode || payment.planMonths || 1);
-  if (!Number.isFinite(months) || months < 1) {
-    return { ok: false, reason: 'invalid_plan_months' };
-  }
-
-  const memberships: any[] = await db.$queryRawUnsafe(
-    `SELECT id, "memberId", "endDate", "qrCode" FROM memberships WHERE "userId" = $1 LIMIT 1`,
-    payment.userId,
-  );
-
-  let membership = memberships?.[0];
-  const now = new Date();
-
-  if (!membership) {
-    const membershipId = require('crypto').randomUUID();
-    const memberId = `MEM${Date.now().toString().slice(-8)}`;
-    const qrCode = `LIGADOBEM|${memberId}|${payment.userId}`;
-    const endDate = addMonths(now, months);
-    await db.$executeRawUnsafe(
-      `INSERT INTO memberships
-        (id, "userId", "memberId", status, "startDate", "endDate",
-         "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
-         "planCode", "planMonths", "lastPaymentId", "createdAt", "updatedAt")
-       VALUES ($1,$2,$3,'ACTIVE',$4,$5,$6,$5,$7,$8,$9,$10,$11,NOW(),NOW())`,
-      membershipId,
-      payment.userId,
-      memberId,
-      now,
-      endDate,
-      Number(payment.amount) || 19.9,
-      payment.method || 'PIX',
-      qrCode,
-      payment.planCode || 'MONTHLY',
-      months,
-      payment.id,
+  const result = await db.$transaction(async (tx: any) => {
+    const payments: any[] = await tx.$queryRawUnsafe(
+      `SELECT id, "userId", "membershipId", status, type, "planCode", "planMonths", amount, method,
+              "membershipAppliedAt"
+       FROM payments WHERE id = $1 LIMIT 1 FOR UPDATE`,
+      paymentId,
     );
-    membership = { id: membershipId, endDate, memberId, qrCode };
-  } else {
-    // Se ainda está no período ativo, acumula tempo a partir do fim atual.
-    // Se já venceu, começa a contar a partir de agora.
-    const currentEnd = membership.endDate ? new Date(membership.endDate) : null;
-    const base =
-      currentEnd && currentEnd.getTime() > now.getTime() ? currentEnd : now;
-    const endDate = addMonths(base, months);
-    const qrCode =
-      membership.qrCode ||
-      `LIGADOBEM|${membership.memberId}|${payment.userId}`;
+    const payment = payments?.[0];
+    if (!payment?.userId) {
+      return { ok: false, reason: 'payment_not_found' };
+    }
+    if (String(payment.type) !== 'MEMBERSHIP') {
+      return { ok: false, reason: 'not_membership_payment' };
+    }
 
-    await db.$executeRawUnsafe(
-      `UPDATE memberships
-       SET status = 'ACTIVE',
-           "endDate" = $1,
-           "nextPayment" = $1,
-           "paymentMethod" = $2,
-           "monthlyFee" = $3,
-           "planCode" = $4,
-           "planMonths" = $5,
-           "lastPaymentId" = $6,
-           "qrCode" = $7,
+    if (payment.membershipAppliedAt) {
+      const current: any[] = await tx.$queryRawUnsafe(
+        `SELECT id, "endDate" FROM memberships WHERE "userId" = $1 LIMIT 1`,
+        payment.userId,
+      );
+      return {
+        ok: true,
+        alreadyApplied: true,
+        membershipId: current?.[0]?.id || payment.membershipId || null,
+        endDate: current?.[0]?.endDate || null,
+        planMonths: Number(payment.planMonths) || null,
+      };
+    }
+
+    // Duração oficial do plano (ex.: ANNUAL = 12 meses inteiros)
+    const monthsFromCode = planMonthsFromCode(payment.planCode);
+    const months = Number(monthsFromCode || payment.planMonths || 1);
+    if (!Number.isFinite(months) || months < 1) {
+      return { ok: false, reason: 'invalid_plan_months' };
+    }
+
+    const memberships: any[] = await tx.$queryRawUnsafe(
+      `SELECT id, "memberId", "endDate", "qrCode" FROM memberships WHERE "userId" = $1 LIMIT 1 FOR UPDATE`,
+      payment.userId,
+    );
+
+    let membership = memberships?.[0];
+    const now = new Date();
+
+    if (!membership) {
+      const membershipId = require('crypto').randomUUID();
+      const memberId = `MEM${Date.now().toString().slice(-8)}`;
+      const qrCode = `LIGADOBEM|${memberId}|${payment.userId}`;
+      const endDate = addMonths(now, months);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO memberships
+          (id, "userId", "memberId", status, "startDate", "endDate",
+           "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
+           "planCode", "planMonths", "lastPaymentId", "createdAt", "updatedAt")
+         VALUES ($1,$2,$3,'ACTIVE',$4,$5,$6,$5,$7,$8,$9,$10,$11,NOW(),NOW())`,
+        membershipId,
+        payment.userId,
+        memberId,
+        now,
+        endDate,
+        Number(payment.amount) || 19.9,
+        payment.method || 'PIX',
+        qrCode,
+        payment.planCode || 'MONTHLY',
+        months,
+        payment.id,
+      );
+      membership = { id: membershipId, endDate, memberId, qrCode };
+    } else {
+      // Se ainda está no período ativo, acumula tempo a partir do fim atual.
+      // Se já venceu, começa a contar a partir de agora.
+      const currentEnd = membership.endDate ? new Date(membership.endDate) : null;
+      const base =
+        currentEnd && currentEnd.getTime() > now.getTime() ? currentEnd : now;
+      const endDate = addMonths(base, months);
+      const qrCode =
+        membership.qrCode ||
+        `LIGADOBEM|${membership.memberId}|${payment.userId}`;
+
+      await tx.$executeRawUnsafe(
+        `UPDATE memberships
+         SET status = 'ACTIVE',
+             "endDate" = $1,
+             "nextPayment" = $1,
+             "paymentMethod" = $2,
+             "monthlyFee" = $3,
+             "planCode" = $4,
+             "planMonths" = $5,
+             "lastPaymentId" = $6,
+             "qrCode" = $7,
+             "updatedAt" = NOW()
+         WHERE id = $8`,
+        endDate,
+        payment.method || 'PIX',
+        Number(payment.amount) || 19.9,
+        payment.planCode || 'MONTHLY',
+        months,
+        payment.id,
+        qrCode,
+        membership.id,
+      );
+      membership = { ...membership, endDate, qrCode };
+    }
+
+    await tx.$executeRawUnsafe(
+      `UPDATE payments
+       SET status = 'APPROVED',
+           "paidAt" = COALESCE("paidAt", NOW()),
+           "membershipId" = COALESCE("membershipId", $2),
+           "planMonths" = $3,
+           "membershipAppliedAt" = NOW(),
            "updatedAt" = NOW()
-       WHERE id = $8`,
-      endDate,
-      payment.method || 'PIX',
-      Number(payment.amount) || 19.9,
-      payment.planCode || 'MONTHLY',
-      months,
+       WHERE id = $1`,
       payment.id,
-      qrCode,
       membership.id,
+      months,
     );
-    membership = { ...membership, endDate, qrCode };
+
+    return {
+      ok: true,
+      alreadyApplied: false,
+      membershipId: membership.id,
+      endDate: membership.endDate,
+      planMonths: months,
+      userId: payment.userId,
+      amount: Number(payment.amount) || 0,
+      planCode: payment.planCode || '',
+    };
+  });
+
+  // Lançamento financeiro só quando o crédito acabou de acontecer (fora da transação:
+  // a tabela transactions pode ter constraints diferentes por ambiente).
+  if (result?.ok && result.alreadyApplied === false) {
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO transactions
+          (id, "userId", amount, type, status, description, "paymentId", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, 'MEMBERSHIP', 'COMPLETED', $4, $5, NOW(), NOW())`,
+        require('crypto').randomUUID(),
+        result.userId,
+        result.amount,
+        `Assinatura ${result.planCode} (${result.planMonths} meses)`.replace(/\s+/g, ' ').trim(),
+        paymentId,
+      );
+    } catch {
+      // transactions pode ter constraints diferentes
+    }
   }
 
-  await db.$executeRawUnsafe(
-    `UPDATE payments
-     SET status = 'APPROVED',
-         "paidAt" = COALESCE("paidAt", NOW()),
-         "membershipId" = COALESCE("membershipId", $2),
-         "planMonths" = $3,
-         "updatedAt" = NOW()
-     WHERE id = $1`,
-    payment.id,
-    membership.id,
-    months,
-  );
-
-  try {
-    await db.$executeRawUnsafe(
-      `INSERT INTO transactions
-        (id, "userId", amount, type, status, description, "paymentId", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, 'MEMBERSHIP', 'COMPLETED', $4, $5, NOW(), NOW())
-       ON CONFLICT DO NOTHING`,
-      require('crypto').randomUUID(),
-      payment.userId,
-      Number(payment.amount) || 0,
-      `Assinatura ${payment.planCode || ''} (${months} meses)`.trim(),
-      payment.id,
-    );
-  } catch {
-    // transactions pode ter constraints diferentes
-  }
-
+  if (!result?.ok) return result;
   return {
     ok: true,
-    membershipId: membership.id,
-    endDate: membership.endDate,
-    planMonths: months,
+    alreadyApplied: result.alreadyApplied,
+    membershipId: result.membershipId,
+    endDate: result.endDate,
+    planMonths: result.planMonths,
   };
 }
 
