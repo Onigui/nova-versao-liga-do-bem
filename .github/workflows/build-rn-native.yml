@@ -257,10 +257,11 @@ jobs:
           echo "📦 Publicando v${VERSION} (code ${VERSION_CODE})"
           echo "🔗 ${APK_URL}"
 
-          TOKEN_HEADER="X-Admin-Token: demo-token-ci-publish"
-          if [ -n "$CI_APP_PUBLISH_TOKEN" ]; then
-            TOKEN_HEADER="X-CI-Token: ${CI_APP_PUBLISH_TOKEN}"
+          if [ -z "$CI_APP_PUBLISH_TOKEN" ]; then
+            echo "⚠️ Secret CI_APP_PUBLISH_TOKEN não configurado — publicação in-app ignorada."
+            exit 0
           fi
+          TOKEN_HEADER="X-CI-Token: ${CI_APP_PUBLISH_TOKEN}"
 
           curl -sS -X POST "https://nova-versao-liga-do-bem.vercel.app/api/app/versions/publish" \
             -H "Content-Type: application/json" \

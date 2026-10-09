@@ -47,7 +47,39 @@ function getCloudinary() {
 
 let prisma: PrismaClient | null = null;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'liga-do-bem-secret-key';
+// JWT_SECRET obrigatório: sem fallback fixo. Valores que já vazaram no repositório são recusados.
+const LEAKED_JWT_SECRETS = new Set([
+  'liga-do-bem-secret-key',
+  'liga-do-bem-jwt-secret-key-2024-production',
+]);
+const JWT_SECRET_RAW = String(process.env.JWT_SECRET || '').trim();
+const JWT_SECRET_OK = JWT_SECRET_RAW.length >= 32 && !LEAKED_JWT_SECRETS.has(JWT_SECRET_RAW);
+// Se inválido, fica vazio: jwt.sign/verify lançam erro e o handler responde 503 antes de rotear.
+const JWT_SECRET = JWT_SECRET_OK ? JWT_SECRET_RAW : '';
+
+/** Token demo só é aceito com ALLOW_DEMO_ADMIN=true (nunca em produção). */
+function isDemoAdminToken(token?: string | null): boolean {
+  return process.env.ALLOW_DEMO_ADMIN === 'true' && String(token || '').startsWith('demo-token-');
+}
+
+/** Verifica se a requisição vem de um ADMIN (JWT com role ADMIN, via Authorization ou X-Admin-Token). */
+function isAdminRequest(req: any): boolean {
+  const candidates = [
+    extractBearerToken(req),
+    readHeader(req, 'x-admin-token'),
+  ].filter(Boolean) as string[];
+  for (const token of candidates) {
+    if (isDemoAdminToken(token)) return true;
+    if (!JWT_SECRET) continue;
+    try {
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      if (String(decoded?.role || '').toUpperCase() === 'ADMIN') return true;
+    } catch {
+      // tenta o próximo cabeçalho
+    }
+  }
+  return false;
+}
 
 /** Envia e-mail de recuperação de senha. Nunca loga o código. */
 async function sendPasswordResetEmail(to: string, code: string): Promise<{ ok: boolean; error?: string }> {
@@ -309,6 +341,20 @@ export default async function handler(req: any, res: any) {
   }
 
   console.log(`📥 ${method} ${path}`);
+
+  // Falha fechada: sem JWT_SECRET forte a API não autentica ninguém.
+  if (!JWT_SECRET_OK && path !== '/api/ping' && path !== '/ping') {
+    console.error('❌ JWT_SECRET ausente, curto (<32) ou igual a um valor vazado. Configure na Vercel.');
+    return res.status(503).json({ error: 'Servidor sem configuração de segurança (JWT_SECRET).' });
+  }
+
+  // Trava global de admin: toda rota administrativa exige JWT de ADMIN (exceto o próprio login).
+  const isAdminRoute =
+    (path.startsWith('/api/admin/') && path !== '/api/admin/login') ||
+    path.startsWith('/api/notifications/admin/');
+  if (isAdminRoute && !isAdminRequest(req)) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
   
   // DEBUG: Log específico para o endpoint de update/check
   if (path.includes('update/check') || req.url?.includes('update/check')) {
@@ -621,7 +667,7 @@ export default async function handler(req: any, res: any) {
         let authorized = false;
         if (ciToken && token && token === ciToken) authorized = true;
         if (!authorized && token) {
-          if (token.startsWith('demo-token-')) authorized = true;
+          if (isDemoAdminToken(token)) authorized = true;
           else {
             try {
               const decoded: any = jwt.verify(token, JWT_SECRET);
@@ -782,7 +828,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ ok: true, userId: auth.userId, role: 'ADMIN' });
       } catch (e: any) {
         const token = extractBearerToken(req) || '';
-        if (process.env.ALLOW_DEMO_ADMIN === 'true' && token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           return res.status(200).json({ ok: true, demo: true, role: 'ADMIN' });
         }
         return res.status(401).json({ error: e?.message || 'Token inválido' });
@@ -2932,7 +2978,7 @@ export default async function handler(req: any, res: any) {
         }
         // Aceitar token demo ou JWT válido
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -2990,7 +3036,7 @@ export default async function handler(req: any, res: any) {
         }
         // Aceitar token demo ou JWT válido
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
           console.log('✅ Demo token accepted');
         } else {
@@ -3120,7 +3166,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -3158,7 +3204,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -3212,7 +3258,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -3265,7 +3311,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -3894,7 +3940,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -3935,7 +3981,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -4034,7 +4080,7 @@ export default async function handler(req: any, res: any) {
             return resolve(sendErrorWithCORS(401, 'Unauthorized'));
           }
           let isAuthorized = false;
-          if (token.startsWith('demo-token-')) {
+          if (isDemoAdminToken(token)) {
             isAuthorized = true;
             console.log('✅ Demo token accepted');
           } else {
@@ -4199,7 +4245,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -4255,7 +4301,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -4294,7 +4340,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -4367,7 +4413,7 @@ export default async function handler(req: any, res: any) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
         let isAuthorized = false;
-        if (token.startsWith('demo-token-')) {
+        if (isDemoAdminToken(token)) {
           isAuthorized = true;
         } else {
           try {
@@ -5213,7 +5259,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let isAuthorized = token.startsWith('demo-token-');
+        let isAuthorized = isDemoAdminToken(token);
         if (!isAuthorized) {
           try {
             const decoded: any = jwt.verify(token, JWT_SECRET);
@@ -5312,7 +5358,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let isAuthorized = token.startsWith('demo-token-');
+        let isAuthorized = isDemoAdminToken(token);
         if (!isAuthorized) {
           try {
             const decoded: any = jwt.verify(token, JWT_SECRET);
@@ -5363,7 +5409,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5394,7 +5440,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5440,7 +5486,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5743,7 +5789,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5785,7 +5831,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5826,7 +5872,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5855,7 +5901,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5897,7 +5943,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5956,7 +6002,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -5986,7 +6032,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -6026,7 +6072,7 @@ export default async function handler(req: any, res: any) {
       try {
         const token = req.headers['x-admin-token'] || req.headers?.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        let ok = token.startsWith('demo-token-');
+        let ok = isDemoAdminToken(token);
         if (!ok) {
           try { const d: any = jwt.verify(token, JWT_SECRET); ok = d.role === 'ADMIN'; } catch {}
         }
@@ -7403,17 +7449,7 @@ export default async function handler(req: any, res: any) {
       }
       
       try {
-        // Verificar token administrativo
-        const adminToken = req.headers?.['x-admin-token'] || req.headers?.['authorization']?.replace('Bearer ', '');
-        const validAdminTokens = [
-          'demo-token-admin',
-          'liga-do-bem-admin-2024',
-          process.env.ADMIN_TOKEN || 'admin-secret-token'
-        ];
-        
-        if (!adminToken || !validAdminTokens.includes(adminToken)) {
-          return res.status(401).json({ error: 'Token administrativo inválido' });
-        }
+        // Autorização: garantida pela trava global de admin (JWT com role ADMIN).
 
         const migrationType = body.migrationType || 'cpf'; // 'cpf' ou 'new-features'
         

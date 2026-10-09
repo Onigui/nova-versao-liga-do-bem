@@ -101,9 +101,9 @@ Em **Environment Variables**, adicione todas as variáveis:
 
 ```env
 NODE_ENV=production
-DATABASE_URL=postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
-DIRECT_URL=postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
-JWT_SECRET=liga-do-bem-jwt-secret-key-2024-production
+DATABASE_URL=postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+DIRECT_URL=postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
+JWT_SECRET=<GERE_UM_SEGREDO_FORTE>
 JWT_EXPIRES_IN=7d
 FRONTEND_URL=https://nova-versao-liga-do-bem-web.vercel.app
 MOBILE_URL=exp://localhost:19000

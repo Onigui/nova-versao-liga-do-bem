@@ -68,8 +68,8 @@ O backend precisa ser redeployado no Render com as novas configurações:
 1. Acesse https://render.com
 2. Vá para o serviço `nova-versao-liga-do-bem-api`
 3. Vá em "Environment" e atualize:
-   - `DATABASE_URL`: `postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true`
-   - `DIRECT_URL`: `postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:5432/postgres`
+   - `DATABASE_URL`: `postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true`
+   - `DIRECT_URL`: `postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres`
 4. Clique em "Manual Deploy" → "Deploy latest commit"
 
 **Opção B: Via Git Push**

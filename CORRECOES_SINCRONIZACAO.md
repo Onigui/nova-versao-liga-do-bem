@@ -16,14 +16,14 @@ Foi identificado um problema de sincronização entre o site administrativo e o 
 
 **ANTES:**
 ```env
-DATABASE_URL="postgresql://liga_do_bem_user:pBtBA3L1YwpyivZe5aBtg9iNizeNWpc5@dpg-d3fjgjqli9vc73dte1r0-a/liga_do_bem_db"
+DATABASE_URL="postgresql://liga_do_bem_user:<SENHA_DO_BANCO>@dpg-d3fjgjqli9vc73dte1r0-a/liga_do_bem_db"
 ```
 
 **DEPOIS:**
 ```env
 # Database - Supabase PostgreSQL
-DATABASE_URL="postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
+DATABASE_URL="postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
 ```
 
 ### 2. Schema do Prisma
@@ -232,12 +232,12 @@ Após os deploys:
 
 **Connection String (com PgBouncer):**
 ```
-postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
 ```
 
 **Direct URL (para migrations):**
 ```
-postgresql://postgres.ushdgkfnxrxwqrnicdns:Onigui1973!@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
+postgresql://postgres.ushdgkfnxrxwqrnicdns:<SENHA_DO_BANCO>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
 ```
 
 ## 📝 Notas Importantes
