@@ -8,6 +8,7 @@ import {
   isPaidChargeStatus,
   mapPagBankStatusToPayment,
 } from './pagbank';
+import { approveDonationFromPayment, syncDonationFailure } from './donations';
 
 export function isMembershipCurrentlyActive(membership: {
   status?: string | null;
@@ -334,6 +335,19 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
   };
 }
 
+/** Aplica um pagamento aprovado conforme o tipo: assinatura ou doação. */
+export async function settleApprovedPayment(db: any, paymentId: string) {
+  const rows: any[] = await db.$queryRawUnsafe(
+    `SELECT type FROM payments WHERE id = $1 LIMIT 1`,
+    paymentId,
+  );
+  if (String(rows?.[0]?.type) === 'DONATION') {
+    return approveDonationFromPayment(db, paymentId);
+  }
+  return activateMembershipFromPayment(db, paymentId);
+}
+
+/** Consulta o pedido no PagBank e aplica o status (usado pelo webhook e pelo polling do app). */
 export async function syncPaymentFromPagBank(db: any, paymentId: string) {
   const rows: any[] = await db.$queryRawUnsafe(
     `SELECT id, "gatewayId", status FROM payments WHERE id = $1 LIMIT 1`,
@@ -346,16 +360,17 @@ export async function syncPaymentFromPagBank(db: any, paymentId: string) {
   const mapped = mapPagBankStatusToPayment(order.chargeStatus || order.status);
 
   if (mapped === 'APPROVED' || isPaidChargeStatus(order.chargeStatus)) {
-    return activateMembershipFromPayment(db, payment.id);
+    return settleApprovedPayment(db, payment.id);
   }
 
   if (mapped !== 'PENDING' && payment.status === 'PENDING') {
     await db.$executeRawUnsafe(
-      `UPDATE payments SET status = $1::"PaymentStatus", "updatedAt" = NOW(), "gatewayData" = $2::jsonb WHERE id = $3`,
+      `UPDATE payments SET status = $1::"PaymentStatus", "updatedAt" = NOW(), "gatewayData" = COALESCE("gatewayData", '{}'::jsonb) || $2::jsonb WHERE id = $3`,
       mapped,
-      JSON.stringify(order.raw || {}),
+      JSON.stringify({ lastOrder: order.raw || {} }),
       payment.id,
     );
+    await syncDonationFailure(db, payment.id, mapped);
   }
 
   return { ok: true, status: mapped, order };

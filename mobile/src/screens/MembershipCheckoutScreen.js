@@ -13,16 +13,31 @@ import {
   Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import QRCode from 'react-native-qrcode-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_PATH} from '../config/apiConfig';
 import PagBankCardEncryptor, {describeEncryptError} from '../components/PagBankCardEncryptor';
+import BoletoAddressForm, {
+  EMPTY_ADDRESS,
+  saveAddress,
+  validateAddress,
+} from '../components/BoletoAddressForm';
 
 const METHODS = [
   {id: 'PIX', label: 'PIX', icon: 'qr-code-outline', hint: 'Aprovação rápida'},
   {id: 'BOLETO', label: 'Boleto', icon: 'barcode-outline', hint: 'Compensa em 1–3 dias'},
   {id: 'CREDIT_CARD', label: 'Crédito', icon: 'card-outline', hint: 'Cartão de crédito com parcelamento'},
-  {id: 'DEBIT_CARD', label: 'Débito', icon: 'card-outline', hint: 'Cartão de débito à vista'},
 ];
+
+const STATUS_LABELS = {
+  PENDING: 'Aguardando pagamento',
+  APPROVED: 'Pagamento confirmado',
+  REJECTED: 'Pagamento recusado',
+  CANCELLED: 'Pagamento cancelado',
+  EXPIRED: 'Pagamento expirado',
+};
+const METHOD_LABELS = {PIX: 'PIX', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão de crédito'};
+const CPF_STORAGE_KEY = 'billing_cpf_v1';
 
 function formatMoney(value) {
   const n = Number(value || 0);
@@ -44,10 +59,16 @@ function Field({label, hint, children}) {
 }
 
 export default function MembershipCheckoutScreen({navigation, route}) {
+  // kind: 'membership' (assinatura, padrão) ou 'donation' (doação avulsa)
+  const isDonation = route?.params?.kind === 'donation';
+  const donationAmount = Number(route?.params?.amount || 0);
   const initialPlan = route?.params?.planCode || 'MONTHLY';
   const [plans, setPlans] = useState([]);
   const [planCode, setPlanCode] = useState(initialPlan);
-  const [method, setMethod] = useState('PIX');
+  const [method, setMethod] = useState(route?.params?.method || 'PIX');
+  const [address, setAddress] = useState(EMPTY_ADDRESS);
+  const [hasToken, setHasToken] = useState(true);
+  const [donor, setDonor] = useState({name: '', email: ''});
   const [cpf, setCpf] = useState(route?.params?.cpf || '');
   const [installments, setInstallments] = useState(1);
   const [installmentNote, setInstallmentNote] = useState('');
@@ -84,6 +105,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
   );
 
   const payLabel = useMemo(() => {
+    if (isDonation) return `Doar ${formatMoney(donationAmount)}`;
     if (!selectedPlan) return 'Pagar';
     if (method === 'CREDIT_CARD' && selectedInstallment) {
       if (selectedInstallment.installments === 1) {
@@ -94,10 +116,18 @@ export default function MembershipCheckoutScreen({navigation, route}) {
       )}`;
     }
     return `Pagar ${formatMoney(selectedPlan.amount)}`;
-  }, [selectedPlan, method, selectedInstallment]);
+  }, [selectedPlan, method, selectedInstallment, isDonation, donationAmount]);
 
   const loadPlans = useCallback(async () => {
     try {
+      const savedCpf = await AsyncStorage.getItem(CPF_STORAGE_KEY);
+      if (savedCpf) {
+        setCpf(prev => prev || savedCpf);
+      }
+      setHasToken(Boolean(await AsyncStorage.getItem('auth_token')));
+      if (isDonation) {
+        return;
+      }
       const token = await AsyncStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_PATH}/membership/plans`, {
         headers: {
@@ -123,7 +153,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
     } finally {
       setLoading(false);
     }
-  }, [planCode]);
+  }, [planCode, isDonation]);
 
   useEffect(() => {
     loadPlans();
@@ -186,7 +216,9 @@ export default function MembershipCheckoutScreen({navigation, route}) {
       try {
         const token = await AsyncStorage.getItem('auth_token');
         const response = await fetch(
-          `${API_BASE_PATH}/membership/payments/${paymentId}`,
+          isDonation
+            ? `${API_BASE_PATH}/donations/payments/${paymentId}`
+            : `${API_BASE_PATH}/membership/payments/${paymentId}`,
           {
             headers: {
               'Content-Type': 'application/json',
@@ -200,8 +232,10 @@ export default function MembershipCheckoutScreen({navigation, route}) {
           if (data.payment.status === 'APPROVED') {
             stopPolling();
             Alert.alert(
-              'Assinatura ativa!',
-              'Seu pagamento foi confirmado e o cartão de membro está ativo.',
+              isDonation ? 'Doação confirmada!' : 'Assinatura ativa!',
+              isDonation
+                ? 'Recebemos sua doação. Muito obrigado por ajudar os animais!'
+                : 'Seu pagamento foi confirmado e o cartão de membro está ativo.',
               [{text: 'OK', onPress: () => navigation.goBack()}],
             );
           } else if (['REJECTED', 'CANCELLED', 'EXPIRED'].includes(data.payment.status)) {
@@ -215,7 +249,24 @@ export default function MembershipCheckoutScreen({navigation, route}) {
   };
 
   const handleCheckout = async () => {
-    if (!selectedPlan) return;
+    if (!isDonation && !selectedPlan) return;
+    if (isDonation && !(donationAmount >= 1)) {
+      Alert.alert('Doação', 'O valor mínimo para doar é R$ 1,00.');
+      return;
+    }
+    if (isDonation && !hasToken) {
+      if (donor.name.trim().length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donor.email.trim())) {
+        Alert.alert('Seus dados', 'Informe nome e e-mail para emitir o pagamento.');
+        return;
+      }
+    }
+    if (method === 'BOLETO') {
+      const addrError = validateAddress(address);
+      if (addrError) {
+        Alert.alert('Endereço', addrError);
+        return;
+      }
+    }
     const taxId = onlyDigits(cpf);
     if (taxId.length !== 11) {
       Alert.alert('CPF', 'Informe um CPF válido para gerar o pagamento.');
@@ -238,12 +289,24 @@ export default function MembershipCheckoutScreen({navigation, route}) {
     setSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('auth_token');
-      const payload = {
-        planCode,
-        method,
-        cpf: taxId,
-        installments: method === 'CREDIT_CARD' ? installments : 1,
-      };
+      const payload = isDonation
+        ? {
+            amount: donationAmount,
+            method,
+            cpf: taxId,
+            recurring: Boolean(route?.params?.recurring),
+            description: route?.params?.description,
+            ...(hasToken ? {} : {donor: {name: donor.name.trim(), email: donor.email.trim()}}),
+          }
+        : {
+            planCode,
+            method,
+            cpf: taxId,
+            installments: method === 'CREDIT_CARD' ? installments : 1,
+          };
+      if (method === 'BOLETO') {
+        payload.address = address;
+      }
       if (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
         // Criptografa no aparelho com o SDK do PagBank: número e CVV nunca vão para a API.
         const keyRes = await fetch(`${API_BASE_PATH}/membership/card-public-key`, {
@@ -280,24 +343,32 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         setCard(prev => ({...prev, securityCode: ''}));
       }
 
-      const response = await fetch(`${API_BASE_PATH}/membership/checkout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `${API_BASE_PATH}/${isDonation ? 'donations' : 'membership'}/checkout`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? {Authorization: `Bearer ${token}`} : {}),
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         Alert.alert('Pagamento', data.error || 'Não foi possível iniciar o pagamento');
         return;
       }
+      // Próxima vez o CPF e o endereço já vêm preenchidos
+      AsyncStorage.setItem(CPF_STORAGE_KEY, taxId).catch(() => {});
+      if (method === 'BOLETO') {
+        saveAddress(address);
+      }
 
       setPayment(data.payment);
       if (data.payment?.status === 'APPROVED') {
         Alert.alert(
-          'Assinatura ativa!',
+          isDonation ? 'Doação confirmada!' : 'Assinatura ativa!',
           data.message || 'Pagamento aprovado.',
           [{text: 'OK', onPress: () => navigation.goBack()}],
         );
@@ -331,7 +402,9 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Assinar / Renovar</Text>
+        <Text style={styles.headerTitle}>
+          {isDonation ? 'Fazer doação' : 'Assinar / Renovar'}
+        </Text>
       </View>
 
       {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && (
@@ -341,13 +414,25 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={20} color="#0284C7" />
           <Text style={styles.infoBannerText}>
-            Só a assinatura de um plano ativa o cartão de membro e o QR Code.
-            Doações são apoio separado e não liberam a associação.
+            {isDonation
+              ? 'Sua doação vai direto para os cuidados com os animais. A confirmação é automática.'
+              : 'Só a assinatura de um plano ativa o cartão de membro e o QR Code. Doações são apoio separado e não liberam a associação.'}
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Escolha o plano</Text>
-        {plans.map(plan => {
+        {isDonation ? (
+          <View style={[styles.planCard, styles.planCardActive]}>
+            <View style={{flex: 1}}>
+              <Text style={styles.planName}>
+                {route?.params?.recurring ? 'Doação mensal' : 'Doação única'}
+              </Text>
+            </View>
+            <Text style={styles.planPrice}>{formatMoney(donationAmount)}</Text>
+          </View>
+        ) : (
+          <Text style={styles.sectionTitle}>Escolha o plano</Text>
+        )}
+        {!isDonation && plans.map(plan => {
           const active = plan.code === planCode;
           return (
             <TouchableOpacity
@@ -368,7 +453,9 @@ export default function MembershipCheckoutScreen({navigation, route}) {
 
         <Text style={[styles.sectionTitle, {marginTop: 18}]}>Forma de pagamento</Text>
         <View style={styles.methodsRow}>
-          {METHODS.map(item => {
+          {METHODS.filter(
+            item => !(isDonation && !hasToken && item.id === 'CREDIT_CARD'),
+          ).map(item => {
             const active = method === item.id;
             return (
               <TouchableOpacity
@@ -391,6 +478,31 @@ export default function MembershipCheckoutScreen({navigation, route}) {
           {METHODS.find(m => m.id === method)?.hint}
         </Text>
 
+        {isDonation && !hasToken ? (
+          <>
+            <Field label="Seu nome">
+              <TextInput
+                style={styles.input}
+                placeholder="Nome completo"
+                placeholderTextColor="#94A3B8"
+                value={donor.name}
+                onChangeText={v => setDonor(prev => ({...prev, name: v}))}
+              />
+            </Field>
+            <Field label="Seu e-mail" hint="Enviamos o comprovante para ele">
+              <TextInput
+                style={styles.input}
+                placeholder="voce@email.com"
+                placeholderTextColor="#94A3B8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={donor.email}
+                onChangeText={v => setDonor(prev => ({...prev, email: v}))}
+              />
+            </Field>
+          </>
+        ) : null}
+
         <Field
           label="CPF do pagador"
           hint="Necessário para emitir o pagamento no PagBank">
@@ -404,6 +516,10 @@ export default function MembershipCheckoutScreen({navigation, route}) {
             maxLength={14}
           />
         </Field>
+
+        {method === 'BOLETO' ? (
+          <BoletoAddressForm value={address} onChange={setAddress} />
+        ) : null}
 
         {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && (
           <View style={styles.cardBox}>
@@ -475,7 +591,9 @@ export default function MembershipCheckoutScreen({navigation, route}) {
               </View>
             </View>
 
-            {method === 'CREDIT_CARD' ? (
+            {method === 'CREDIT_CARD' && isDonation ? (
+              <Text style={styles.secureHint}>Doação no cartão é cobrada à vista.</Text>
+            ) : method === 'CREDIT_CARD' ? (
               <View style={styles.installmentsBox}>
                 <Text style={styles.fieldLabel}>Parcelamento</Text>
                 <Text style={styles.fieldHint}>
@@ -520,7 +638,8 @@ export default function MembershipCheckoutScreen({navigation, route}) {
             )}
 
             <Text style={styles.secureHint}>
-              Pagamento processado pela API PagBank. Não armazenamos o cartão no app.
+              Os dados do cartão são criptografados no seu celular e enviados direto ao
+              PagBank. A Liga do Bem não vê nem armazena o número do cartão.
             </Text>
           </View>
         )}
@@ -539,15 +658,22 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         ) : (
           <View style={styles.resultBox}>
             <Text style={styles.resultTitle}>
-              {payment.status === 'APPROVED' ? 'Pagamento aprovado' : 'Aguardando pagamento'}
+              {STATUS_LABELS[payment.status] || 'Aguardando pagamento'}
             </Text>
             <Text style={styles.resultSub}>
-              Status: {payment.status} · {payment.method}
+              {METHOD_LABELS[payment.method] || payment.method} ·{' '}
+              {formatMoney(payment.amount ?? (isDonation ? donationAmount : selectedPlan?.amount))}
             </Text>
 
             {payment.method === 'PIX' && (
               <>
-                {payment.pixQrImage ? (
+                {payment.pixCopyPaste ? (
+                  // QR gerado no aparelho a partir do copia-e-cola (é o mesmo conteúdo):
+                  // não depende de baixar a imagem do PagBank.
+                  <View style={styles.qrLocal}>
+                    <QRCode value={payment.pixCopyPaste} size={200} />
+                  </View>
+                ) : payment.pixQrImage ? (
                   <Image
                     source={{uri: payment.pixQrImage}}
                     style={styles.qrImage}
@@ -581,9 +707,16 @@ export default function MembershipCheckoutScreen({navigation, route}) {
               </>
             )}
 
-            <Text style={styles.pollHint}>
-              Assim que o PagBank confirmar, sua assinatura fica ativa automaticamente.
-            </Text>
+            {payment.status === 'PENDING' ? (
+              <Text style={styles.pollHint}>
+                {payment.method === 'BOLETO'
+                  ? 'O boleto compensa em 1 a 3 dias úteis. '
+                  : 'Pague pelo app do seu banco; esta tela atualiza sozinha. '}
+                {isDonation
+                  ? 'A doação é confirmada automaticamente.'
+                  : 'Assim que o PagBank confirmar, sua assinatura fica ativa.'}
+              </Text>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -735,6 +868,7 @@ const styles = StyleSheet.create({
   },
   resultTitle: {fontSize: 16, fontWeight: '700', color: '#0F172A'},
   resultSub: {marginTop: 4, color: '#64748B'},
+  qrLocal: {alignSelf: 'center', padding: 12, backgroundColor: '#FFFFFF', borderRadius: 12, marginVertical: 12},
   qrImage: {width: 180, height: 180, alignSelf: 'center', marginVertical: 12},
   secondaryBtn: {
     flexDirection: 'row',

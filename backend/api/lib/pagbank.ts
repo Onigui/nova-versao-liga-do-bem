@@ -69,7 +69,61 @@ export type CreateOrderInput = {
     total: number;
     installments: number;
   } | null;
+  /** Endereço do pagador — obrigatório para boleto (holder.address). */
+  address?: BoletoAddress | null;
+  /** Linhas de instrução do boleto (opcional). */
+  instructionLines?: [string, string];
 };
+
+export type BoletoAddress = {
+  street: string;
+  number: string;
+  complement?: string | null;
+  locality: string; // bairro
+  city: string;
+  regionCode: string; // UF, ex.: "SP"
+  postalCode: string; // CEP só dígitos
+};
+
+const UF_NAMES: Record<string, string> = {
+  AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará',
+  DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão', MT: 'Mato Grosso',
+  MS: 'Mato Grosso do Sul', MG: 'Minas Gerais', PA: 'Pará', PB: 'Paraíba', PR: 'Paraná',
+  PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte',
+  RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima', SC: 'Santa Catarina',
+  SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins',
+};
+
+/** Valida e normaliza o endereço do boleto. Retorna a mensagem de erro ou o endereço limpo. */
+export function normalizeBoletoAddress(raw: any): { address?: BoletoAddress; error?: string } {
+  const a = raw || {};
+  const postalCode = onlyDigits(a.postalCode ?? a.postal_code ?? a.cep);
+  const regionCode = String(a.regionCode ?? a.region_code ?? a.state ?? a.uf ?? '').trim().toUpperCase();
+  const address: BoletoAddress = {
+    street: String(a.street ?? a.logradouro ?? '').trim().slice(0, 160),
+    number: String(a.number ?? a.numero ?? '').trim().slice(0, 20),
+    complement: String(a.complement ?? a.complemento ?? '').trim().slice(0, 40) || null,
+    locality: String(a.locality ?? a.bairro ?? a.neighborhood ?? '').trim().slice(0, 60),
+    city: String(a.city ?? a.cidade ?? '').trim().slice(0, 90),
+    regionCode,
+    postalCode,
+  };
+  if (postalCode.length !== 8) return { error: 'CEP inválido (8 dígitos).' };
+  if (!UF_NAMES[regionCode]) return { error: 'Estado (UF) inválido.' };
+  if (!address.street || !address.number || !address.locality || !address.city) {
+    return { error: 'Endereço incompleto: informe rua, número, bairro e cidade.' };
+  }
+  return { address };
+}
+
+/** "Agora + offset" no fuso de Brasília (UTC-3, sem horário de verão desde 2019). */
+function brtParts(offsetMs: number) {
+  const d = new Date(Date.now() + offsetMs - 3 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  const time = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  return { date, dateTime: `${date}T${time}-03:00` };
+}
 
 export type PagBankOrderResult = {
   id: string;
@@ -78,6 +132,7 @@ export type PagBankOrderResult = {
   pixCopyPaste?: string | null;
   pixQrImage?: string | null;
   pixExpiration?: string | null;
+  boletoImage?: string | null;
   boletoUrl?: string | null;
   boletoBarcode?: string | null;
   boletoFormattedBarcode?: string | null;
@@ -156,6 +211,15 @@ function extractPaymentArtifacts(order: any): PagBankOrderResult {
     const hit = links.find((l) => rels.includes(String(l?.rel || '').toUpperCase()));
     return hit?.href || null;
   };
+  // Boleto: os links vêm todos como rel "SELF" (PDF, PNG e o link interno da API).
+  // O certo é escolher pelo tipo de mídia, priorizando os links do próprio boleto.
+  const boletoLinks: any[] = Array.isArray(boleto?.links) ? boleto.links : [];
+  const byMedia = (media: string) =>
+    [...boletoLinks, ...links].find((l) => String(l?.media || '').toLowerCase() === media)?.href || null;
+  const boletoPdf =
+    byMedia('application/pdf') ||
+    links.find((l) => ['PDF', 'BOLETO_PDF'].includes(String(l?.rel || '').toUpperCase()))?.href ||
+    null;
 
   return {
     id: order.id,
@@ -164,10 +228,8 @@ function extractPaymentArtifacts(order: any): PagBankOrderResult {
     pixCopyPaste: qr?.text || null,
     pixQrImage: qr?.links?.find((l: any) => l.rel === 'QRCODE.PNG')?.href || findLink('QRCODE.PNG'),
     pixExpiration: qr?.expiration_date || null,
-    boletoUrl:
-      findLink('PDF', 'BOLETO_PDF', 'SELF') ||
-      boleto?.formatted_barcode ||
-      null,
+    boletoUrl: boletoPdf,
+    boletoImage: byMedia('image/png'),
     boletoBarcode: boleto?.barcode || null,
     boletoFormattedBarcode: boleto?.formatted_barcode || null,
     chargeId: charge?.id || null,
@@ -377,18 +439,24 @@ export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBa
   };
 
   if (input.method === 'PIX') {
-    const expires = new Date(Date.now() + 60 * 60 * 1000);
-    // PagBank espera offset -03:00 tipicamente
-    const iso = expires.toISOString().replace('Z', '-03:00');
+    // Expira em 1h, no horário de Brasília (antes: hora UTC rotulada como -03:00 = 3h a mais)
     body.qr_codes = [
       {
         amount: { value: amount },
-        expiration_date: iso,
+        expiration_date: brtParts(60 * 60 * 1000).dateTime,
       },
     ];
   } else if (input.method === 'BOLETO') {
-    const due = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    const dueDate = due.toISOString().slice(0, 10);
+    if (!input.address) {
+      throw new Error('Endereço do pagador é obrigatório para boleto');
+    }
+    // Vencimento em 3 dias no calendário de Brasília (antes: data UTC, errada à noite)
+    const dueDate = brtParts(3 * 24 * 60 * 60 * 1000).date;
+    const addr = input.address;
+    const lines = input.instructionLines || [
+      'Pagamento da assinatura Liga do Bem',
+      'Em caso de dúvidas, contate a associação',
+    ];
     body.charges = [
       {
         reference_id: input.referenceId.slice(0, 64),
@@ -399,13 +467,24 @@ export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBa
           boleto: {
             due_date: dueDate,
             instruction_lines: {
-              line_1: 'Pagamento da assinatura Liga do Bem',
-              line_2: 'Em caso de dúvidas, contate a associação',
+              line_1: lines[0].slice(0, 75),
+              line_2: lines[1].slice(0, 75),
             },
             holder: {
               name: customer.name,
               tax_id: customer.tax_id,
               email: customer.email,
+              address: {
+                street: addr.street,
+                number: addr.number,
+                ...(addr.complement ? { complement: addr.complement } : {}),
+                locality: addr.locality,
+                city: addr.city,
+                region: UF_NAMES[addr.regionCode] || addr.regionCode,
+                region_code: addr.regionCode,
+                country: 'Brasil',
+                postal_code: addr.postalCode,
+              },
             },
           },
         },

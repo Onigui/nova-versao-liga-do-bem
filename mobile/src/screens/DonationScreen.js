@@ -7,15 +7,10 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Clipboard,
-  Modal,
-  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAuth} from '../services/AuthService';
-import {API_BASE_PATH} from '../config/apiConfig';
 
 export default function DonationScreen({navigation}) {
   const {user} = useAuth();
@@ -23,11 +18,6 @@ export default function DonationScreen({navigation}) {
   const [amount, setAmount] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState(null); // 'pix', 'card', 'boleto'
-  const [submitting, setSubmitting] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [pixModalVisible, setPixModalVisible] = useState(false);
-  const [pixData, setPixData] = useState(null);
-  const [donationId, setDonationId] = useState(null);
 
   const predefinedAmounts = [
     {value: 10, label: 'R$ 10'},
@@ -59,153 +49,30 @@ export default function DonationScreen({navigation}) {
       Alert.alert('Atenção', 'Selecione um valor para doar');
       return;
     }
-    if (method !== 'pix') {
-      Alert.alert(
-        'Em breve',
-        'No momento só aceitamos doações via PIX. Cartão e boleto estarão disponíveis em breve.',
-      );
-      setPaymentMethod('pix');
-      return;
-    }
     setPaymentMethod(method);
   };
 
-  const handleDonate = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Atenção', 'Selecione um valor para doar');
+  const METHOD_IDS = {pix: 'PIX', card: 'CREDIT_CARD', boleto: 'BOLETO'};
+
+  const handleDonate = () => {
+    const value = parseFloat(amount);
+    if (!value || value < 1) {
+      Alert.alert('Atenção', 'O valor mínimo para doar é R$ 1,00');
       return;
     }
-
     if (!paymentMethod) {
       Alert.alert('Atenção', 'Selecione a forma de pagamento');
       return;
     }
-
-    if (paymentMethod !== 'pix') {
-      Alert.alert(
-        'Em breve',
-        'No momento só aceitamos doações via PIX. Selecione PIX para continuar.',
-      );
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${API_BASE_PATH}/donations`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          method: 'PIX',
-          recurring: donationType === 'recurring',
-          description:
-            donationType === 'recurring'
-              ? 'Doação mensal via app'
-              : 'Doação única via app',
-        }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        Alert.alert('Erro', data.error || 'Não foi possível criar a doação');
-        return;
-      }
-
-      if (!data.pix?.key) {
-        Alert.alert(
-          'Atenção',
-          data.error ||
-            'Doação registrada, mas a chave PIX ainda não está configurada. Contate a Liga do Bem.',
-        );
-        return;
-      }
-
-      setDonationId(data.donation?.id || null);
-      setPixData({
-        key: data.pix.key,
-        holderName: data.pix.holderName,
-        city: data.pix.city,
-        amount: data.pix.amount || parseFloat(amount),
-      });
-      setPixModalVisible(true);
-    } catch (error) {
-      console.error('Erro ao criar doação:', error);
-      Alert.alert(
-        'Erro',
-        'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const copyPixKey = () => {
-    if (!pixData?.key) return;
-    Clipboard.setString(pixData.key);
-    Alert.alert('Copiado!', 'Chave PIX copiada para a área de transferência.');
-  };
-
-  const confirmPayment = async () => {
-    if (!donationId) {
-      Alert.alert('Erro', 'Doação não encontrada. Tente novamente.');
-      return;
-    }
-
-    setConfirming(true);
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${API_BASE_PATH}/donations/confirm`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({donationId}),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        Alert.alert('Erro', data.error || 'Não foi possível confirmar a doação');
-        return;
-      }
-
-      setPixModalVisible(false);
-      Alert.alert(
-        'Obrigado!',
-        data.awaitingAdmin
-          ? `Recebemos o aviso do seu PIX de R$ ${parseFloat(amount).toFixed(2)}. A Liga do Bem vai confirmar e a doação aparecerá como aprovada no histórico.`
-          : `Sua doação de R$ ${parseFloat(amount).toFixed(2)} foi registrada. Você pode vê-la em Minhas Doações.`,
-        [
-          {
-            text: 'Ver minhas doações',
-            onPress: () => navigation.navigate('MyDonations'),
-          },
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ],
-      );
-    } catch (error) {
-      console.error('Erro ao confirmar doação:', error);
-      Alert.alert('Erro', 'Falha ao confirmar. Tente novamente.');
-    } finally {
-      setConfirming(false);
-    }
+    // PIX com QR Code, boleto e cartão pelo PagBank, com confirmação automática.
+    navigation.navigate('MembershipCheckout', {
+      kind: 'donation',
+      amount: value,
+      method: METHOD_IDS[paymentMethod] || 'PIX',
+      recurring: donationType === 'recurring',
+      description:
+        donationType === 'recurring' ? 'Doação mensal via app' : 'Doação única via app',
+    });
   };
 
   return (
@@ -273,8 +140,8 @@ export default function DonationScreen({navigation}) {
         </View>
         {donationType === 'recurring' ? (
           <Text style={styles.recurringHint}>
-            A doação mensal registra sua intenção. O PIX deste mês é feito agora;
-            a renovação automática chega em breve.
+            A doação mensal registra sua intenção. O pagamento deste mês é feito
+            agora; a cobrança automática mensal ainda não está disponível.
           </Text>
         ) : null}
       </View>
@@ -335,7 +202,7 @@ export default function DonationScreen({navigation}) {
               <View>
                 <Text style={styles.paymentMethodTitle}>PIX</Text>
                 <Text style={styles.paymentMethodSubtitle}>
-                  Disponível agora
+                  QR Code com confirmação automática
                 </Text>
               </View>
             </View>
@@ -345,7 +212,10 @@ export default function DonationScreen({navigation}) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.paymentMethod}
+            style={[
+              styles.paymentMethod,
+              paymentMethod === 'card' && styles.paymentMethodActive,
+            ]}
             onPress={() => handlePaymentMethod('card')}>
             <View style={styles.paymentMethodLeft}>
               <View style={[styles.paymentIcon, {backgroundColor: '#DBEAFE'}]}>
@@ -353,13 +223,21 @@ export default function DonationScreen({navigation}) {
               </View>
               <View>
                 <Text style={styles.paymentMethodTitle}>Cartão de Crédito</Text>
-                <Text style={styles.paymentMethodSubtitle}>Em breve</Text>
+                <Text style={styles.paymentMethodSubtitle}>
+                  Aprovação na hora
+                </Text>
               </View>
             </View>
+            {paymentMethod === 'card' && (
+              <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.paymentMethod}
+            style={[
+              styles.paymentMethod,
+              paymentMethod === 'boleto' && styles.paymentMethodActive,
+            ]}
             onPress={() => handlePaymentMethod('boleto')}>
             <View style={styles.paymentMethodLeft}>
               <View style={[styles.paymentIcon, {backgroundColor: '#FEF3C7'}]}>
@@ -367,9 +245,14 @@ export default function DonationScreen({navigation}) {
               </View>
               <View>
                 <Text style={styles.paymentMethodTitle}>Boleto Bancário</Text>
-                <Text style={styles.paymentMethodSubtitle}>Em breve</Text>
+                <Text style={styles.paymentMethodSubtitle}>
+                  Compensa em 1 a 3 dias úteis
+                </Text>
               </View>
             </View>
+            {paymentMethod === 'boleto' && (
+              <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -399,28 +282,21 @@ export default function DonationScreen({navigation}) {
         <View style={styles.donateButtonContainer}>
           <TouchableOpacity
             style={styles.donateButton}
-            onPress={handleDonate}
-            disabled={submitting}>
+            onPress={handleDonate}>
             <LinearGradient
               colors={['#8B5CF6', '#7C3AED']}
               style={styles.donateButtonGradient}
               start={{x: 0, y: 0}}
               end={{x: 1, y: 0}}>
-              {submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons
-                    name="heart"
-                    size={20}
-                    color="#FFFFFF"
-                    style={{marginRight: 8}}
-                  />
-                  <Text style={styles.donateButtonText}>
-                    Doar R$ {parseFloat(amount).toFixed(2)}
-                  </Text>
-                </>
-              )}
+              <Ionicons
+                name="heart"
+                size={20}
+                color="#FFFFFF"
+                style={{marginRight: 8}}
+              />
+              <Text style={styles.donateButtonText}>
+                Continuar · R$ {parseFloat(amount).toFixed(2)}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -461,63 +337,6 @@ export default function DonationScreen({navigation}) {
         </View>
       </View>
 
-      <Modal
-        visible={pixModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setPixModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="qr-code" size={28} color="#10B981" />
-              <Text style={styles.modalTitle}>Pagar com PIX</Text>
-            </View>
-
-            <Text style={styles.modalAmount}>
-              R$ {pixData ? Number(pixData.amount).toFixed(2) : '0,00'}
-            </Text>
-            <Text style={styles.modalHolder}>
-              {pixData?.holderName || 'Liga do Bem Botucatu'}
-              {pixData?.city ? ` · ${pixData.city}` : ''}
-            </Text>
-
-            <Text style={styles.modalLabel}>Chave PIX</Text>
-            <View style={styles.pixKeyBox}>
-              <Text style={styles.pixKeyText} selectable>
-                {pixData?.key}
-              </Text>
-            </View>
-
-            <TouchableOpacity style={styles.copyButton} onPress={copyPixKey}>
-              <Ionicons name="copy-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.copyButtonText}>Copiar chave PIX</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.modalHint}>
-              Abra o app do seu banco, cole a chave, confira o valor e finalize o
-              PIX. Depois toque em “Já paguei”.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={confirmPayment}
-              disabled={confirming}>
-              {confirming ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.confirmButtonText}>Já paguei</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setPixModalVisible(false)}
-              disabled={confirming}>
-              <Text style={styles.cancelButtonText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
