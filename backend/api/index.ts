@@ -11,6 +11,7 @@ import {
   getPagBankConfig,
   getPagBankInstallmentPlans,
   getPagBankCardPublicKey,
+  normalizeBoletoAddress,
   getPagBankOrder,
   cashInstallmentOption,
   isPaidChargeStatus,
@@ -27,6 +28,7 @@ import {
 } from './lib/membershipBilling';
 import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
 import { verifyGithubOidc } from './lib/githubOidc';
+import { approveDonationFromPayment } from './lib/donations';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
 // Cloudinary para upload de imagens
@@ -5031,6 +5033,228 @@ export default async function handler(req: any, res: any) {
     }
 
     // GET PIX donation info (public)
+    // Chave pública de cartão para doações sem login (site). É uma chave PÚBLICA RSA:
+    // só serve para criptografar; apenas o PagBank consegue abrir o resultado.
+    if (path === '/api/donations/card-public-key' && method === 'GET') {
+      if (!getPagBankConfig().configured) {
+        return res.status(503).json({ error: 'Pagamentos ainda não configurados.' });
+      }
+      try {
+        return res.status(200).json({ publicKey: await getPagBankCardPublicKey() });
+      } catch (e: any) {
+        console.error('❌ PagBank public key (doação):', e?.payload || e?.message);
+        return res.status(502).json({ error: 'Não foi possível obter a chave de criptografia do cartão.' });
+      }
+    }
+
+    // ===== Doações pelo PagBank (PIX, boleto e cartão) — confirmação automática =====
+    if (path === '/api/donations/checkout' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      if (!getPagBankConfig().configured) {
+        return res.status(503).json({ error: 'Pagamentos ainda não configurados.' });
+      }
+      try {
+        const amount = Math.round(Number(String(body?.amount ?? '').replace(',', '.')) * 100) / 100;
+        if (!Number.isFinite(amount) || amount < 1) {
+          return res.status(400).json({ error: 'O valor mínimo para doar é R$ 1,00.' });
+        }
+        if (amount > 100000) {
+          return res.status(400).json({ error: 'Valor máximo por doação: R$ 100.000,00' });
+        }
+        const payMethod = String(body?.method || 'PIX').toUpperCase();
+        if (!['PIX', 'BOLETO', 'CREDIT_CARD'].includes(payMethod)) {
+          return res.status(400).json({ error: 'Forma de pagamento inválida. Use PIX, BOLETO ou CREDIT_CARD.' });
+        }
+        if (payMethod === 'CREDIT_CARD' && !body?.card?.encrypted) {
+          return res.status(400).json({
+            error: 'Atualize o aplicativo para doar com cartão com segurança.',
+            code: 'CARD_ENCRYPTION_REQUIRED',
+          });
+        }
+
+        // Login é opcional (o site aceita doação sem conta).
+        let userId: string | null = null;
+        let user: any = null;
+        if (extractBearerToken(req)) {
+          try {
+            userId = decodeAuthUser(req).userId;
+            const rows: any[] = await db.$queryRawUnsafe(
+              `SELECT id, name, email, phone FROM users WHERE id = $1 LIMIT 1`,
+              userId
+            );
+            user = rows?.[0] || null;
+          } catch (authErr: any) {
+            return res.status(401).json({ error: authErr?.message || 'Token inválido' });
+          }
+        }
+        const donorName = String(body?.donor?.name || body?.donorName || user?.name || '').trim();
+        const donorEmail = String(body?.donor?.email || body?.donorEmail || user?.email || '').trim().toLowerCase();
+        const donorPhone = String(body?.donor?.phone || body?.phone || user?.phone || '').trim() || null;
+        if (donorName.length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail)) {
+          return res.status(400).json({ error: 'Informe nome e e-mail válidos para emitir o pagamento.' });
+        }
+        const taxId = String(body?.cpf || '').replace(/\D/g, '');
+        if (taxId.length !== 11 && taxId.length !== 14) {
+          return res.status(400).json({ error: 'CPF necessário para gerar o pagamento.', code: 'CPF_REQUIRED' });
+        }
+        let address: any = null;
+        if (payMethod === 'BOLETO') {
+          const norm = normalizeBoletoAddress(body?.address);
+          if (norm.error) return res.status(400).json({ error: norm.error, code: 'ADDRESS_REQUIRED' });
+          address = norm.address;
+        }
+
+        // Proteção contra abuso (endpoint público): até 5 doações pendentes por e-mail em 15 min.
+        const recentRows: any[] = await db.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS c FROM donations
+           WHERE lower("donorEmail") = $1 AND status = 'PENDING' AND "createdAt" > NOW() - INTERVAL '15 minutes'`,
+          donorEmail
+        );
+        if ((recentRows?.[0]?.c || 0) >= 5) {
+          return res.status(429).json({ error: 'Muitas doações pendentes. Pague uma das anteriores ou aguarde alguns minutos.' });
+        }
+
+        const isAnonymous = !!body?.isAnonymous;
+        const descParts: string[] = [];
+        if (body?.recurring) descParts.push('Doação mensal (intenção)');
+        if (body?.description) descParts.push(String(body.description).slice(0, 180));
+        const description = descParts.join(' — ') || 'Doação via PagBank';
+
+        const crypto = require('crypto');
+        const donationId = crypto.randomUUID();
+        const paymentId = crypto.randomUUID();
+        await db.$executeRawUnsafe(
+          `INSERT INTO donations
+            (id, "userId", amount, method, status, "transactionId", description, "isAnonymous",
+             "donorName", "donorEmail", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4::"PaymentMethod", 'PENDING', $5, $6, $7, $8, $9, NOW(), NOW())`,
+          donationId, userId, amount, payMethod, paymentId, description, isAnonymous,
+          donorName, donorEmail
+        );
+
+        const apiBase = process.env.API_PUBLIC_URL || process.env.BACKEND_URL || 'https://nova-versao-liga-do-bem.vercel.app';
+        let order;
+        try {
+          order = await createPagBankOrder({
+            referenceId: `DON-${paymentId.slice(0, 8)}`,
+            amountCents: Math.round(amount * 100),
+            description: 'Doação — Liga do Bem Botucatu',
+            customer: { name: donorName, email: donorEmail, taxId, phone: donorPhone },
+            method: payMethod as any,
+            notificationUrl: `${apiBase.replace(/\/$/, '')}/api/webhooks/pagbank`,
+            card: payMethod === 'CREDIT_CARD'
+              ? { encrypted: body.card.encrypted, holderName: body.card.holderName || donorName }
+              : undefined,
+            installments: 1,
+            address,
+            instructionLines: ['Doação para a Liga do Bem Botucatu', 'Obrigado por ajudar os animais!'],
+          });
+        } catch (e: any) {
+          console.error('❌ PagBank doação:', e?.payload || e?.message);
+          await db.$executeRawUnsafe(
+            `UPDATE donations SET status = 'REJECTED', "updatedAt" = NOW() WHERE id = $1`,
+            donationId
+          );
+          return res.status(502).json({ error: e?.message || 'Falha ao gerar o pagamento no PagBank' });
+        }
+
+        const immediatePaid = isPaidChargeStatus(order.chargeStatus);
+        const declined = ['DECLINED', 'CANCELED', 'CANCELLED'].includes(String(order.chargeStatus || '').toUpperCase());
+        await db.$executeRawUnsafe(
+          `INSERT INTO payments
+            (id, amount, description, type, status, gateway, "gatewayId", "paymentUrl", "qrCode",
+             "expiresAt", "gatewayData", "userEmail", "userName", "userPhone", "userId",
+             method, "pixCopyPaste", "boletoUrl", "boletoBarcode", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, 'DONATION', $4::"PaymentStatus", 'PAGBANK', $5, $6, $7,
+             $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())`,
+          paymentId, amount, description, declined ? 'REJECTED' : 'PENDING', order.id,
+          order.paymentLink || order.boletoUrl || null, order.pixQrImage || null,
+          order.pixExpiration ? new Date(order.pixExpiration) : null,
+          JSON.stringify({ ...(order.raw || {}), donationId }),
+          donorEmail, donorName, donorPhone, userId, payMethod,
+          order.pixCopyPaste || null, order.boletoUrl || null,
+          order.boletoFormattedBarcode || order.boletoBarcode || null
+        );
+
+        let status = declined ? 'REJECTED' : 'PENDING';
+        if (immediatePaid) {
+          await approveDonationFromPayment(db, paymentId);
+          status = 'APPROVED';
+        } else if (declined) {
+          await db.$executeRawUnsafe(`UPDATE donations SET status = 'REJECTED', "updatedAt" = NOW() WHERE id = $1`, donationId);
+        }
+
+        return res.status(200).json({
+          donation: { id: donationId, amount, status, method: payMethod },
+          payment: {
+            id: paymentId,
+            status,
+            method: payMethod,
+            amount,
+            pixCopyPaste: order.pixCopyPaste || null,
+            pixQrImage: order.pixQrImage || null,
+            pixExpiration: order.pixExpiration || null,
+            boletoUrl: order.boletoUrl || null,
+            boletoBarcode: order.boletoFormattedBarcode || order.boletoBarcode || null,
+          },
+          message: status === 'APPROVED'
+            ? 'Doação confirmada! Muito obrigado.'
+            : status === 'REJECTED'
+              ? 'Pagamento recusado pelo emissor do cartão.'
+              : payMethod === 'PIX'
+                ? 'PIX gerado. A confirmação é automática assim que você pagar.'
+                : 'Boleto gerado. A confirmação acontece após a compensação (1 a 3 dias úteis).',
+        });
+      } catch (error: any) {
+        console.error('❌ Erro no checkout de doação:', error);
+        return res.status(500).json({ error: 'Erro ao iniciar a doação', detail: error?.message });
+      }
+    }
+
+    // Status de uma doação paga pelo PagBank. Público pelo id (UUID não adivinhável), sem dados pessoais.
+    if (path.startsWith('/api/donations/payments/') && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      const paymentId = path.split('/api/donations/payments/')[1]?.split('/')[0] || '';
+      if (!/^[0-9a-f-]{36}$/i.test(paymentId)) return res.status(400).json({ error: 'id inválido' });
+      try {
+        const load = async () => {
+          const rows: any[] = await db.$queryRawUnsafe(
+            `SELECT id, status, method, amount, "gatewayId", "pixCopyPaste", "qrCode", "boletoUrl", "boletoBarcode", "paidAt"
+             FROM payments WHERE id = $1 AND type = 'DONATION' LIMIT 1`,
+            paymentId
+          );
+          return rows?.[0];
+        };
+        let p = await load();
+        if (!p) return res.status(404).json({ error: 'Doação não encontrada' });
+        if (p.status === 'PENDING' && p.gatewayId) {
+          try {
+            await syncPaymentFromPagBank(db, p.id);
+            p = await load();
+          } catch (e) {
+            console.warn('⚠️ Sync doação falhou:', (e as any)?.message);
+          }
+        }
+        return res.status(200).json({
+          payment: {
+            id: p.id,
+            status: p.status,
+            method: p.method,
+            amount: Number(p.amount),
+            pixCopyPaste: p.pixCopyPaste,
+            pixQrImage: p.qrCode,
+            boletoUrl: p.boletoUrl,
+            boletoBarcode: p.boletoBarcode,
+            paidAt: p.paidAt,
+          },
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: 'Erro ao consultar doação' });
+      }
+    }
+
     if (path === '/api/donations/pix-info' && method === 'GET') {
       const db = getPrisma();
       if (!db) {
@@ -6827,6 +7051,15 @@ export default async function handler(req: any, res: any) {
           });
         }
 
+        let boletoAddress: any = null;
+        if (method === 'BOLETO') {
+          const norm = normalizeBoletoAddress(body.address);
+          if (norm.error) {
+            return res.status(400).json({ error: norm.error, code: 'ADDRESS_REQUIRED' });
+          }
+          boletoAddress = norm.address;
+        }
+
         // Garante membership
         let memberships: any[] = await db.$queryRawUnsafe(
           `SELECT id, "memberId", "endDate", "qrCode" FROM memberships WHERE "userId" = $1 LIMIT 1`,
@@ -6888,6 +7121,7 @@ export default async function handler(req: any, res: any) {
                 }
               : undefined,
             installments: installmentQuote.installments,
+            address: boletoAddress,
             buyerInterest:
               method === 'CREDIT_CARD' && installmentQuote.buyerInterestTotalCents > 0
                 ? {
@@ -7097,18 +7331,9 @@ export default async function handler(req: any, res: any) {
         for (const p of paymentRows || []) {
           if (p.gatewayId) {
             try {
-              const order = await getPagBankOrder(p.gatewayId);
-              const mapped = mapPagBankStatusToPayment(order.chargeStatus || order.status);
-              if (mapped === 'APPROVED' || isPaidChargeStatus(order.chargeStatus)) {
-                await activateMembershipFromPayment(db, p.id);
-              } else if (p.status === 'PENDING' && mapped !== 'PENDING') {
-                await db.$executeRawUnsafe(
-                  `UPDATE payments SET status = $1::"PaymentStatus", "updatedAt" = NOW(), "gatewayData" = $2::jsonb WHERE id = $3`,
-                  mapped,
-                  JSON.stringify(order.raw || body),
-                  p.id
-                );
-              }
+              // Consulta o pedido no PagBank (nunca confia no corpo do webhook) e aplica:
+              // assinatura ou doação, de forma idempotente.
+              await syncPaymentFromPagBank(db, p.id);
             } catch (e) {
               console.warn('⚠️ Webhook sync falhou para', p.id, (e as any)?.message);
             }

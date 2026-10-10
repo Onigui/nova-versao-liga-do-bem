@@ -889,6 +889,16 @@
                 grid-template-columns: 1fr;
             }
         }
+        .hidden { display: none !important; }
+        .form-hint { font-size: 0.85rem; color: #6B7280; margin: 6px 0 10px; }
+        .form-error { color: #B91C1C; font-weight: 600; margin: 10px 0; }
+        .method-options { display: flex; gap: 10px; flex-wrap: wrap; }
+        .method-options .payment-option { flex: 1; min-width: 90px; }
+        .pix-qr { width: 220px; height: 220px; object-fit: contain; }
+        .result-status { font-weight: 700; }
+        .result-status.ok { color: #047857; }
+        .result-status.fail { color: #B91C1C; }
+        .boleto-link { display: inline-block; text-align: center; text-decoration: none; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -1013,14 +1023,59 @@
                     </div>
                     
                     <div class="donor-info">
-                        <h4>Seus Dados (opcional)</h4>
+                        <h4>Seus Dados</h4>
+                        <p class="form-hint">Necessários para o banco emitir o pagamento e enviar o comprovante.</p>
                         <div class="form-row">
-                            <input type="text" id="donorName" placeholder="Seu nome">
-                            <input type="email" id="donorEmail" placeholder="Seu e-mail">
+                            <input type="text" id="donorName" placeholder="Nome completo *" autocomplete="name">
+                            <input type="email" id="donorEmail" placeholder="E-mail *" autocomplete="email">
                         </div>
-                        <input type="tel" id="donorPhone" placeholder="Seu telefone (opcional)">
+                        <div class="form-row">
+                            <input type="text" id="donorCpf" placeholder="CPF *" inputmode="numeric" maxlength="14">
+                            <input type="tel" id="donorPhone" placeholder="Telefone (opcional)" autocomplete="tel">
+                        </div>
                     </div>
-                    
+
+                    <div class="donor-info">
+                        <h4>Forma de Pagamento</h4>
+                        <div class="payment-options method-options">
+                            <button type="button" class="payment-option selected" data-method="PIX"><span>⚡</span> PIX</button>
+                            <button type="button" class="payment-option" data-method="CREDIT_CARD"><span>💳</span> Cartão</button>
+                            <button type="button" class="payment-option" data-method="BOLETO"><span>📄</span> Boleto</button>
+                        </div>
+                        <p class="form-hint" id="methodHint">QR Code na hora, com confirmação automática.</p>
+                    </div>
+
+                    <div class="donor-info hidden" id="boletoFields">
+                        <h4>Endereço do Pagador</h4>
+                        <p class="form-hint">Exigido pelo banco para registrar o boleto. O CEP preenche o resto.</p>
+                        <div class="form-row">
+                            <input type="text" id="addrCep" placeholder="CEP *" inputmode="numeric" maxlength="9">
+                            <input type="text" id="addrNumber" placeholder="Número *">
+                        </div>
+                        <input type="text" id="addrStreet" placeholder="Rua *">
+                        <div class="form-row">
+                            <input type="text" id="addrComplement" placeholder="Complemento">
+                            <input type="text" id="addrLocality" placeholder="Bairro *">
+                        </div>
+                        <div class="form-row">
+                            <input type="text" id="addrCity" placeholder="Cidade *">
+                            <input type="text" id="addrUf" placeholder="UF *" maxlength="2">
+                        </div>
+                    </div>
+
+                    <div class="donor-info hidden" id="cardFields">
+                        <h4>Dados do Cartão</h4>
+                        <p class="form-hint">🔒 Criptografado no seu navegador pelo PagBank. A Liga do Bem não vê o número do cartão.</p>
+                        <input type="text" id="cardHolder" placeholder="Nome impresso no cartão *" autocomplete="cc-name">
+                        <input type="text" id="cardNumber" placeholder="Número do cartão *" inputmode="numeric" maxlength="19" autocomplete="cc-number">
+                        <div class="form-row">
+                            <input type="text" id="cardExp" placeholder="Validade MM/AA *" maxlength="5" autocomplete="cc-exp">
+                            <input type="password" id="cardCvv" placeholder="CVV *" inputmode="numeric" maxlength="4" autocomplete="cc-csc">
+                        </div>
+                    </div>
+
+                    <p class="form-error hidden" id="donationError"></p>
+
                     <button class="donate-btn" onclick="processDonation()">
                         <span class="loading" style="display: none;"></span>
                         <span class="btn-text">Doar Agora</span>
@@ -1068,73 +1123,33 @@
     <div id="paymentModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Processando Pagamento</h3>
+                <h3 id="resultTitle">Doação</h3>
                 <button class="close-modal" onclick="closePaymentModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="payment-info">
                     <p><strong>Valor:</strong> <span id="paymentAmount"></span></p>
-                    <p><strong>Descrição:</strong> <span id="paymentDescription"></span></p>
+                    <p id="resultStatus" class="result-status"></p>
                 </div>
-                
-                <div class="payment-options">
-                    <button class="payment-option" onclick="payWithPIX()">
-                        <span>🔗</span>
-                        PIX
-                    </button>
-                    <button class="payment-option" onclick="payWithCard()">
-                        <span>💳</span>
-                        Cartão de Crédito
-                    </button>
-                    <button class="payment-option" onclick="payWithBoleto()">
-                        <span>📄</span>
-                        Boleto Bancário
-                    </button>
-                </div>
-                
-                <div id="pixPayment" class="payment-method" style="display: none;">
-                    <div class="qr-code-container">
-                        <div id="qrCode"></div>
-                        <p>Escaneie o QR Code com seu app do banco</p>
-                    </div>
+                <div id="pixResult" class="hidden">
+                    <div class="qr-code-container"><img id="pixQrImage" alt="QR Code PIX" class="pix-qr" onerror="this.classList.add('hidden')" onload="this.classList.remove('hidden')"></div>
                     <div class="pix-copy">
-                        <label>Ou copie o código PIX:</label>
+                        <label>Ou copie o código PIX (copia e cola):</label>
                         <div class="copy-container">
                             <input type="text" id="pixCode" readonly>
                             <button onclick="copyPixCode()">Copiar</button>
                         </div>
                     </div>
+                    <p class="form-hint">Pague pelo app do seu banco. Esta janela confirma sozinha quando o pagamento cair.</p>
                 </div>
-                
-                <div id="cardPayment" class="payment-method" style="display: none;">
-                    <form id="cardForm">
-                        <div class="form-group">
-                            <label>Número do Cartão</label>
-                            <input type="text" placeholder="0000 0000 0000 0000" maxlength="19">
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Validade</label>
-                                <input type="text" placeholder="MM/AA" maxlength="5">
-                            </div>
-                            <div class="form-group">
-                                <label>CVV</label>
-                                <input type="text" placeholder="000" maxlength="3">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Nome no Cartão</label>
-                            <input type="text" placeholder="Nome completo">
-                        </div>
-                        <button type="submit" class="process-payment-btn">Processar Pagamento</button>
-                    </form>
-                </div>
-                
-                <div id="boletoPayment" class="payment-method" style="display: none;">
-                    <div class="boleto-info">
-                        <p>📄 O boleto será gerado e enviado para seu e-mail</p>
-                        <button class="generate-boleto-btn" onclick="generateBoleto()">Gerar Boleto</button>
+                <div id="boletoResult" class="hidden">
+                    <p><strong>Linha digitável:</strong></p>
+                    <div class="copy-container">
+                        <input type="text" id="boletoCode" readonly>
+                        <button onclick="copyBoletoCode()">Copiar</button>
                     </div>
+                    <p><a id="boletoLink" class="donate-btn boleto-link" target="_blank" rel="noopener">Abrir boleto (PDF)</a></p>
+                    <p class="form-hint">O boleto compensa em 1 a 3 dias úteis; a doação é confirmada automaticamente.</p>
                 </div>
             </div>
         </div>
@@ -1407,213 +1422,232 @@
         console.log('🐾 Liga do Bem Botucatu - Site carregado com sucesso!');
         console.log('📱 Backend API: https://nova-versao-liga-do-bem.vercel.app');
         console.log('🌐 Frontend Web: https://nova-versao-liga-do-bem-web.vercel.app');
-        // Payment System JavaScript
+        // ===== Doações reais pelo PagBank (PIX, cartão e boleto) =====
         let selectedAmount = 0;
-        let currentPayment = null;
-        // Normalizar URL (remover barra final se existir)
-        const baseUrl = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
-        const API_BASE_URL = baseUrl;
+        let selectedMethod = 'PIX';
+        let pollTimer = null;
+        const API_BASE_URL = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
+        const PAGBANK_SDK = 'https://assets.pagseguro.com.br/checkout-sdk-js/rc/dist/browser/pagseguro.min.js';
+        const METHOD_HINTS = {
+            PIX: 'QR Code na hora, com confirmação automática.',
+            CREDIT_CARD: 'Aprovação na hora, cobrança à vista.',
+            BOLETO: 'Compensa em 1 a 3 dias úteis.'
+        };
+        const onlyDigits = (v) => String(v || '').replace(/\D/g, '');
+        const $ = (id) => document.getElementById(id);
+        const money = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        // Amount selection
         document.addEventListener('DOMContentLoaded', function() {
-            const amountButtons = document.querySelectorAll('.amount-btn');
-            const customAmountInput = document.getElementById('customAmount');
+            const customAmountInput = $('customAmount');
             const customAmountDiv = document.querySelector('.custom-amount');
-
-            amountButtons.forEach(btn => {
-                btn.addEventListener('click', function() {
+            document.querySelectorAll('.amount-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('selected'));
+                    this.classList.add('selected');
                     if (this.classList.contains('custom')) {
                         customAmountDiv.style.display = 'block';
                         customAmountInput.focus();
-                        selectedAmount = 0;
+                        selectedAmount = parseFloat(customAmountInput.value) || 0;
                     } else {
                         customAmountDiv.style.display = 'none';
                         selectedAmount = parseFloat(this.dataset.amount);
-                        updateButtonStates();
                     }
                 });
             });
-
             customAmountInput.addEventListener('input', function() {
-                selectedAmount = parseFloat(this.value) || 0;
-                updateButtonStates();
+                selectedAmount = parseFloat(String(this.value).replace(',', '.')) || 0;
+            });
+            document.querySelectorAll('.method-options .payment-option').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.method-options .payment-option').forEach(b => b.classList.remove('selected'));
+                    this.classList.add('selected');
+                    selectedMethod = this.dataset.method;
+                    $('methodHint').textContent = METHOD_HINTS[selectedMethod];
+                    $('boletoFields').classList.toggle('hidden', selectedMethod !== 'BOLETO');
+                    $('cardFields').classList.toggle('hidden', selectedMethod !== 'CREDIT_CARD');
+                });
+            });
+            $('addrCep').addEventListener('input', onCepInput);
+            $('cardExp').addEventListener('input', function() {
+                const d = onlyDigits(this.value).slice(0, 4);
+                this.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
             });
         });
 
-        function updateButtonStates() {
-            document.querySelectorAll('.amount-btn').forEach(btn => {
-                btn.classList.remove('selected');
-                if (btn.dataset.amount && parseFloat(btn.dataset.amount) === selectedAmount) {
-                    btn.classList.add('selected');
+        async function onCepInput() {
+            const d = onlyDigits(this.value).slice(0, 8);
+            this.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d;
+            if (d.length !== 8) return;
+            try {
+                const r = await fetch('https://viacep.com.br/ws/' + d + '/json/');
+                const a = await r.json();
+                if (a && !a.erro) {
+                    $('addrStreet').value = a.logradouro || '';
+                    $('addrLocality').value = a.bairro || '';
+                    $('addrCity').value = a.localidade || '';
+                    $('addrUf').value = (a.uf || '').toUpperCase();
+                    $('addrNumber').focus();
                 }
+            } catch (e) { /* preenchimento manual */ }
+        }
+
+        function showError(msg) {
+            const el = $('donationError');
+            el.textContent = msg;
+            el.classList.toggle('hidden', !msg);
+        }
+
+        function loadPagBankSdk() {
+            if (window.PagSeguro && window.PagSeguro.encryptCard) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const sc = document.createElement('script');
+                sc.src = PAGBANK_SDK;
+                sc.onload = () => resolve();
+                sc.onerror = () => reject(new Error('sdk'));
+                document.head.appendChild(sc);
             });
+        }
+
+        async function encryptCard(holder) {
+            const exp = onlyDigits($('cardExp').value);
+            const number = onlyDigits($('cardNumber').value);
+            const cvv = onlyDigits($('cardCvv').value);
+            if (number.length < 13 || exp.length !== 4 || cvv.length < 3 || holder.length < 3) {
+                throw new Error('Preencha todos os dados do cartão.');
+            }
+            const keyRes = await fetch(API_BASE_URL + '/api/donations/card-public-key');
+            const keyData = await keyRes.json().catch(() => ({}));
+            if (!keyRes.ok || !keyData.publicKey) throw new Error(keyData.error || 'Não foi possível preparar o pagamento com cartão.');
+            try { await loadPagBankSdk(); } catch (e) { throw new Error('Não foi possível carregar a proteção do cartão. Tente novamente.'); }
+            const r = window.PagSeguro.encryptCard({
+                publicKey: keyData.publicKey, holder, number,
+                expMonth: exp.slice(0, 2), expYear: '20' + exp.slice(2), securityCode: cvv
+            });
+            if (r.hasErrors) {
+                const map = { INVALID_NUMBER: 'número', INVALID_SECURITY_CODE: 'CVV', INVALID_EXPIRATION_MONTH: 'mês de validade', INVALID_EXPIRATION_YEAR: 'ano de validade', INVALID_HOLDER: 'nome do titular' };
+                throw new Error('Cartão inválido: confira ' + (r.errors || []).map(e => map[e.code] || e.code).join(', ') + '.');
+            }
+            return r.encryptedCard;
         }
 
         async function processDonation() {
-            if (selectedAmount <= 0) {
-                alert('Por favor, selecione um valor para doação.');
-                return;
+            showError('');
+            const name = $('donorName').value.trim();
+            const email = $('donorEmail').value.trim();
+            const cpf = onlyDigits($('donorCpf').value);
+            if (!(selectedAmount >= 1)) return showError('Escolha um valor (mínimo R$ 1,00).');
+            if (name.length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('Informe seu nome e um e-mail válido.');
+            if (cpf.length !== 11) return showError('Informe um CPF válido.');
+
+            const payload = {
+                amount: Math.round(selectedAmount * 100) / 100,
+                method: selectedMethod,
+                cpf,
+                donor: { name, email, phone: $('donorPhone').value.trim() || null },
+                description: 'Doação pelo site'
+            };
+            if (selectedMethod === 'BOLETO') {
+                payload.address = {
+                    postalCode: $('addrCep').value, street: $('addrStreet').value.trim(), number: $('addrNumber').value.trim(),
+                    complement: $('addrComplement').value.trim(), locality: $('addrLocality').value.trim(),
+                    city: $('addrCity').value.trim(), regionCode: $('addrUf').value.trim().toUpperCase()
+                };
+                if (onlyDigits(payload.address.postalCode).length !== 8 || !payload.address.street || !payload.address.number ||
+                    !payload.address.locality || !payload.address.city || payload.address.regionCode.length !== 2) {
+                    return showError('Preencha o endereço completo para o boleto.');
+                }
             }
 
-            const donorName = document.getElementById('donorName').value;
-            const donorEmail = document.getElementById('donorEmail').value;
-            const donorPhone = document.getElementById('donorPhone').value;
-
-            const donateBtn = document.querySelector('.donate-btn');
-            const loading = donateBtn.querySelector('.loading');
-            const btnText = donateBtn.querySelector('.btn-text');
-
+            const btn = document.querySelector('.donate-btn');
+            const loading = btn.querySelector('.loading');
+            const btnText = btn.querySelector('.btn-text');
+            loading.style.display = 'inline-block';
+            btnText.textContent = 'Processando...';
+            btn.disabled = true;
             try {
-                loading.style.display = 'inline-block';
-                btnText.textContent = 'Processando...';
-                donateBtn.disabled = true;
-
-                const response = await fetch(`${API_BASE_URL}/api/payments`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        amount: selectedAmount,
-                        description: `Doação para Liga do Bem - R$ ${selectedAmount.toFixed(2)}`,
-                        type: 'DONATION',
-                        email: donorEmail || null,
-                        name: donorName || null,
-                        phone: donorPhone || null
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Erro ao processar doação: ${response.status}`);
+                if (selectedMethod === 'CREDIT_CARD') {
+                    payload.card = { encrypted: await encryptCard($('cardHolder').value.trim()), holderName: $('cardHolder').value.trim() };
+                    $('cardCvv').value = '';
                 }
-
-                const data = await response.json();
-                currentPayment = data.payment;
-                
-                // Show payment modal
-                showPaymentModal();
-
+                const res = await fetch(API_BASE_URL + '/api/donations/checkout', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Não foi possível gerar o pagamento.');
+                showResult(data.payment, data.message);
             } catch (error) {
-                console.error('Erro ao processar doação:', error);
-                alert('Erro ao processar doação. Tente novamente.');
+                showError(error.message || 'Erro ao processar a doação. Tente novamente.');
             } finally {
                 loading.style.display = 'none';
                 btnText.textContent = 'Doar Agora';
-                donateBtn.disabled = false;
+                btn.disabled = false;
             }
         }
 
-        function showPaymentModal() {
-            const modal = document.getElementById('paymentModal');
-            const amountSpan = document.getElementById('paymentAmount');
-            const descriptionSpan = document.getElementById('paymentDescription');
+        function setStatus(payment, message) {
+            const el = $('resultStatus');
+            const labels = { PENDING: 'Aguardando pagamento', APPROVED: '✅ Doação confirmada! Muito obrigado por ajudar os animais.', REJECTED: 'Pagamento recusado. Tente outro cartão ou outra forma de pagamento.', CANCELLED: 'Pagamento cancelado.', EXPIRED: 'Pagamento expirado. Gere um novo.' };
+            el.textContent = payment.status === 'PENDING' && message ? message : (labels[payment.status] || payment.status);
+            el.className = 'result-status' + (payment.status === 'APPROVED' ? ' ok' : ['REJECTED', 'CANCELLED', 'EXPIRED'].includes(payment.status) ? ' fail' : '');
+            $('resultTitle').textContent = payment.status === 'APPROVED' ? 'Obrigado! 💜' : 'Sua doação';
+            if (payment.status !== 'PENDING') {
+                $('pixResult').classList.add('hidden');
+                stopPolling();
+            }
+        }
 
-            amountSpan.textContent = `R$ ${currentPayment.amount}`;
-            descriptionSpan.textContent = currentPayment.description;
+        function showResult(payment, message) {
+            $('paymentAmount').textContent = money(payment.amount);
+            $('pixResult').classList.toggle('hidden', !(payment.method === 'PIX' && payment.status === 'PENDING'));
+            $('boletoResult').classList.toggle('hidden', payment.method !== 'BOLETO');
+            if (payment.method === 'PIX') {
+                $('pixCode').value = payment.pixCopyPaste || '';
+                if (payment.pixQrImage) $('pixQrImage').src = payment.pixQrImage;
+            }
+            if (payment.method === 'BOLETO') {
+                $('boletoCode').value = payment.boletoBarcode || '';
+                const link = $('boletoLink');
+                link.classList.toggle('hidden', !payment.boletoUrl);
+                if (payment.boletoUrl) link.href = payment.boletoUrl;
+            }
+            setStatus(payment, message);
+            $('paymentModal').style.display = 'block';
+            if (payment.status === 'PENDING') startPolling(payment.id);
+        }
 
-            modal.style.display = 'block';
+        function startPolling(paymentId) {
+            stopPolling();
+            const started = Date.now();
+            pollTimer = setInterval(async () => {
+                if (Date.now() - started > 60 * 60 * 1000) return stopPolling();
+                try {
+                    const r = await fetch(API_BASE_URL + '/api/donations/payments/' + paymentId);
+                    const d = await r.json();
+                    if (d && d.payment && d.payment.status !== 'PENDING') setStatus(d.payment);
+                } catch (e) { /* tenta de novo */ }
+            }, 5000);
+        }
+
+        function stopPolling() {
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
         }
 
         function closePaymentModal() {
-            const modal = document.getElementById('paymentModal');
-            modal.style.display = 'none';
-            
-            // Hide all payment methods
-            document.querySelectorAll('.payment-method').forEach(method => {
-                method.style.display = 'none';
-            });
+            $('paymentModal').style.display = 'none';
+            stopPolling();
         }
 
-        function payWithPIX() {
-            selectPaymentMethod('pixPayment');
-            // Simulate PIX QR code
-            const qrCodeDiv = document.getElementById('qrCode');
-            qrCodeDiv.innerHTML = '<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f0f0f0; border-radius: 8px; font-size: 0.8rem; color: #666;">QR Code PIX<br>Será gerado aqui</div>';
-            
-            const pixCode = document.getElementById('pixCode');
-            pixCode.value = '00020126580014br.gov.bcb.pix0136a1b2c3d4-e5f6-7890-abcd-ef1234567890520400005303986540' + currentPayment.amount.toFixed(2) + '5802BR5913Liga do Bem6014Botucatu62070503***6304';
+        function copyText(id, msg) {
+            const el = $(id);
+            (navigator.clipboard ? navigator.clipboard.writeText(el.value) : Promise.reject())
+                .catch(() => { el.select(); document.execCommand('copy'); })
+                .finally(() => alert(msg));
         }
+        function copyPixCode() { copyText('pixCode', 'Código PIX copiado!'); }
+        function copyBoletoCode() { copyText('boletoCode', 'Linha digitável copiada!'); }
 
-        function payWithCard() {
-            selectPaymentMethod('cardPayment');
-        }
-
-        function payWithBoleto() {
-            selectPaymentMethod('boletoPayment');
-        }
-
-        function selectPaymentMethod(methodId) {
-            // Remove selected class from all options
-            document.querySelectorAll('.payment-option').forEach(option => {
-                option.classList.remove('selected');
-            });
-            
-            // Add selected class to clicked option
-            event.target.closest('.payment-option').classList.add('selected');
-            
-            // Hide all payment methods
-            document.querySelectorAll('.payment-method').forEach(method => {
-                method.style.display = 'none';
-            });
-            
-            // Show selected method
-            document.getElementById(methodId).style.display = 'block';
-        }
-
-        function copyPixCode() {
-            const pixCode = document.getElementById('pixCode');
-            pixCode.select();
-            pixCode.setSelectionRange(0, 99999); // For mobile devices
-            document.execCommand('copy');
-            alert('Código PIX copiado para a área de transferência!');
-        }
-
-        function generateBoleto() {
-            alert('Boleto será gerado e enviado para seu e-mail em breve!');
-            // In production, integrate with boleto generation service
-        }
-
-        // Card form submission
-        document.addEventListener('DOMContentLoaded', function() {
-            const cardForm = document.getElementById('cardForm');
-            if (cardForm) {
-                cardForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    processCardPayment();
-                });
-            }
-        });
-
-        async function processCardPayment() {
-            const processBtn = document.querySelector('.process-payment-btn');
-            const originalText = processBtn.textContent;
-            
-            try {
-                processBtn.textContent = 'Processando...';
-                processBtn.disabled = true;
-                
-                // Simulate card payment processing
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                // In production, integrate with payment gateway
-                alert('Pagamento processado com sucesso! Obrigado pela sua doação!');
-                closePaymentModal();
-                
-            } catch (error) {
-                console.error('Erro ao processar pagamento:', error);
-                alert('Erro ao processar pagamento. Tente novamente.');
-            } finally {
-                processBtn.textContent = originalText;
-                processBtn.disabled = false;
-            }
-        }
-
-        // Close modal when clicking outside
         window.addEventListener('click', function(event) {
-            const modal = document.getElementById('paymentModal');
-            if (event.target === modal) {
-                closePaymentModal();
-            }
+            if (event.target === $('paymentModal')) closePaymentModal();
         });
     </script>
 </body>
