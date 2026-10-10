@@ -31,6 +31,9 @@ jobs:
   build:
     name: 📱 Build React Native Nativo
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # criar a GitHub Release com o APK
+      id-token: write   # token OIDC que autoriza a publicação in-app na API (sem segredo)
     timeout-minutes: 45
 
     steps:
@@ -270,21 +273,35 @@ jobs:
           echo "📦 Publicando v${VERSION} (code ${VERSION_CODE})"
           echo "🔗 ${APK_URL}"
 
-          if [ -z "$CI_APP_PUBLISH_TOKEN" ]; then
-            echo "⚠️ Secret CI_APP_PUBLISH_TOKEN não configurado — publicação in-app ignorada."
-            exit 0
+          # Autenticação: token OIDC do GitHub (assinado pelo GitHub, vale só para este repo/branch).
+          # O secret CI_APP_PUBLISH_TOKEN continua aceito, mas não é mais necessário.
+          AUTH_HEADER=""
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=liga-do-bem-app-publish" | jq -r '.value // empty')
+            [ -n "$OIDC_TOKEN" ] && AUTH_HEADER="X-GitHub-OIDC: ${OIDC_TOKEN}"
           fi
-          TOKEN_HEADER="X-CI-Token: ${CI_APP_PUBLISH_TOKEN}"
+          if [ -z "$AUTH_HEADER" ] && [ -n "$CI_APP_PUBLISH_TOKEN" ]; then
+            AUTH_HEADER="X-CI-Token: ${CI_APP_PUBLISH_TOKEN}"
+          fi
+          if [ -z "$AUTH_HEADER" ]; then
+            echo "::error::Sem credencial para publicar (OIDC indisponível e sem CI_APP_PUBLISH_TOKEN)."
+            exit 1
+          fi
 
-          curl -sS -X POST "https://nova-versao-liga-do-bem.vercel.app/api/app/versions/publish" \
-            -H "Content-Type: application/json" \
-            -H "$TOKEN_HEADER" \
-            -d "{
-              \"version\": \"${VERSION}\",
-              \"versionCode\": ${VERSION_CODE},
-              \"apkUrl\": \"${APK_URL}\",
-              \"apkSize\": ${APK_BYTES},
-              \"releaseNotes\": \"Build ${{ github.run_number }} — commit ${GITHUB_SHA}\",
-              \"isMandatory\": false,
-              \"platform\": \"android\"
-            }" || echo "⚠️ Falha ao publicar versão na API"
+          PAYLOAD=$(jq -n \
+            --arg version "$VERSION" --argjson versionCode "$VERSION_CODE" \
+            --arg apkUrl "$APK_URL" --argjson apkSize "$APK_BYTES" \
+            --arg notes "Build ${{ github.run_number }} — commit ${GITHUB_SHA}" \
+            '{version: $version, versionCode: $versionCode, apkUrl: $apkUrl, apkSize: $apkSize,
+              releaseNotes: $notes, isMandatory: false, platform: "android"}')
+
+          HTTP_CODE=$(curl -sS -o publish-response.json -w '%{http_code}' -X POST \
+            "https://nova-versao-liga-do-bem.vercel.app/api/app/versions/publish" \
+            -H "Content-Type: application/json" -H "$AUTH_HEADER" -d "$PAYLOAD")
+          cat publish-response.json; echo
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Publicação in-app falhou (HTTP $HTTP_CODE). Os usuários NÃO vão receber a v${VERSION}."
+            exit 1
+          fi
+          echo "✅ v${VERSION} publicada: o app vai oferecer a atualização." >> $GITHUB_STEP_SUMMARY

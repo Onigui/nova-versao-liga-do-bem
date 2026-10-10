@@ -26,6 +26,7 @@ import {
   syncPaymentFromPagBank,
 } from './lib/membershipBilling';
 import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
+import { verifyGithubOidc } from './lib/githubOidc';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
 // Cloudinary para upload de imagens
@@ -666,7 +667,20 @@ export default async function handler(req: any, res: any) {
         const token = authHeader || bearer;
 
         let authorized = false;
-        if (ciToken && token && token === ciToken) authorized = true;
+        // 1) CI do GitHub via OIDC (sem segredo): só builds de push/dispatch na master deste repo.
+        const oidcToken = (req.headers['x-github-oidc'] || '').toString().trim();
+        if (oidcToken) {
+          try {
+            const claims: any = await verifyGithubOidc(oidcToken);
+            authorized = true;
+            console.log(`✅ Publicação autorizada via OIDC: ${claims.repository}@${claims.ref} run ${claims.run_id}`);
+          } catch (oidcErr: any) {
+            console.warn('⚠️ OIDC recusado na publicação:', oidcErr?.message);
+            return res.status(401).json({ error: 'Token OIDC inválido', detail: oidcErr?.message });
+          }
+        }
+        // 2) Segredo compartilhado (opcional) ou admin logado.
+        if (!authorized && ciToken && token && token === ciToken) authorized = true;
         if (!authorized && token) {
           if (isDemoAdminToken(token)) authorized = true;
           else {
