@@ -6,7 +6,15 @@ const rnBiometrics = new ReactNativeBiometrics({
   allowDeviceCredentials: true,
 });
 
+// Erros do Android Keystore que não se resolvem tentando de novo: a chave foi invalidada
+// (digital/rosto cadastrado ou removido, bloqueio de tela alterado) ou não existe mais.
+const PERMANENT_KEY_ERROR = /permanently invalidated|KeyPermanentlyInvalidated|key not found|no key|Key does not exist|UserNotAuthenticated/i;
+
 class BiometricService {
+  isPermanentKeyError(message) {
+    return PERMANENT_KEY_ERROR.test(String(message || ''));
+  }
+
   // Verificar se o dispositivo suporta biometria
   async isAvailable() {
     try {
@@ -102,6 +110,11 @@ class BiometricService {
       }
     } catch (error) {
       console.error('Erro na autenticação biométrica:', error);
+      if (this.isPermanentKeyError(error?.message)) {
+        // A chave antiga nunca mais vai funcionar: desliga a biometria e limpa os dados guardados.
+        await this.disable();
+        return { success: false, invalidated: true, error: error.message };
+      }
       return { success: false, error: error.message };
     }
   }

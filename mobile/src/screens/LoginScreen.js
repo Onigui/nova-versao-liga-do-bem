@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
@@ -118,9 +118,19 @@ export default function LoginScreen({navigation}) {
     return unsubscribe;
   }, [navigation]);
 
-  // Solicitar biometria automaticamente quando biometria está habilitada
+  // Solicitar biometria automaticamente quando biometria está habilitada.
+  // Só UMA vez por abertura da tela: antes, cada falha liberava o "loading" e disparava
+  // outra tentativa em 800ms, criando um loop com o erro piscando na tela.
+  const autoBiometricTried = useRef(false);
   useEffect(() => {
-    if (biometricAvailable && biometricEnabled && !loading && !isAuthenticated) {
+    if (
+      biometricAvailable &&
+      biometricEnabled &&
+      !loading &&
+      !isAuthenticated &&
+      !autoBiometricTried.current
+    ) {
+      autoBiometricTried.current = true;
       // Aguardar um pouco para garantir que a tela está totalmente carregada
       const timer = setTimeout(() => {
         console.log('🔐 Biometria habilitada, solicitando autenticação automática...');
@@ -245,6 +255,12 @@ export default function LoginScreen({navigation}) {
           // o UpdateChecker global vai verificar atualizações automaticamente
           console.log('✅ Login biométrico bem-sucedido. UpdateChecker global vai verificar atualizações...');
         }
+      } else if (result.invalidated) {
+        setBiometricEnabled(false);
+        Alert.alert(
+          'Login por digital desativado',
+          'A biometria deste aparelho foi alterada. Entre com seu e-mail e senha e, se quiser, ative o login por digital de novo.',
+        );
       } else {
         // Não mostrar alerta se o usuário cancelou (comportamento padrão de apps bancários)
         if (result.error && !result.error.includes('cancel')) {
