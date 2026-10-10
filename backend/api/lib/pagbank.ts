@@ -461,6 +461,38 @@ export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBa
   return extractPaymentArtifacts(order);
 }
 
+let cardPublicKeyCache: { key: string; at: number } | null = null;
+const CARD_PUBLIC_KEY_TTL_MS = 6 * 60 * 60 * 1000;
+
+function extractPublicKey(payload: any): string {
+  return String(payload?.public_key || payload?.publicKey || payload?.key || '').trim();
+}
+
+/**
+ * Chave pública RSA do PagBank usada pelo app para criptografar o cartão
+ * (o app nunca envia número/CVV em claro). Consulta a chave existente e, se não
+ * houver, cria uma. Cache em memória por 6h.
+ */
+export async function getPagBankCardPublicKey(): Promise<string> {
+  if (cardPublicKeyCache && Date.now() - cardPublicKeyCache.at < CARD_PUBLIC_KEY_TTL_MS) {
+    return cardPublicKeyCache.key;
+  }
+  let key = '';
+  try {
+    key = extractPublicKey(await pagbankFetch('/public-keys/card', { method: 'GET' }));
+  } catch (e: any) {
+    if (e?.status && e.status !== 404 && e.status !== 400) throw e;
+  }
+  if (!key) {
+    key = extractPublicKey(
+      await pagbankFetch('/public-keys', { method: 'POST', body: JSON.stringify({ type: 'card' }) }),
+    );
+  }
+  if (!key) throw new Error('PagBank não retornou a chave pública de cartão');
+  cardPublicKeyCache = { key, at: Date.now() };
+  return key;
+}
+
 export async function getPagBankOrder(orderId: string): Promise<PagBankOrderResult> {
   const order = await pagbankFetch(`/orders/${orderId}`, { method: 'GET' });
   return extractPaymentArtifacts(order);

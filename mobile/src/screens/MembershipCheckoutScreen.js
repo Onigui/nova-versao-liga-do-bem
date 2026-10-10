@@ -15,6 +15,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_PATH} from '../config/apiConfig';
+import PagBankCardEncryptor, {describeEncryptError} from '../components/PagBankCardEncryptor';
 
 const METHODS = [
   {id: 'PIX', label: 'PIX', icon: 'qr-code-outline', hint: 'Aprovação rápida'},
@@ -62,6 +63,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
     holderName: '',
   });
   const pollRef = useRef(null);
+  const encryptorRef = useRef(null);
 
   const selectedPlan = useMemo(
     () => plans.find(p => p.code === planCode) || null,
@@ -243,15 +245,39 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         installments: method === 'CREDIT_CARD' ? installments : 1,
       };
       if (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+        // Criptografa no aparelho com o SDK do PagBank: número e CVV nunca vão para a API.
+        const keyRes = await fetch(`${API_BASE_PATH}/membership/card-public-key`, {
+          headers: {Authorization: `Bearer ${token}`},
+        });
+        const keyData = await keyRes.json().catch(() => ({}));
+        if (!keyRes.ok || !keyData.publicKey) {
+          Alert.alert('Cartão', keyData.error || 'Não foi possível preparar o pagamento com cartão. Tente novamente.');
+          return;
+        }
+        const number = onlyDigits(card.number);
+        let encrypted;
+        try {
+          encrypted = await encryptorRef.current.encrypt({
+            publicKey: keyData.publicKey,
+            holder: card.holderName.trim(),
+            number,
+            expMonth: onlyDigits(card.expMonth).padStart(2, '0'),
+            expYear: onlyDigits(card.expYear).length === 2
+              ? `20${onlyDigits(card.expYear)}`
+              : onlyDigits(card.expYear),
+            securityCode: onlyDigits(card.securityCode),
+          });
+        } catch (encErr) {
+          Alert.alert('Cartão', describeEncryptError(encErr));
+          return;
+        }
         payload.card = {
-          number: onlyDigits(card.number),
-          expMonth: onlyDigits(card.expMonth).padStart(2, '0'),
-          expYear: onlyDigits(card.expYear).length === 2
-            ? `20${onlyDigits(card.expYear)}`
-            : onlyDigits(card.expYear),
-          securityCode: onlyDigits(card.securityCode),
+          encrypted,
+          bin: number.slice(0, 6),
           holderName: card.holderName.trim(),
         };
+        // CVV não fica guardado na tela depois do envio
+        setCard(prev => ({...prev, securityCode: ''}));
       }
 
       const response = await fetch(`${API_BASE_PATH}/membership/checkout`, {
@@ -308,6 +334,9 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         <Text style={styles.headerTitle}>Assinar / Renovar</Text>
       </View>
 
+      {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && (
+        <PagBankCardEncryptor ref={encryptorRef} />
+      )}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={20} color="#0284C7" />

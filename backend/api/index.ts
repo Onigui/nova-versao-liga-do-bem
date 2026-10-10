@@ -10,6 +10,7 @@ import {
   createPagBankOrder,
   getPagBankConfig,
   getPagBankInstallmentPlans,
+  getPagBankCardPublicKey,
   getPagBankOrder,
   cashInstallmentOption,
   isPaidChargeStatus,
@@ -6701,6 +6702,25 @@ export default async function handler(req: any, res: any) {
     }
 
     // POST checkout assinatura (PIX / BOLETO / CARTÃO)
+    // Chave pública do PagBank para o app criptografar o cartão no aparelho.
+    if (path === '/api/membership/card-public-key' && method === 'GET') {
+      try {
+        decodeAuthUser(req);
+      } catch (authErr: any) {
+        return res.status(401).json({ error: authErr?.message || 'Token inválido' });
+      }
+      if (!getPagBankConfig().configured) {
+        return res.status(503).json({ error: 'Pagamentos ainda não configurados.' });
+      }
+      try {
+        const publicKey = await getPagBankCardPublicKey();
+        return res.status(200).json({ publicKey, env: getPagBankConfig().env });
+      } catch (e: any) {
+        console.error('❌ PagBank public key:', e?.payload || e?.message);
+        return res.status(502).json({ error: 'Não foi possível obter a chave de criptografia do cartão.' });
+      }
+    }
+
     if (path === '/api/membership/checkout' && method === 'POST') {
       const db = getPrisma();
       if (!db) return res.status(503).json({ error: 'Database not configured' });
@@ -6734,7 +6754,18 @@ export default async function handler(req: any, res: any) {
             ? Math.max(1, Math.min(12, Number(body.installments || 1)))
             : 1;
         const cardNumber = String(body.card?.number || '').replace(/\D/g, '');
-        const cardBin = cardNumber.slice(0, 6);
+        // O app novo manda só o cartão criptografado + BIN (6 primeiros dígitos, não sensível).
+        const cardBin = (String(body.card?.bin || '').replace(/\D/g, '') || cardNumber).slice(0, 6);
+        const isCardMethod = method === 'CREDIT_CARD' || method === 'DEBIT_CARD';
+        if (isCardMethod && !body.card?.encrypted) {
+          if (process.env.ALLOW_RAW_CARD === 'false') {
+            return res.status(400).json({
+              error: 'Atualize o aplicativo para pagar com cartão com segurança.',
+              code: 'CARD_ENCRYPTION_REQUIRED',
+            });
+          }
+          console.warn('⚠️ Checkout com cartão em claro (app desatualizado). Defina ALLOW_RAW_CARD=false após a atualização.');
+        }
         let installmentQuote: any = {
           installments: 1,
           installmentCents: plan.amountCents,
@@ -6834,7 +6865,7 @@ export default async function handler(req: any, res: any) {
             notificationUrl,
             card: body.card
               ? {
-                  encrypted: body.card.encrypted || body.card.encrypted,
+                  encrypted: body.card.encrypted || undefined,
                   number: body.card.number,
                   expMonth: body.card.expMonth || body.card.exp_month,
                   expYear: body.card.expYear || body.card.exp_year,

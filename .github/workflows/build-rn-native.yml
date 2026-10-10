@@ -18,6 +18,14 @@ on:
       - master
       - main
     # Sempre dispara no push - remove restrição de paths para garantir builds
+  # PRs que mexem no app: valida o build ANTES do merge e deixa o APK como artefato
+  # para teste no celular (não cria release nem publica atualização in-app).
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-rn-native.yml'
 
 jobs:
   build:
@@ -69,7 +77,7 @@ jobs:
           echo "✅ Dependências instaladas com sucesso!"
 
       - name: 🔑 Setup Release Keystore
-        if: github.event.inputs.build_type == 'release' || github.event_name == 'push'
+        if: github.event.inputs.build_type == 'release' || github.event_name == 'push' || github.event_name == 'pull_request'
         working-directory: ./mobile/android/app
         run: |
           # NUNCA gerar keystore novo a cada build — isso muda a assinatura e o Android
