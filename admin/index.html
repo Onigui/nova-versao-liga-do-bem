@@ -1678,6 +1678,28 @@
                     </div>
                 </div>
 
+                <!-- Notificações pagas dos parceiros -->
+                <div class="table-container" style="margin-bottom: 24px;">
+                    <div class="table-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                        <h3 class="table-title">Notificações pagas dos parceiros</h3>
+                        <form id="pushSettingsForm" style="display:flex; gap:8px; align-items:end; flex-wrap:wrap;">
+                            <label style="font-size:0.8rem;">Preço (R$)<br><input id="pushPrice" class="form-input" style="width:110px" inputmode="decimal" required></label>
+                            <label style="font-size:0.8rem;">Por semana<br><input id="pushLimit" class="form-input" style="width:80px" type="number" min="1" max="50" required></label>
+                            <label style="font-size:0.8rem; display:flex; gap:6px; align-items:center; padding-bottom:10px;"><input id="pushEnabled" type="checkbox"> Ativo</label>
+                            <button class="btn btn-secondary" type="submit" style="padding:8px 14px;">Salvar</button>
+                        </form>
+                    </div>
+                    <p style="margin: 0 16px 8px; color:#64748B; font-size:0.85rem;">
+                        O parceiro escreve e paga pelo App Parceiros. Nada é enviado sem a sua aprovação.
+                        Ao reprovar, o valor é estornado automaticamente no PagBank.
+                    </p>
+                    <div id="pushSettingsMsg" style="margin: 0 16px 8px; font-size:0.85rem;"></div>
+                    <table class="table">
+                        <thead><tr><th>Data</th><th>Parceiro</th><th>Mensagem</th><th>Valor</th><th>Situação</th><th>Ações</th></tr></thead>
+                        <tbody id="push-campaigns-body"><tr><td colspan="6">Carregando…</td></tr></tbody>
+                    </table>
+                </div>
+
                 <!-- Histórico de Notificações -->
                 <div class="table-container">
                     <div class="table-header">
@@ -2843,6 +2865,7 @@
             } else if (sectionId === 'notifications') {
                 loadNotificationStats();
                 loadNotificationHistory();
+                loadPushCampaigns();
             } else if (sectionId === 'reports') {
                 loadFinancialReports();
             } else if (sectionId === 'volunteers') {
@@ -5574,6 +5597,78 @@
             } catch (err) {
                 msg.style.color = '#B91C1C'; msg.textContent = err.message;
             } finally { btn.disabled = false; }
+        });
+
+
+        // ========== NOTIFICAÇÕES PAGAS DOS PARCEIROS ==========
+        const PUSH_STATUS = {
+            AWAITING_PAYMENT: ['Aguardando pagamento', '#64748B'],
+            PENDING_REVIEW: ['Paga · aguardando sua aprovação', '#B45309'],
+            SENDING: ['Enviando…', '#0369A1'],
+            SENT: ['Enviada', '#15803D'],
+            REJECTED: ['Reprovada', '#B91C1C'],
+        };
+        async function loadPushCampaigns() {
+            const tbody = document.getElementById('push-campaigns-body');
+            if (!tbody) return;
+            try {
+                const [sr, cr] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/admin/partner-push-settings`, { headers: adminHeaders() }),
+                    fetch(`${API_BASE_URL}/api/admin/partner-push-campaigns`, { headers: adminHeaders() }),
+                ]);
+                const settings = (await sr.json()).settings;
+                const data = await cr.json();
+                if (!cr.ok) throw new Error(data.error || 'Erro ao carregar');
+                if (settings) {
+                    document.getElementById('pushPrice').value = (settings.priceCents / 100).toFixed(2).replace('.', ',');
+                    document.getElementById('pushLimit').value = settings.weeklyLimit;
+                    document.getElementById('pushEnabled').checked = !!settings.enabled;
+                }
+                tbody.innerHTML = data.campaigns.length ? data.campaigns.map((c) => {
+                    const st = PUSH_STATUS[c.status] || [c.status, '#64748B'];
+                    const refund = c.refundStatus === 'REFUNDED' ? ' · estornada' : c.refundStatus === 'REFUND_FAILED' ? ' · <b style="color:#B91C1C">ESTORNAR MANUALMENTE</b>' : '';
+                    const actions = c.status === 'PENDING_REVIEW'
+                        ? `<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem;background:var(--success-green);color:#fff" onclick="approvePushCampaign('${escHtml(c.id)}')">Aprovar e enviar</button>
+                           <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem;background:var(--error-red);color:#fff" onclick="rejectPushCampaign('${escHtml(c.id)}')">Reprovar</button>`
+                        : c.status === 'SENT' ? `${c.recipients || 0} destinatário(s)` : escHtml(c.reviewNote || '');
+                    return `<tr>
+                        <td>${new Date(c.createdAt).toLocaleString('pt-BR')}</td>
+                        <td>${escHtml(c.partnerName)}</td>
+                        <td><strong>${escHtml(c.title)}</strong><br><small style="color:#475569">${escHtml(c.body)}</small></td>
+                        <td>R$ ${(c.priceCents / 100).toFixed(2).replace('.', ',')}</td>
+                        <td><span style="color:${st[1]};font-weight:600">${st[0]}</span>${refund}</td>
+                        <td style="white-space:nowrap">${actions}</td></tr>`;
+                }).join('') : '<tr><td colspan="6" style="color:#64748B">Nenhuma notificação de parceiro ainda.</td></tr>';
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" style="color:#B91C1C">${escHtml(e.message)}</td></tr>`;
+            }
+        }
+        async function approvePushCampaign(id) {
+            if (!confirm('Enviar esta notificação para TODOS os membros agora?')) return;
+            const r = await fetch(`${API_BASE_URL}/api/admin/partner-push-campaigns/${encodeURIComponent(id)}/approve`, { method: 'POST', headers: adminHeaders(), body: '{}' });
+            const data = await r.json().catch(() => ({}));
+            alert(r.ok ? `Enviada para ${data.recipients} usuário(s).` : (data.error || 'Erro ao enviar'));
+            loadPushCampaigns();
+        }
+        async function rejectPushCampaign(id) {
+            const note = prompt('Motivo da reprovação (o parceiro vai ver):');
+            if (note === null) return;
+            const r = await fetch(`${API_BASE_URL}/api/admin/partner-push-campaigns/${encodeURIComponent(id)}/reject`, { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ note }) });
+            const data = await r.json().catch(() => ({}));
+            alert(r.ok ? data.message : (data.error || 'Erro ao reprovar'));
+            loadPushCampaigns();
+        }
+        document.getElementById('pushSettingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('pushSettingsMsg');
+            const price = Number(document.getElementById('pushPrice').value.replace(/\./g, '').replace(',', '.'));
+            const r = await fetch(`${API_BASE_URL}/api/admin/partner-push-settings`, {
+                method: 'PUT', headers: adminHeaders(),
+                body: JSON.stringify({ priceCents: Math.round(price * 100), weeklyLimit: Number(document.getElementById('pushLimit').value), enabled: document.getElementById('pushEnabled').checked }),
+            });
+            const data = await r.json().catch(() => ({}));
+            msg.style.color = r.ok ? '#15803D' : '#B91C1C';
+            msg.textContent = r.ok ? 'Configurações salvas.' : (data.error || 'Erro ao salvar');
         });
 
         async function populateDiscountPartners() {

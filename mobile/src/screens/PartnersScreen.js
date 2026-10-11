@@ -139,6 +139,8 @@ export default function PartnersScreen({navigation, route}) {
         longitude: partner.longitude,
         hours: partner.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
         logo: partner.logo || null,
+        website: partner.website || null,
+        discounts: Array.isArray(partner.discounts) ? partner.discounts : [],
       }));
 
       setPartners(formattedPartners);

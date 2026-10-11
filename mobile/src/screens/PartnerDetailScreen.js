@@ -68,9 +68,11 @@ export default function PartnerDetailScreen({route, navigation}) {
               </View>
             )}
           </View>
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{partnerData.discount} OFF</Text>
-          </View>
+          {partnerData.discount && partnerData.discount !== 'Sem desconto' ? (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>{partnerData.discount} OFF</Text>
+            </View>
+          ) : null}
         </LinearGradient>
 
         {/* Content */}
@@ -87,6 +89,30 @@ export default function PartnerDetailScreen({route, navigation}) {
             <Text style={styles.sectionTitle}>Benefício</Text>
             <Text style={styles.description}>{partnerData.description}</Text>
           </View>
+
+          {/* Promoções cadastradas pelo parceiro no App Parceiros */}
+          {partnerData.discounts?.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Promoções para membros</Text>
+              {partnerData.discounts.map(d => (
+                <View key={d.id} style={styles.promoCard}>
+                  <Text style={styles.promoLabel}>{d.label}</Text>
+                  <Text style={styles.promoName}>{d.name}</Text>
+                  {d.description ? (
+                    <Text style={styles.promoDesc}>{d.description}</Text>
+                  ) : null}
+                  {d.validUntil ? (
+                    <Text style={styles.promoDesc}>
+                      Válida até {new Date(d.validUntil).toLocaleDateString('pt-BR', {timeZone: 'America/Sao_Paulo'})}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+              <Text style={styles.promoHint}>
+                Mostre o QR da sua carteirinha no caixa para usar.
+              </Text>
+            </View>
+          ) : null}
 
           {/* Contact Info */}
           <View style={styles.section}>
@@ -257,6 +283,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  promoCard: {
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  promoLabel: {fontSize: 18, fontWeight: '800', color: '#7C3AED'},
+  promoName: {fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2},
+  promoDesc: {fontSize: 13, color: '#6B7280', marginTop: 2},
+  promoHint: {fontSize: 12, color: '#6B7280', marginTop: 4},
   discountBadge: {
     position: 'absolute',
     top: 16,

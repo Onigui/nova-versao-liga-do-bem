@@ -9,6 +9,7 @@ import {
   mapPagBankStatusToPayment,
 } from './pagbank';
 import { approveDonationFromPayment, syncDonationFailure } from './donations';
+import { markPartnerPushPaid } from './partnerPushSettle';
 
 export function isMembershipCurrentlyActive(membership: {
   status?: string | null;
@@ -335,7 +336,7 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
   };
 }
 
-/** Aplica um pagamento aprovado conforme o tipo: assinatura ou doação. */
+/** Aplica um pagamento aprovado conforme o tipo: assinatura, doação ou notificação paga de parceiro. */
 export async function settleApprovedPayment(db: any, paymentId: string) {
   const rows: any[] = await db.$queryRawUnsafe(
     `SELECT type FROM payments WHERE id = $1 LIMIT 1`,
@@ -343,6 +344,9 @@ export async function settleApprovedPayment(db: any, paymentId: string) {
   );
   if (String(rows?.[0]?.type) === 'DONATION') {
     return approveDonationFromPayment(db, paymentId);
+  }
+  if (String(rows?.[0]?.type) === 'PARTNER_PUSH') {
+    return markPartnerPushPaid(db, paymentId);
   }
   return activateMembershipFromPayment(db, paymentId);
 }

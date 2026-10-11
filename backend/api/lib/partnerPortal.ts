@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import { cardTokenSecret, issueCardToken, parseCardCode, CARD_CODE_ERRORS } from './cardToken';
 import { isMembershipCurrentlyActive } from './membershipBilling';
 import { sendEmail, isEmailDeliveryConfigured, escapeHtml } from './email';
+import { handlePartnerPushRoutes, handleAdminPushRoutes } from './partnerPush';
 
 type Ctx = {
   req: any;
@@ -130,6 +131,13 @@ function formatDiscount(d: any) {
     isActive: d.isActive,
     validFrom: d.validFrom,
     validUntil: d.validUntil,
+    /** Formato curto usado no selo do app do membro ("20%" → o app acrescenta "OFF"). */
+    short:
+      d.percentage != null
+        ? `${Number(d.percentage)}%`
+        : d.fixedAmount != null
+          ? `R$ ${Number(d.fixedAmount).toFixed(2).replace('.', ',')}`
+          : null,
     label:
       d.percentage != null
         ? `${Number(d.percentage)}% OFF`
@@ -341,7 +349,8 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
   const isAdminRoute =
     /^\/api\/admin\/partners\/[^/]+\/accounts$/.test(path) ||
     /^\/api\/admin\/partner-accounts\/[^/]+$/.test(path) ||
-    path === '/api/admin/partner-validations';
+    path === '/api/admin/partner-validations' ||
+    path.startsWith('/api/admin/partner-push-');
   const isCardToken = path === '/api/membership/card-token';
   if (!isPartnerRoute && !isAdminRoute && !isCardToken) return false;
 
@@ -424,6 +433,7 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
         res.status(200).json({ validations: rows.map((r) => ({ ...r, amount: Number(r.amount || 0) })) });
         return true;
       }
+      if (await handleAdminPushRoutes(ctx, adminId)) return true;
       throw new HttpError(404, 'Rota não encontrada');
     }
 
@@ -679,6 +689,8 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
       res.status(200).json({ message: 'Acesso removido' });
       return true;
     }
+
+    if (await handlePartnerPushRoutes(ctx, acc, userId)) return true;
 
     throw new HttpError(404, 'Rota não encontrada');
   } catch (e: any) {
