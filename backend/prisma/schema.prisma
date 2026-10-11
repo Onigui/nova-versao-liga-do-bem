@@ -322,6 +322,7 @@ model Donation {
 
 enum PaymentMethod {
   PIX
+  BOLETO
   CREDIT_CARD
   BANK_TRANSFER
   CASH
