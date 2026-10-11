@@ -133,6 +133,8 @@ model PartnerDiscount {
   validFrom   DateTime
   validUntil  DateTime?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime?
+  archivedAt  DateTime?
   
   // Relacionamentos
   validations PartnerValidation[]
@@ -151,8 +153,38 @@ model PartnerValidation {
   discount    PartnerDiscount? @relation(fields: [discountId], references: [id])
   amount      Decimal
   validatedAt DateTime @default(now())
+  validatedById    String?  // usuário do parceiro que validou
+  method           String?  // SIGNED | LEGACY | MANUAL
+  memberId         String?
+  membershipActive Boolean  @default(true)
 
+  @@index([partnerId, validatedAt], map: "partner_validations_partner_idx")
   @@map("partner_validations")
+}
+
+// Acesso de um usuário ao portal/app do parceiro (OWNER edita, STAFF só valida)
+model PartnerAccount {
+  id          String   @id
+  partnerId   String
+  userId      String   @unique
+  role        String   @default("OWNER")
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([partnerId], map: "partner_accounts_partner_idx")
+  @@map("partner_accounts")
+}
+
+// Tentativas de validação (limite anti-varredura de números digitados)
+model PartnerLookupAttempt {
+  id        String   @id
+  accountId String
+  method    String
+  ok        Boolean
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt], map: "partner_lookup_attempts_idx")
+  @@map("partner_lookup_attempts")
 }
 
 // Modelo de animais

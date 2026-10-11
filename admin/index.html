@@ -2162,6 +2162,40 @@
     </div>
 
     <!-- Modal para Cadastro de Empresa -->
+    <!-- Acessos do App Parceiros -->
+    <div id="partnerAccessModal" class="modal-overlay">
+        <div class="modal" style="max-width: 760px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="partnerAccessTitle">Acessos do parceiro</h3>
+                <button class="modal-close" onclick="closeModal('partnerAccessModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin: 0 0 12px; color: #64748B; font-size: 0.9rem;">
+                    Quem tiver acesso entra no <strong>App Liga do Bem Parceiros</strong> para validar carteirinhas.
+                    O <strong>responsável</strong> também edita os dados da empresa, cria promoções e cadastra funcionários.
+                    A pessoa recebe um e-mail e cria a senha em "Primeiro acesso / Esqueci a senha".
+                </p>
+                <form id="partnerAccessForm" style="display: grid; grid-template-columns: 2fr 1.5fr 1fr auto; gap: 8px; align-items: end;">
+                    <div class="form-group" style="margin:0"><label class="form-label">E-mail</label><input type="email" class="form-input" id="paEmail" required></div>
+                    <div class="form-group" style="margin:0"><label class="form-label">Nome</label><input type="text" class="form-input" id="paName" placeholder="Opcional"></div>
+                    <div class="form-group" style="margin:0"><label class="form-label">Papel</label>
+                        <select class="form-input" id="paRole"><option value="OWNER">Responsável</option><option value="STAFF">Funcionário</option></select></div>
+                    <button type="submit" class="btn btn-primary" id="paSubmit">Criar acesso</button>
+                </form>
+                <div id="partnerAccessMsg" style="margin-top: 8px; font-size: 0.9rem;"></div>
+                <table class="table" style="margin-top: 12px;">
+                    <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th></th></tr></thead>
+                    <tbody id="partnerAccessList"></tbody>
+                </table>
+                <h4 style="margin: 20px 0 8px;">Últimas validações de carteirinha</h4>
+                <table class="table">
+                    <thead><tr><th>Quando</th><th>Membro</th><th>Situação</th><th>Promoção</th><th>Valor</th></tr></thead>
+                    <tbody id="partnerValidationList"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div id="companyModal" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -3055,6 +3089,7 @@
                     <td>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;" onclick="editCompany('${safeId}')">✏️ Editar</button>
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;" onclick="openPartnerAccess('${safeId}')">🔑 Acessos</button>
                             ${company.status !== 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--success-green); color: white;" onclick="approveCompany('${safeId}')">✅ Aprovar</button>` : ''}
                             ${company.status === 'active' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--warning-orange); color: white;" onclick="rejectCompany('${safeId}')">❌ Rejeitar</button>` : ''}
                             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem; background: var(--error-red); color: white;" onclick="deleteCompany('${safeId}')">🗑️ Excluir</button>
@@ -5460,6 +5495,86 @@
                 tbody.innerHTML = '<tr><td colspan="6">Erro ao carregar descontos.</td></tr>';
             }
         }
+
+
+        // ========== ACESSOS DO APP PARCEIROS ==========
+        let partnerAccessId = null;
+        const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        function adminHeaders() {
+            const token = localStorage.getItem('admin_token');
+            return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Admin-Token': token };
+        }
+        async function openPartnerAccess(partnerId) {
+            partnerAccessId = partnerId;
+            const company = (companiesData || []).find((c) => c.id === partnerId);
+            document.getElementById('partnerAccessTitle').textContent = `Acessos — ${company?.name || 'parceiro'}`;
+            document.getElementById('partnerAccessMsg').textContent = '';
+            document.getElementById('partnerAccessForm').reset();
+            openModal('partnerAccessModal');
+            await Promise.all([loadPartnerAccounts(), loadPartnerValidations()]);
+        }
+        async function loadPartnerAccounts() {
+            const tbody = document.getElementById('partnerAccessList');
+            tbody.innerHTML = '<tr><td colspan="4">Carregando…</td></tr>';
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/partners/${encodeURIComponent(partnerAccessId)}/accounts`, { headers: adminHeaders() });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Erro ao carregar');
+                tbody.innerHTML = data.accounts.length ? data.accounts.map((a) => `
+                    <tr><td>${escHtml(a.name)}</td><td>${escHtml(a.email)}</td>
+                    <td>${a.role === 'OWNER' ? 'Responsável' : 'Funcionário'}</td>
+                    <td><button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem; background: var(--error-red); color: white;" onclick="removePartnerAccount('${escHtml(a.id)}')">Remover</button></td></tr>`).join('')
+                    : '<tr><td colspan="4" style="color:#64748B">Nenhum acesso ainda.</td></tr>';
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="4" style="color:#B91C1C">${escHtml(e.message)}</td></tr>`;
+            }
+        }
+        async function loadPartnerValidations() {
+            const tbody = document.getElementById('partnerValidationList');
+            tbody.innerHTML = '<tr><td colspan="5">Carregando…</td></tr>';
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/partner-validations?partnerId=${encodeURIComponent(partnerAccessId)}`, { headers: adminHeaders() });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Erro ao carregar');
+                const rows = data.validations.slice(0, 30);
+                tbody.innerHTML = rows.length ? rows.map((v) => `
+                    <tr><td>${new Date(v.validatedAt).toLocaleString('pt-BR')}</td><td>${escHtml(v.memberName)} <small style="color:#64748B">${escHtml(v.memberId || '')}</small></td>
+                    <td>${v.membershipActive ? '✅ Ativa' : '⛔ Vencida'}${v.method === 'MANUAL' ? ' · digitado' : v.method === 'LEGACY' ? ' · QR antigo' : ''}</td>
+                    <td>${escHtml(v.discountName || '—')}</td><td>${v.amount ? 'R$ ' + Number(v.amount).toFixed(2).replace('.', ',') : '—'}</td></tr>`).join('')
+                    : '<tr><td colspan="5" style="color:#64748B">Nenhuma validação ainda.</td></tr>';
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color:#B91C1C">${escHtml(e.message)}</td></tr>`;
+            }
+        }
+        async function removePartnerAccount(accountId) {
+            if (!confirm('Remover este acesso? A pessoa não vai mais conseguir entrar no App Parceiros.')) return;
+            const r = await fetch(`${API_BASE_URL}/api/admin/partner-accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE', headers: adminHeaders() });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) return alert(data.error || 'Erro ao remover');
+            loadPartnerAccounts();
+        }
+        document.getElementById('partnerAccessForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('partnerAccessMsg');
+            const btn = document.getElementById('paSubmit');
+            btn.disabled = true; msg.style.color = '#334155'; msg.textContent = 'Criando…';
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/partners/${encodeURIComponent(partnerAccessId)}/accounts`, {
+                    method: 'POST', headers: adminHeaders(),
+                    body: JSON.stringify({ email: document.getElementById('paEmail').value, name: document.getElementById('paName').value, role: document.getElementById('paRole').value }),
+                });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Erro ao criar acesso');
+                msg.style.color = '#15803D';
+                msg.textContent = data.emailSent
+                    ? `Acesso criado. Enviamos um e-mail para ${data.email} com as instruções.`
+                    : `Acesso criado, mas o e-mail NÃO foi enviado. Avise ${data.email} para usar "Primeiro acesso / Esqueci a senha" no app.`;
+                document.getElementById('partnerAccessForm').reset();
+                loadPartnerAccounts();
+            } catch (err) {
+                msg.style.color = '#B91C1C'; msg.textContent = err.message;
+            } finally { btn.disabled = false; }
+        });
 
         async function populateDiscountPartners() {
             const select = document.getElementById('discountPartnerId');
