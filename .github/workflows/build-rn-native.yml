@@ -129,79 +129,62 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Versão do app: $VERSION"
 
+      - name: 🏪 Versão do App Parceiros
+        id: partner_app
+        working-directory: ./mobile
+        run: |
+          PVERSION=$(node -p "require('./partner-app.json').version")
+          PCODE=$(node -p "require('./partner-app.json').versionCode")
+          PKG=$(node -p "require('./partner-app.json').applicationId")
+          echo "version=$PVERSION" >> $GITHUB_OUTPUT
+          echo "versionCode=$PCODE" >> $GITHUB_OUTPUT
+          # O App Parceiros só compila quando o Firebase conhece o pacote dele
+          # (google-services.json com um client para com.ligadobem.parceiros).
+          if node -e "const g=require('./android/app/google-services.json');process.exit(g.client.some(c=>c.client_info.android_client_info.package_name==='$PKG')?0:1)"; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+            echo "🏪 App Parceiros v$PVERSION (code $PCODE) será gerado"
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "::warning::App Parceiros NÃO gerado: registre o app $PKG no Firebase e atualize mobile/android/app/google-services.json."
+          fi
+
       - name: 🏗️ Build APK
         working-directory: ./mobile
         run: |
-          echo "🏗️ Iniciando build React Native 0.74.5 nativo..."
           VERSION="${{ steps.app_version.outputs.version }}"
-          
+          PVERSION="${{ steps.partner_app.outputs.version }}"
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
-          
-          if [ "$BUILD_TYPE" = "release" ]; then
-            echo "📦 Building RELEASE APK v${VERSION}..."
-            
-            # Build release com Gradle
-            cd android
-            chmod +x gradlew
-            
-            # Limpar build anterior (opcional, mas ajuda em alguns casos)
-            ./gradlew clean || echo "⚠️ Clean falhou, continuando..."
-            
-            # Build release
-            ./gradlew assembleRelease --no-daemon --stacktrace --info || {
-              echo "❌ Build falhou! Verificando logs..."
-              cat app/build/outputs/apk/release/output.json 2>/dev/null || echo "Nenhum log disponível"
-              exit 1
-            }
-            
-            # Verificar se o APK foi gerado
-            if [ ! -f "app/build/outputs/apk/release/app-release.apk" ]; then
-              echo "❌ APK não foi gerado! Listando arquivos de saída:"
-              find app/build/outputs -name "*.apk" 2>/dev/null || echo "Nenhum APK encontrado"
-              exit 1
-            fi
-            
-            # Copiar APK
-            cp app/build/outputs/apk/release/app-release.apk "../../liga-do-bem-botucatu-v${VERSION}.apk"
-            echo "✅ Release APK built successfully!"
-          else
-            echo "🐛 Building DEBUG APK v${VERSION}..."
-            
-            # Build debug
-            cd android
-            chmod +x gradlew
-            
-            # Limpar build anterior
-            ./gradlew clean || echo "⚠️ Clean falhou, continuando..."
-            
-            # Build debug
-            ./gradlew assembleDebug --no-daemon --stacktrace --info || {
-              echo "❌ Build falhou! Verificando logs..."
-              cat app/build/outputs/apk/debug/output.json 2>/dev/null || echo "Nenhum log disponível"
-              exit 1
-            }
-            
-            # Verificar se o APK foi gerado
-            if [ ! -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-              echo "❌ APK não foi gerado! Listando arquivos de saída:"
-              find app/build/outputs -name "*.apk" 2>/dev/null || echo "Nenhum APK encontrado"
-              exit 1
-            fi
-            
-            # Copiar APK
-            cp app/build/outputs/apk/debug/app-debug.apk "../../liga-do-bem-botucatu-v${VERSION}-debug.apk"
-            echo "✅ Debug APK built successfully!"
+          if [ "$BUILD_TYPE" = "release" ]; then T=Release; t=release; SUFFIX=""; else T=Debug; t=debug; SUFFIX="-debug"; fi
+
+          # Dois apps no mesmo código (product flavors): member = Liga do Bem, partner = Liga do Bem Parceiros
+          TASKS="assembleMember${T}"
+          if [ "${{ steps.partner_app.outputs.enabled }}" = "true" ]; then TASKS="$TASKS assemblePartner${T}"; fi
+
+          cd android
+          chmod +x gradlew
+          ./gradlew clean || echo "⚠️ Clean falhou, continuando..."
+          echo "🏗️ ./gradlew $TASKS"
+          ./gradlew $TASKS --no-daemon --stacktrace || { find app/build/outputs -name "*.apk"; exit 1; }
+
+          MEMBER_APK="app/build/outputs/apk/member/${t}/app-member-${t}.apk"
+          [ -f "$MEMBER_APK" ] || { echo "❌ APK do membro não gerado"; find app/build/outputs -name "*.apk"; exit 1; }
+          cp "$MEMBER_APK" "../../liga-do-bem-botucatu-v${VERSION}${SUFFIX}.apk"
+
+          if [ "${{ steps.partner_app.outputs.enabled }}" = "true" ]; then
+            PARTNER_APK="app/build/outputs/apk/partner/${t}/app-partner-${t}.apk"
+            [ -f "$PARTNER_APK" ] || { echo "❌ APK do App Parceiros não gerado"; find app/build/outputs -name "*.apk"; exit 1; }
+            cp "$PARTNER_APK" "../../liga-do-bem-parceiros-v${PVERSION}${SUFFIX}.apk"
           fi
-          
-          echo "📦 APK gerado!"
-          ls -lh ../../liga-do-bem-botucatu*.apk
+
+          echo "📦 APKs gerados:"
+          ls -lh ../../liga-do-bem-*.apk
 
       - name: 📦 Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: liga-do-bem-apk-v${{ steps.app_version.outputs.version }}-build-${{ github.run_number }}
           path: |
-            liga-do-bem-botucatu*.apk
+            liga-do-bem-*.apk
           retention-days: 30
           if-no-files-found: error
 
@@ -223,12 +206,14 @@ jobs:
             
             ### ⬇️ Download:
             Baixe o APK abaixo e instale no seu dispositivo Android.
+            - `liga-do-bem-botucatu-*.apk`: app dos membros
+            - `liga-do-bem-parceiros-*.apk`: App Liga do Bem Parceiros (empresas parceiras)
             
             **Android mínimo:** 6.0 (API 23)
           draft: false
           prerelease: false
           files: |
-            liga-do-bem-botucatu*.apk
+            liga-do-bem-*.apk
 
       - name: 📊 Build Summary
         if: always()
@@ -263,15 +248,7 @@ jobs:
         run: |
           VERSION="${{ steps.app_version.outputs.version }}"
           VERSION_CODE=$(grep -E 'versionCode\s+[0-9]+' mobile/android/app/build.gradle | head -1 | grep -oE '[0-9]+' | head -1)
-          APK_FILE="liga-do-bem-botucatu-v${VERSION}.apk"
-          APK_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}-build-${{ github.run_number }}/${APK_FILE}"
-          APK_BYTES=0
-          if [ -f "$APK_FILE" ]; then
-            APK_BYTES=$(wc -c < "$APK_FILE" | tr -d ' ')
-          fi
-
-          echo "📦 Publicando v${VERSION} (code ${VERSION_CODE})"
-          echo "🔗 ${APK_URL}"
+          RELEASE_BASE="https://github.com/${{ github.repository }}/releases/download/v${VERSION}-build-${{ github.run_number }}"
 
           # Autenticação: token OIDC do GitHub (assinado pelo GitHub, vale só para este repo/branch).
           # O secret CI_APP_PUBLISH_TOKEN continua aceito, mas não é mais necessário.
@@ -289,19 +266,33 @@ jobs:
             exit 1
           fi
 
-          PAYLOAD=$(jq -n \
-            --arg version "$VERSION" --argjson versionCode "$VERSION_CODE" \
-            --arg apkUrl "$APK_URL" --argjson apkSize "$APK_BYTES" \
-            --arg notes "Build ${{ github.run_number }} — commit ${GITHUB_SHA}" \
-            '{version: $version, versionCode: $versionCode, apkUrl: $apkUrl, apkSize: $apkSize,
-              releaseNotes: $notes, isMandatory: false, platform: "android"}')
+          # publish <canal> <versão> <versionCode> <arquivo>
+          publish() {
+            local PLATFORM="$1" V="$2" CODE="$3" FILE="$4"
+            local BYTES=0
+            [ -f "$FILE" ] && BYTES=$(wc -c < "$FILE" | tr -d ' ')
+            local PAYLOAD
+            PAYLOAD=$(jq -n \
+              --arg version "$V" --argjson versionCode "$CODE" \
+              --arg apkUrl "${RELEASE_BASE}/${FILE}" --argjson apkSize "$BYTES" \
+              --arg notes "Build ${{ github.run_number }} — commit ${GITHUB_SHA}" --arg platform "$PLATFORM" \
+              '{version: $version, versionCode: $versionCode, apkUrl: $apkUrl, apkSize: $apkSize,
+                releaseNotes: $notes, isMandatory: false, platform: $platform}')
+            echo "📦 [$PLATFORM] v${V} (code ${CODE}) → ${RELEASE_BASE}/${FILE}"
+            local HTTP_CODE
+            HTTP_CODE=$(curl -sS -o publish-response.json -w '%{http_code}' -X POST \
+              "https://nova-versao-liga-do-bem.vercel.app/api/app/versions/publish" \
+              -H "Content-Type: application/json" -H "$AUTH_HEADER" -d "$PAYLOAD")
+            cat publish-response.json; echo
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::error::Publicação in-app [$PLATFORM] falhou (HTTP $HTTP_CODE). Os usuários NÃO vão receber a v${V}."
+              return 1
+            fi
+            echo "✅ [$PLATFORM] v${V} publicada: o app vai oferecer a atualização." >> $GITHUB_STEP_SUMMARY
+          }
 
-          HTTP_CODE=$(curl -sS -o publish-response.json -w '%{http_code}' -X POST \
-            "https://nova-versao-liga-do-bem.vercel.app/api/app/versions/publish" \
-            -H "Content-Type: application/json" -H "$AUTH_HEADER" -d "$PAYLOAD")
-          cat publish-response.json; echo
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Publicação in-app falhou (HTTP $HTTP_CODE). Os usuários NÃO vão receber a v${VERSION}."
-            exit 1
+          publish android "$VERSION" "$VERSION_CODE" "liga-do-bem-botucatu-v${VERSION}.apk"
+          if [ "${{ steps.partner_app.outputs.enabled }}" = "true" ]; then
+            publish android-partner "${{ steps.partner_app.outputs.version }}" "${{ steps.partner_app.outputs.versionCode }}" \
+              "liga-do-bem-parceiros-v${{ steps.partner_app.outputs.version }}.apk"
           fi
-          echo "✅ v${VERSION} publicada: o app vai oferecer a atualização." >> $GITHUB_STEP_SUMMARY

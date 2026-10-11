@@ -17,6 +17,7 @@ import QRCode from 'react-native-qrcode-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAuth} from '../services/AuthService';
 import {API_BASE_PATH} from '../config/apiConfig';
+import useCardCode from '../services/useCardCode';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 
 const STATUS_LABELS = {
@@ -181,11 +182,18 @@ export default function MembershipCardScreen({navigation}) {
   const statusColor = isActiveMember
     ? STATUS_COLORS.ACTIVE
     : STATUS_COLORS[statusKey] || '#6B7280';
-  const qrValue =
+  const legacyQr =
     membership?.qrCode ||
     (membership?.memberId && user?.id
       ? `LIGADOBEM|${membership.memberId}|${user.id}`
       : null);
+  // QR assinado pelo servidor, renovado a cada poucos minutos (print antigo não vale)
+  const cardCode = useCardCode({
+    token,
+    enabled: !!(isAuthenticated && isActiveMember && membership?.memberId),
+    legacyCode: legacyQr,
+  });
+  const qrValue = cardCode.code;
 
   const handleShareCard = async () => {
     if (!membership) return;
@@ -196,8 +204,7 @@ export default function MembershipCardScreen({navigation}) {
           `Nome: ${user?.name || 'Membro'}\n` +
           `ID: ${membership.memberId}\n` +
           `Status: ${statusLabel}\n` +
-          `Válido até: ${formatDate(membership.endDate)}\n` +
-          `Código: ${qrValue || membership.memberId}`,
+          `Válido até: ${formatDate(membership.endDate)}`,
       });
     } catch (error) {
       if (error?.message !== 'User did not share') {
@@ -316,6 +323,8 @@ export default function MembershipCardScreen({navigation}) {
                   backgroundColor="#FFFFFF"
                   color="#1F2937"
                 />
+              ) : isActiveMember && cardCode.source === 'loading' ? (
+                <ActivityIndicator size="large" color="#8B5CF6" />
               ) : (
                 <View style={styles.qrBlocked}>
                   <Ionicons name="lock-closed-outline" size={36} color="#9CA3AF" />
@@ -327,9 +336,9 @@ export default function MembershipCardScreen({navigation}) {
             </View>
             <Text style={styles.qrLabel}>
               {isActiveMember
-                ? `Apresente este QR Code nos parceiros · válido até ${formatDate(
-                    membership.endDate,
-                  )}`
+                ? cardCode.source === 'legacy'
+                  ? 'Sem conexão: mostre o QR e um documento com foto ao parceiro'
+                  : 'Apresente este QR nos parceiros · ele se renova sozinho, print não vale'
                 : 'Assine um plano para ativar o QR Code e os descontos'}
             </Text>
           </View>

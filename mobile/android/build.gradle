@@ -18,6 +18,8 @@ buildscript {
         kotlinVersion = "1.9.24"
         googlePlayServicesVersion = "21.5.0"
         firebaseVersion = "29.0.0"
+        // Leitor de QR do App Parceiros: modelo do ML Kit embutido (funciona sem Play Services/internet)
+        VisionCamera_enableCodeScanner = true
     }
     repositories {
         google()

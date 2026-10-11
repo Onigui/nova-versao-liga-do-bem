@@ -2,6 +2,7 @@ import { Alert, Linking, Platform, NativeModules } from 'react-native';
 import { API_BASE_PATH, API_BASE_URL } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
+import { APP_VARIANT, IS_PARTNER_APP } from '../config/appVariant';
 
 // Importar RNFS de forma segura
 let RNFS = null;
@@ -37,6 +38,10 @@ async function getCurrentAppVersion() {
   } catch (error) {
     console.warn('⚠️ [getCurrentAppVersion] Erro ao obter versão do DeviceInfo:', error);
     // Fallback: usar app.json primeiro, depois package.json
+    if (IS_PARTNER_APP) {
+      const partnerApp = require('../../partner-app.json');
+      return {version: partnerApp.version, versionCode: partnerApp.versionCode};
+    }
     try {
       const appJson = require('../../app.json');
       if (appJson.versionCode) {
@@ -85,7 +90,7 @@ class UpdateService {
       const { version, versionCode } = await getCurrentAppVersion();
       console.log('📱 [UpdateService.checkForUpdates] Verificando atualizações...', { version, versionCode });
 
-      const url = `${API_BASE_PATH}/app/update/check?version=${version}&versionCode=${versionCode}`;
+      const url = `${API_BASE_PATH}/app/update/check?version=${version}&versionCode=${versionCode}&app=${APP_VARIANT}`;
       console.log('📱 [UpdateService.checkForUpdates] URL:', url);
       console.log('📱 [UpdateService.checkForUpdates] API_BASE_PATH:', API_BASE_PATH);
 

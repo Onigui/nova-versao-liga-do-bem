@@ -1,0 +1,112 @@
+import React from 'react';
+import {Alert, ScrollView, Text, View} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import DeviceInfo from 'react-native-device-info';
+import {COLORS, usePartner} from '../PartnerContext';
+import {Badge, Button, Card, styles as ui} from '../ui';
+
+function Line({icon, text}) {
+  if (!text) return null;
+  return (
+    <View style={[ui.row, {gap: 10, marginTop: 8}]}>
+      <Icon name={icon} size={18} color={COLORS.muted} />
+      <Text style={{color: COLORS.text, fontSize: 15, flex: 1}}>{text}</Text>
+    </View>
+  );
+}
+
+export default function CompanyScreen({navigation}) {
+  const {partner: p, isOwner, logout} = usePartner();
+  let version = '';
+  try {
+    version = DeviceInfo.getVersion();
+  } catch {
+    version = '';
+  }
+
+  const confirmLogout = () =>
+    Alert.alert('Sair da conta?', '', [
+      {text: 'Cancelar', style: 'cancel'},
+      {text: 'Sair', style: 'destructive', onPress: () => logout()},
+    ]);
+
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
+      <Card>
+        <View style={[ui.row, {justifyContent: 'space-between'}]}>
+          <Text style={[ui.title, {flex: 1}]}>{p?.name}</Text>
+          <Badge
+            text={isOwner ? 'Responsável' : 'Funcionário'}
+            tone={isOwner ? 'ok' : 'muted'}
+          />
+        </View>
+        {p?.category ? <Text style={ui.muted}>{p.category}</Text> : null}
+        {p?.description ? (
+          <Text style={{color: COLORS.text, marginTop: 8}}>
+            {p.description}
+          </Text>
+        ) : null}
+        <Line
+          icon="location-outline"
+          text={[p?.address, p?.city && `${p.city}/${p.state}`, p?.zipCode]
+            .filter(Boolean)
+            .join(' · ')}
+        />
+        <Line icon="time-outline" text={p?.hours} />
+        <Line icon="call-outline" text={p?.phone} />
+        <Line icon="mail-outline" text={p?.email} />
+        <Line icon="globe-outline" text={p?.website} />
+        {isOwner ? (
+          <Button
+            title="Editar dados da empresa"
+            variant="secondary"
+            onPress={() => navigation.navigate('CompanyEdit')}
+            style={{marginTop: 16}}
+            testID="editar-empresa"
+          />
+        ) : (
+          <Text style={[ui.muted, {marginTop: 14, fontSize: 13}]}>
+            Só o responsável pela empresa pode alterar estes dados.
+          </Text>
+        )}
+      </Card>
+
+      {isOwner ? (
+        <Card>
+          <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text}}>
+            Funcionários
+          </Text>
+          <Text style={[ui.muted, {marginVertical: 6}]}>
+            Dê acesso para quem atende no caixa validar as carteirinhas.
+          </Text>
+          <Button
+            title="Gerenciar funcionários"
+            variant="secondary"
+            onPress={() => navigation.navigate('Staff')}
+          />
+        </Card>
+      ) : null}
+
+      <Card>
+        <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text}}>
+          Notificação para todos os membros
+        </Text>
+        <Text style={[ui.muted, {marginTop: 6}]}>
+          Em breve: divulgue suas promoções para todo mundo que tem o app Liga
+          do Bem.
+        </Text>
+      </Card>
+
+      <Button
+        title="Sair da conta"
+        variant="danger"
+        onPress={confirmLogout}
+        style={{marginTop: 4}}
+      />
+      <Text
+        style={[ui.muted, {textAlign: 'center', marginTop: 16, fontSize: 12}]}>
+        Liga do Bem Parceiros {version ? `v${version}` : ''}
+      </Text>
+    </ScrollView>
+  );
+}
