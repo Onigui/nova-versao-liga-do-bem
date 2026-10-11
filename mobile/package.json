@@ -1,6 +1,6 @@
 {
   "name": "liga-do-bem-botucatu",
-  "version": "1.2.33",
+  "version": "1.2.34",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -31,6 +31,7 @@
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "2.16.0",
     "react-native-image-picker": "^7.1.0",
+    "react-native-keychain": "8.2.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-paper": "^5.12.5",
     "react-native-qrcode-svg": "^6.3.12",
