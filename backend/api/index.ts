@@ -29,6 +29,8 @@ import {
 import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
 import { verifyGithubOidc } from './lib/githubOidc';
 import { approveDonationFromPayment } from './lib/donations';
+import { sendEmail, isEmailDeliveryConfigured } from './lib/email';
+import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts } from './lib/partnerPortal';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -88,72 +90,12 @@ function isAdminRequest(req: any): boolean {
 
 /** Envia e-mail de recuperação de senha. Nunca loga o código. */
 async function sendPasswordResetEmail(to: string, code: string): Promise<{ ok: boolean; error?: string }> {
-  const from =
-    process.env.SMTP_FROM ||
-    process.env.EMAIL_FROM ||
-    process.env.SMTP_USER ||
-    '';
-
-  // Preferência: Resend API
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    try {
-      const resp = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: from || 'Liga do Bem <onboarding@resend.dev>',
-          to: [to],
-          subject: 'Código para redefinir sua senha — Liga do Bem',
-          text: `Seu código de recuperação é: ${code}\n\nEle vale por 15 minutos.\nSe você não pediu isso, ignore este e-mail.`,
-          html: `<p>Seu código de recuperação é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p><p>Ele vale por <strong>15 minutos</strong>.</p><p>Se você não pediu isso, ignore este e-mail.</p>`,
-        }),
-      });
-      if (!resp.ok) {
-        const detail = await resp.text().catch(() => '');
-        return { ok: false, error: `Resend: ${resp.status} ${detail}` };
-      }
-      return { ok: true };
-    } catch (e: any) {
-      return { ok: false, error: e?.message || 'Falha Resend' };
-    }
-  }
-
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  if (!host || !user || !pass) {
-    return { ok: false, error: 'SMTP/Resend não configurado' };
-  }
-
-  try {
-    const nodemailer = require('nodemailer');
-    const port = parseInt(process.env.SMTP_PORT || '587', 10);
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-    });
-    await transporter.sendMail({
-      from: from || user,
-      to,
-      subject: 'Código para redefinir sua senha — Liga do Bem',
-      text: `Seu código de recuperação é: ${code}\n\nEle vale por 15 minutos.\nSe você não pediu isso, ignore este e-mail.`,
-      html: `<p>Seu código de recuperação é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p><p>Ele vale por <strong>15 minutos</strong>.</p><p>Se você não pediu isso, ignore este e-mail.</p>`,
-    });
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || 'Falha SMTP' };
-  }
-}
-
-function isEmailDeliveryConfigured(): boolean {
-  if (process.env.RESEND_API_KEY) return true;
-  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  return sendEmail({
+    to,
+    subject: 'Código para redefinir sua senha — Liga do Bem',
+    text: `Seu código de recuperação é: ${code}\n\nEle vale por 15 minutos.\nSe você não pediu isso, ignore este e-mail.`,
+    html: `<p>Seu código de recuperação é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p><p>Ele vale por <strong>15 minutos</strong>.</p><p>Se você não pediu isso, ignore este e-mail.</p>`,
+  });
 }
 
 /** Estima birthDate a partir da idade atual informada (em meses). */
@@ -394,6 +336,21 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    // Portal do parceiro, acessos de parceiro no admin e QR assinado da carteirinha
+    if (
+      path.startsWith('/api/partner/') ||
+      path === '/api/membership/card-token' ||
+      path.startsWith('/api/admin/partners/') ||
+      path.startsWith('/api/admin/partner-')
+    ) {
+      const handled = await handlePartnerPortal({
+        req, res, path, method, body, db: getPrisma(), jwtSecret: JWT_SECRET,
+        isAdmin: isAdminRequest(req),
+        authUser: () => decodeAuthUser(req),
+      });
+      if (handled) return;
+    }
+
     // GET transparency summary (public)
     if (path === '/api/transparency/summary' && method === 'GET') {
       const db = getPrisma();
@@ -1895,6 +1852,16 @@ export default async function handler(req: any, res: any) {
           }
         });
 
+        // Promoções vigentes de cada parceiro (cadastradas pelo admin ou pelo próprio parceiro)
+        let discountsByPartner: Record<string, any[]> = {};
+        try {
+          await ensurePartnerPortalSchema(db);
+          const all = await listCurrentDiscounts(db, partners.map((p: any) => p.id));
+          for (const d of all) (discountsByPartner[d.partnerId] ||= []).push(d);
+        } catch (e) {
+          console.warn('⚠️ Não foi possível carregar as promoções dos parceiros:', e);
+        }
+
         // Map to expected format
         const formattedPartners = partners.map(p => ({
           id: p.id,
@@ -1910,7 +1877,10 @@ export default async function handler(req: any, res: any) {
           state: p.state,
           hours: p.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
           logo: p.logo || null,
-          discount: p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : null
+          discount:
+            discountsByPartner[p.id]?.[0]?.label ||
+            (p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : null),
+          discounts: discountsByPartner[p.id] || [],
         }));
 
         console.log(`✅ Partners loaded: ${formattedPartners.length}`);
