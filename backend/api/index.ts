@@ -30,7 +30,7 @@ import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
 import { verifyGithubOidc } from './lib/githubOidc';
 import { approveDonationFromPayment } from './lib/donations';
 import { sendEmail, isEmailDeliveryConfigured } from './lib/email';
-import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts } from './lib/partnerPortal';
+import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts, createPartnerAccess } from './lib/partnerPortal';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -86,6 +86,73 @@ function isAdminRequest(req: any): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Valida e normaliza os dados de empresa vindos do admin.
+ * create=true exige os obrigatórios; em update só valida o que veio.
+ */
+function parseCompanyInput(body: any, create: boolean): { data?: any; error?: string; field?: string } {
+  const b = body || {};
+  const out: any = {};
+  const text = (k: string, max: number, field = k) => {
+    if (b[k] === undefined) return;
+    const v = b[k] === null ? '' : String(b[k]).trim();
+    if (v.length > max) throw { error: `Texto muito longo (máx. ${max} caracteres)`, field };
+    out[k] = v || null;
+  };
+  try {
+    text('name', 120); text('category', 60); text('description', 2000); text('email', 160);
+    text('phone', 40); text('website', 300); text('logo', 1000); text('address', 300);
+    text('city', 100); text('state', 2); text('zipCode', 9); text('hours', 300);
+  } catch (e: any) {
+    return e;
+  }
+  if (out.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) return { error: 'E-mail inválido', field: 'email' };
+  if (out.state) {
+    out.state = out.state.toUpperCase();
+    if (!/^[A-Z]{2}$/.test(out.state)) return { error: 'UF deve ter 2 letras', field: 'state' };
+  }
+  if (out.zipCode) {
+    const d = out.zipCode.replace(/\D/g, '');
+    if (d.length !== 8) return { error: 'CEP deve ter 8 dígitos', field: 'zipCode' };
+    out.zipCode = `${d.slice(0, 5)}-${d.slice(5)}`;
+  }
+  if (out.website && !/^https?:\/\//i.test(out.website)) out.website = `https://${out.website}`;
+  if (out.logo && !/^https:\/\//i.test(out.logo)) return { error: 'O logo precisa ser um link https', field: 'logo' };
+  for (const k of ['latitude', 'longitude']) {
+    if (b[k] === undefined) continue;
+    if (b[k] === null || b[k] === '') { out[k] = null; continue; }
+    const n = Number(String(b[k]).replace(',', '.'));
+    const lim = k === 'latitude' ? 90 : 180;
+    if (!Number.isFinite(n) || Math.abs(n) > lim) return { error: `${k === 'latitude' ? 'Latitude' : 'Longitude'} inválida`, field: k };
+    out[k] = n;
+  }
+  if (b.isActive !== undefined) out.isActive = !!b.isActive;
+  else if (b.status !== undefined) out.isActive = b.status === 'active';
+  if (create) {
+    for (const [k, label] of [['name', 'o nome'], ['category', 'a categoria'], ['address', 'o endereço'], ['city', 'a cidade'], ['state', 'a UF'], ['zipCode', 'o CEP']]) {
+      if (!out[k]) return { error: `Informe ${label}`, field: k };
+    }
+  } else {
+    for (const k of ['name', 'category', 'address', 'city', 'state', 'zipCode']) {
+      if (k in out && !out[k]) return { error: 'Nome, categoria, endereço, cidade, UF e CEP não podem ficar vazios', field: k };
+    }
+  }
+  return { data: out };
+}
+
+/** CPF com dígitos verificadores. */
+function isValidCpf(raw: string): boolean {
+  const c = String(raw || '').replace(/\D/g, '');
+  if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
+  const calc = (n: number) => {
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += Number(c[i]) * (n + 1 - i);
+    const r = (sum * 10) % 11;
+    return r === 10 ? 0 : r;
+  };
+  return calc(9) === Number(c[9]) && calc(10) === Number(c[10]);
 }
 
 /**
@@ -1043,32 +1110,50 @@ export default async function handler(req: any, res: any) {
     // Admin companies (partners) - GET all
     if (path === '/api/admin/companies' && method === 'GET') {
       const db = getPrisma();
-      if (db) {
-        const partners = await db.partner.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: 100,
-          include: {
-            discounts: true
-          }
-        });
-        // Map to expected format
-        const companies = partners.map(p => ({
+      if (!db) return res.status(200).json({ companies: [], total: 0, error: 'Database not configured' });
+      try {
+        // Garante as colunas novas antes de qualquer leitura (evita a tela vazia por coluna ausente)
+        await ensurePartnerPortalSchema(db);
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT p.*,
+                  (SELECT COUNT(*)::int FROM partner_accounts a WHERE a."partnerId" = p.id) AS "accessCount",
+                  (SELECT COUNT(*)::int FROM partner_discounts d
+                    WHERE d."partnerId" = p.id AND d."archivedAt" IS NULL AND d."isActive" = true
+                      AND d."validFrom" <= NOW() AND (d."validUntil" IS NULL OR d."validUntil" >= NOW())) AS "activeDiscounts",
+                  (SELECT d.percentage FROM partner_discounts d
+                    WHERE d."partnerId" = p.id AND d."archivedAt" IS NULL AND d."isActive" = true AND d.percentage IS NOT NULL
+                    ORDER BY d."createdAt" DESC LIMIT 1) AS "topPercentage"
+             FROM partners p ORDER BY p."createdAt" DESC LIMIT 500`
+        );
+        const companies = rows.map((p) => ({
           id: p.id,
           name: p.name,
           category: p.category,
           status: p.isActive ? 'active' : 'inactive',
-          discount: p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : 'N/A',
-          location: p.city || p.address,
+          isActive: p.isActive,
+          discount: p.topPercentage != null ? `${Number(p.topPercentage)}%` : 'N/A',
+          activeDiscounts: p.activeDiscounts,
+          accessCount: p.accessCount,
+          location: [p.city, p.state].filter(Boolean).join('/') || p.address,
+          address: p.address,
+          city: p.city,
+          state: p.state,
+          zipCode: p.zipCode,
           email: p.email,
           phone: p.phone,
+          website: p.website,
+          logo: p.logo,
           description: p.description,
           hours: p.hours || null,
           latitude: p.latitude,
           longitude: p.longitude,
+          createdAt: p.createdAt,
         }));
         return res.status(200).json({ companies, total: companies.length });
+      } catch (error: any) {
+        console.error('❌ Erro ao listar empresas:', error);
+        return res.status(500).json({ error: 'Erro ao carregar as empresas. Tente de novo em instantes.', detail: error?.message });
       }
-      return res.status(200).json({ companies: [], total: 0, error: 'Database not configured' });
     }
 
     // Admin companies - POST (create)
@@ -1078,36 +1163,40 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
-        const { name, category, address, latitude, longitude, phone, email, description, status, hours } = body;
-        if (!name || !category) {
-          return res.status(400).json({ error: 'Nome e categoria são obrigatórios' });
-        }
-        // Parse address to get city and state if needed
-        const city = 'Botucatu'; // Default
-        const state = 'SP'; // Default
-        const zipCode = '18608-000'; // Default
-        
-        const partner = await db.partner.create({
-          data: {
-            name,
-            category,
-            address: address || 'Não informado',
-            city,
-            state,
-            zipCode,
-            latitude: latitude || null,
-            longitude: longitude || null,
-            phone: phone || null,
-            email: email || null,
-            description: description || null,
-            hours: hours || null,
-            isActive: status === 'active' || status === undefined
+        await ensurePartnerPortalSchema(db);
+        const parsed = parseCompanyInput(body, true);
+        if (parsed.error) return res.status(400).json({ error: parsed.error, field: parsed.field });
+        const id = require('crypto').randomUUID();
+        const d = parsed.data;
+        await db.$executeRawUnsafe(
+          `INSERT INTO partners (id, name, description, category, email, phone, website, logo, address,
+             latitude, longitude, city, state, "zipCode", hours, "isActive", "createdAt", "updatedAt")
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW())`,
+          id, d.name, d.description ?? null, d.category, d.email ?? null, d.phone ?? null, d.website ?? null,
+          d.logo ?? null, d.address, d.latitude ?? null, d.longitude ?? null, d.city, d.state, d.zipCode,
+          d.hours ?? null, d.isActive ?? true,
+        );
+        // Opcional: já cria o acesso do responsável ao App Parceiros (e manda o e-mail)
+        let access: any = null;
+        let accessError: string | null = null;
+        const ownerEmail = String(body?.ownerEmail || '').trim();
+        if (ownerEmail) {
+          try {
+            let adminId = 'admin';
+            try { adminId = decodeAuthUser(req).userId; } catch { /* token demo */ }
+            access = await createPartnerAccess(db, {
+              partnerId: id, email: ownerEmail, name: String(body?.ownerName || '').trim() || undefined,
+              role: 'OWNER', createdById: adminId,
+            });
+          } catch (e: any) {
+            accessError = e?.message || 'Não foi possível criar o acesso';
           }
-        });
-        return res.status(201).json({ message: 'Empresa cadastrada com sucesso', company: partner });
+        }
+        const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM partners WHERE id = $1`, id);
+        return res.status(201).json({ message: 'Empresa cadastrada com sucesso', company: rows[0], access, accessError });
       } catch (error: any) {
         console.error('❌ Erro ao criar empresa:', error);
-        return res.status(500).json({ error: error?.message || 'Erro ao criar empresa' });
+        return res.status(500).json({ error: 'Não foi possível cadastrar a empresa.', detail: error?.message });
       }
     }
 
@@ -1188,26 +1277,19 @@ export default async function handler(req: any, res: any) {
         if (!companyId) {
           return res.status(400).json({ error: 'ID da empresa é obrigatório', path, match });
         }
-        const { name, category, city, state, zipCode, address, email, phone, description, hours } = body;
-        
-        console.log(`💾 Updating company ${companyId} with data:`, { name, category, city, state });
-        
-        const updateData: any = {};
-        if (name) updateData.name = name;
-        if (category) updateData.category = category;
-        if (city) updateData.city = city;
-        if (state) updateData.state = state;
-        if (zipCode) updateData.zipCode = zipCode;
-        if (address) updateData.address = address;
-        if (email !== undefined) updateData.email = email || null;
-        if (phone !== undefined) updateData.phone = phone || null;
-        if (description !== undefined) updateData.description = description || null;
-        if (hours !== undefined) updateData.hours = hours || null;
-        
-        const partner = await db.partner.update({
-          where: { id: companyId },
-          data: updateData
-        });
+        const parsed = parseCompanyInput(body, false);
+        if (parsed.error) return res.status(400).json({ error: parsed.error, field: parsed.field });
+        const updateData: any = parsed.data;
+        if (!Object.keys(updateData).length) return res.status(400).json({ error: 'Nada para atualizar' });
+        const keys = Object.keys(updateData);
+        const sets = keys.map((k, i) => `"${k}" = $${i + 1}`).join(', ');
+        const updated: any[] = await db.$queryRawUnsafe(
+          `UPDATE partners SET ${sets}, "updatedAt" = NOW() WHERE id = $${keys.length + 1} RETURNING *`,
+          ...keys.map((k) => updateData[k]),
+          companyId,
+        );
+        const partner = updated?.[0];
+        if (!partner) return res.status(404).json({ error: 'Empresa não encontrada' });
         console.log('✅ Company updated successfully:', partner.id);
         return res.status(200).json({ message: 'Empresa atualizada com sucesso', company: partner });
       } catch (error: any) {
@@ -1260,6 +1342,7 @@ export default async function handler(req: any, res: any) {
             phone: true,
             avatar: true,
             role: true,
+            cpf: true,
             isActive: true,
             createdAt: true,
             updatedAt: true,
@@ -1268,6 +1351,61 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ members, total: members.length });
       }
       return res.status(200).json({ members: [], total: 0 });
+    }
+
+    // Admin members - POST (create). A pessoa define a própria senha pelo "Esqueci a senha".
+    if (path === '/api/admin/members' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const name = String(body?.name || '').trim();
+        const email = String(body?.email || '').trim().toLowerCase();
+        const phone = String(body?.phone || '').trim() || null;
+        const cpfDigits = String(body?.cpf || '').replace(/\D/g, '');
+        const role = String(body?.role || 'MEMBER').toUpperCase();
+        if (name.length < 3) return res.status(400).json({ error: 'Informe o nome completo', field: 'name' });
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'E-mail inválido', field: 'email' });
+        if (cpfDigits && !isValidCpf(cpfDigits)) return res.status(400).json({ error: 'CPF inválido', field: 'cpf' });
+        if (!['MEMBER', 'VOLUNTEER', 'PARTNER', 'ADMIN'].includes(role)) return res.status(400).json({ error: 'Perfil inválido', field: 'role' });
+
+        const dup: any[] = await db.$queryRawUnsafe(
+          `SELECT lower(email) = $1 AS "sameEmail" FROM users WHERE lower(email) = $1 OR ($2::text IS NOT NULL AND cpf = $2) LIMIT 1`,
+          email, cpfDigits || null,
+        );
+        if (dup[0]) {
+          return res.status(409).json(dup[0].sameEmail
+            ? { error: 'Já existe um usuário com este e-mail', field: 'email' }
+            : { error: 'Já existe um usuário com este CPF', field: 'cpf' });
+        }
+        const crypto = require('crypto');
+        const id = crypto.randomUUID();
+        // Senha aleatória inutilizável até a pessoa criar a dela
+        const unusable = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+        await db.$executeRawUnsafe(
+          `INSERT INTO users (id, email, password, name, phone, cpf, role, "isActive", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7::"UserRole", $8, NOW(), NOW())`,
+          id, email, unusable, name, phone, cpfDigits || null, role, body?.isActive !== false,
+        );
+        let emailSent = false;
+        if (body?.sendInvite !== false && isEmailDeliveryConfigured()) {
+          const r = await sendEmail({
+            to: email,
+            subject: 'Seu acesso à Liga do Bem',
+            text: `Olá, ${name}!\n\nCriamos sua conta na Liga do Bem Botucatu com este e-mail.\nPara entrar, abra o app Liga do Bem, toque em "Esqueci minha senha" e informe este e-mail: você vai receber um código para criar sua senha.`,
+            html: `<p>Olá, ${name.replace(/[<>&"]/g, '')}!</p><p>Criamos sua conta na <strong>Liga do Bem Botucatu</strong> com este e-mail.</p><p>Para entrar, abra o app Liga do Bem, toque em <strong>Esqueci minha senha</strong> e informe este e-mail: você vai receber um código para criar sua senha.</p>`,
+          });
+          emailSent = r.ok;
+          if (!r.ok) console.warn('⚠️ Convite de novo usuário não enviado:', r.error);
+        }
+        return res.status(201).json({
+          message: 'Usuário cadastrado',
+          member: { id, name, email, phone, role, isActive: body?.isActive !== false },
+          emailSent,
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao cadastrar usuário:', error);
+        return res.status(500).json({ error: 'Não foi possível cadastrar o usuário.', detail: error?.message });
+      }
     }
 
     // Admin members - PUT (update by ID)
@@ -1283,13 +1421,26 @@ export default async function handler(req: any, res: any) {
         if (!memberId) {
           return res.status(400).json({ error: 'ID do membro é obrigatório' });
         }
-        const { name, email, phone, role, status, points } = body;
+        const { name, email, phone, role, status, cpf } = body;
         
         const updateData: any = {};
-        if (name) updateData.name = name;
-        if (email) updateData.email = email;
+        if (name) updateData.name = String(name).trim();
+        if (email) {
+          const e = String(email).trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return res.status(400).json({ error: 'E-mail inválido', field: 'email' });
+          updateData.email = e;
+        }
         if (phone !== undefined) updateData.phone = phone || null;
-        if (role) updateData.role = role;
+        if (cpf !== undefined) {
+          const c = String(cpf || '').replace(/\D/g, '');
+          if (c && !isValidCpf(c)) return res.status(400).json({ error: 'CPF inválido', field: 'cpf' });
+          updateData.cpf = c || null;
+        }
+        if (role) {
+          if (!['MEMBER', 'VOLUNTEER', 'PARTNER', 'ADMIN'].includes(String(role).toUpperCase())) return res.status(400).json({ error: 'Perfil inválido', field: 'role' });
+          updateData.role = String(role).toUpperCase();
+        }
+        if (body?.isActive !== undefined) updateData.isActive = !!body.isActive;
         // Map status to isActive
         if (status !== undefined) {
           updateData.isActive = status === 'active' || status === true;
@@ -1303,6 +1454,9 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ message: 'Membro atualizado com sucesso', member });
       } catch (error: any) {
         console.error('❌ Erro ao atualizar membro:', error);
+        if (error?.code === 'P2002') {
+          return res.status(409).json({ error: 'E-mail ou CPF já usado por outro usuário' });
+        }
         if (error?.code === 'P2025') {
           return res.status(404).json({ error: 'Membro não encontrado' });
         }
