@@ -18,6 +18,10 @@ class ApkInstallerModule(reactContext: ReactApplicationContext) : ReactContextBa
         return "ApkInstaller"
     }
 
+    // "member" (Liga do Bem) ou "partner" (Liga do Bem Parceiros): o JS escolhe as telas por aqui.
+    override fun getConstants(): MutableMap<String, Any> =
+        hashMapOf("APP_VARIANT" to BuildConfig.FLAVOR, "APPLICATION_ID" to BuildConfig.APPLICATION_ID)
+
     @ReactMethod
     fun installApk(filePath: String, promise: Promise) {
         try {

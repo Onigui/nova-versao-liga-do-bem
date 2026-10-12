@@ -22,7 +22,8 @@ react {
     //   The list of variants to that are debuggable. For those we're going to
     //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
     //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    // debuggableVariants = ["liteDebug", "prodDebug"]
+    // Dois apps no mesmo código: "member" (Liga do Bem) e "partner" (Liga do Bem Parceiros).
+    debuggableVariants = ["memberDebug", "partnerDebug"]
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
@@ -83,6 +84,8 @@ android {
         applicationId "com.ligadobem.botucatu"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 37
+        versionName "1.2.35"
         versionCode 36
         versionName "1.2.34"
         multiDexEnabled true
@@ -90,6 +93,23 @@ android {
     
     buildFeatures {
         buildConfig = true
+    }
+
+    // App do membro e App Parceiros saem do mesmo código. O JS escolhe as telas por
+    // BuildConfig.FLAVOR (exposto como ApkInstaller.APP_VARIANT). Versão do App Parceiros
+    // fica em mobile/partner-app.json; a do membro continua em defaultConfig/package.json.
+    flavorDimensions "app"
+    productFlavors {
+        member {
+            dimension "app"
+        }
+        partner {
+            dimension "app"
+            def partnerApp = new groovy.json.JsonSlurper().parse(file("../../partner-app.json"))
+            applicationId partnerApp.applicationId
+            versionCode partnerApp.versionCode as int
+            versionName partnerApp.version
+        }
     }
     signingConfigs {
         debug {

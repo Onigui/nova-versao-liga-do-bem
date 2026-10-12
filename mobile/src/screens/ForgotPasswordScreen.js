@@ -15,7 +15,9 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {API_BASE_PATH} from '../config/apiConfig';
 
-export default function ForgotPasswordScreen({navigation}) {
+export default function ForgotPasswordScreen({navigation, route}) {
+  // App Parceiros: o mesmo fluxo serve para criar a senha no primeiro acesso.
+  const firstAccess = !!route?.params?.firstAccess;
   const [step, setStep] = useState('email'); // email | code | success
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -158,7 +160,7 @@ export default function ForgotPasswordScreen({navigation}) {
               style={styles.headerBackButton}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Recuperar Senha</Text>
+            <Text style={styles.headerTitle}>{firstAccess ? 'Primeiro acesso' : 'Recuperar Senha'}</Text>
             <View style={{width: 40}} />
           </View>
 
@@ -175,7 +177,7 @@ export default function ForgotPasswordScreen({navigation}) {
           <View style={styles.card}>
             {step === 'email' ? (
               <>
-                <Text style={styles.title}>Esqueceu sua senha?</Text>
+                <Text style={styles.title}>{firstAccess ? 'Crie ou recupere sua senha' : 'Esqueceu sua senha?'}</Text>
                 <Text style={styles.subtitle}>
                   Digite seu e-mail. Enviaremos um código de 6 dígitos para você
                   redefinir a senha.

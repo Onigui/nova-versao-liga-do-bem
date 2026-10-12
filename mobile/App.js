@@ -8,6 +8,8 @@ import NotificationService from './src/services/NotificationService';
 import UpdateChecker from './src/components/UpdateChecker';
 
 import { AuthStack, AppStack } from './src/navigation/AppNavigator';
+import { PartnerAuthStack, PartnerAppStack } from './src/partner/PartnerNavigator';
+import { IS_PARTNER_APP } from './src/config/appVariant';
 import { AuthProvider, useAuth } from './src/services/AuthService';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
@@ -28,9 +30,9 @@ function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {isAuthenticated ? (
-        <Stack.Screen name="App" component={AppStack} />
+        <Stack.Screen name="App" component={IS_PARTNER_APP ? PartnerAppStack : AppStack} />
       ) : (
-        <Stack.Screen name="Auth" component={AuthStack} />
+        <Stack.Screen name="Auth" component={IS_PARTNER_APP ? PartnerAuthStack : AuthStack} />
       )}
     </Stack.Navigator>
   );
@@ -50,7 +52,10 @@ function AppNavigation() {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar
+        barStyle={IS_PARTNER_APP ? 'light-content' : 'dark-content'}
+        backgroundColor={IS_PARTNER_APP ? '#0F766E' : '#ffffff'}
+      />
       <RootNavigator />
     </>
   );

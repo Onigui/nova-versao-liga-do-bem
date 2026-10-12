@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationService from './NotificationService';
 import { API_BASE_PATH } from '../config/apiConfig';
+import { IS_PARTNER_APP } from '../config/appVariant';
 
 const AuthContext = createContext({});
 
@@ -20,6 +21,12 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
 
   useEffect(() => {
+    if (IS_PARTNER_APP) {
+      // App Parceiros fica no balcão: a sessão dura até o token expirar ou a pessoa sair.
+      loadStoredAuth({ persistent: true });
+      return undefined;
+    }
+
     // Marcar timestamp de quando o app foi iniciado
     const appStartTime = Date.now();
     AsyncStorage.setItem('app_last_active', appStartTime.toString()).catch(() => {});
@@ -124,8 +131,9 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const loadStoredAuth = async () => {
+  const loadStoredAuth = async ({ persistent = false } = {}) => {
     try {
+      if (!persistent) {
       // Verificar se o app foi completamente fechado
       // Quando o app é completamente fechado, o timestamp 'app_last_active' não é atualizado
       // Se o timestamp for muito antigo (mais de 1 minuto), significa que o app foi completamente fechado
@@ -166,6 +174,7 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
           return;
         }
+      }
       }
       
       const storedToken = await AsyncStorage.getItem('auth_token');

@@ -2,6 +2,7 @@ import {Platform, PermissionsAndroid} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
 import { API_BASE_PATH } from '../config/apiConfig';
+import { APP_VARIANT } from '../config/appVariant';
 
 export class NotificationService {
   static async requestPermissions() {
@@ -73,6 +74,7 @@ export class NotificationService {
         body: JSON.stringify({
           token: messagingToken,
           provider: 'fcm',
+          app: APP_VARIANT,
           platform: Platform.OS,
           deviceInfo: {
             model: Platform.constants?.Model || Platform.OS,

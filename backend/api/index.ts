@@ -88,6 +88,27 @@ function isAdminRequest(req: any): boolean {
   return false;
 }
 
+/**
+ * app_versions tem um canal por "platform" (android = app do membro, android-partner = App Parceiros).
+ * Versão e versionCode passam a ser únicos por canal, não globalmente.
+ */
+let appVersionChannelsReady = false;
+async function ensureAppVersionChannels(db: any) {
+  if (appVersionChannelsReady) return;
+  for (const sql of [
+    // Pode existir como constraint (UNIQUE na coluna) ou como índice, depende de como a tabela nasceu
+    `ALTER TABLE app_versions DROP CONSTRAINT IF EXISTS "app_versions_version_key"`,
+    `ALTER TABLE app_versions DROP CONSTRAINT IF EXISTS "app_versions_versionCode_key"`,
+    `DROP INDEX IF EXISTS "app_versions_version_key"`,
+    `DROP INDEX IF EXISTS "app_versions_versionCode_key"`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "app_versions_platform_version_key" ON app_versions(platform, version)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "app_versions_platform_versionCode_key" ON app_versions(platform, "versionCode")`,
+  ]) {
+    await db.$executeRawUnsafe(sql);
+  }
+  appVersionChannelsReady = true;
+}
+
 /** Envia e-mail de recuperação de senha. Nunca loga o código. */
 async function sendPasswordResetEmail(to: string, code: string): Promise<{ ok: boolean; error?: string }> {
   return sendEmail({
@@ -516,6 +537,8 @@ export default async function handler(req: any, res: any) {
       
       try {
         const { version, versionCode } = req.query;
+        // Canal de atualização: app do membro (padrão) ou App Parceiros
+        const updatePlatform = String(req.query?.app || '').toLowerCase() === 'partner' ? 'android-partner' : 'android';
         
         console.log('🔍 [update/check] Verificando atualizações...', {
           version,
@@ -527,7 +550,7 @@ export default async function handler(req: any, res: any) {
         const latestVersion = await db.appVersion.findFirst({
           where: {
             isActive: true,
-            platform: 'android'
+            platform: updatePlatform
           },
           orderBy: {
             versionCode: 'desc'
@@ -661,12 +684,17 @@ export default async function handler(req: any, res: any) {
         const isMandatory = !!body?.isMandatory;
         const apkSize = body?.apkSize != null ? parseInt(String(body.apkSize), 10) : null;
         const platform = (body?.platform || 'android').toString();
+        if (!['android', 'android-partner', 'ios'].includes(platform)) {
+          return res.status(400).json({ error: 'platform inválida' });
+        }
 
         if (!version || !versionCode || !apkUrl) {
           return res.status(400).json({
             error: 'version, versionCode e apkUrl são obrigatórios',
           });
         }
+
+        await ensureAppVersionChannels(db);
 
         // Desativa outras versões ativas da mesma plataforma
         await db.$executeRawUnsafe(
@@ -677,8 +705,9 @@ export default async function handler(req: any, res: any) {
         );
 
         const existing: any[] = await db.$queryRawUnsafe(
-          `SELECT id FROM app_versions WHERE version = $1 LIMIT 1`,
-          version
+          `SELECT id FROM app_versions WHERE version = $1 AND platform = $2 LIMIT 1`,
+          version,
+          platform
         );
 
         let id = existing?.[0]?.id;
@@ -848,6 +877,8 @@ export default async function handler(req: any, res: any) {
         const { userId } = decodeAuthUser(req);
         const token = String(body?.token || '').trim();
         const platform = String(body?.platform || 'android').toLowerCase();
+        // O App Parceiros não entra no tópico geral: não recebe os avisos enviados aos membros.
+        const isPartnerApp = String(body?.app || '').toLowerCase() === 'partner';
         if (!token) return res.status(400).json({ error: 'token é obrigatório' });
 
         const id = require('crypto').randomUUID();
@@ -862,9 +893,9 @@ export default async function handler(req: any, res: any) {
           id,
           userId,
           token,
-          platform === 'ios' ? 'ios' : 'android',
+          isPartnerApp ? 'android-partner' : platform === 'ios' ? 'ios' : 'android',
         );
-        subscribeTokenToAllTopic(token).catch(() => {});
+        if (!isPartnerApp) subscribeTokenToAllTopic(token).catch(() => {});
         return res.status(200).json({ message: 'Token registrado', ok: true });
       } catch (error: any) {
         return res.status(error?.status || 500).json({
@@ -4135,8 +4166,8 @@ export default async function handler(req: any, res: any) {
               }
 
               // Verificar se já existe versão
-              const existingVersion = await db.appVersion.findUnique({
-                where: { versionCode: parseInt(versionCode, 10) }
+              const existingVersion = await db.appVersion.findFirst({
+                where: { versionCode: parseInt(versionCode, 10), platform: fields.platform || 'android' }
               });
 
               if (existingVersion) {
@@ -5805,9 +5836,12 @@ export default async function handler(req: any, res: any) {
         let pushSuccess = 0;
         try {
           const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
+          // Aparelhos do App Parceiros só recebem o que é enviado "para parceiros".
+          const partnerAudience = path.includes('send-to-role') && /PARTNER/i.test(String(body?.role || ''));
           const tokenRows: any[] = await db.$queryRawUnsafe(
             `SELECT token FROM device_tokens
-             WHERE "isActive" = true AND "userId" IN (${placeholders})`,
+             WHERE "isActive" = true AND "userId" IN (${placeholders})
+               ${partnerAudience ? '' : `AND platform <> 'android-partner'`}`,
             ...userIds,
           );
           const tokens = (tokenRows || []).map((t) => t.token).filter(Boolean);
@@ -7845,8 +7879,8 @@ export default async function handler(req: any, res: any) {
                     CONSTRAINT "app_versions_pkey" PRIMARY KEY ("id")
                 );
 
-                CREATE UNIQUE INDEX IF NOT EXISTS "app_versions_version_key" ON "app_versions"("version");
-                CREATE UNIQUE INDEX IF NOT EXISTS "app_versions_versionCode_key" ON "app_versions"("versionCode");
+                CREATE UNIQUE INDEX IF NOT EXISTS "app_versions_platform_version_key" ON "app_versions"("platform", "version");
+                CREATE UNIQUE INDEX IF NOT EXISTS "app_versions_platform_versionCode_key" ON "app_versions"("platform", "versionCode");
               `;
             }
             
