@@ -175,6 +175,33 @@ model PartnerAccount {
   @@map("partner_accounts")
 }
 
+// Notificação paga do parceiro para todos os membros (paga → admin aprova → envia)
+model PartnerPushCampaign {
+  id           String    @id
+  partnerId    String
+  createdById  String
+  title        String
+  body         String
+  discountId   String?
+  priceCents   Int
+  status       String    @default("AWAITING_PAYMENT") // AWAITING_PAYMENT | PENDING_REVIEW | SENDING | SENT | REJECTED | CANCELLED
+  paymentId    String?
+  paidAt       DateTime?
+  reviewedById String?
+  reviewNote   String?
+  reviewedAt   DateTime?
+  sentAt       DateTime?
+  recipients   Int?
+  pushSuccess  Int?
+  refundStatus String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now())
+
+  @@index([partnerId, createdAt], map: "partner_push_campaigns_partner_idx")
+  @@index([status], map: "partner_push_campaigns_status_idx")
+  @@map("partner_push_campaigns")
+}
+
 // Tentativas de validação (limite anti-varredura de números digitados)
 model PartnerLookupAttempt {
   id        String   @id
@@ -455,6 +482,7 @@ enum PaymentType {
   DONATION
   MEMBERSHIP
   EVENT
+  PARTNER_PUSH // notificação paga de parceiro
 }
 
 enum PaymentStatus {

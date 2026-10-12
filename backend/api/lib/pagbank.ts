@@ -590,3 +590,12 @@ export function mapPagBankStatusToPayment(status?: string | null): 'PENDING' | '
   if (s === 'WAITING') return 'PENDING';
   return 'PENDING';
 }
+
+/** Estorna (total ou parcial) uma cobrança paga. PagBank: POST /charges/{id}/cancel. */
+export async function cancelPagBankCharge(chargeId: string, amountCents: number) {
+  const data = await pagbankFetch(`/charges/${encodeURIComponent(chargeId)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ amount: { value: Math.round(amountCents) } }),
+  });
+  return { status: String(data?.status || ''), raw: data };
+}

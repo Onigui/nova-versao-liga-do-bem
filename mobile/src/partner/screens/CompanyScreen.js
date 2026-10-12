@@ -91,10 +91,16 @@ export default function CompanyScreen({navigation}) {
         <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text}}>
           Notificação para todos os membros
         </Text>
-        <Text style={[ui.muted, {marginTop: 6}]}>
-          Em breve: divulgue suas promoções para todo mundo que tem o app Liga
-          do Bem.
+        <Text style={[ui.muted, {marginVertical: 6}]}>
+          Divulgue suas promoções com um aviso no celular de todo mundo que tem
+          o app Liga do Bem.
         </Text>
+        <Button
+          title="Notificar membros"
+          variant="secondary"
+          onPress={() => navigation.navigate('PushCampaigns')}
+          testID="notificar-membros"
+        />
       </Card>
 
       <Button

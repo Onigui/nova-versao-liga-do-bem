@@ -1909,7 +1909,7 @@ export default async function handler(req: any, res: any) {
           hours: p.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
           logo: p.logo || null,
           discount:
-            discountsByPartner[p.id]?.[0]?.label ||
+            discountsByPartner[p.id]?.[0]?.short ||
             (p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : null),
           discounts: discountsByPartner[p.id] || [],
         }));

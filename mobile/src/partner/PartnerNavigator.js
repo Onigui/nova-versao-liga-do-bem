@@ -16,6 +16,8 @@ import HistoryScreen from './screens/HistoryScreen';
 import CompanyScreen from './screens/CompanyScreen';
 import CompanyEditScreen from './screens/CompanyEditScreen';
 import StaffScreen from './screens/StaffScreen';
+import PushCampaignsScreen from './screens/PushCampaignsScreen';
+import PushPaymentScreen from './screens/PushPaymentScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -167,6 +169,16 @@ export function PartnerAppStack() {
           name="Staff"
           component={StaffScreen}
           options={{title: 'Funcionários'}}
+        />
+        <Stack.Screen
+          name="PushCampaigns"
+          component={PushCampaignsScreen}
+          options={{title: 'Notificar membros'}}
+        />
+        <Stack.Screen
+          name="PushPayment"
+          component={PushPaymentScreen}
+          options={{title: 'Pagamento'}}
         />
       </Stack.Navigator>
     </PartnerProvider>
