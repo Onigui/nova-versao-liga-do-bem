@@ -1,0 +1,243 @@
+/*
+ * Formulários do painel: painel lateral (drawer) com seções, dicas, validação e prévia.
+ * Também melhora os modais antigos (animais, eventos, descontos, APK) sem mexer na lógica deles.
+ */
+:root {
+  --fx-ink: #1F2937;
+  --fx-ink-soft: #4B5563;
+  --fx-muted: #6B7280;
+  --fx-line: #D1D5DB;
+  --fx-line-soft: #E5E7EB;
+  --fx-surface: #FFFFFF;
+  --fx-wash: #F7F6FB;
+  --fx-brand: #7C3AED;
+  --fx-brand-soft: #EDE9FE;
+  --fx-ok: #15803D;
+  --fx-ok-soft: #DCFCE7;
+  --fx-bad: #B91C1C;
+  --fx-bad-soft: #FEE2E2;
+  --fx-warn: #92400E;
+  --fx-warn-soft: #FEF3C7;
+}
+
+/* ---------- painel lateral (vale para TODOS os modais do admin) ---------- */
+.modal-overlay {
+  justify-content: flex-end !important;
+  align-items: stretch !important;
+  background: rgba(17, 24, 39, 0.45) !important;
+}
+.modal-overlay > .modal {
+  width: min(680px, 100vw) !important;
+  max-width: none !important;
+  height: 100vh;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  box-shadow: -12px 0 40px rgba(17, 24, 39, 0.18);
+  animation: fx-slide-in 0.22s ease-out;
+}
+.modal-overlay.fx-wide > .modal { width: min(1080px, 100vw) !important; }
+@keyframes fx-slide-in { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .modal-overlay > .modal { animation: none; } }
+
+.modal-overlay .modal-header {
+  padding: 20px 28px !important;
+  border-bottom: 1px solid var(--fx-line-soft) !important;
+  align-items: flex-start !important;
+  gap: 16px;
+}
+.modal-overlay .modal-title { font-size: 1.25rem !important; font-weight: 650 !important; color: var(--fx-ink); line-height: 1.3; }
+.fx-subtitle { margin: 4px 0 0; color: var(--fx-muted); font-size: 0.9rem; line-height: 1.45; max-width: 60ch; }
+.modal-overlay .modal-close {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.modal-overlay .modal-close:hover { background: var(--fx-wash); color: var(--fx-ink); }
+.modal-overlay .modal-close:focus-visible { outline: 2px solid var(--fx-brand); outline-offset: 2px; }
+.modal-overlay .modal-body { padding: 8px 28px 28px !important; }
+.modal-overlay .modal-footer {
+  padding: 16px 28px !important;
+  border-top: 1px solid var(--fx-line-soft) !important;
+  background: var(--fx-surface);
+  align-items: center;
+}
+
+/* campos dos modais antigos ficam legíveis */
+.modal-overlay .form-label, .modal-overlay label.form-label { font-size: 0.875rem; font-weight: 550; color: #374151; }
+.modal-overlay .form-input {
+  border: 1px solid var(--fx-line) !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  font-size: 0.95rem !important;
+  background: var(--fx-surface) !important;
+  color: var(--fx-ink);
+  font-family: inherit;
+}
+.modal-overlay .form-input:hover { border-color: #9CA3AF !important; }
+.modal-overlay .form-input:focus { border-color: var(--fx-brand) !important; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15) !important; outline: none; }
+.modal-overlay .form-group { margin-bottom: 1.1rem; }
+
+/* ---------- estrutura do formulário novo ---------- */
+.fx-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; }
+.fx-wide .fx-layout { grid-template-columns: minmax(0, 1fr) 300px; }
+.fx-section { padding: 22px 0; border-bottom: 1px solid var(--fx-line-soft); }
+.fx-section:last-child { border-bottom: 0; }
+.fx-section > h3 { margin: 0; font-size: 1rem; font-weight: 650; color: var(--fx-ink); }
+.fx-section > .fx-section-help { margin: 4px 0 16px; color: var(--fx-muted); font-size: 0.85rem; line-height: 1.45; }
+.fx-grid { display: grid; gap: 14px 16px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.fx-col-6 { grid-column: span 6; } .fx-col-4 { grid-column: span 4; } .fx-col-3 { grid-column: span 3; }
+.fx-col-2 { grid-column: span 2; } .fx-col-1 { grid-column: span 1; }
+
+.fx-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fx-field > label { font-size: 0.875rem; font-weight: 550; color: #374151; }
+.fx-field > label .fx-optional { font-weight: 400; color: var(--fx-muted); }
+.fx-input {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 0.95rem; color: var(--fx-ink);
+  padding: 10px 12px; border: 1px solid var(--fx-line); border-radius: 10px; background: var(--fx-surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.fx-input::placeholder { color: #9CA3AF; }
+.fx-input:hover { border-color: #9CA3AF; }
+.fx-input:focus { outline: none; border-color: var(--fx-brand); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15); }
+textarea.fx-input { min-height: 88px; resize: vertical; line-height: 1.45; }
+select.fx-input { appearance: none; padding-right: 36px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; }
+.fx-hint { font-size: 0.8rem; color: var(--fx-muted); line-height: 1.4; }
+.fx-field.fx-invalid .fx-input { border-color: var(--fx-bad); box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.1); }
+.fx-error { font-size: 0.8rem; color: var(--fx-bad); display: none; }
+.fx-field.fx-invalid .fx-error { display: block; }
+.fx-field.fx-invalid .fx-hint { display: none; }
+
+.fx-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; }
+.fx-status.ok { background: var(--fx-ok-soft); color: var(--fx-ok); }
+.fx-status.warn { background: var(--fx-warn-soft); color: var(--fx-warn); }
+.fx-status.muted { background: var(--fx-wash); color: var(--fx-muted); }
+
+/* interruptor */
+.fx-switch { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.fx-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.fx-switch .fx-track { flex-shrink: 0; width: 40px; height: 24px; border-radius: 999px; background: #D1D5DB; position: relative; transition: background 0.15s; margin-top: 1px; }
+.fx-switch .fx-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform 0.15s; }
+.fx-switch input:checked + .fx-track { background: var(--fx-brand); }
+.fx-switch input:checked + .fx-track::after { transform: translateX(16px); }
+.fx-switch input:focus-visible + .fx-track { outline: 2px solid var(--fx-brand); outline-offset: 2px; }
+.fx-switch strong { display: block; font-size: 0.9rem; font-weight: 600; color: var(--fx-ink); }
+.fx-switch span.fx-hint { display: block; margin-top: 2px; }
+
+/* grade de horário */
+.fx-hours { border: 1px solid var(--fx-line-soft); border-radius: 12px; overflow: hidden; }
+.fx-hours-row { display: grid; grid-template-columns: 92px 120px 1fr; align-items: center; gap: 12px; padding: 8px 14px; border-top: 1px solid var(--fx-line-soft); }
+.fx-hours-row:first-child { border-top: 0; }
+.fx-hours-row .fx-day { font-weight: 600; font-size: 0.9rem; color: var(--fx-ink); }
+.fx-hours-row .fx-times { display: flex; align-items: center; gap: 8px; color: var(--fx-muted); font-size: 0.85rem; }
+.fx-hours-row .fx-times input { width: 110px; padding: 7px 10px; }
+.fx-hours-row.fx-closed .fx-times { opacity: 0.45; pointer-events: none; }
+.fx-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.fx-chip { font: inherit; font-size: 0.82rem; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--fx-line); background: var(--fx-surface); color: var(--fx-ink-soft); cursor: pointer; }
+.fx-chip:hover { border-color: var(--fx-brand); color: var(--fx-brand); }
+.fx-chip:focus-visible { outline: 2px solid var(--fx-brand); outline-offset: 2px; }
+
+/* cartões de perfil */
+.fx-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.fx-role { position: relative; display: block; border: 1.5px solid var(--fx-line); border-radius: 12px; padding: 12px 14px; cursor: pointer; background: var(--fx-surface); }
+.fx-role input { position: absolute; opacity: 0; }
+.fx-role strong { display: block; font-size: 0.92rem; color: var(--fx-ink); }
+.fx-role span { display: block; font-size: 0.8rem; color: var(--fx-muted); margin-top: 3px; line-height: 1.4; }
+.fx-role:has(input:checked) { border-color: var(--fx-brand); background: var(--fx-brand-soft); }
+.fx-role:has(input:focus-visible) { outline: 2px solid var(--fx-brand); outline-offset: 2px; }
+.fx-callout { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; line-height: 1.45; background: var(--fx-warn-soft); color: var(--fx-warn); }
+
+.fx-details summary { cursor: pointer; font-size: 0.85rem; color: var(--fx-brand); font-weight: 550; margin-top: 10px; }
+.fx-details[open] summary { margin-bottom: 12px; }
+
+/* rodapé */
+.fx-footer-note { margin-right: auto; font-size: 0.85rem; color: var(--fx-muted); }
+.fx-footer-note.bad { color: var(--fx-bad); }
+.fx-btn {
+  font: inherit; font-size: 0.92rem; font-weight: 600; border-radius: 10px; padding: 10px 18px; cursor: pointer;
+  border: 1px solid var(--fx-line); background: var(--fx-surface); color: var(--fx-ink);
+}
+.fx-btn:hover { background: var(--fx-wash); }
+.fx-btn.primary { background: var(--fx-brand); border-color: var(--fx-brand); color: #fff; }
+.fx-btn.primary:hover { background: #6D28D9; }
+.fx-btn:disabled { opacity: 0.6; cursor: progress; }
+.fx-btn:focus-visible { outline: 2px solid var(--fx-brand); outline-offset: 2px; }
+
+/* ---------- prévia "como aparece no app" ---------- */
+.fx-preview { position: sticky; top: 16px; align-self: start; margin-top: 22px; }
+.fx-preview h4 { margin: 0 0 4px; font-size: 0.9rem; font-weight: 650; color: var(--fx-ink); }
+.fx-preview > p { margin: 0 0 12px; font-size: 0.8rem; color: var(--fx-muted); }
+.fx-phone { border-radius: 28px; padding: 14px; background: #F3F4F6; border: 1px solid var(--fx-line-soft); }
+.fx-phone-bar { height: 6px; width: 64px; background: #D1D5DB; border-radius: 999px; margin: 0 auto 12px; }
+.fx-pcard { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08); }
+.fx-pcard-top { background: linear-gradient(135deg, #8B5CF6, #EC4899); padding: 18px 14px 14px; display: flex; align-items: center; gap: 12px; }
+.fx-plogo { width: 52px; height: 52px; border-radius: 14px; background: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #7C3AED; font-size: 1.3rem; overflow: hidden; flex-shrink: 0; }
+.fx-plogo img { width: 100%; height: 100%; object-fit: cover; }
+.fx-pname { color: #fff; font-weight: 700; font-size: 1rem; line-height: 1.25; word-break: break-word; }
+.fx-pcat { color: #F5F3FF; font-size: 0.78rem; margin-top: 2px; }
+.fx-pbody { padding: 12px 14px 14px; display: grid; gap: 8px; font-size: 0.8rem; color: var(--fx-ink-soft); }
+.fx-pbody .fx-pline { display: flex; gap: 8px; align-items: flex-start; }
+.fx-pbody .fx-pline b { color: var(--fx-ink); font-weight: 600; }
+.fx-pdesc { color: var(--fx-ink-soft); font-size: 0.8rem; line-height: 1.4; }
+.fx-pempty { color: #9CA3AF; font-style: italic; }
+.fx-pbadge { justify-self: start; background: var(--fx-ok-soft); color: var(--fx-ok); border-radius: 999px; padding: 3px 10px; font-weight: 600; font-size: 0.75rem; }
+.fx-pbadge.off { background: var(--fx-wash); color: var(--fx-muted); }
+
+/* ---------- avisos (toast) ---------- */
+.fx-toasts { position: fixed; right: 20px; bottom: 20px; display: grid; gap: 10px; z-index: 3000; max-width: min(420px, calc(100vw - 40px)); }
+.fx-toast { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: #111827; color: #F9FAFB; font-size: 0.9rem; line-height: 1.4; box-shadow: 0 10px 30px rgba(17,24,39,.25); animation: fx-toast-in 0.2s ease-out; }
+.fx-toast.ok { border-left: 4px solid #22C55E; }
+.fx-toast.bad { border-left: 4px solid #F87171; }
+.fx-toast.warn { border-left: 4px solid #FBBF24; }
+@keyframes fx-toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fx-toast { animation: none; } }
+
+@media (max-width: 900px) {
+  .fx-wide .fx-layout { grid-template-columns: minmax(0, 1fr); }
+  .fx-preview { position: static; }
+}
+@media (max-width: 560px) {
+  .modal-overlay .modal-header, .modal-overlay .modal-body, .modal-overlay .modal-footer { padding-left: 16px !important; padding-right: 16px !important; }
+  .fx-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fx-col-6, .fx-col-4, .fx-col-3 { grid-column: span 2; } .fx-col-2, .fx-col-1 { grid-column: span 1; }
+  .fx-roles { grid-template-columns: minmax(0, 1fr); }
+  .fx-hours-row { grid-template-columns: 70px 1fr; }
+  .fx-hours-row .fx-times { grid-column: 1 / -1; }
+}
+
+/* "hidden" sempre vence (os blocos com display:flex/grid ignoravam o atributo) */
+.modal-overlay [hidden] { display: none !important; }
+
+/* Neutraliza a regra antiga ".modal { position: fixed; width: 100%; ... }" do index.html,
+   que deixava o painel colado à esquerda e o rodapé no meio da tela. */
+.modal-overlay > .modal {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  background: var(--fx-surface) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.modal-overlay .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.modal-overlay .modal-header, .modal-overlay .modal-footer { flex: 0 0 auto; }
+.fx-switch .fx-track { display: block; }
+.modal-overlay label.fx-switch, .modal-overlay label.fx-role { margin-bottom: 0; font-weight: 400; }
+.fx-hours-row .fx-times input { width: 130px; }
+/* só o miolo rola; cabeçalho e rodapé ficam fixos */
+.modal-overlay .modal-body { overflow-y: auto !important; overscroll-behavior: contain; }
+.modal-overlay > .modal { overflow: hidden !important; }
+/* a regra antiga ".modal label { display: block }" quebrava os interruptores */
+.modal-overlay label.fx-switch { display: flex !important; }
+.modal-overlay .fx-hours-row label.fx-switch { margin: 0; }
+.modal-overlay label.fx-switch[hidden], .modal-overlay .fx-grid[hidden], .modal-overlay section[hidden] { display: none !important; }
+/* avisos à esquerda: o painel abre à direita e o botão de salvar fica lá */
+.fx-toasts { left: 20px; right: auto; }
+@media (max-width: 560px) {
+  .fx-toasts { left: 12px; right: 12px; bottom: 90px; max-width: none; }
+  .fx-col-mfull { grid-column: 1 / -1 !important; }
+}
+.fx-switch { position: relative; }
+.fx-switch input { left: 0; top: 0; }

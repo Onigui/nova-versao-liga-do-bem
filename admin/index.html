@@ -1,4 +1,4 @@
-    \ZX<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -588,6 +588,7 @@
             to { transform: rotate(360deg); }
         }
     </style>
+    <link rel="stylesheet" href="admin-forms.css">
 </head>
 <body>
     <div class="admin-container">
@@ -877,7 +878,7 @@
                                 <th>Email</th>
                                 <th>Telefone</th>
                                 <th>Status</th>
-                                <th>Pontos</th>
+                                <th>Perfil</th>
                                 <th>Data Cadastro</th>
                                 <th>Ações</th>
                             </tr>
@@ -2218,81 +2219,146 @@
         </div>
     </div>
 
-    <div id="companyModal" class="modal-overlay">
+    <div id="companyModal" class="modal-overlay fx-wide" role="dialog" aria-modal="true" aria-labelledby="companyFormTitle">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">Cadastrar Nova Empresa</h3>
-                <button class="modal-close" onclick="closeModal('companyModal')">&times;</button>
+                <div>
+                    <h3 class="modal-title" id="companyFormTitle">Nova empresa parceira</h3>
+                    <p class="fx-subtitle" id="companyFormSubtitle">Os dados abaixo aparecem para os membros no app Liga do Bem, na lista e no mapa de parceiros.</p>
+                </div>
+                <button type="button" class="modal-close" aria-label="Fechar" onclick="CompanyForm.close()">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="companyForm">
-                <div class="form-group">
-                    <label class="form-label">Nome da Empresa</label>
-                    <input type="text" class="form-input" name="name" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Categoria</label>
-                    <select class="form-input" name="category" required>
-                        <option value="">Selecione uma categoria</option>
-                        <option value="pet-shop">Pet Shop</option>
-                        <option value="veterinario">Veterinário</option>
-                        <option value="farmacia">Farmácia</option>
-                        <option value="alimentacao">Alimentação</option>
-                        <option value="servicos">Serviços</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Desconto (%)</label>
-                        <input type="number" class="form-input" name="discount" min="1" max="100" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select class="form-input" name="status" required>
-                            <option value="active">Ativo</option>
-                            <option value="pending">Pendente</option>
-                            <option value="inactive">Inativo</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Endereço</label>
-                    <input type="text" class="form-input" name="address" required>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Latitude</label>
-                        <input type="text" class="form-input" name="latitude" placeholder="Ex: -22.8859">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Longitude</label>
-                        <input type="text" class="form-input" name="longitude" placeholder="Ex: -48.4439">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Horários de Funcionamento</label>
-                    <textarea class="form-input form-textarea" name="hours" placeholder="Ex: Segunda a Sexta: 08:00 - 18:00&#10;Sábado: 08:00 - 12:00&#10;Domingo: Fechado"></textarea>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Telefone</label>
-                    <input type="tel" class="form-input" name="phone">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Email</label>
-                    <input type="email" class="form-input" name="email">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Descrição</label>
-                    <textarea class="form-input form-textarea" name="description" placeholder="Descrição da empresa e serviços oferecidos"></textarea>
-                </div>
+                <div class="fx-layout">
+                <form id="companyForm" novalidate>
+                    <section class="fx-section">
+                        <h3>Sobre a empresa</h3>
+                        <p class="fx-section-help">Como a empresa vai ser apresentada aos membros.</p>
+                        <div class="fx-grid">
+                            <div class="fx-field fx-col-4"><label for="cf-name">Nome</label>
+                                <input id="cf-name" name="name" class="fx-input" maxlength="120" placeholder="Ex.: Clínica Veterinária Amigo Fiel" autocomplete="off">
+                                <span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-2 fx-col-mfull"><label for="cf-category">Categoria</label>
+                                <select id="cf-category" name="category" class="fx-input">
+                                    <option value="">Escolha…</option>
+                                    <option>Pet shop</option><option>Clínica veterinária</option><option>Farmácia veterinária</option>
+                                    <option>Banho e tosa</option><option>Hotel e creche</option><option>Adestramento</option>
+                                    <option>Ração e alimentação</option><option>Outros serviços</option>
+                                </select><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-6"><label for="cf-description">Descrição <span class="fx-optional">(opcional)</span></label>
+                                <textarea id="cf-description" name="description" class="fx-input" maxlength="2000" placeholder="O que a empresa oferece e qual o benefício para quem é membro da Liga."></textarea>
+                                <span class="fx-hint">Aparece na página da empresa no app.</span><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-6"><label for="cf-logo">Logo <span class="fx-optional">(opcional)</span></label>
+                                <input id="cf-logo" name="logo" class="fx-input" type="url" placeholder="https://… link da imagem do logo">
+                                <span class="fx-hint">Cole o link de uma imagem (https). Sem logo, o app mostra a inicial do nome.</span><span class="fx-error"></span></div>
+                        </div>
+                    </section>
+
+                    <section class="fx-section">
+                        <h3>Contato</h3>
+                        <p class="fx-section-help">Os membros tocam no telefone para ligar ou chamar no WhatsApp.</p>
+                        <div class="fx-grid">
+                            <div class="fx-field fx-col-3"><label for="cf-phone">Telefone ou WhatsApp <span class="fx-optional">(opcional)</span></label>
+                                <input id="cf-phone" name="phone" class="fx-input" inputmode="tel" placeholder="(14) 99999-9999"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-3"><label for="cf-email">E-mail <span class="fx-optional">(opcional)</span></label>
+                                <input id="cf-email" name="email" class="fx-input" type="email" placeholder="contato@empresa.com.br"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-6"><label for="cf-website">Site ou Instagram <span class="fx-optional">(opcional)</span></label>
+                                <input id="cf-website" name="website" class="fx-input" placeholder="instagram.com/empresa"><span class="fx-error"></span></div>
+                        </div>
+                    </section>
+
+                    <section class="fx-section">
+                        <h3>Endereço</h3>
+                        <p class="fx-section-help">Digite o CEP: rua, bairro, cidade e UF são preenchidos sozinhos, e a posição no mapa também.</p>
+                        <div class="fx-grid">
+                            <div class="fx-field fx-col-2"><label for="cf-zip">CEP</label>
+                                <input id="cf-zip" name="zipCode" class="fx-input" inputmode="numeric" placeholder="00000-000" maxlength="9">
+                                <span class="fx-hint" id="cf-zip-status">&nbsp;</span><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-4"><label for="cf-street">Rua</label>
+                                <input id="cf-street" class="fx-input" placeholder="Rua / avenida"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-1"><label for="cf-number">Número</label>
+                                <input id="cf-number" class="fx-input" placeholder="123"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-2"><label for="cf-complement">Complemento <span class="fx-optional">(opcional)</span></label>
+                                <input id="cf-complement" class="fx-input" placeholder="Sala 2"></div>
+                            <div class="fx-field fx-col-3"><label for="cf-district">Bairro</label>
+                                <input id="cf-district" class="fx-input"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-4"><label for="cf-city">Cidade</label>
+                                <input id="cf-city" name="city" class="fx-input"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-2"><label for="cf-state">UF</label>
+                                <input id="cf-state" name="state" class="fx-input" maxlength="2" placeholder="SP" style="text-transform: uppercase"><span class="fx-error"></span></div>
+                        </div>
+                        <div style="margin-top: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span class="fx-status muted" id="cf-geo-status">Posição no mapa: preencha o endereço</span>
+                        </div>
+                        <details class="fx-details" id="cf-geo-details">
+                            <summary>Ajustar posição no mapa manualmente</summary>
+                            <div class="fx-grid">
+                                <div class="fx-field fx-col-3"><label for="cf-lat">Latitude</label><input id="cf-lat" class="fx-input" inputmode="decimal" placeholder="-22.8859"><span class="fx-error"></span></div>
+                                <div class="fx-field fx-col-3"><label for="cf-lng">Longitude</label><input id="cf-lng" class="fx-input" inputmode="decimal" placeholder="-48.4439"><span class="fx-error"></span></div>
+                            </div>
+                        </details>
+                    </section>
+
+                    <section class="fx-section">
+                        <h3>Horário de funcionamento</h3>
+                        <p class="fx-section-help">O app mostra para o membro se a empresa está aberta hoje.</p>
+                        <div class="fx-chip-row">
+                            <button type="button" class="fx-chip" data-hours-preset="commercial">Seg a sex 8h–18h, sáb 8h–12h</button>
+                            <button type="button" class="fx-chip" data-hours-preset="everyday">Todos os dias 8h–20h</button>
+                            <button type="button" class="fx-chip" data-hours-preset="h24">24 horas</button>
+                        </div>
+                        <div class="fx-hours" id="cf-hours"></div>
+                    </section>
+
+                    <section class="fx-section">
+                        <label class="fx-switch">
+                            <input type="checkbox" id="cf-active" checked>
+                            <span class="fx-track"></span>
+                            <span><strong>Mostrar no app dos membros</strong><span class="fx-hint">Desligado, a empresa fica salva, mas some da lista e do mapa.</span></span>
+                        </label>
+                    </section>
+
+                    <section class="fx-section" id="cf-access-section">
+                        <label class="fx-switch">
+                            <input type="checkbox" id="cf-access-toggle">
+                            <span class="fx-track"></span>
+                            <span><strong>Criar o acesso do responsável ao App Parceiros</strong><span class="fx-hint">Ele recebe um e-mail para criar a senha e já pode validar carteirinhas e cadastrar promoções.</span></span>
+                        </label>
+                        <div class="fx-grid" id="cf-access-fields" style="margin-top: 14px;" hidden>
+                            <div class="fx-field fx-col-3"><label for="cf-owner-email">E-mail do responsável</label>
+                                <input id="cf-owner-email" class="fx-input" type="email" placeholder="dono@empresa.com.br"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-3"><label for="cf-owner-name">Nome <span class="fx-optional">(opcional)</span></label>
+                                <input id="cf-owner-name" class="fx-input"></div>
+                        </div>
+                    </section>
                 </form>
+
+                <aside class="fx-preview" aria-label="Prévia no app">
+                    <h4>Como aparece no app</h4>
+                    <p>Atualiza enquanto você preenche.</p>
+                    <div class="fx-phone">
+                        <div class="fx-phone-bar"></div>
+                        <div class="fx-pcard">
+                            <div class="fx-pcard-top">
+                                <div class="fx-plogo" id="pv-logo">?</div>
+                                <div><div class="fx-pname" id="pv-name">Nome da empresa</div><div class="fx-pcat" id="pv-cat">Categoria</div></div>
+                            </div>
+                            <div class="fx-pbody">
+                                <span class="fx-pbadge" id="pv-badge">Aberto hoje</span>
+                                <div class="fx-pdesc" id="pv-desc"></div>
+                                <div class="fx-pline"><span>📍</span><span id="pv-address" class="fx-pempty">Endereço</span></div>
+                                <div class="fx-pline"><span>🕒</span><span id="pv-hours"></span></div>
+                                <div class="fx-pline"><span>📞</span><span id="pv-phone" class="fx-pempty">Sem telefone</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('companyModal')">Cancelar</button>
-                <button type="submit" class="btn btn-primary" form="companyForm">
-                    <span class="loading" style="display: none;"></span>
-                    Cadastrar Empresa
-                </button>
+                <span class="fx-footer-note" id="companyFormNote" aria-live="polite"></span>
+                <button type="button" class="fx-btn" onclick="CompanyForm.close()">Cancelar</button>
+                <button type="submit" class="fx-btn primary" form="companyForm" id="companyFormSubmit">Cadastrar empresa</button>
             </div>
         </div>
     </div>
@@ -2345,62 +2411,62 @@
         </div>
     </div>
 
-    <!-- Modal para Cadastro de Membro -->
-    <div id="memberModal" class="modal-overlay">
+    <!-- Cadastro / edição de usuário -->
+    <div id="memberModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="memberFormTitle">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">Cadastrar Novo Membro</h3>
-                <button class="modal-close" onclick="closeModal('memberModal')">&times;</button>
+                <div>
+                    <h3 class="modal-title" id="memberFormTitle">Novo usuário</h3>
+                    <p class="fx-subtitle" id="memberFormSubtitle">A pessoa recebe um e-mail para criar a própria senha. Você não precisa definir nem enviar senha.</p>
+                </div>
+                <button type="button" class="modal-close" aria-label="Fechar" onclick="MemberForm.close()">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="memberForm">
-                <div class="form-group">
-                    <label class="form-label">Nome Completo</label>
-                    <input type="text" class="form-input" name="name" required>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-input" name="email" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Telefone</label>
-                        <input type="tel" class="form-input" name="phone" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">CPF</label>
-                    <input type="text" class="form-input" name="cpf" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Data de Nascimento</label>
-                    <input type="date" class="form-input" name="birthdate" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Endereço</label>
-                    <input type="text" class="form-input" name="address" required>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Pontos Iniciais</label>
-                        <input type="number" class="form-input" name="points" value="0" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select class="form-input" name="status" required>
-                            <option value="active">Ativo</option>
-                            <option value="inactive">Inativo</option>
-                        </select>
-                    </div>
-                </div>
+                <form id="memberForm" novalidate>
+                    <section class="fx-section">
+                        <h3>Dados pessoais</h3>
+                        <div class="fx-grid" style="margin-top: 14px;">
+                            <div class="fx-field fx-col-6"><label for="mf-name">Nome completo</label>
+                                <input id="mf-name" class="fx-input" maxlength="120" autocomplete="off"><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-3"><label for="mf-cpf">CPF <span class="fx-optional">(opcional)</span></label>
+                                <input id="mf-cpf" class="fx-input" inputmode="numeric" placeholder="000.000.000-00" maxlength="14">
+                                <span class="fx-hint">Usado para emitir PIX e boleto da assinatura.</span><span class="fx-error"></span></div>
+                            <div class="fx-field fx-col-3"><label for="mf-phone">Celular <span class="fx-optional">(opcional)</span></label>
+                                <input id="mf-phone" class="fx-input" inputmode="tel" placeholder="(14) 99999-9999"><span class="fx-error"></span></div>
+                        </div>
+                    </section>
+                    <section class="fx-section">
+                        <h3>Acesso</h3>
+                        <div class="fx-grid" style="margin-top: 14px;">
+                            <div class="fx-field fx-col-6"><label for="mf-email">E-mail</label>
+                                <input id="mf-email" class="fx-input" type="email" placeholder="nome@email.com">
+                                <span class="fx-hint">É com ele que a pessoa entra no app.</span><span class="fx-error"></span></div>
+                        </div>
+                        <p class="fx-section-help" style="margin-top: 18px; margin-bottom: 10px;">Perfil</p>
+                        <div class="fx-roles" role="radiogroup" aria-label="Perfil">
+                            <label class="fx-role"><input type="radio" name="mf-role" value="MEMBER" checked><strong>Membro</strong><span>Usa o app, a carteirinha e os descontos dos parceiros.</span></label>
+                            <label class="fx-role"><input type="radio" name="mf-role" value="VOLUNTEER"><strong>Voluntário</strong><span>Membro que também recebe as convocações de voluntariado.</span></label>
+                            <label class="fx-role"><input type="radio" name="mf-role" value="PARTNER"><strong>Parceiro</strong><span>Funcionário de empresa parceira. Para dar acesso ao App Parceiros, use "Acessos" na empresa.</span></label>
+                            <label class="fx-role"><input type="radio" name="mf-role" value="ADMIN"><strong>Administrador</strong><span>Acesso total a este painel.</span></label>
+                        </div>
+                        <div class="fx-callout" id="mf-admin-warning" hidden>Administradores veem e alteram tudo no painel, inclusive pagamentos. Dê esse perfil só a quem for da equipe da Liga.</div>
+                    </section>
+                    <section class="fx-section">
+                        <label class="fx-switch">
+                            <input type="checkbox" id="mf-active" checked><span class="fx-track"></span>
+                            <span><strong>Conta ativa</strong><span class="fx-hint">Desligada, a pessoa não consegue entrar no app.</span></span>
+                        </label>
+                        <label class="fx-switch" id="mf-invite-row" style="margin-top: 16px;">
+                            <input type="checkbox" id="mf-invite" checked><span class="fx-track"></span>
+                            <span><strong>Enviar e-mail de boas-vindas</strong><span class="fx-hint">Com as instruções para criar a senha pelo "Esqueci minha senha".</span></span>
+                        </label>
+                    </section>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('memberModal')">Cancelar</button>
-                <button type="submit" class="btn btn-primary" form="memberForm">
-                    <span class="loading" style="display: none;"></span>
-                    Cadastrar Membro
-                </button>
+                <span class="fx-footer-note" id="memberFormNote" aria-live="polite"></span>
+                <button type="button" class="fx-btn" onclick="MemberForm.close()">Cancelar</button>
+                <button type="submit" class="fx-btn primary" form="memberForm" id="memberFormSubmit">Cadastrar usuário</button>
             </div>
         </div>
     </div>
@@ -2892,130 +2958,7 @@
         }
 
         // Form submissions
-        document.getElementById('companyForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const submitBtn = document.querySelector('button[form="companyForm"]');
-            const loading = submitBtn ? submitBtn.querySelector('.loading') : null;
-            
-            if (loading) {
-                loading.style.display = 'inline-block';
-                submitBtn.disabled = true;
-            }
-            
-            // Cadastrar empresa via API
-            const formData = new FormData(this);
-            const companyData = {
-                name: formData.get('name'),
-                category: formData.get('category'),
-                discount: parseInt(formData.get('discount')),
-                status: formData.get('status'),
-                address: formData.get('address'),
-                latitude: parseFloat(formData.get('latitude')) || null,
-                longitude: parseFloat(formData.get('longitude')) || null,
-                hours: formData.get('hours'),
-                phone: formData.get('phone'),
-                email: formData.get('email'),
-                description: formData.get('description')
-            };
-
-            // Fazer chamada à API
-            const token = localStorage.getItem('admin_token');
-            fetch(`${API_BASE_URL}/api/admin/companies`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(companyData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (loading) {
-                    loading.style.display = 'none';
-                    submitBtn.disabled = false;
-                }
-                
-                if (data.message) {
-                    closeModal('companyModal');
-                    alert('✅ Empresa cadastrada com sucesso!');
-                    this.reset();
-                    
-                    // Recarregar lista de empresas
-                    loadCompanies();
-                } else {
-                    throw new Error(data.error || 'Erro ao cadastrar empresa');
-                }
-            })
-            .catch(error => {
-                console.error('Erro ao cadastrar empresa:', error);
-                if (loading) {
-                    loading.style.display = 'none';
-                    submitBtn.disabled = false;
-                }
-                alert(`❌ Erro ao cadastrar empresa: ${error.message}`);
-            });
-        });
-
-        document.getElementById('memberForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const submitBtn = document.querySelector('button[form="memberForm"]');
-            const loading = submitBtn ? submitBtn.querySelector('.loading') : null;
-            
-            if (loading) {
-                loading.style.display = 'inline-block';
-                submitBtn.disabled = true;
-            }
-            
-            // Cadastrar membro via API
-            const formData = new FormData(this);
-            const memberData = {
-                name: formData.get('name'),
-                email: formData.get('email'),
-                phone: formData.get('phone'),
-                cpf: formData.get('cpf'),
-                birthdate: formData.get('birthdate'),
-                address: formData.get('address'),
-                points: parseInt(formData.get('points')) || 0,
-                status: formData.get('status')
-            };
-
-            // Fazer chamada à API
-            const token = localStorage.getItem('admin_token');
-            fetch(`${API_BASE_URL}/api/admin/members`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(memberData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (loading) {
-                    loading.style.display = 'none';
-                    submitBtn.disabled = false;
-                }
-                
-                if (data.message) {
-                    closeModal('memberModal');
-                    alert('✅ Membro cadastrado com sucesso!');
-                    this.reset();
-                    
-                    // Recarregar lista de membros
-                    loadMembers();
-                } else {
-                    throw new Error(data.error || 'Erro ao cadastrar membro');
-                }
-            })
-            .catch(error => {
-                console.error('Erro ao cadastrar membro:', error);
-                if (loading) {
-                    loading.style.display = 'none';
-                    submitBtn.disabled = false;
-                }
-                alert(`❌ Erro ao cadastrar membro: ${error.message}`);
-            });
-        });
+        // Cadastro/edição de empresas e usuários: ver admin-forms.js
 
         // Fechar modal clicando fora
         document.querySelectorAll('.modal-overlay').forEach(modal => {
@@ -3168,7 +3111,7 @@
                     <td>${member.email}</td>
                     <td>${member.phone || 'N/A'}</td>
                     <td><span class="status-badge status-${member.isActive ? 'active' : 'inactive'}">${member.isActive ? 'Ativo' : 'Inativo'}</span></td>
-                    <td>${member.points || 0}</td>
+                    <td>${({ADMIN:'Administrador',MEMBER:'Membro',VOLUNTEER:'Voluntário',PARTNER:'Parceiro'})[member.role] || member.role || '—'}</td>
                     <td>${new Date(member.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td>
                         <div style="display: flex; gap: 8px;">
@@ -7999,5 +7942,6 @@
         }
 
     </script>
+    <script src="admin-forms.js"></script>
 </body>
 </html>
