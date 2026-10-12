@@ -29,6 +29,7 @@ import {
 import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
 import { verifyGithubOidc } from './lib/githubOidc';
 import { approveDonationFromPayment } from './lib/donations';
+import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
 // Cloudinary para upload de imagens
@@ -7298,6 +7299,19 @@ export default async function handler(req: any, res: any) {
       const db = getPrisma();
       if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
+        // Autenticidade: x-authenticity-token = sha256("{PAGBANK_TOKEN}-{corpo cru}").
+        // Modo padrão "monitor" (só registra); PAGBANK_WEBHOOK_SIGNATURE=enforce passa a recusar.
+        // Mesmo sem bloquear, nada é liberado com base no corpo: o pedido é sempre consultado no PagBank.
+        const sigMode = webhookSignatureMode();
+        if (sigMode !== 'off') {
+          const raw = await readRawBody(req);
+          const received = (req.headers['x-authenticity-token'] || '').toString();
+          const valid = raw !== null && verifyPagBankWebhook(getPagBankConfig().token, raw, received);
+          console.log(`🔏 Webhook PagBank: assinatura ${valid ? 'válida' : received ? 'INVÁLIDA' : 'ausente'} (modo ${sigMode}, corpo cru ${raw === null ? 'indisponível' : raw.length + ' bytes'})`);
+          if (!valid && sigMode === 'enforce') {
+            return res.status(401).json({ error: 'Assinatura do webhook inválida' });
+          }
+        }
         const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
         const orderId =
           body?.id ||
