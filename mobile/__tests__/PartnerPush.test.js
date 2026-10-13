@@ -55,7 +55,15 @@ test('validação do texto e máscara CPF/CNPJ', () => {
 
 test('cria a notificação com prévia e segue para o pagamento', async () => {
   mockCtx.api.mockReset();
+  const SLOT_A = '2026-10-16T21:00:00.000Z'; // sex 18:00
+  const SLOT_B = '2026-10-16T23:00:00.000Z'; // sex 20:00
   mockCtx.api.mockImplementation(async (method, path) => {
+    if (method === 'GET' && path.startsWith('/partner/push-campaigns/slots')) {
+      return {days: [{date: '2026-10-16', label: 'sex, 16/10', slots: [
+        {time: '18:00', at: SLOT_A, available: false},
+        {time: '20:00', at: SLOT_B, available: true},
+      ]}]};
+    }
     if (method === 'GET') {
       return {campaigns: [], settings: {price: 29.9, priceCents: 2990, enabled: true}, audience: 812, nextAllowedAt: null, limits: {titleMax: 50, bodyMax: 180}};
     }
@@ -72,8 +80,17 @@ test('cria a notificação com prévia e segue para o pagamento', async () => {
   await type(tree.root, 'push-titulo', 'Banho 20% OFF');
   await type(tree.root, 'push-mensagem', 'Só nesta semana para membros da Liga!');
   expect(textOf(tree.root)).toContain('Pet Shop Central · Banho 20% OFF');
+  // sem horário não segue
   await press(tree.root, 'criar-push');
-  expect(mockCtx.api).toHaveBeenLastCalledWith('POST', '/partner/push-campaigns', {title: 'Banho 20% OFF', body: 'Só nesta semana para membros da Liga!'});
+  expect(textOf(tree.root)).toContain('Escolha o dia e o horário');
+  // horário ocupado não pode ser escolhido
+  const taken = tree.root.findAll(n => n.props.testID === 'slot-18:00' && n.props.onPress)[0];
+  expect(taken.props.disabled).toBe(true);
+  expect(textOf(tree.root)).toContain('ocupado');
+  await press(tree.root, 'slot-20:00');
+  expect(textOf(tree.root)).toContain('sex, 16/10 às 20:00');
+  await press(tree.root, 'criar-push');
+  expect(mockCtx.api).toHaveBeenLastCalledWith('POST', '/partner/push-campaigns', {title: 'Banho 20% OFF', body: 'Só nesta semana para membros da Liga!', scheduledFor: SLOT_B});
   expect(nav.navigate).toHaveBeenCalledWith('PushPayment', {campaignId: 'c1'});
 });
 

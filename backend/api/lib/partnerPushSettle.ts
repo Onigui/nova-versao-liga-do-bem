@@ -5,6 +5,21 @@
 
 /** Pagamento PARTNER_PUSH aprovado → campanha vai para a fila de aprovação do admin. Idempotente. */
 export async function markPartnerPushPaid(db: any, paymentId: string) {
+  const r = await markPaid(db, paymentId);
+  if (r.ok && !r.alreadyApplied && r.campaignId) {
+    // Se a reserva do horário venceu e outra empresa pegou a vaga, remarca e avisa.
+    try {
+      // require em tempo de execução: evita import circular (partnerPush → membershipBilling → aqui)
+      const { resolveSlotAfterPayment } = require('./partnerPush');
+      await resolveSlotAfterPayment(db, r.campaignId);
+    } catch (e: any) {
+      console.warn('⚠️ Conferência do horário após o pagamento falhou:', e?.message);
+    }
+  }
+  return r;
+}
+
+async function markPaid(db: any, paymentId: string): Promise<{ ok: boolean; reason?: string; campaignId?: string; alreadyApplied?: boolean }> {
   return db.$transaction(async (tx: any) => {
     const rows: any[] = await tx.$queryRawUnsafe(
       `SELECT id, status, "gatewayData" FROM payments WHERE id = $1 FOR UPDATE`,

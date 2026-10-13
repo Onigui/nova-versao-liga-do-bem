@@ -3,7 +3,13 @@
  * o admin aprova e ela vai para todos os membros (push + caixa de notificações do app).
  * Reprovada depois de paga → estorno automático no PagBank (ou aviso de estorno manual).
  *
- * Status: AWAITING_PAYMENT → PENDING_REVIEW → SENDING → SENT
+ * Agendamento: o parceiro escolhe um HORÁRIO (vaga) — cada vaga recebe só UMA notificação, então
+ * duas empresas nunca disparam juntas e o membro não recebe várias de uma vez. A vaga fica
+ * reservada enquanto o PIX está válido; depois de paga, só sai da fila se for reprovada.
+ * O envio acontece no horário pelo despachante (dispatchDuePushCampaigns), chamado por um
+ * agendador externo (GitHub Actions, a cada 10 min) e também quando o app abre a lista de parceiros.
+ *
+ * Status: AWAITING_PAYMENT → PENDING_REVIEW → SCHEDULED → SENDING → SENT
  *                       ↘ CANCELLED          ↘ REJECTED (refundStatus: REFUNDED | REFUND_FAILED)
  */
 import crypto from 'crypto';
@@ -18,7 +24,18 @@ import { syncPaymentFromPagBank } from './membershipBilling';
 import { markPartnerPushPaid } from './partnerPushSettle';
 import { sendFcmToTokens } from './push';
 
-export const PUSH_DEFAULTS = { priceCents: 2990, weeklyLimit: 1, enabled: true };
+export const PUSH_DEFAULTS = {
+  priceCents: 2990,
+  weeklyLimit: 1,
+  enabled: true,
+  slots: ['09:00', '12:00', '15:00', '18:00', '20:00'],
+};
+/** Antecedência mínima para escolher um horário (pagar + a Liga revisar). */
+export const SLOT_LEAD_HOURS = 3;
+export const SLOT_DAYS_AHEAD = 14;
+/** Quanto tempo a vaga fica guardada esperando o pagamento (o PIX vale 60 min). */
+export const SLOT_HOLD_MINUTES = 70;
+const BRT_OFFSET = '-03:00';
 const TITLE_MAX = 50;
 const BODY_MAX = 180;
 
@@ -61,6 +78,10 @@ export async function ensurePartnerPushSchema(db: any) {
   await db.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS partner_push_campaigns_status_idx ON partner_push_campaigns(status)`,
   );
+  await db.$executeRawUnsafe(`ALTER TABLE partner_push_campaigns ADD COLUMN IF NOT EXISTS "scheduledFor" TIMESTAMP(3)`);
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS partner_push_campaigns_sched_idx ON partner_push_campaigns("scheduledFor")`,
+  );
   ensuredAt = Date.now();
 }
 
@@ -70,7 +91,19 @@ const KEYS = {
   priceCents: 'partner_push_price_cents',
   weeklyLimit: 'partner_push_weekly_limit',
   enabled: 'partner_push_enabled',
+  slots: 'partner_push_slots',
 };
+
+export function parseSlotTimes(v: any): string[] | null {
+  const list = String(v || '')
+    .split(/[,;\s]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (!list.length) return null;
+  const ok = list.every((t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t));
+  if (!ok) return null;
+  return Array.from(new Set(list)).sort();
+}
 
 export async function getPushSettings(db: any) {
   const rows: any[] = await db.$queryRawUnsafe(
@@ -84,10 +117,11 @@ export async function getPushSettings(db: any) {
     priceCents: Number.isFinite(price) && price >= 100 ? price : PUSH_DEFAULTS.priceCents,
     weeklyLimit: Number.isFinite(limit) && limit >= 1 ? limit : PUSH_DEFAULTS.weeklyLimit,
     enabled: map[KEYS.enabled] === undefined ? PUSH_DEFAULTS.enabled : map[KEYS.enabled] === 'true',
+    slots: parseSlotTimes(map[KEYS.slots]) || PUSH_DEFAULTS.slots,
   };
 }
 
-async function setConfig(db: any, key: string, value: string, type: 'NUMBER' | 'BOOLEAN') {
+async function setConfig(db: any, key: string, value: string, type: 'NUMBER' | 'BOOLEAN' | 'STRING') {
   const n = await db.$executeRawUnsafe(
     `UPDATE system_config SET value = $2, "updatedAt" = NOW() WHERE key = $1`,
     key,
@@ -116,6 +150,7 @@ function formatCampaign(c: any) {
     priceCents: c.priceCents,
     price: c.priceCents / 100,
     status: c.status,
+    scheduledFor: c.scheduledFor,
     paymentId: c.paymentId,
     paidAt: c.paidAt,
     reviewNote: c.reviewNote,
@@ -137,7 +172,7 @@ export function buildPushText(partnerName: string, title: string, body: string) 
 async function nextAllowedAt(db: any, partnerId: string, weeklyLimit: number) {
   const rows: any[] = await db.$queryRawUnsafe(
     `SELECT "createdAt" FROM partner_push_campaigns
-      WHERE "partnerId" = $1 AND status IN ('PENDING_REVIEW','SENDING','SENT')
+      WHERE "partnerId" = $1 AND status IN ('PENDING_REVIEW','SCHEDULED','SENDING','SENT')
         AND "createdAt" > NOW() - INTERVAL '7 days'
       ORDER BY "createdAt" ASC`,
     partnerId,
@@ -188,6 +223,204 @@ async function notifyPartner(db: any, partnerId: string, title: string, body: st
   }
 }
 
+// ---------------------------------------------------------------- horários (vagas)
+
+/** Condição SQL de "vaga ocupada" (alias c): paga/agendada/enviada, ou reservada esperando o PIX. */
+const SLOT_TAKEN_SQL = `(c.status IN ('PENDING_REVIEW','SCHEDULED','SENDING','SENT')
+   OR (c.status = 'AWAITING_PAYMENT' AND c."createdAt" > NOW() - INTERVAL '${SLOT_HOLD_MINUTES} minutes'))`;
+
+function brtDateKey(d: Date) {
+  return new Date(d.getTime() - 3 * 3600e3).toISOString().slice(0, 10);
+}
+
+export function slotDate(dateKey: string, time: string) {
+  return new Date(`${dateKey}T${time}:00${BRT_OFFSET}`);
+}
+
+const WEEKDAY = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+export function slotLabel(at: Date | string) {
+  const d = new Date(at);
+  const local = new Date(d.getTime() - 3 * 3600e3);
+  const dd = String(local.getUTCDate()).padStart(2, '0');
+  const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
+  const hh = String(local.getUTCHours()).padStart(2, '0');
+  const mi = String(local.getUTCMinutes()).padStart(2, '0');
+  return `${WEEKDAY[local.getUTCDay()]}, ${dd}/${mm} às ${hh}:${mi}`;
+}
+
+/** Próximos dias com os horários e se cada um está livre. */
+export async function listSlots(db: any, settings: { slots: string[] }, opts: { ignoreCampaignId?: string; nowMs?: number } = {}) {
+  const now = opts.nowMs ?? Date.now();
+  const minAt = now + SLOT_LEAD_HOURS * 3600e3;
+  const until = new Date(now + (SLOT_DAYS_AHEAD + 1) * 864e5);
+  const rows: any[] = await db.$queryRawUnsafe(
+    `SELECT c."scheduledFor" FROM partner_push_campaigns c
+      WHERE c."scheduledFor" >= NOW() - INTERVAL '1 hour' AND c."scheduledFor" <= $1 AND ${SLOT_TAKEN_SQL}
+        AND ($2::text IS NULL OR c.id <> $2)`,
+    until,
+    opts.ignoreCampaignId || null,
+  );
+  const taken = new Set(rows.map((r) => new Date(r.scheduledFor).getTime()));
+  const days: any[] = [];
+  for (let i = 0; i <= SLOT_DAYS_AHEAD; i++) {
+    const key = brtDateKey(new Date(now + i * 864e5));
+    const slots = settings.slots
+      .map((t) => {
+        const at = slotDate(key, t);
+        return { time: t, at: at.toISOString(), available: at.getTime() >= minAt && !taken.has(at.getTime()) };
+      })
+      .filter((x) => new Date(x.at).getTime() >= minAt);
+    if (slots.length) days.push({ date: key, label: slotLabel(slotDate(key, '12:00')).split(' às ')[0], slots });
+  }
+  return days;
+}
+
+/** Valida que o horário é uma vaga oferecida e futura. */
+function parseSlot(raw: any, settings: { slots: string[] }, nowMs = Date.now()): Date {
+  const at = new Date(String(raw || ''));
+  if (Number.isNaN(at.getTime())) throw new HttpError(400, 'Escolha o dia e o horário do envio.', 'SLOT_REQUIRED');
+  const key = brtDateKey(at);
+  const isOffered = settings.slots.some((t) => slotDate(key, t).getTime() === at.getTime());
+  if (!isOffered) throw new HttpError(400, 'Horário inválido. Escolha um dos horários disponíveis.', 'SLOT_INVALID');
+  if (at.getTime() < nowMs + SLOT_LEAD_HOURS * 3600e3) {
+    throw new HttpError(400, `Escolha um horário com pelo menos ${SLOT_LEAD_HOURS} horas de antecedência.`, 'SLOT_TOO_SOON');
+  }
+  if (at.getTime() > nowMs + (SLOT_DAYS_AHEAD + 1) * 864e5) throw new HttpError(400, 'Agende em até 2 semanas.', 'SLOT_TOO_FAR');
+  return at;
+}
+
+/** Próxima vaga livre a partir de `from` (para remarcar quando a original não serve mais). */
+async function nextFreeSlot(db: any, settings: { slots: string[] }, fromMs: number, ignoreId?: string): Promise<Date | null> {
+  const days = await listSlots(db, settings, { ignoreCampaignId: ignoreId });
+  for (const d of days) {
+    for (const s of d.slots) {
+      if (s.available && new Date(s.at).getTime() >= fromMs) return new Date(s.at);
+    }
+  }
+  return null;
+}
+
+/** Trava global curta para ninguém pegar a mesma vaga ao mesmo tempo. */
+async function withSlotLock<T>(db: any, fn: (tx: any) => Promise<T>): Promise<T> {
+  return db.$transaction(async (tx: any) => {
+    await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(918273645)`);
+    return fn(tx);
+  });
+}
+
+async function slotTaken(tx: any, at: Date, ignoreId?: string) {
+  const rows: any[] = await tx.$queryRawUnsafe(
+    `SELECT c.id FROM partner_push_campaigns c WHERE c."scheduledFor" = $1 AND ${SLOT_TAKEN_SQL} AND ($2::text IS NULL OR c.id <> $2) LIMIT 1`,
+    at,
+    ignoreId || null,
+  );
+  return rows.length > 0;
+}
+
+// ---------------------------------------------------------------- envio
+
+/** Envia uma campanha já travada como SENDING. */
+async function sendCampaign(db: any, id: string) {
+  const c = await loadCampaign(db, id);
+  const text = buildPushText(c.partnerName, c.title, c.body);
+  const data = { screen: 'Parceiros', partnerId: c.partnerId, campaignId: c.id };
+  const recipients = await db.$executeRawUnsafe(
+    `INSERT INTO notifications (id, "userId", title, message, type, data, "isRead", "sentAt")
+     SELECT gen_random_uuid()::text, u.id, $1, $2, 'GENERAL'::"NotificationType", $3::jsonb, false, NOW()
+       FROM users u WHERE u."isActive" = true AND u.role <> 'PARTNER'`,
+    text.title,
+    text.body,
+    JSON.stringify(data),
+  );
+  const tokens: any[] = await db.$queryRawUnsafe(
+    `SELECT t.token FROM device_tokens t JOIN users u ON u.id = t."userId"
+      WHERE t."isActive" = true AND t.platform <> 'android-partner' AND u."isActive" = true`,
+  );
+  const push = await sendFcmToTokens(tokens.map((t) => t.token), {
+    title: text.title,
+    body: text.body,
+    data: { type: 'GENERAL', screen: 'Parceiros', partnerId: String(c.partnerId) },
+  });
+  await db.$executeRawUnsafe(
+    `UPDATE partner_push_campaigns SET status = 'SENT', "sentAt" = NOW(), recipients = $2, "pushSuccess" = $3, "updatedAt" = NOW() WHERE id = $1`,
+    id,
+    Number(recipients) || 0,
+    push.success,
+  );
+  await notifyPartner(db, c.partnerId, 'Sua notificação foi enviada! 🎉', `"${c.title}" foi enviada para os membros da Liga do Bem.`);
+  return { recipients: Number(recipients) || 0, pushAttempted: push.attempted, pushSuccess: push.success };
+}
+
+/**
+ * Envia as campanhas aprovadas cujo horário chegou. Seguro para chamar várias vezes ao mesmo
+ * tempo: cada campanha só é enviada por quem conseguir mudar SCHEDULED → SENDING.
+ * Campanhas presas em SENDING há mais de 15 min (função derrubada no meio) voltam para a fila.
+ */
+export async function dispatchDuePushCampaigns(db: any, max = 3) {
+  await ensurePartnerPushSchema(db);
+  await db.$executeRawUnsafe(
+    `UPDATE partner_push_campaigns SET status = 'SCHEDULED', "updatedAt" = NOW()
+      WHERE status = 'SENDING' AND "scheduledFor" IS NOT NULL AND "sentAt" IS NULL AND "updatedAt" < NOW() - INTERVAL '15 minutes'`,
+  );
+  const due: any[] = await db.$queryRawUnsafe(
+    `SELECT id FROM partner_push_campaigns WHERE status = 'SCHEDULED' AND "scheduledFor" <= NOW()
+      ORDER BY "scheduledFor" ASC LIMIT ${Math.max(1, Math.min(10, max))}`,
+  );
+  const sent: any[] = [];
+  for (const d of due) {
+    const locked: any[] = await db.$queryRawUnsafe(
+      `UPDATE partner_push_campaigns SET status = 'SENDING', "updatedAt" = NOW() WHERE id = $1 AND status = 'SCHEDULED' RETURNING id`,
+      d.id,
+    );
+    if (!locked.length) continue;
+    try {
+      sent.push({ id: d.id, ...(await sendCampaign(db, d.id)) });
+    } catch (e: any) {
+      console.error('❌ Envio agendado falhou:', e?.message);
+      await db.$executeRawUnsafe(
+        `UPDATE partner_push_campaigns SET status = 'SCHEDULED', "updatedAt" = NOW() WHERE id = $1 AND status = 'SENDING'`,
+        d.id,
+      );
+    }
+  }
+  return { due: due.length, sent };
+}
+
+/** Pagamento confirmado depois que a reserva venceu e outra empresa pegou o horário → remarca. */
+export async function resolveSlotAfterPayment(db: any, campaignId: string) {
+  await ensurePartnerPushSchema(db);
+  const settings = await getPushSettings(db);
+  const moved = await withSlotLock(db, async (tx) => {
+    const rows: any[] = await tx.$queryRawUnsafe(
+      `SELECT id, "scheduledFor", "partnerId", title FROM partner_push_campaigns WHERE id = $1`,
+      campaignId,
+    );
+    const c = rows[0];
+    if (!c?.scheduledFor) return null;
+    const at = new Date(c.scheduledFor);
+    const stillOk = at.getTime() > Date.now() + 30 * 60e3 && !(await slotTaken(tx, at, c.id));
+    if (stillOk) return null;
+    const next = await nextFreeSlot(tx, settings, Math.max(at.getTime(), Date.now()), c.id);
+    await tx.$executeRawUnsafe(
+      `UPDATE partner_push_campaigns SET "scheduledFor" = $2, "updatedAt" = NOW() WHERE id = $1`,
+      c.id,
+      next,
+    );
+    return { partnerId: c.partnerId, title: c.title, next };
+  });
+  if (moved) {
+    await notifyPartner(
+      db,
+      moved.partnerId,
+      'Horário da notificação alterado',
+      moved.next
+        ? `"${moved.title}": o horário escolhido foi ocupado enquanto o pagamento era confirmado. Nova data: ${slotLabel(moved.next)}. Você pode trocar no app.`
+        : `"${moved.title}": escolha um novo horário no app.`,
+    );
+  }
+  return moved;
+}
+
 // ---------------------------------------------------------------- rotas do parceiro
 
 export async function handlePartnerPushRoutes(
@@ -219,11 +452,17 @@ export async function handlePartnerPushRoutes(
     const next = await nextAllowedAt(db, acc.partnerId, settings.weeklyLimit);
     res.status(200).json({
       campaigns: rows.map(formatCampaign),
-      settings: { ...settings, price: settings.priceCents / 100 },
+      settings: { ...settings, price: settings.priceCents / 100, leadHours: SLOT_LEAD_HOURS },
       audience: audience?.[0]?.n || 0,
       nextAllowedAt: next,
       limits: { titleMax: TITLE_MAX, bodyMax: BODY_MAX },
     });
+    return true;
+  }
+
+  if (path === `${base}/slots` && method === 'GET') {
+    const ignore = ctx.req?.query?.campaignId ? String(ctx.req.query.campaignId) : undefined;
+    res.status(200).json({ days: await listSlots(db, settings, { ignoreCampaignId: ignore }), leadHours: SLOT_LEAD_HOURS });
     return true;
   }
 
@@ -239,11 +478,11 @@ export async function handlePartnerPushRoutes(
       throw new HttpError(400, 'Links não são permitidos na notificação. O membro abre a página da sua empresa no app.');
     }
     const open: any[] = await db.$queryRawUnsafe(
-      `SELECT id FROM partner_push_campaigns WHERE "partnerId" = $1 AND status IN ('AWAITING_PAYMENT','PENDING_REVIEW','SENDING')`,
+      `SELECT id FROM partner_push_campaigns WHERE "partnerId" = $1 AND status IN ('AWAITING_PAYMENT','PENDING_REVIEW','SCHEDULED','SENDING')`,
       acc.partnerId,
     );
     if (open.length) {
-      throw new HttpError(409, 'Você já tem uma notificação em andamento. Conclua ou cancele antes de criar outra.', 'OPEN_CAMPAIGN');
+      throw new HttpError(409, 'Você já tem uma notificação em andamento ou agendada. Espere ela ser enviada (ou cancele) antes de criar outra.', 'OPEN_CAMPAIGN');
     }
     const next = await nextAllowedAt(db, acc.partnerId, settings.weeklyLimit);
     if (next) {
@@ -263,17 +502,25 @@ export async function handlePartnerPushRoutes(
       if (!ok[0]) throw new HttpError(400, 'Promoção inválida');
       discountId = ok[0].id;
     }
+    const at = parseSlot(body.scheduledFor, settings);
     const id = crypto.randomUUID();
-    await db.$executeRawUnsafe(
-      `INSERT INTO partner_push_campaigns (id, "partnerId", "createdById", title, body, "discountId", "priceCents")
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      id, acc.partnerId, userId, title, text, discountId, settings.priceCents,
-    );
+    const reserved = await withSlotLock(db, async (tx) => {
+      if (await slotTaken(tx, at)) return false;
+      await tx.$executeRawUnsafe(
+        `INSERT INTO partner_push_campaigns (id, "partnerId", "createdById", title, body, "discountId", "priceCents", "scheduledFor")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        id, acc.partnerId, userId, title, text, discountId, settings.priceCents, at,
+      );
+      return true;
+    });
+    if (!reserved) {
+      throw new HttpError(409, 'Esse horário acabou de ser reservado por outra empresa. Escolha outro.', 'SLOT_TAKEN');
+    }
     res.status(201).json({ campaign: formatCampaign(await loadCampaign(db, id)) });
     return true;
   }
 
-  const m = path.match(/^\/api\/partner\/push-campaigns\/([^/]+)(\/checkout|\/cancel)?$/);
+  const m = path.match(/^\/api\/partner\/push-campaigns\/([^/]+)(\/checkout|\/cancel|\/reschedule)?$/);
   if (!m) throw new HttpError(404, 'Rota não encontrada');
   const campaign = await loadCampaign(db, m[1], acc.partnerId);
   if (!campaign) throw new HttpError(404, 'Notificação não encontrada');
@@ -294,6 +541,26 @@ export async function handlePartnerPushRoutes(
     return true;
   }
 
+  if (m[2] === '/reschedule' && method === 'POST') {
+    if (!['AWAITING_PAYMENT', 'PENDING_REVIEW', 'SCHEDULED'].includes(campaign.status)) {
+      throw new HttpError(409, 'Esta notificação não pode mais mudar de horário.');
+    }
+    const at = parseSlot(body.scheduledFor, settings);
+    const ok = await withSlotLock(db, async (tx) => {
+      if (await slotTaken(tx, at, campaign.id)) return false;
+      await tx.$executeRawUnsafe(
+        `UPDATE partner_push_campaigns SET "scheduledFor" = $2, "updatedAt" = NOW()
+          WHERE id = $1 AND status IN ('AWAITING_PAYMENT','PENDING_REVIEW','SCHEDULED')`,
+        campaign.id,
+        at,
+      );
+      return true;
+    });
+    if (!ok) throw new HttpError(409, 'Esse horário já está ocupado. Escolha outro.', 'SLOT_TAKEN');
+    res.status(200).json({ campaign: formatCampaign(await loadCampaign(db, campaign.id)), message: `Agendada para ${slotLabel(at)}` });
+    return true;
+  }
+
   if (m[2] === '/cancel' && method === 'POST') {
     const n = await db.$executeRawUnsafe(
       `UPDATE partner_push_campaigns SET status = 'CANCELLED', "updatedAt" = NOW() WHERE id = $1 AND status = 'AWAITING_PAYMENT'`,
@@ -307,6 +574,15 @@ export async function handlePartnerPushRoutes(
   if (m[2] === '/checkout' && method === 'POST') {
     if (campaign.status !== 'AWAITING_PAYMENT') throw new HttpError(409, 'Esta notificação já foi paga ou encerrada.');
     if (!getPagBankConfig().configured) throw new HttpError(503, 'Pagamentos ainda não configurados.');
+    if (campaign.scheduledFor) {
+      const at = new Date(campaign.scheduledFor);
+      const free = await withSlotLock(db, async (tx) => !(await slotTaken(tx, at, campaign.id)));
+      if (!free || at.getTime() < Date.now() + 60 * 60e3) {
+        throw new HttpError(409, 'O horário escolhido não está mais disponível. Escolha outro horário antes de pagar.', 'SLOT_EXPIRED');
+      }
+      // Renova a reserva enquanto o pagamento acontece
+      await db.$executeRawUnsafe(`UPDATE partner_push_campaigns SET "createdAt" = GREATEST("createdAt", NOW() - INTERVAL '1 minute') WHERE id = $1`, campaign.id);
+    }
     const payMethod = String(body.method || 'PIX').toUpperCase();
     if (!['PIX', 'CREDIT_CARD'].includes(payMethod)) throw new HttpError(400, 'Use PIX ou cartão de crédito.');
     if (payMethod === 'CREDIT_CARD' && !body.card?.encrypted) throw new HttpError(400, 'Dados do cartão ausentes.', 'CARD_ENCRYPTION_REQUIRED');
@@ -406,6 +682,11 @@ export async function handleAdminPushRoutes(
       await setConfig(db, KEYS.weeklyLimit, String(v), 'NUMBER');
     }
     if (body.enabled !== undefined) await setConfig(db, KEYS.enabled, body.enabled ? 'true' : 'false', 'BOOLEAN');
+    if (body.slots !== undefined) {
+      const list = parseSlotTimes(Array.isArray(body.slots) ? body.slots.join(',') : body.slots);
+      if (!list || list.length > 12) throw new HttpError(400, 'Horários inválidos (use HH:MM separados por vírgula, até 12).');
+      await setConfig(db, KEYS.slots, list.join(','), 'STRING' as any);
+    }
     res.status(200).json({ settings: await getPushSettings(db) });
     return true;
   }
@@ -415,7 +696,9 @@ export async function handleAdminPushRoutes(
     const rows: any[] = await db.$queryRawUnsafe(
       `SELECT c.*, p.name AS "partnerName" FROM partner_push_campaigns c JOIN partners p ON p.id = c."partnerId"
         WHERE ($1::text IS NULL OR c.status = $1) AND c.status <> 'CANCELLED'
-        ORDER BY CASE c.status WHEN 'PENDING_REVIEW' THEN 0 ELSE 1 END, c."createdAt" DESC LIMIT 100`,
+        ORDER BY CASE c.status WHEN 'PENDING_REVIEW' THEN 0 WHEN 'SCHEDULED' THEN 1 ELSE 2 END,
+                 CASE WHEN c.status IN ('PENDING_REVIEW','SCHEDULED') THEN c."scheduledFor" END ASC NULLS LAST,
+                 c."createdAt" DESC LIMIT 100`,
       status,
     );
     res.status(200).json({ campaigns: rows.map(formatCampaign) });
@@ -435,33 +718,45 @@ export async function handleAdminPushRoutes(
       );
       if (!locked.length) throw new HttpError(409, 'Esta notificação não está aguardando aprovação.');
       const c = await loadCampaign(db, id);
-      const text = buildPushText(c.partnerName, c.title, c.body);
-      const data = { screen: 'Parceiros', partnerId: c.partnerId, campaignId: c.id };
-      const recipients = await db.$executeRawUnsafe(
-        `INSERT INTO notifications (id, "userId", title, message, type, data, "isRead", "sentAt")
-         SELECT gen_random_uuid()::text, u.id, $1, $2, 'GENERAL'::"NotificationType", $3::jsonb, false, NOW()
-           FROM users u WHERE u."isActive" = true AND u.role <> 'PARTNER'`,
-        text.title,
-        text.body,
-        JSON.stringify(data),
-      );
-      const tokens: any[] = await db.$queryRawUnsafe(
-        `SELECT t.token FROM device_tokens t JOIN users u ON u.id = t."userId"
-          WHERE t."isActive" = true AND t.platform <> 'android-partner' AND u."isActive" = true`,
-      );
-      const push = await sendFcmToTokens(tokens.map((t) => t.token), {
-        title: text.title,
-        body: text.body,
-        data: { type: 'GENERAL', screen: 'Parceiros', partnerId: String(c.partnerId) },
-      });
-      await db.$executeRawUnsafe(
-        `UPDATE partner_push_campaigns SET status = 'SENT', "sentAt" = NOW(), recipients = $2, "pushSuccess" = $3, "updatedAt" = NOW() WHERE id = $1`,
+      // Sem horário (criada antes do agendamento) → envia agora, como antes
+      if (!c.scheduledFor) {
+        const r = await sendCampaign(db, id);
+        res.status(200).json({ message: 'Notificação enviada', ...r });
+        return true;
+      }
+      let at = new Date(c.scheduledFor);
+      let movedTo: Date | null = null;
+      const takenByOther: any[] = await db.$queryRawUnsafe(
+        `SELECT id FROM partner_push_campaigns WHERE "scheduledFor" = $1 AND id <> $2 AND status IN ('SCHEDULED','SENDING','SENT') LIMIT 1`,
+        at,
         id,
-        Number(recipients) || 0,
-        push.success,
       );
-      await notifyPartner(db, c.partnerId, 'Sua notificação foi enviada! 🎉', `"${c.title}" foi enviada para os membros da Liga do Bem.`);
-      res.status(200).json({ message: 'Notificação enviada', recipients: Number(recipients) || 0, pushAttempted: push.attempted, pushSuccess: push.success });
+      if (at.getTime() <= Date.now() || takenByOther.length) {
+        // A aprovação chegou depois do horário: vai para a próxima vaga livre
+        const settings = await getPushSettings(db);
+        movedTo = await withSlotLock(db, (tx) => nextFreeSlot(tx, settings, Date.now(), id));
+        if (!movedTo) {
+          await db.$executeRawUnsafe(`UPDATE partner_push_campaigns SET status = 'PENDING_REVIEW' WHERE id = $1`, id);
+          throw new HttpError(409, 'Não há horário livre nas próximas 2 semanas. Aumente os horários nas configurações.');
+        }
+        at = movedTo;
+      }
+      await db.$executeRawUnsafe(
+        `UPDATE partner_push_campaigns SET status = 'SCHEDULED', "scheduledFor" = $2, "updatedAt" = NOW() WHERE id = $1`,
+        id,
+        at,
+      );
+      await notifyPartner(
+        db,
+        c.partnerId,
+        'Notificação aprovada ✅',
+        `"${c.title}" será enviada ${slotLabel(at)}${movedTo ? ' (o horário original já tinha passado)' : ''}.`,
+      );
+      res.status(200).json({
+        message: `Aprovada. Envio ${slotLabel(at)}.`,
+        scheduledFor: at,
+        moved: !!movedTo,
+      });
       return true;
     }
 
