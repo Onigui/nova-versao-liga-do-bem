@@ -16,6 +16,9 @@ import HistoryScreen from './screens/HistoryScreen';
 import CompanyScreen from './screens/CompanyScreen';
 import CompanyEditScreen from './screens/CompanyEditScreen';
 import DashboardScreen from './screens/DashboardScreen';
+import VetProfileScreen from './screens/VetProfileScreen';
+import PetVisitScreen from './screens/PetVisitScreen';
+import StampFormScreen from './screens/StampFormScreen';
 import StaffScreen from './screens/StaffScreen';
 import PushCampaignsScreen from './screens/PushCampaignsScreen';
 import PushPaymentScreen from './screens/PushPaymentScreen';
@@ -166,6 +169,21 @@ export function PartnerAppStack() {
           options={({route}) => ({
             title: route.params?.discount ? 'Editar promoção' : 'Nova promoção',
           })}
+        />
+        <Stack.Screen
+          name="VetProfile"
+          component={VetProfileScreen}
+          options={{title: 'Veterinário (CRMV)'}}
+        />
+        <Stack.Screen
+          name="PetVisit"
+          component={PetVisitScreen}
+          options={{title: 'Carteira do pet'}}
+        />
+        <Stack.Screen
+          name="StampForm"
+          component={StampFormScreen}
+          options={({route}) => ({title: route.params?.record ? 'Corrigir carimbo' : 'Carimbar'})}
         />
         <Stack.Screen
           name="CompanyEdit"

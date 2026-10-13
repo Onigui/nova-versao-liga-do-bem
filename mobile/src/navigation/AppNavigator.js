@@ -38,6 +38,7 @@ import PetsListScreen from '../screens/PetsListScreen';
 import VaccinationCardScreen from '../screens/VaccinationCardScreen';
 import AddPetScreen from '../screens/AddPetScreen';
 import AddVaccinationScreen from '../screens/AddVaccinationScreen';
+import PetQrScreen from '../screens/PetQrScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -365,6 +366,11 @@ export function AppStack() {
         options={{
           headerShown: false,
         }}
+      />
+      <Stack.Screen
+        name="PetQr"
+        component={PetQrScreen}
+        options={{headerShown: false, presentation: 'modal'}}
       />
     </Stack.Navigator>
   );

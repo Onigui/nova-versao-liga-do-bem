@@ -17,6 +17,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('react-native-linear-gradient', () => 'LinearGradient');
+jest.mock('@react-navigation/native', () => ({useFocusEffect: () => {}, useIsFocused: () => true}));
 jest.mock('../src/config/apiConfig', () => ({API_BASE_PATH: 'https://api.test/api'}));
 const mockAuth = {user: {locationEnabled: true}};
 jest.mock('../src/services/AuthService', () => ({useAuth: () => mockAuth}));

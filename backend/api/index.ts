@@ -35,6 +35,7 @@ import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts, c
 import { backfillPartnerCoords, refreshPartnerCoords } from './lib/geocode';
 import { describePromo } from './lib/promo';
 import { dispatchDuePushCampaigns } from './lib/partnerPush';
+import { handlePetHealth, isPetHealthPath } from './lib/petHealth';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -428,6 +429,16 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    // Carteira de vacinação carimbada (tutor, veterinário parceiro, admin, link público, lembretes)
+    if (isPetHealthPath(path)) {
+      const handled = await handlePetHealth({
+        req, res, path, method, body, db: getPrisma(), jwtSecret: JWT_SECRET,
+        isAdmin: isAdminRequest(req),
+        authUser: () => decodeAuthUser(req),
+      });
+      if (handled) return;
+    }
+
     // Portal do parceiro, acessos de parceiro no admin e QR assinado da carteirinha
     if (
       path.startsWith('/api/partner/') ||

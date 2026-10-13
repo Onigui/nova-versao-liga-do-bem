@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -8,17 +8,44 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Modal,
+  Share,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const CATEGORY_LABEL = {VACCINE: 'Vacina', DEWORMER: 'Vermífugo', ANTIPARASITIC: 'Antipulgas/carrapatos'};
+
+/** Situação da próxima dose: atrasada, em breve ou em dia. */
+export function doseStatus(nextDoseDate, now = Date.now()) {
+  if (!nextDoseDate) return null;
+  const days = Math.ceil((new Date(nextDoseDate).getTime() - now) / 864e5);
+  if (days < 0) return {tone: 'late', label: `Atrasada há ${-days} dia${days === -1 ? '' : 's'}`};
+  if (days === 0) return {tone: 'soon', label: 'É hoje'};
+  if (days <= 30) return {tone: 'soon', label: `Faltam ${days} dia${days === 1 ? '' : 's'}`};
+  return {tone: 'ok', label: 'Em dia'};
+}
+
+/** Só o registro mais recente de cada vacina conta para "próxima dose". */
+export function latestByName(list) {
+  const seen = new Set();
+  return list.filter(v => {
+    const k = String(v.vaccineName || '').toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 export default function VaccinationCardScreen({navigation, route}) {
   const {petId} = route.params || {};
   const [pet, setPet] = useState(null);
   const [vaccinations, setVaccinations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authToken, setAuthToken] = useState(null);
+  const [photoFor, setPhotoFor] = useState(null);
 
   useEffect(() => {
     if (petId) {
@@ -30,6 +57,7 @@ export default function VaccinationCardScreen({navigation, route}) {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) return;
+      setAuthToken(token);
 
       const response = await fetch(`${API_BASE_PATH}/user/pets/${petId}`, {
         method: 'GET',
@@ -76,10 +104,48 @@ export default function VaccinationCardScreen({navigation, route}) {
     return `${years} anos`;
   };
 
+  const shareCard = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      const r = await fetch(`${API_BASE_PATH}/user/pets/${petId}/share`, {
+        method: 'POST',
+        headers: {Authorization: `Bearer ${token}`},
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Não foi possível gerar o link');
+      setPet(p => (p ? {...p, share: {url: data.url}} : p));
+      await Share.share({
+        message: `Carteira de vacinação de ${pet?.name || 'meu pet'} (Liga do Bem): ${data.url}`,
+      });
+    } catch (e) {
+      if (e?.message !== 'User did not share') Alert.alert('Compartilhar', e.message);
+    }
+  }, [petId, pet?.name]);
+
+  const stopSharing = useCallback(() => {
+    Alert.alert('Desativar o link?', 'Quem recebeu o link antigo não vai mais conseguir abrir a carteira.', [
+      {text: 'Cancelar', style: 'cancel'},
+      {
+        text: 'Desativar',
+        style: 'destructive',
+        onPress: async () => {
+          const token = await AsyncStorage.getItem('auth_token');
+          await fetch(`${API_BASE_PATH}/user/pets/${petId}/share`, {
+            method: 'DELETE',
+            headers: {Authorization: `Bearer ${token}`},
+          }).catch(() => {});
+          setPet(p => (p ? {...p, share: null} : p));
+        },
+      },
+    ]);
+  }, [petId]);
+
   const handleDeleteVaccination = (vaccination) => {
     Alert.alert(
       'Confirmar exclusão',
-      `Tem certeza que deseja excluir a vacinação de ${vaccination.vaccineName}?`,
+      vaccination.isVerified
+        ? `${vaccination.vaccineName} foi carimbada pelo veterinário. Se excluir, o registro sai da carteira e só a clínica pode carimbar de novo. Excluir mesmo assim?`
+        : `Tem certeza que deseja excluir a vacinação de ${vaccination.vaccineName}?`,
       [
         {text: 'Cancelar', style: 'cancel'},
         {
@@ -208,6 +274,33 @@ export default function VaccinationCardScreen({navigation, route}) {
               <Text style={styles.cardSubtitle}>Liga do Bem - Botucatu</Text>
             </View>
 
+            {/* Resumo */}
+            {vaccinations.length ? (
+              <View style={styles.summaryRow} testID="resumo-carteira">
+                <View style={styles.summaryPill}>
+                  <Ionicons name="ribbon" size={14} color="#047857" />
+                  <Text style={styles.summaryText}>
+                    {vaccinations.filter(v => v.isVerified).length} carimbada(s) por veterinário
+                  </Text>
+                </View>
+                {(() => {
+                  const pending = latestByName(vaccinations)
+                    .filter(v => v.nextDoseDate)
+                    .sort((a, b) => new Date(a.nextDoseDate) - new Date(b.nextDoseDate))[0];
+                  if (!pending) return null;
+                  const st = doseStatus(pending.nextDoseDate);
+                  return (
+                    <View style={[styles.summaryPill, st.tone === 'late' && styles.pillLate, st.tone === 'soon' && styles.pillSoon]}>
+                      <Ionicons name="calendar" size={14} color={st.tone === 'late' ? '#B91C1C' : st.tone === 'soon' ? '#B45309' : '#047857'} />
+                      <Text style={[styles.summaryText, st.tone === 'late' && {color: '#B91C1C'}, st.tone === 'soon' && {color: '#B45309'}]}>
+                        Próxima: {pending.vaccineName} em {formatDate(pending.nextDoseDate)}
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </View>
+            ) : null}
+
             {/* Lista de Vacinações */}
             <View style={styles.vaccinationsList}>
               {vaccinations.length === 0 ? (
@@ -222,16 +315,25 @@ export default function VaccinationCardScreen({navigation, route}) {
                 </View>
               ) : (
                 vaccinations.map((vaccination, index) => (
-                  <View key={vaccination.id} style={styles.vaccinationStamp}>
+                  <View
+                    key={vaccination.id}
+                    style={[styles.vaccinationStamp, vaccination.isVerified && styles.vaccinationStamped]}
+                    testID={vaccination.isVerified ? 'registro-carimbado' : 'registro-tutor'}>
                     <View style={styles.stampHeader}>
                       <View style={styles.stampIcon}>
-                        <Ionicons name="checkmark-circle" size={32} color="#10B981" />
+                        <Ionicons
+                          name={vaccination.isVerified ? 'ribbon' : 'checkmark-circle-outline'}
+                          size={32}
+                          color={vaccination.isVerified ? '#047857' : '#9CA3AF'}
+                        />
                       </View>
                       <View style={styles.stampInfo}>
                         <Text style={styles.stampVaccineName}>{vaccination.vaccineName}</Text>
-                        {vaccination.vaccineType && (
-                          <Text style={styles.stampVaccineType}>{vaccination.vaccineType}</Text>
-                        )}
+                        <Text style={styles.stampVaccineType}>
+                          {CATEGORY_LABEL[vaccination.category] || 'Vacina'}
+                          {vaccination.vaccineType ? ` · ${vaccination.vaccineType}` : ''}
+                          {vaccination.manufacturer ? ` · ${vaccination.manufacturer}` : ''}
+                        </Text>
                       </View>
                       <TouchableOpacity
                         style={styles.deleteButton}
@@ -252,6 +354,11 @@ export default function VaccinationCardScreen({navigation, route}) {
                           <Ionicons name="calendar-outline" size={16} color="#F59E0B" />
                           <Text style={styles.stampDetailText}>
                             Próxima dose: {formatDate(vaccination.nextDoseDate)}
+                            {(() => {
+                              if (latestByName(vaccinations).find(v => v.id === vaccination.id) == null) return ' · já aplicada';
+                              const st = doseStatus(vaccination.nextDoseDate);
+                              return st ? ` · ${st.label}` : '';
+                            })()}
                           </Text>
                         </View>
                       )}
@@ -282,11 +389,21 @@ export default function VaccinationCardScreen({navigation, route}) {
                       )}
                       {vaccination.isVerified && (
                         <View style={styles.verifiedBadge}>
-                          <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+                          <Ionicons name="shield-checkmark" size={16} color="#047857" />
                           <Text style={styles.verifiedText}>
-                            Verificado por veterinário parceiro
+                            CARIMBADA pelo veterinário parceiro
+                            {vaccination.correctedAt ? ' · corrigida pela clínica' : ''}
                           </Text>
                         </View>
+                      )}
+                      {vaccination.hasLabelPhoto && (
+                        <TouchableOpacity onPress={() => setPhotoFor(vaccination)} style={styles.stampDetailRow} testID="ver-selo">
+                          <Ionicons name="image-outline" size={16} color="#7C3AED" />
+                          <Text style={[styles.stampDetailText, {color: '#7C3AED', fontWeight: '600'}]}>Ver foto do selo</Text>
+                        </TouchableOpacity>
+                      )}
+                      {!vaccination.isVerified && (
+                        <Text style={styles.selfNote}>Informada por você · não conferida por veterinário</Text>
                       )}
                       {vaccination.notes && (
                         <View style={styles.stampNotes}>
@@ -301,6 +418,32 @@ export default function VaccinationCardScreen({navigation, route}) {
           </LinearGradient>
         </View>
 
+        {/* Carimbo pelo veterinário e compartilhamento */}
+        <TouchableOpacity
+          style={styles.addVaccinationButton}
+          onPress={() => navigation.navigate('PetQr', {petId, petName: pet.name})}
+          testID="mostrar-veterinario">
+          <LinearGradient colors={['#7C3AED', '#0D9488']} style={styles.addVaccinationButtonGradient}>
+            <Ionicons name="qr-code" size={24} color="#FFFFFF" />
+            <Text style={styles.addVaccinationButtonText}>Mostrar ao veterinário (carimbar)</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+        <View style={styles.shareRow}>
+          <TouchableOpacity style={styles.shareButton} onPress={shareCard} testID="compartilhar-carteira">
+            <Ionicons name="share-social" size={20} color="#7C3AED" />
+            <Text style={styles.shareText}>Compartilhar carteira</Text>
+          </TouchableOpacity>
+          {pet.share ? (
+            <TouchableOpacity style={styles.shareButton} onPress={stopSharing} testID="desativar-link">
+              <Ionicons name="link" size={20} color="#6B7280" />
+              <Text style={[styles.shareText, {color: '#6B7280'}]}>Desativar link</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <Text style={styles.shareHint}>
+          O link abre a carteira atualizada, com os carimbos e o CRMV: serve para hotel, creche, viagem ou outro veterinário.
+        </Text>
+
         {/* Botão Adicionar Vacinação */}
         <TouchableOpacity
           style={styles.addVaccinationButton}
@@ -309,10 +452,26 @@ export default function VaccinationCardScreen({navigation, route}) {
             colors={['#10B981', '#059669']}
             style={styles.addVaccinationButtonGradient}>
             <Ionicons name="add-circle" size={24} color="#FFFFFF" />
-            <Text style={styles.addVaccinationButtonText}>Adicionar Vacinação</Text>
+            <Text style={styles.addVaccinationButtonText}>Registrar por conta própria</Text>
           </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={!!photoFor} transparent animationType="fade" onRequestClose={() => setPhotoFor(null)}>
+        <TouchableOpacity style={styles.photoBackdrop} activeOpacity={1} onPress={() => setPhotoFor(null)}>
+          {photoFor ? (
+            <Image
+              source={{
+                uri: `${API_BASE_PATH}/user/pets/${petId}/vaccinations/${photoFor.id}/photo`,
+                headers: {Authorization: `Bearer ${authToken}`},
+              }}
+              style={styles.photoFull}
+              resizeMode="contain"
+            />
+          ) : null}
+          <Text style={styles.photoCaption}>Selo de {photoFor?.vaccineName} · toque para fechar</Text>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -536,6 +695,43 @@ const styles = StyleSheet.create({
     color: '#374151',
     flex: 1,
   },
+  vaccinationStamped: {
+    borderStyle: 'solid',
+    borderColor: '#6EE7B7',
+    backgroundColor: '#F0FDF4',
+  },
+  selfNote: {fontSize: 12, color: '#9CA3AF', marginTop: 4},
+  summaryRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16, justifyContent: 'center'},
+  summaryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  pillLate: {backgroundColor: '#FEE2E2'},
+  pillSoon: {backgroundColor: '#FEF3C7'},
+  summaryText: {fontSize: 12, fontWeight: '700', color: '#047857'},
+  shareRow: {flexDirection: 'row', gap: 10, marginBottom: 6},
+  shareButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#DDD6FE',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  shareText: {fontSize: 14, fontWeight: '700', color: '#7C3AED'},
+  shareHint: {fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 16},
+  photoBackdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center', padding: 16},
+  photoFull: {width: '100%', height: '75%'},
+  photoCaption: {color: '#FFFFFF', marginTop: 12},
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -547,8 +743,9 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#10B981',
+    fontWeight: '800',
+    color: '#047857',
+    flex: 1,
   },
   stampNotes: {
     marginTop: 8,
