@@ -5,18 +5,25 @@ import React from 'react';
 import {Image, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {formatDistance} from '../utils/geo';
 
 export default function PartnerListCard({partner, onPress, onNavigate, disabled}) {
-  const hasDiscount = partner.discount && partner.discount !== 'Sem desconto';
+  // Selo pronto vindo da promoção ("20% OFF", "Por R$ 69,90"…); dados antigos: "20%" + " OFF"
+  const badge =
+    partner.badge ||
+    (partner.discount && partner.discount !== 'Sem desconto' ? `${partner.discount} OFF` : null);
+  const distance = formatDistance(partner.distanceKm ?? partner.distance);
   return (
     <TouchableOpacity style={styles.partnerCard} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
-      {hasDiscount ? (
+      {badge ? (
         <LinearGradient
           colors={['#8B5CF6', '#7C3AED']}
           style={styles.discountBadge}
           start={{x: 0, y: 0}}
           end={{x: 1, y: 0}}>
-          <Text style={styles.discountText}>{partner.discount}</Text>
+          <Text style={styles.discountText} numberOfLines={1} testID="selo-promocao">
+            {badge}
+          </Text>
         </LinearGradient>
       ) : null}
 
@@ -37,16 +44,26 @@ export default function PartnerListCard({partner, onPress, onNavigate, disabled}
             <Ionicons name="pricetag" size={14} color="#8B5CF6" />
             <Text style={styles.metaText}>{partner.category}</Text>
           </View>
-          {partner.distance ? (
+          {distance ? (
             <View style={styles.metaItem}>
               <Ionicons name="location" size={14} color="#10B981" />
-              <Text style={styles.metaText}>{partner.distance.toFixed(1)} km</Text>
+              <Text style={[styles.metaText, styles.distanceText]} testID="distancia">
+                {distance}
+              </Text>
             </View>
           ) : null}
         </View>
         <Text style={styles.partnerAddress} numberOfLines={1}>
           {partner.address}
         </Text>
+        {partner.openNow != null ? (
+          <View style={styles.metaItem}>
+            <View style={[styles.dot, {backgroundColor: partner.openNow ? '#10B981' : '#9CA3AF'}]} />
+            <Text style={[styles.metaText, {color: partner.openNow ? '#047857' : '#6B7280'}]} numberOfLines={1}>
+              {partner.openLabel || (partner.openNow ? 'Aberto agora' : 'Fechado')}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.partnerActions}>
@@ -89,7 +106,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  discountText: {color: '#FFFFFF', fontSize: 12, fontWeight: '700'},
+  discountText: {color: '#FFFFFF', fontSize: 12, fontWeight: '700', maxWidth: 170},
+  distanceText: {color: '#047857', fontWeight: '700'},
+  dot: {width: 7, height: 7, borderRadius: 4},
   logo: {
     width: 48,
     height: 48,
@@ -107,7 +126,7 @@ const styles = StyleSheet.create({
   partnerMeta: {flexDirection: 'row', gap: 12, marginBottom: 6},
   metaItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
   metaText: {fontSize: 12, color: '#6B7280'},
-  partnerAddress: {fontSize: 13, color: '#9CA3AF'},
+  partnerAddress: {fontSize: 13, color: '#9CA3AF', marginBottom: 4},
   partnerActions: {flexDirection: 'row', alignItems: 'center', gap: 8},
   actionIcon: {
     width: 36,

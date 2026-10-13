@@ -11,7 +11,10 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {parseOpeningHours, getTodayHours} from '../utils/openingHours';
+import {parseOpeningHours, getTodayHours, openStatus} from '../utils/openingHours';
+import PromoCard from '../components/PromoCard';
+import {partnerBadge} from '../utils/promo';
+import {formatDistance} from '../utils/geo';
 
 const {width} = Dimensions.get('window');
 
@@ -37,8 +40,12 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
     logo: null,
   };
 
+  const hasHours = !!String(partnerData.hours || '').trim();
   const weekHours = parseOpeningHours(partnerData.hours);
   const todayHours = getTodayHours(partnerData.hours);
+  const nowStatus = hasHours ? openStatus(partnerData.hours) : null;
+  const badge = partnerData.badge || partnerBadge(partnerData, partnerData.discounts);
+  const distance = formatDistance(partnerData.distanceKm ?? null);
 
   const openPhone = () => {
     if (preview) return;
@@ -76,9 +83,11 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
               </View>
             )}
           </View>
-          {partnerData.discount && partnerData.discount !== 'Sem desconto' ? (
+          {badge ? (
             <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>{partnerData.discount} OFF</Text>
+              <Text style={styles.discountText} testID="selo-detalhe">
+                {badge}
+              </Text>
             </View>
           ) : null}
         </LinearGradient>
@@ -103,18 +112,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Promoções para membros</Text>
               {partnerData.discounts.map(d => (
-                <View key={d.id} style={styles.promoCard}>
-                  <Text style={styles.promoLabel}>{d.label}</Text>
-                  <Text style={styles.promoName}>{d.name}</Text>
-                  {d.description ? (
-                    <Text style={styles.promoDesc}>{d.description}</Text>
-                  ) : null}
-                  {d.validUntil ? (
-                    <Text style={styles.promoDesc}>
-                      Válida até {new Date(d.validUntil).toLocaleDateString('pt-BR', {timeZone: 'America/Sao_Paulo'})}
-                    </Text>
-                  ) : null}
-                </View>
+                <PromoCard key={d.id} discount={d} />
               ))}
               <Text style={styles.promoHint}>
                 Mostre o QR da sua carteirinha no caixa para usar.
@@ -163,7 +161,9 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
                 <Text style={styles.locationAddress}>
                   {partnerData.address}
                 </Text>
-                <Text style={styles.locationAction}>Abrir no Google Maps</Text>
+                <Text style={styles.locationAction}>
+                  {distance ? `A ${distance} de você · abrir no mapa` : 'Abrir no Google Maps'}
+                </Text>
               </View>
               <Ionicons name="navigate" size={24} color="#8B5CF6" />
             </TouchableOpacity>
@@ -172,6 +172,19 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
           {/* Hours */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Horário de Funcionamento</Text>
+            {!hasHours ? (
+              <View style={styles.hoursCard}>
+                <View style={styles.hoursToday}>
+                  <View style={styles.hoursTodayIcon}>
+                    <Ionicons name="help-circle-outline" size={18} color="#7C3AED" />
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.hoursTodayLabel}>Horário não informado</Text>
+                    <Text style={styles.hoursTodayValue}>Ligue ou chame no WhatsApp antes de ir</Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
             <View style={styles.hoursCard}>
               <View style={styles.hoursToday}>
                 <View style={styles.hoursTodayIcon}>
@@ -182,7 +195,9 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
                   />
                 </View>
                 <View style={{flex: 1}}>
-                  <Text style={styles.hoursTodayLabel}>Hoje</Text>
+                  <Text style={styles.hoursTodayLabel}>
+                    {nowStatus ? (nowStatus.open ? 'Aberto agora' : 'Fechado agora') : 'Hoje'}
+                  </Text>
                   <Text
                     style={[
                       styles.hoursTodayValue,
@@ -217,6 +232,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
                 </View>
               ))}
             </View>
+            )}
           </View>
 
           {/* How to Use */}

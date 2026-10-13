@@ -1,7 +1,8 @@
 /**
  * Código do QR da carteirinha, assinado pelo servidor e com validade curta (10 min).
  * Renova sozinho antes de vencer e quando o app volta para a frente. Sem internet, usa o
- * último código ainda válido; se não houver, cai no formato antigo (aceito na transição).
+ * último código ainda válido; se não houver, não mostra QR (o formato antigo não é aceito).
+ * Junto vem o código de 6 números para o parceiro digitar quando a câmera não lê o QR.
  */
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {AppState} from 'react-native';
@@ -23,8 +24,8 @@ export function isStillValid(entry, now = Date.now()) {
   return !!entry?.code && new Date(entry.expiresAt).getTime() - now > 15 * 1000;
 }
 
-export default function useCardCode({token, enabled, legacyCode, fetchImpl = fetch}) {
-  const [state, setState] = useState({code: null, expiresAt: null, source: 'loading'});
+export default function useCardCode({token, enabled, fetchImpl = fetch}) {
+  const [state, setState] = useState({code: null, expiresAt: null, shortCode: null, source: 'loading'});
   const timer = useRef(null);
   const alive = useRef(true);
 
@@ -44,7 +45,12 @@ export default function useCardCode({token, enabled, legacyCode, fetchImpl = fet
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data?.code) throw new Error('sem código');
-      const entry = {code: data.code, expiresAt: data.expiresAt};
+      const entry = {
+        code: data.code,
+        expiresAt: data.expiresAt,
+        shortCode: data.shortCode || null,
+        shortCodeExpiresAt: data.shortCodeExpiresAt || null,
+      };
       AsyncStorage.setItem(CACHE_KEY, JSON.stringify(entry)).catch(() => {});
       if (!alive.current) return;
       setState({...entry, source: 'live'});
@@ -58,13 +64,14 @@ export default function useCardCode({token, enabled, legacyCode, fetchImpl = fet
       }
       if (!alive.current) return;
       if (isStillValid(cached)) {
-        setState({...cached, source: 'cached'});
+        const shortOk = cached.shortCodeExpiresAt && new Date(cached.shortCodeExpiresAt).getTime() > Date.now();
+        setState({...cached, shortCode: shortOk ? cached.shortCode : null, source: 'cached'});
       } else {
-        setState({code: legacyCode || null, expiresAt: null, source: 'legacy'});
+        setState({code: null, expiresAt: null, shortCode: null, source: 'offline'});
       }
       schedule(RETRY_MS);
     }
-  }, [enabled, token, legacyCode, fetchImpl, schedule]);
+  }, [enabled, token, fetchImpl, schedule]);
   refreshRef.current = refresh;
 
   useEffect(() => {

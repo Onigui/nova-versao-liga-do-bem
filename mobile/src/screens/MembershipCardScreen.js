@@ -182,16 +182,10 @@ export default function MembershipCardScreen({navigation}) {
   const statusColor = isActiveMember
     ? STATUS_COLORS.ACTIVE
     : STATUS_COLORS[statusKey] || '#6B7280';
-  const legacyQr =
-    membership?.qrCode ||
-    (membership?.memberId && user?.id
-      ? `LIGADOBEM|${membership.memberId}|${user.id}`
-      : null);
   // QR assinado pelo servidor, renovado a cada poucos minutos (print antigo não vale)
   const cardCode = useCardCode({
     token,
     enabled: !!(isAuthenticated && isActiveMember && membership?.memberId),
-    legacyCode: legacyQr,
   });
   const qrValue = cardCode.code;
 
@@ -325,6 +319,11 @@ export default function MembershipCardScreen({navigation}) {
                 />
               ) : isActiveMember && cardCode.source === 'loading' ? (
                 <ActivityIndicator size="large" color="#8B5CF6" />
+              ) : isActiveMember && cardCode.source === 'offline' ? (
+                <View style={styles.qrBlocked}>
+                  <Ionicons name="cloud-offline-outline" size={36} color="#9CA3AF" />
+                  <Text style={styles.qrPlaceholder}>Conecte-se à internet para gerar o QR</Text>
+                </View>
               ) : (
                 <View style={styles.qrBlocked}>
                   <Ionicons name="lock-closed-outline" size={36} color="#9CA3AF" />
@@ -334,11 +333,19 @@ export default function MembershipCardScreen({navigation}) {
                 </View>
               )}
             </View>
+            {isActiveMember && qrValue && cardCode.shortCode ? (
+              <View style={styles.shortCodeBox} testID="codigo-6">
+                <Text style={styles.shortCodeLabel}>Código para digitar</Text>
+                <Text style={styles.shortCode} selectable>
+                  {`${cardCode.shortCode.slice(0, 3)} ${cardCode.shortCode.slice(3)}`}
+                </Text>
+              </View>
+            ) : null}
             <Text style={styles.qrLabel}>
               {isActiveMember
-                ? cardCode.source === 'legacy'
-                  ? 'Sem conexão: mostre o QR e um documento com foto ao parceiro'
-                  : 'Apresente este QR nos parceiros · ele se renova sozinho, print não vale'
+                ? cardCode.source === 'offline'
+                  ? 'O QR muda a cada 10 minutos e precisa de internet para ser gerado'
+                  : 'Apresente este QR nos parceiros · ele se renova sozinho, print não vale. Se a câmera não ler, o parceiro digita o número do cartão e o código acima.'
                 : 'Assine um plano para ativar o QR Code e os descontos'}
             </Text>
           </View>
@@ -412,6 +419,16 @@ export default function MembershipCardScreen({navigation}) {
 }
 
 const styles = StyleSheet.create({
+  shortCodeBox: {
+    marginTop: 10,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  shortCodeLabel: {color: '#EDE9FE', fontSize: 11, fontWeight: '600'},
+  shortCode: {color: '#FFFFFF', fontSize: 22, fontWeight: '900', letterSpacing: 4},
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',

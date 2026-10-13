@@ -6,8 +6,11 @@
  *
  * O app do membro pede um código novo ao servidor e renova sozinho antes de expirar,
  * então um print ou foto da tela deixa de valer em poucos minutos.
- * O formato antigo (LIGADOBEM|memberId|userId) não tem assinatura e só é aceito
- * enquanto CARD_QR_ACCEPT_LEGACY != 'false' (transição para quem não atualizou o app).
+ * O formato antigo (LIGADOBEM|memberId|userId) não tem assinatura e é RECUSADO,
+ * a menos que CARD_QR_ACCEPT_LEGACY = 'true' (só para emergência).
+ *
+ * Sem câmera, o parceiro digita o número da carteirinha + o código de 6 números que aparece
+ * embaixo do QR. Esse código também muda a cada 10 minutos (vale a janela atual e a anterior).
  */
 import crypto from 'crypto';
 
@@ -49,10 +52,38 @@ export type ParsedCardCode =
   | { ok: true; kind: 'SIGNED'; memberId: string; expiresAt: string }
   | { ok: true; kind: 'LEGACY'; memberId: string; userId: string }
   | { ok: true; kind: 'MANUAL'; memberId: string }
-  | { ok: false; reason: 'EXPIRED' | 'INVALID_SIGNATURE' | 'LEGACY_DISABLED' | 'UNRECOGNIZED' };
+  | {
+      ok: false;
+      reason: 'EXPIRED' | 'INVALID_SIGNATURE' | 'LEGACY_DISABLED' | 'UNRECOGNIZED' | 'CODE_REQUIRED' | 'WRONG_CODE';
+      memberId?: string;
+    };
 
 export function legacyQrAccepted(): boolean {
-  return String(process.env.CARD_QR_ACCEPT_LEGACY || '').toLowerCase() !== 'false';
+  return String(process.env.CARD_QR_ACCEPT_LEGACY || '').toLowerCase() === 'true';
+}
+
+export const SHORT_CODE_WINDOW_SECONDS = 10 * 60;
+
+/** Código de 6 números da janela de 10 min (para digitar quando a câmera não lê o QR). */
+export function cardShortCode(secret: Buffer, memberId: string, nowMs = Date.now(), windowOffset = 0): string {
+  const w = Math.floor(nowMs / 1000 / SHORT_CODE_WINDOW_SECONDS) + windowOffset;
+  const h = crypto.createHmac('sha256', secret).update(`short.${memberId.toUpperCase()}.${w}`).digest();
+  return String(h.readUInt32BE(0) % 1_000_000).padStart(6, '0');
+}
+
+/** Quando o código de 6 números atual deixa de valer (fim da janela seguinte). */
+export function cardShortCodeExpiresAt(nowMs = Date.now()): string {
+  const w = Math.floor(nowMs / 1000 / SHORT_CODE_WINDOW_SECONDS);
+  return new Date((w + 2) * SHORT_CODE_WINDOW_SECONDS * 1000).toISOString();
+}
+
+function shortCodeMatches(secret: Buffer, memberId: string, code: string, nowMs: number): boolean {
+  for (const off of [0, -1]) {
+    const a = Buffer.from(cardShortCode(secret, memberId, nowMs, off));
+    const b = Buffer.from(code);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return true;
+  }
+  return false;
 }
 
 /** Interpreta o que o parceiro escaneou ou digitou. Não consulta o banco. */
@@ -84,9 +115,25 @@ export function parseCardCode(raw: unknown, secret: Buffer, nowMs = Date.now()):
     return { ok: true, kind: 'LEGACY', memberId, userId };
   }
 
-  // Número da carteirinha digitado à mão (ex.: MEM12345678)
-  const typed = text.toUpperCase().replace(/\s+/g, '');
-  if (/^MEM\d{4,20}$/.test(typed)) return { ok: true, kind: 'MANUAL', memberId: typed };
+  // Digitado à mão: número da carteirinha + código de 6 números (ex.: "MEM12345678 482913")
+  const typed = text.toUpperCase().replace(/[.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const [first, ...rest] = typed.split(' ');
+  let m: string[] | null = null;
+  if (rest.length) {
+    const code = rest.join('');
+    if (/^MEM\d{4,20}$/.test(first) && /^\d{6}$/.test(code)) m = [typed, first, code];
+    else if (/^MEM\d{4,20}$/.test(first) && !code) m = [typed, first, ''];
+  } else if (/^MEM\d{14}$/.test(first)) {
+    m = [first, first.slice(0, 11), first.slice(11)]; // MEM + 8 números + código colado
+  } else if (/^MEM\d{4,20}$/.test(first)) {
+    m = [first, first, ''];
+  }
+  if (m) {
+    const memberId = m[1];
+    if (!m[2]) return { ok: false, reason: 'CODE_REQUIRED', memberId };
+    if (!shortCodeMatches(secret, memberId, m[2], nowMs)) return { ok: false, reason: 'WRONG_CODE', memberId };
+    return { ok: true, kind: 'MANUAL', memberId };
+  }
 
   return { ok: false, reason: 'UNRECOGNIZED' };
 }
@@ -95,5 +142,7 @@ export const CARD_CODE_ERRORS: Record<string, string> = {
   EXPIRED: 'Este QR expirou. Peça para o membro abrir a carteirinha no app de novo.',
   INVALID_SIGNATURE: 'QR inválido ou adulterado. Não aceite esta carteirinha.',
   LEGACY_DISABLED: 'QR antigo não é mais aceito. Peça para o membro atualizar o app.',
-  UNRECOGNIZED: 'Código não reconhecido. Escaneie o QR da carteirinha ou digite o número (MEM...).',
+  UNRECOGNIZED: 'Código não reconhecido. Escaneie o QR da carteirinha ou digite o número (MEM...) e o código de 6 números.',
+  CODE_REQUIRED: 'Digite também o código de 6 números que aparece embaixo do QR, na carteirinha do membro.',
+  WRONG_CODE: 'Código de 6 números incorreto ou vencido. Peça para o membro abrir a carteirinha de novo e confira.',
 };

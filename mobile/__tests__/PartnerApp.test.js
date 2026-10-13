@@ -60,11 +60,11 @@ describe('helpers', () => {
 
   test('promoção: monta o corpo e valida', () => {
     const base = {name: 'Banho', description: '', type: 'percent', value: '10', validFrom: '', validUntil: '', isActive: true};
-    expect(buildDiscountPayload(base).body).toEqual({name: 'Banho', description: null, isActive: true, validUntil: null, percentage: 10});
+    expect(buildDiscountPayload(base).body).toEqual({name: 'Banho', description: null, isActive: true, kind: 'PERCENT', validUntil: null, percentage: 10});
     expect(buildDiscountPayload({...base, type: 'fixed', value: '15,50'}).body.fixedAmount).toBe(15.5);
     expect(buildDiscountPayload({...base, value: '150'}).error).toMatch(/100%/);
     expect(buildDiscountPayload({...base, name: ' '}).error).toMatch(/nome/);
-    expect(buildDiscountPayload({...base, value: ''}).error).toMatch(/valor/);
+    expect(buildDiscountPayload({...base, value: ''}).error).toMatch(/percentual/);
     expect(buildDiscountPayload({...base, validFrom: '10/12/2026', validUntil: '01/12/2026'}).error).toMatch(/antes/);
     expect(buildDiscountPayload({...base, validUntil: '99/99/2026'}).error).toMatch(/fim inválida/);
   });
@@ -177,7 +177,7 @@ describe('QR rotativo do membro', () => {
 
   test('online: usa o código assinado do servidor e guarda para uso offline', async () => {
     const exp = new Date(Date.now() + 600e3).toISOString();
-    const fetchImpl = jest.fn(async () => ({ok: true, json: async () => ({code: 'LDB2.MEM1.1.sig', expiresAt: exp})}));
+    const fetchImpl = jest.fn(async () => ({ok: true, json: async () => ({code: 'LDB2.MEM1.1.sig', expiresAt: exp, shortCode: '482913', shortCodeExpiresAt: exp})}));
     let tree;
     await act(async () => {
       tree = renderer.create(<Probe token="T" enabled legacyCode="LIGADOBEM|MEM1|u" fetchImpl={fetchImpl} />);
@@ -186,6 +186,7 @@ describe('QR rotativo do membro', () => {
     expect(textOf(tree.root)).toBe('live:LDB2.MEM1.1.sig');
     expect(fetchImpl.mock.calls[0][0]).toBe('https://api.test/api/membership/card-token');
     expect(JSON.parse(mockStore.card_code_v2).code).toBe('LDB2.MEM1.1.sig');
+    expect(JSON.parse(mockStore.card_code_v2).shortCode).toBe('482913');
     await act(async () => tree.unmount());
   });
 
@@ -203,7 +204,7 @@ describe('QR rotativo do membro', () => {
     await act(async () => tree.unmount());
   });
 
-  test('offline sem código válido: cai no formato antigo', async () => {
+  test('offline sem código válido: não mostra QR (o formato antigo é recusado)', async () => {
     mockStore.card_code_v2 = JSON.stringify({code: 'LDB2.OLD', expiresAt: new Date(Date.now() - 1000).toISOString()});
     const fetchImpl = jest.fn(async () => ({ok: false, status: 500}));
     let tree;
@@ -211,7 +212,7 @@ describe('QR rotativo do membro', () => {
       tree = renderer.create(<Probe token="T" enabled legacyCode="LIGADOBEM|MEM1|u" fetchImpl={fetchImpl} />);
     });
     await flush();
-    expect(textOf(tree.root)).toBe('legacy:LIGADOBEM|MEM1|u');
+    expect(textOf(tree.root)).toBe('offline:null');
     await act(async () => tree.unmount());
   });
 

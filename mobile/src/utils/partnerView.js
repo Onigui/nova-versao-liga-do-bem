@@ -2,6 +2,10 @@
  * Converte o parceiro da API no formato que as telas do app dos membros usam
  * (lista de parceiros e página da empresa). Também usado na prévia do App Parceiros.
  */
+import {partnerBadge} from './promo';
+
+const coord = v => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+
 export function toMemberPartner(p, discounts) {
   const list = Array.isArray(discounts) ? discounts : Array.isArray(p?.discounts) ? p.discounts : [];
   const first = list[0];
@@ -16,15 +20,17 @@ export function toMemberPartner(p, discounts) {
     id: p?.id,
     name: p?.name || '',
     category: p?.category || '',
+    /** Selo pronto: "20% OFF", "R$ 10 OFF", "Por R$ 69,90", "Leve 3, pague 2"… (null = sem promoção) */
+    badge: partnerBadge(p, list),
     discount: short || 'Sem desconto',
     description: p?.description || 'Parceiro da Liga do Bem',
-    address:
-      p?.address || `${p?.city || ''}${p?.state ? ` - ${p.state}` : ''}`.trim(),
+    address: p?.address || `${p?.city || ''}${p?.state ? ` - ${p.state}` : ''}`.trim(),
     phone: p?.phone || '',
     whatsapp: String(p?.phone || '').replace(/\D/g, ''),
-    latitude: p?.latitude ?? null,
-    longitude: p?.longitude ?? null,
-    hours: p?.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
+    latitude: coord(p?.latitude),
+    longitude: coord(p?.longitude),
+    // Sem horário cadastrado fica vazio: a página mostra "Horário não informado"
+    hours: p?.hours || '',
     logo: p?.logo || null,
     website: p?.website || null,
     discounts: list,

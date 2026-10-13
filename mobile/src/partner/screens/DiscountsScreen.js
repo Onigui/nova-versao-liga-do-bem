@@ -4,6 +4,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {COLORS, formatDateBR, usePartner} from '../PartnerContext';
 import {Badge, Button, Card, Empty, styles as ui} from '../ui';
+import {describePromo} from '../../utils/promo';
 
 export function discountStatus(d, now = Date.now()) {
   if (!d.isActive) return {text: 'Pausada', tone: 'muted'};
@@ -93,13 +94,16 @@ export default function DiscountsScreen({navigation}) {
                     fontWeight: '900',
                     color: COLORS.primary,
                   }}>
-                  {d.label}
+                  {d.badge || describePromo(d).badge}
                 </Text>
                 <Badge text={st.text} tone={st.tone} />
               </View>
               <Text
                 style={{fontSize: 16, fontWeight: '700', color: COLORS.text}}>
                 {d.name}
+              </Text>
+              <Text style={[ui.muted, {marginTop: 2, color: COLORS.primaryDark}]}>
+                {d.label || describePromo(d).label}
               </Text>
               {d.description ? (
                 <Text style={[ui.muted, {marginTop: 2}]}>{d.description}</Text>
