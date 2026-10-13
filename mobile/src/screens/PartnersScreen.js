@@ -12,9 +12,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
-import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
+import PartnerListCard from '../components/PartnerListCard';
+import {toMemberPartner} from '../utils/partnerView';
 
 const deg2rad = deg => deg * (Math.PI / 180);
 
@@ -126,22 +127,7 @@ export default function PartnersScreen({navigation, route}) {
       console.log('✅ Parceiros carregados:', apiPartners.length);
 
       // Converter dados da API para formato esperado pelo app
-      const formattedPartners = apiPartners.map(partner => ({
-        id: partner.id,
-        name: partner.name,
-        category: partner.category,
-        discount: partner.discount || 'Sem desconto',
-        description: partner.description || 'Parceiro da Liga do Bem',
-        address: partner.address || `${partner.city || ''}${partner.state ? ` - ${partner.state}` : ''}`.trim(),
-        phone: partner.phone,
-        whatsapp: partner.phone?.replace(/\D/g, ''), // Remove caracteres não numéricos
-        latitude: partner.latitude,
-        longitude: partner.longitude,
-        hours: partner.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
-        logo: partner.logo || null,
-        website: partner.website || null,
-        discounts: Array.isArray(partner.discounts) ? partner.discounts : [],
-      }));
+      const formattedPartners = apiPartners.map(partner => toMemberPartner(partner));
 
       setPartners(formattedPartners);
       setFilteredPartners(formattedPartners);
@@ -300,51 +286,12 @@ export default function PartnersScreen({navigation, route}) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
         {filteredPartners.map(partner => (
-          <TouchableOpacity
+          <PartnerListCard
             key={partner.id}
-            style={styles.partnerCard}
-            onPress={() => navigation.navigate('PartnerDetail', {partner})}>
-            <LinearGradient
-              colors={['#8B5CF6', '#7C3AED']}
-              style={styles.discountBadge}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 0}}>
-              <Text style={styles.discountText}>{partner.discount}</Text>
-            </LinearGradient>
-
-            <View style={styles.partnerInfo}>
-              <Text style={styles.partnerName}>{partner.name}</Text>
-              <View style={styles.partnerMeta}>
-                <View style={styles.metaItem}>
-                  <Ionicons name="pricetag" size={14} color="#8B5CF6" />
-                  <Text style={styles.metaText}>{partner.category}</Text>
-                </View>
-                {partner.distance && (
-                  <View style={styles.metaItem}>
-                    <Ionicons name="location" size={14} color="#10B981" />
-                    <Text style={styles.metaText}>
-                      {partner.distance.toFixed(1)} km
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.partnerAddress} numberOfLines={1}>
-                {partner.address}
-              </Text>
-            </View>
-
-            <View style={styles.partnerActions}>
-              <TouchableOpacity
-                style={styles.actionIcon}
-                onPress={e => {
-                  e.stopPropagation();
-                  openMaps(partner);
-                }}>
-                <Ionicons name="navigate" size={20} color="#8B5CF6" />
-              </TouchableOpacity>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </View>
-          </TouchableOpacity>
+            partner={partner}
+            onPress={() => navigation.navigate('PartnerDetail', {partner})}
+            onNavigate={() => openMaps(partner)}
+          />
         ))}
 
         {filteredPartners.length === 0 && (
@@ -424,80 +371,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-  },
-  partnerCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginVertical: 4,
-    marginTop: 12,
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-    position: 'relative',
-  },
-  discountBadge: {
-    position: 'absolute',
-    top: -8,
-    right: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  discountText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  partnerInfo: {
-    flex: 1,
-  },
-  partnerName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 6,
-  },
-  partnerMeta: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 6,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  partnerAddress: {
-    fontSize: 13,
-    color: '#9CA3AF',
-  },
-  partnerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F5F3FF',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   emptyState: {
     alignItems: 'center',

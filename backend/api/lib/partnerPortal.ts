@@ -60,6 +60,12 @@ export async function ensurePartnerPortalSchema(db: any, force = false) {
     `ALTER TABLE partner_validations ADD COLUMN IF NOT EXISTS "membershipActive" BOOLEAN NOT NULL DEFAULT true`,
     `CREATE INDEX IF NOT EXISTS partner_validations_partner_idx ON partner_validations("partnerId", "validatedAt")`,
     `ALTER TABLE partner_discounts ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3)`,
+    `CREATE TABLE IF NOT EXISTS partner_logos (
+       "partnerId" TEXT PRIMARY KEY REFERENCES partners(id) ON DELETE CASCADE,
+       mime TEXT NOT NULL,
+       data BYTEA NOT NULL,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+     )`,
     `ALTER TABLE partner_discounts ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3)`,
   ];
   for (const sql of statements) await db.$executeRawUnsafe(sql);
@@ -258,6 +264,30 @@ export async function createPartnerAccess(
   };
 }
 
+const LOGO_MAX_BYTES = 400 * 1024;
+
+/** Decodifica "data:image/png;base64,..." (ou base64 puro) e confere pelo conteúdo que é JPEG/PNG/WebP. */
+export function decodeLogo(input: unknown): { mime: string; data: Buffer } | { error: string } {
+  const raw = String(input || '');
+  const m = raw.match(/^data:(image\/[a-z+]+);base64,(.+)$/i);
+  const b64 = (m ? m[2] : raw).replace(/\s/g, '');
+  if (!b64 || !/^[A-Za-z0-9+/=]+$/.test(b64)) return { error: 'Imagem inválida' };
+  const data = Buffer.from(b64, 'base64');
+  if (!data.length) return { error: 'Imagem inválida' };
+  if (data.length > LOGO_MAX_BYTES) return { error: 'Imagem muito grande (máx. 400 KB). Escolha outra ou recorte.' };
+  const hex = data.subarray(0, 12).toString('hex');
+  let mime = '';
+  if (hex.startsWith('ffd8ff')) mime = 'image/jpeg';
+  else if (hex.startsWith('89504e470d0a1a0a')) mime = 'image/png';
+  else if (hex.startsWith('52494646') && data.subarray(8, 12).toString() === 'WEBP') mime = 'image/webp';
+  if (!mime) return { error: 'Use uma imagem JPG, PNG ou WebP' };
+  return { mime, data };
+}
+
+function publicApiBase() {
+  return (process.env.API_PUBLIC_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
+}
+
 /** Gera um código novo de primeiro acesso para uma conta de parceiro (admin ou responsável). */
 async function newCodeForAccount(db: any, accountId: string, partnerId: string | null, source: 'ADMIN' | 'PARTNER_OWNER') {
   const rows: any[] = await db.$queryRawUnsafe(
@@ -388,7 +418,8 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
     path === '/api/admin/partner-validations' ||
     path.startsWith('/api/admin/partner-push-');
   const isCardToken = path === '/api/membership/card-token';
-  if (!isPartnerRoute && !isAdminRoute && !isCardToken) return false;
+  const logoMatch = path.match(/^\/api\/partners\/([^/]+)\/logo$/);
+  if (!isPartnerRoute && !isAdminRoute && !isCardToken && !logoMatch) return false;
 
   if (!db) {
     res.status(503).json({ error: 'Database not configured' });
@@ -398,6 +429,22 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
   try {
     await ensurePartnerPortalSchema(db);
     const body = ctx.body && typeof ctx.body === 'object' ? ctx.body : {};
+
+    // ---------- público: logo da empresa (endereço versionado → cache longo)
+    if (logoMatch && method === 'GET') {
+      const rows: any[] = await db.$queryRawUnsafe(
+        `SELECT mime, data FROM partner_logos WHERE "partnerId" = $1`,
+        logoMatch[1],
+      );
+      if (!rows?.[0]) {
+        res.status(404).json({ error: 'Logo não encontrado' });
+        return true;
+      }
+      res.setHeader('Content-Type', rows[0].mime);
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      res.status(200).end(Buffer.from(rows[0].data));
+      return true;
+    }
 
     // ---------- membro: código do QR assinado
     if (isCardToken && method === 'GET') {
@@ -543,6 +590,30 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
         ...params,
       );
       res.status(200).json({ message: 'Dados da empresa atualizados', partner: await loadPartner(db, acc.partnerId) });
+      return true;
+    }
+
+    if (path === '/api/partner/logo' && (method === 'PUT' || method === 'POST')) {
+      requireOwner(acc);
+      const decoded = decodeLogo(body.imageBase64);
+      if ('error' in decoded) throw new HttpError(400, decoded.error);
+      await db.$executeRawUnsafe(
+        `INSERT INTO partner_logos ("partnerId", mime, data, "updatedAt") VALUES ($1, $2, $3, NOW())
+         ON CONFLICT ("partnerId") DO UPDATE SET mime = EXCLUDED.mime, data = EXCLUDED.data, "updatedAt" = NOW()`,
+        acc.partnerId,
+        decoded.mime,
+        decoded.data,
+      );
+      const url = `${publicApiBase()}/api/partners/${acc.partnerId}/logo?v=${Date.now()}`;
+      await db.$executeRawUnsafe(`UPDATE partners SET logo = $1, "updatedAt" = NOW() WHERE id = $2`, url, acc.partnerId);
+      res.status(200).json({ message: 'Logo atualizado', logo: url, partner: await loadPartner(db, acc.partnerId) });
+      return true;
+    }
+    if (path === '/api/partner/logo' && method === 'DELETE') {
+      requireOwner(acc);
+      await db.$executeRawUnsafe(`DELETE FROM partner_logos WHERE "partnerId" = $1`, acc.partnerId);
+      await db.$executeRawUnsafe(`UPDATE partners SET logo = NULL, "updatedAt" = NOW() WHERE id = $1`, acc.partnerId);
+      res.status(200).json({ message: 'Logo removido', partner: await loadPartner(db, acc.partnerId) });
       return true;
     }
 

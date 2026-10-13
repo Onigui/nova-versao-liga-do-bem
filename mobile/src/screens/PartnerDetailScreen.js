@@ -15,8 +15,13 @@ import {parseOpeningHours, getTodayHours} from '../utils/openingHours';
 
 const {width} = Dimensions.get('window');
 
-export default function PartnerDetailScreen({route, navigation}) {
-  const {partner} = route.params || {};
+/**
+ * Página da empresa no app dos membros. Com `preview` (App Parceiros → "Como os membros veem")
+ * os botões de telefone, WhatsApp e mapa ficam inativos.
+ */
+export default function PartnerDetailScreen({route, navigation, partner: partnerProp, preview: previewProp}) {
+  const partner = partnerProp || route?.params?.partner;
+  const preview = previewProp || route?.params?.preview;
 
   const partnerData = partner || {
     id: '1',
@@ -36,14 +41,17 @@ export default function PartnerDetailScreen({route, navigation}) {
   const todayHours = getTodayHours(partnerData.hours);
 
   const openPhone = () => {
+    if (preview) return;
     Linking.openURL(`tel:${partnerData.phone}`);
   };
 
   const openWhatsApp = () => {
+    if (preview) return;
     Linking.openURL(`https://wa.me/55${partnerData.whatsapp}`);
   };
 
   const openMaps = () => {
+    if (preview) return;
     const address = encodeURIComponent(partnerData.address);
     Linking.openURL(
       `https://www.google.com/maps/search/?api=1&query=${address}`,
@@ -52,7 +60,7 @@ export default function PartnerDetailScreen({route, navigation}) {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
         {/* Header com Gradient */}
         <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
           <View style={styles.logoContainer}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert, ScrollView, Text, View} from 'react-native';
+import {Alert, Image, ScrollView, Text, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import DeviceInfo from 'react-native-device-info';
 import {COLORS, usePartner} from '../PartnerContext';
@@ -33,14 +33,38 @@ export default function CompanyScreen({navigation}) {
   return (
     <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
       <Card>
-        <View style={[ui.row, {justifyContent: 'space-between'}]}>
-          <Text style={[ui.title, {flex: 1}]}>{p?.name}</Text>
+        <View style={[ui.row, {gap: 12}]}>
+          <View
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 14,
+              backgroundColor: '#F5F3FF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              borderWidth: 1,
+              borderColor: COLORS.border,
+            }}>
+            {p?.logo ? (
+              <Image source={{uri: p.logo}} style={{width: '100%', height: '100%'}} />
+            ) : (
+              <Text style={{fontSize: 24, fontWeight: '900', color: '#7C3AED'}}>
+                {(p?.name || '?').trim().charAt(0).toUpperCase()}
+              </Text>
+            )}
+          </View>
+          <View style={{flex: 1}}>
+            <Text style={[ui.title, {fontSize: 20}]} numberOfLines={2}>
+              {p?.name}
+            </Text>
+            {p?.category ? <Text style={ui.muted}>{p.category}</Text> : null}
+          </View>
           <Badge
             text={isOwner ? 'Responsável' : 'Funcionário'}
             tone={isOwner ? 'ok' : 'muted'}
           />
         </View>
-        {p?.category ? <Text style={ui.muted}>{p.category}</Text> : null}
         {p?.description ? (
           <Text style={{color: COLORS.text, marginTop: 8}}>
             {p.description}
@@ -58,9 +82,10 @@ export default function CompanyScreen({navigation}) {
         <Line icon="globe-outline" text={p?.website} />
         {isOwner ? (
           <Button
-            title="Editar dados da empresa"
+            title="Editar empresa e ver prévia"
             variant="secondary"
             onPress={() => navigation.navigate('CompanyEdit')}
+            icon={<Icon name="create-outline" size={18} color={COLORS.primary} />}
             style={{marginTop: 16}}
             testID="editar-empresa"
           />

@@ -429,6 +429,7 @@ export default async function handler(req: any, res: any) {
     if (
       path.startsWith('/api/partner/') ||
       path === '/api/membership/card-token' ||
+      /^\/api\/partners\/[^/]+\/logo$/.test(path) ||
       path.startsWith('/api/admin/partners/') ||
       path.startsWith('/api/admin/partner-')
     ) {
