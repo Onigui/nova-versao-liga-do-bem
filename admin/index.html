@@ -2196,7 +2196,7 @@
                 <p style="margin: 0 0 12px; color: #64748B; font-size: 0.9rem;">
                     Quem tiver acesso entra no <strong>App Liga do Bem Parceiros</strong> para validar carteirinhas.
                     O <strong>responsável</strong> também edita os dados da empresa, cria promoções e cadastra funcionários.
-                    A pessoa recebe um e-mail e cria a senha em "Primeiro acesso / Esqueci a senha".
+                    Ao criar o acesso, aparece um <strong>código de 6 dígitos</strong> para você mandar pelo WhatsApp: com ele a pessoa cria a senha no app.
                 </p>
                 <form id="partnerAccessForm" style="display: grid; grid-template-columns: 2fr 1.5fr 1fr auto; gap: 8px; align-items: end;">
                     <div class="form-group" style="margin:0"><label class="form-label">E-mail</label><input type="email" class="form-input" id="paEmail" required></div>
@@ -3116,6 +3116,7 @@
                     <td>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary" onclick="editMember('${member.id}')" style="padding: 6px 12px; font-size: 0.875rem;">Editar</button>
+                            <button class="btn btn-secondary" onclick="generateMemberAccessCode('${member.id}')" style="padding: 6px 12px; font-size: 0.875rem;" title="Gera um código para a pessoa criar ou trocar a senha sem depender de e-mail">Código de acesso</button>
                             <button class="btn btn-danger" onclick="deleteMember('${member.id}')" style="padding: 6px 12px; font-size: 0.875rem;">Excluir</button>
                         </div>
                     </td>
@@ -5489,7 +5490,8 @@
                 tbody.innerHTML = data.accounts.length ? data.accounts.map((a) => `
                     <tr><td>${escHtml(a.name)}</td><td>${escHtml(a.email)}</td>
                     <td>${a.role === 'OWNER' ? 'Responsável' : 'Funcionário'}</td>
-                    <td><button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem; background: var(--error-red); color: white;" onclick="removePartnerAccount('${escHtml(a.id)}')">Remover</button></td></tr>`).join('')
+                    <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="generatePartnerAccessCode('${escHtml(a.id)}')">Gerar código</button>
+                    <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem; background: var(--error-red); color: white;" onclick="removePartnerAccount('${escHtml(a.id)}')">Remover</button></div></td></tr>`).join('')
                     : '<tr><td colspan="4" style="color:#64748B">Nenhum acesso ainda.</td></tr>';
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="4" style="color:#B91C1C">${escHtml(e.message)}</td></tr>`;
@@ -5532,9 +5534,12 @@
                 const data = await r.json();
                 if (!r.ok) throw new Error(data.error || 'Erro ao criar acesso');
                 msg.style.color = '#15803D';
-                msg.textContent = data.emailSent
-                    ? `Acesso criado. Enviamos um e-mail para ${data.email} com as instruções.`
-                    : `Acesso criado, mas o e-mail NÃO foi enviado. Avise ${data.email} para usar "Primeiro acesso / Esqueci a senha" no app.`;
+                if (data.accessCode) {
+                    msg.textContent = `Acesso criado para ${data.email}.`;
+                    showAccessCode(data, { app: 'partner' });
+                } else {
+                    msg.textContent = `Acesso liberado. ${data.email} já tinha conta e entra no App Parceiros com a senha de sempre.`;
+                }
                 document.getElementById('partnerAccessForm').reset();
                 loadPartnerAccounts();
             } catch (err) {

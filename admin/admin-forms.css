@@ -241,3 +241,17 @@ select.fx-input { appearance: none; padding-right: 36px; cursor: pointer;
 }
 .fx-switch { position: relative; }
 .fx-switch input { left: 0; top: 0; }
+
+/* janela do código de primeiro acesso */
+.fx-dialog-overlay { position: fixed; inset: 0; background: rgba(17,24,39,.5); display: flex; align-items: center; justify-content: center; z-index: 2500; padding: 16px; }
+.fx-dialog { background: #fff; border-radius: 16px; width: min(460px, 100%); padding: 24px; box-shadow: 0 20px 50px rgba(17,24,39,.3); }
+.fx-dialog h3 { margin: 0 0 8px; font-size: 1.15rem; color: var(--fx-ink); }
+.fx-dialog-text { margin: 0 0 12px; color: var(--fx-ink-soft); font-size: .9rem; line-height: 1.5; }
+.fx-center { text-align: center; }
+.fx-dialog-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; font-size: .85rem; }
+.fx-dialog-note.ok { background: var(--fx-ok-soft); color: var(--fx-ok); }
+.fx-dialog-note.warn { background: var(--fx-warn-soft); color: var(--fx-warn); }
+.fx-code { display: flex; justify-content: center; gap: 4px; font-size: 2.6rem; font-weight: 700; letter-spacing: .18em; color: var(--fx-brand); font-variant-numeric: tabular-nums; margin: 6px 0 4px; user-select: all; }
+.fx-code span { width: 14px; }
+.fx-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.fx-dialog-actions .fx-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }

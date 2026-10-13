@@ -26,6 +26,21 @@ export default function ForgotPasswordScreen({navigation, route}) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const [codeSource, setCodeSource] = useState('email'); // email | manual
+
+  const validEmail = () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  /** Código recebido da Liga do Bem ou do responsável da empresa (WhatsApp), sem depender de e-mail. */
+  const goToManualCode = () => {
+    if (!validEmail()) {
+      Alert.alert('Atenção', 'Digite primeiro o seu e-mail.');
+      return;
+    }
+    setCode('');
+    setCodeSource('manual');
+    setStep('code');
+  };
+
   const handleRequestCode = async () => {
     if (!email) {
       Alert.alert('Atenção', 'Digite seu e-mail');
@@ -50,14 +65,19 @@ export default function ForgotPasswordScreen({navigation, route}) {
 
       if (!response.ok) {
         Alert.alert(
-          'Recuperação indisponível',
+          'Não foi possível enviar o e-mail',
           data.error ||
-            'Não foi possível enviar o código. Contate a Liga do Bem se precisar redefinir sua senha.',
+            'Peça um código de acesso à Liga do Bem (ou ao responsável da sua empresa).',
+          [
+            {text: 'Fechar', style: 'cancel'},
+            {text: 'Já tenho um código', onPress: goToManualCode},
+          ],
         );
         return;
       }
 
       setCode('');
+      setCodeSource('email');
       setStep('code');
       Alert.alert(
         'Verifique seu e-mail',
@@ -73,7 +93,7 @@ export default function ForgotPasswordScreen({navigation, route}) {
 
   const handleResetPassword = async () => {
     if (!code || code.length !== 6) {
-      Alert.alert('Atenção', 'Digite o código de 6 dígitos recebido por e-mail');
+      Alert.alert('Atenção', 'Digite o código de 6 dígitos');
       return;
     }
     if (!newPassword || newPassword.length < 6) {
@@ -180,7 +200,7 @@ export default function ForgotPasswordScreen({navigation, route}) {
                 <Text style={styles.title}>{firstAccess ? 'Crie ou recupere sua senha' : 'Esqueceu sua senha?'}</Text>
                 <Text style={styles.subtitle}>
                   Digite seu e-mail. Enviaremos um código de 6 dígitos para você
-                  redefinir a senha.
+                  {firstAccess ? ' criar' : ' redefinir'} a senha.
                 </Text>
 
                 <View style={styles.inputContainer}>
@@ -231,18 +251,35 @@ export default function ForgotPasswordScreen({navigation, route}) {
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.haveCodeButton}
+                  onPress={goToManualCode}
+                  accessibilityRole="button"
+                  testID="ja-tenho-codigo">
+                  <Ionicons name="keypad-outline" size={18} color="#7C3AED" />
+                  <Text style={styles.haveCodeText}>Já tenho um código</Text>
+                </TouchableOpacity>
+                <Text style={styles.subtitleSmall}>
+                  Recebeu um código da Liga do Bem{firstAccess ? ' ou do responsável da empresa' : ''}? Digite o e-mail acima e toque em "Já tenho um código".
+                </Text>
               </>
             ) : (
               <>
                 <Text style={styles.title}>Nova senha</Text>
                 <Text style={styles.subtitle}>
-                  Digite o código enviado para{'\n'}
+                  {codeSource === 'manual'
+                    ? 'Digite o código que você recebeu para'
+                    : 'Digite o código enviado para'}
+                  {'\n'}
                   <Text style={styles.emailHighlight}>{email}</Text>
-                  {'\n'}e escolha uma nova senha.
+                  {'\n'}e escolha {firstAccess ? 'sua senha' : 'uma nova senha'}.
                 </Text>
 
                 <Text style={styles.subtitleSmall}>
-                  O código vale por 15 minutos. Confira também a pasta de spam.
+                  {codeSource === 'manual'
+                    ? 'O código vale por 72 horas e só pode ser usado uma vez.'
+                    : 'O código vale por 15 minutos. Confira também a pasta de spam.'}
                 </Text>
 
                 <View style={styles.inputContainer}>
@@ -359,6 +396,19 @@ export default function ForgotPasswordScreen({navigation, route}) {
 }
 
 const styles = StyleSheet.create({
+  haveCodeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#C4B5FD',
+    backgroundColor: '#F5F3FF',
+  },
+  haveCodeText: {color: '#7C3AED', fontSize: 15, fontWeight: '700'},
   container: {
     flex: 1,
   },
