@@ -15,6 +15,7 @@ import DiscountFormScreen from './screens/DiscountFormScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import CompanyScreen from './screens/CompanyScreen';
 import CompanyEditScreen from './screens/CompanyEditScreen';
+import DashboardScreen from './screens/DashboardScreen';
 import StaffScreen from './screens/StaffScreen';
 import PushCampaignsScreen from './screens/PushCampaignsScreen';
 import PushPaymentScreen from './screens/PushPaymentScreen';
@@ -39,6 +40,7 @@ export function PartnerAuthStack() {
 
 const TAB_ICONS = {
   ValidateTab: 'qr-code',
+  DashboardTab: 'stats-chart',
   DiscountsTab: 'pricetags',
   HistoryTab: 'time',
   CompanyTab: 'storefront',
@@ -64,6 +66,11 @@ function Tabs() {
         name="ValidateTab"
         component={ValidateScreen}
         options={{title: 'Validar', headerTitle: 'Validar carteirinha'}}
+      />
+      <Tab.Screen
+        name="DashboardTab"
+        component={DashboardScreen}
+        options={{title: 'Painel', headerTitle: 'Painel da parceria'}}
       />
       <Tab.Screen
         name="DiscountsTab"
