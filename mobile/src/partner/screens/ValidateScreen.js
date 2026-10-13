@@ -7,6 +7,9 @@ import {Button, Card, Field, styles as ui} from '../ui';
 export default function ValidateScreen({navigation}) {
   const {partner, stats} = usePartner();
   const [typed, setTyped] = useState('');
+  const [shortCode, setShortCode] = useState('');
+  const memberOk = /^MEM\d{4,20}$/.test(typed.trim());
+  const codeOk = /^\d{6}$/.test(shortCode);
 
   return (
     <ScrollView
@@ -53,21 +56,37 @@ export default function ValidateScreen({navigation}) {
         <Text style={{fontWeight: '700', color: COLORS.text, marginBottom: 8}}>
           Sem câmera ou QR não lê?
         </Text>
+        <Text style={[ui.muted, {marginBottom: 10}]}>
+          Digite o número da carteirinha (ID) e o código de 6 números que aparece embaixo do QR, no
+          celular do membro. O código muda a cada 10 minutos.
+        </Text>
         <Field
-          placeholder="Número da carteirinha (MEM...)"
+          label="Número da carteirinha"
+          placeholder="MEM12345678"
           value={typed}
-          onChangeText={t => setTyped(t.toUpperCase())}
+          onChangeText={t => setTyped(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
           autoCapitalize="characters"
-          hint="Confira o nome com um documento com foto."
+          maxLength={23}
           testID="numero"
         />
+        <Field
+          label="Código de 6 números"
+          placeholder="000 000"
+          value={shortCode}
+          onChangeText={t => setShortCode(t.replace(/\D/g, '').slice(0, 6))}
+          keyboardType="number-pad"
+          maxLength={6}
+          hint="Confira também o nome com um documento com foto."
+          testID="codigo"
+        />
         <Button
-          title="Consultar número"
+          title="Consultar"
           variant="secondary"
-          disabled={typed.trim().length < 5}
+          disabled={!memberOk || !codeOk}
           onPress={() => {
-            navigation.navigate('ValidationResult', {code: typed.trim()});
+            navigation.navigate('ValidationResult', {code: `${typed.trim()} ${shortCode}`});
             setTyped('');
+            setShortCode('');
           }}
           testID="consultar"
         />

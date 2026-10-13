@@ -1,234 +1,204 @@
-import React, {useCallback, useEffect, useState} from 'react';
+/**
+ * Lista de parceiros do app dos membros: busca, "Perto de mim" (distância pelo GPS),
+ * "Aberto agora" e categorias.
+ */
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
+  ActivityIndicator,
   Linking,
   Platform,
-  PermissionsAndroid,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import Geolocation from '@react-native-community/geolocation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { API_BASE_PATH } from '../config/apiConfig';
+import {API_BASE_PATH} from '../config/apiConfig';
 import PartnerListCard from '../components/PartnerListCard';
 import {toMemberPartner} from '../utils/partnerView';
+import {applyPartnerFilters, availableCategories, categoryFromRoute} from '../utils/partnerFilters';
+import useUserLocation from '../services/useUserLocation';
+import {useAuth} from '../services/AuthService';
 
-const deg2rad = deg => deg * (Math.PI / 180);
+const CACHE_KEY = 'partners_cache_v2';
 
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Raio da Terra em km
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) *
-      Math.cos(deg2rad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
+function useAuthSafe() {
+  try {
+    return useAuth();
+  } catch {
+    return {};
+  }
+}
+
+export function LocationBanner({status, onRequest, onSettings}) {
+  if (status === 'ok') return null;
+  if (status === 'locating') {
+    return (
+      <View style={styles.banner} testID="banner-localizando">
+        <ActivityIndicator size="small" color="#7C3AED" />
+        <Text style={styles.bannerText}>Buscando sua localização…</Text>
+      </View>
+    );
+  }
+  const cfg = {
+    blocked: {
+      text: 'A localização está bloqueada para o app. Libere nas configurações para ver a distância até cada loja.',
+      action: 'Abrir configurações',
+      onPress: onSettings,
+    },
+    off: {
+      text: 'O GPS do celular está desligado. Ligue para ver a distância até cada loja.',
+      action: 'Ligar GPS',
+      onPress: onSettings,
+    },
+    error: {
+      text: 'Não conseguimos sua localização agora.',
+      action: 'Tentar de novo',
+      onPress: onRequest,
+    },
+  }[status] || {
+    text: 'Permita a localização para ver a distância até cada loja e as mais perto de você.',
+    action: 'Permitir',
+    onPress: onRequest,
+  };
+  return (
+    <View style={styles.banner} testID={`banner-${status}`}>
+      <Ionicons name="navigate-circle" size={26} color="#7C3AED" />
+      <Text style={styles.bannerText}>{cfg.text}</Text>
+      <TouchableOpacity style={styles.bannerBtn} onPress={cfg.onPress} testID="banner-acao">
+        <Text style={styles.bannerBtnText}>{cfg.action}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function Chip({label, icon, active, onPress, testID}) {
+  return (
+    <TouchableOpacity
+      testID={testID}
+      style={[styles.filterButton, active && styles.filterButtonActive]}
+      onPress={onPress}>
+      <Ionicons name={icon} size={16} color={active ? '#FFFFFF' : '#6B7280'} />
+      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function PartnersScreen({navigation, route}) {
+  const {user} = useAuthSafe();
   const [partners, setPartners] = useState([]);
-  const [filteredPartners, setFilteredPartners] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  // Se vier filtro via route params, usar ele, senão 'all'
-  const filterFromRoute = route?.params?.filter || route?.params?.initialCategory;
-  const resolvedInitialCategory =
-    filterFromRoute === 'veterinario' ||
-    filterFromRoute === 'veterinária' ||
-    filterFromRoute === 'veterinaria'
-      ? 'veterinária'
-      : 'all';
-  const [selectedCategory, setSelectedCategory] = useState(resolvedInitialCategory);
-  const [userLocation, setUserLocation] = useState(null);
+  const [category, setCategory] = useState(
+    categoryFromRoute(route?.params?.filter || route?.params?.initialCategory),
+  );
+  const [openNow, setOpenNow] = useState(false);
+  const [nearMe, setNearMe] = useState(true);
+  const [now, setNow] = useState(() => new Date());
+
+  // Se o membro desligou "Localização" no perfil, só pede quando ele tocar em "Perto de mim"
+  const location = useUserLocation({autoStart: user?.locationEnabled !== false});
 
   useEffect(() => {
-    const nextFilter = route?.params?.filter || route?.params?.initialCategory;
-    if (
-      nextFilter === 'veterinario' ||
-      nextFilter === 'veterinária' ||
-      nextFilter === 'veterinaria'
-    ) {
-      setSelectedCategory('veterinária');
-    }
+    const next = route?.params?.filter || route?.params?.initialCategory;
+    if (next) setCategory(categoryFromRoute(next));
   }, [route?.params?.filter, route?.params?.initialCategory]);
 
-  const requestLocationPermission = useCallback(async () => {
-    try {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Permissão de Localização',
-            message:
-              'A Liga do Bem utiliza sua localização para mostrar parceiros próximos.',
-            buttonPositive: 'Permitir',
-            buttonNegative: 'Negar',
-          },
-        );
-
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.log('Permissão de localização negada');
-          return;
-        }
-      } else {
-        const status = await Geolocation.requestAuthorization('whenInUse');
-        if (status !== 'granted') {
-          console.log('Permissão de localização negada');
-          return;
-        }
-      }
-
-      Geolocation.getCurrentPosition(
-        position => {
-          setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-        },
-        error => {
-          console.error('Erro ao obter localização:', error);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 10000,
-        },
-      );
-    } catch (error) {
-      console.error('Erro ao solicitar permissão de localização:', error);
-    }
+  // "Aberto agora" muda com o relógio
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(t);
   }, []);
 
   const loadPartners = useCallback(async () => {
     try {
-      console.log('🔄 Carregando parceiros da API...');
-      console.log('🔗 URL:', `${API_BASE_PATH}/partners`);
-
       const response = await fetch(`${API_BASE_PATH}/partners`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
       });
-
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const apiData = await response.json();
-      const apiPartners = apiData.partners || [];
-      console.log('✅ Parceiros carregados:', apiPartners.length);
-
-      // Converter dados da API para formato esperado pelo app
-      const formattedPartners = apiPartners.map(partner => toMemberPartner(partner));
-
-      setPartners(formattedPartners);
-      setFilteredPartners(formattedPartners);
+      const list = (apiData.partners || []).map(p => toMemberPartner(p));
+      setPartners(list);
+      setLoadError(false);
+      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(list)).catch(() => {});
     } catch (error) {
-      console.error('❌ Erro ao carregar parceiros:', error);
-
-      // Fallback para dados mockados em caso de erro
-      const fallbackPartners = [
-        {
-          id: 'fallback-1',
-          name: 'Pet Shop Central',
-          category: 'Pet Shop',
-          discount: '15%',
-          description: 'Desconto em rações, acessórios e produtos veterinários',
-          address: 'Rua Amando de Barros, 1234 - Centro, Botucatu - SP',
-          phone: '(14) 3811-1234',
-          whatsapp: '14981234567',
-          latitude: -22.8858,
-          longitude: -48.445,
-          hours: 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
-          logo: null,
-        },
-      ];
-
-      setPartners(fallbackPartners);
-      setFilteredPartners(fallbackPartners);
+      // Sem internet: mostra a última lista baixada
+      try {
+        const cached = JSON.parse((await AsyncStorage.getItem(CACHE_KEY)) || 'null');
+        if (Array.isArray(cached) && cached.length) setPartners(cached);
+        else setLoadError(true);
+      } catch {
+        setLoadError(true);
+      }
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  const filterPartners = useCallback(() => {
-    let filtered = partners;
-
-    if (searchQuery) {
-      filtered = filtered.filter(
-        partner =>
-          partner.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          partner.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          partner.address.toLowerCase().includes(searchQuery.toLowerCase()),
-      );
-    }
-
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(
-        partner =>
-          partner.category.toLowerCase() === selectedCategory.toLowerCase(),
-      );
-    }
-
-    // Ordenar por distância se tivermos a localização do usuário
-    if (userLocation) {
-      filtered = filtered
-        .map(partner => ({
-          ...partner,
-          distance: calculateDistance(
-            userLocation.latitude,
-            userLocation.longitude,
-            partner.latitude,
-            partner.longitude,
-          ),
-        }))
-        .sort((a, b) => a.distance - b.distance);
-    }
-
-    setFilteredPartners(filtered);
-  }, [partners, searchQuery, selectedCategory, userLocation]);
-
   useEffect(() => {
-    requestLocationPermission();
     loadPartners();
-  }, [requestLocationPermission, loadPartners]);
+  }, [loadPartners]);
 
-  useEffect(() => {
-    filterPartners();
-  }, [filterPartners]);
+  const categories = useMemo(() => availableCategories(partners), [partners]);
+  const hasLocation = location.status === 'ok' && !!location.coords;
+
+  const filteredPartners = useMemo(
+    () =>
+      applyPartnerFilters(partners, {
+        query: searchQuery,
+        category,
+        openNow,
+        nearMe: nearMe && hasLocation,
+        location: hasLocation ? location.coords : null,
+        now,
+      }),
+    [partners, searchQuery, category, openNow, nearMe, hasLocation, location.coords, now],
+  );
+
+  const toggleNearMe = () => {
+    if (!hasLocation) {
+      setNearMe(true);
+      if (location.status === 'blocked' || location.status === 'off') location.openSettings();
+      else location.request();
+      return;
+    }
+    setNearMe(v => !v);
+  };
 
   const openMaps = partner => {
-    const address = encodeURIComponent(partner.address);
+    const hasCoords = partner.latitude != null && partner.longitude != null;
+    const q = hasCoords
+      ? `${partner.latitude},${partner.longitude}(${encodeURIComponent(partner.name)})`
+      : encodeURIComponent(`${partner.address}`);
     const url = Platform.select({
-      ios: `maps:0,0?q=${address}`,
-      android: `geo:0,0?q=${address}`,
+      ios: hasCoords
+        ? `maps:?q=${encodeURIComponent(partner.name)}&ll=${partner.latitude},${partner.longitude}`
+        : `maps:0,0?q=${q}`,
+      android: hasCoords ? `geo:${partner.latitude},${partner.longitude}?q=${q}` : `geo:0,0?q=${q}`,
     });
-    Linking.openURL(url);
+    Linking.openURL(url).catch(() =>
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partner.address)}`),
+    );
   };
 
   const onRefresh = () => {
     setRefreshing(true);
     loadPartners();
+    location.request();
   };
 
-  const categories = [
-    {id: 'all', label: 'Todos', icon: 'apps'},
-    {id: 'pet shop', label: 'Pet Shop', icon: 'basket'},
-    {id: 'veterinária', label: 'Veterinária', icon: 'medical'},
-    {id: 'estética', label: 'Estética', icon: 'cut'},
-  ];
+  const filtersActive = !!searchQuery || category !== 'all' || openNow;
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
+      {/* Busca */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#9CA3AF" />
@@ -238,6 +208,7 @@ export default function PartnersScreen({navigation, route}) {
             placeholderTextColor="#9CA3AF"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            testID="busca"
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
@@ -247,44 +218,48 @@ export default function PartnersScreen({navigation, route}) {
         </View>
       </View>
 
-      {/* Filters */}
+      {/* Filtros */}
       <View style={styles.filtersContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}>
-          {categories.map(category => (
-            <TouchableOpacity
-              key={category.id}
-              style={[
-                styles.filterButton,
-                selectedCategory === category.id && styles.filterButtonActive,
-              ]}
-              onPress={() => setSelectedCategory(category.id)}>
-              <Ionicons
-                name={category.icon}
-                size={18}
-                color={selectedCategory === category.id ? '#FFFFFF' : '#6B7280'}
-              />
-              <Text
-                style={[
-                  styles.filterText,
-                  selectedCategory === category.id && styles.filterTextActive,
-                ]}>
-                {category.label}
-              </Text>
-            </TouchableOpacity>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
+          <Chip
+            label="Perto de mim"
+            icon="navigate"
+            active={nearMe && hasLocation}
+            onPress={toggleNearMe}
+            testID="filtro-perto"
+          />
+          <Chip
+            label="Aberto agora"
+            icon="time"
+            active={openNow}
+            onPress={() => setOpenNow(v => !v)}
+            testID="filtro-aberto"
+          />
+          <View style={styles.filterDivider} />
+          <Chip label="Todos" icon="apps" active={category === 'all'} onPress={() => setCategory('all')} testID="cat-all" />
+          {categories.map(c => (
+            <Chip
+              key={c.id}
+              label={c.label}
+              icon={c.icon}
+              active={category === c.id}
+              onPress={() => setCategory(category === c.id ? 'all' : c.id)}
+              testID={`cat-${c.id}`}
+            />
           ))}
         </ScrollView>
       </View>
 
-      {/* Partners List */}
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <LocationBanner status={location.status} onRequest={location.request} onSettings={location.openSettings} />
+
+        {nearMe && hasLocation && filteredPartners.length ? (
+          <Text style={styles.listHint}>Ordenado do mais perto para o mais longe</Text>
+        ) : null}
+
         {filteredPartners.map(partner => (
           <PartnerListCard
             key={partner.id}
@@ -294,61 +269,69 @@ export default function PartnersScreen({navigation, route}) {
           />
         ))}
 
-        {filteredPartners.length === 0 && (
+        {loading ? (
+          <ActivityIndicator style={{marginTop: 40}} color="#8B5CF6" />
+        ) : filteredPartners.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="search-outline" size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>Nenhum parceiro encontrado</Text>
-            <Text style={styles.emptyText}>
-              Tente ajustar os filtros ou buscar por outro termo
+            <Ionicons name={loadError ? 'cloud-offline-outline' : 'search-outline'} size={64} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>
+              {loadError
+                ? 'Não foi possível carregar os parceiros'
+                : openNow && !searchQuery && category === 'all'
+                  ? 'Nenhum parceiro aberto agora'
+                  : 'Nenhum parceiro encontrado'}
             </Text>
+            <Text style={styles.emptyText}>
+              {loadError ? 'Verifique a internet e puxe a lista para baixo.' : 'Tente ajustar os filtros ou buscar por outro termo'}
+            </Text>
+            {filtersActive && !loadError ? (
+              <TouchableOpacity
+                style={[styles.bannerBtn, {marginTop: 16}]}
+                onPress={() => {
+                  setSearchQuery('');
+                  setCategory('all');
+                  setOpenNow(false);
+                }}>
+                <Text style={styles.bannerBtnText}>Limpar filtros</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
-        )}
+        ) : null}
+        <View style={{height: 24}} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
+  container: {flex: 1, backgroundColor: '#F9FAFB'},
   searchContainer: {
     backgroundColor: '#FFFFFF',
-    padding: 16,
-    paddingTop: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F3F4F6',
     borderRadius: 12,
     paddingHorizontal: 16,
-    height: 48,
+    paddingVertical: 12,
     gap: 12,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1F2937',
-  },
+  searchInput: {flex: 1, fontSize: 15, color: '#1F2937'},
   filtersContainer: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     paddingVertical: 8,
   },
-  filtersContent: {
-    paddingHorizontal: 16,
-    gap: 6,
-    alignItems: 'center',
-  },
+  filtersContent: {paddingHorizontal: 16, gap: 6, alignItems: 'center'},
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: '#F9FAFB',
@@ -357,37 +340,28 @@ const styles = StyleSheet.create({
     gap: 6,
     height: 36,
   },
-  filterButtonActive: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
-  },
-  filterText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  filterTextActive: {
-    color: '#FFFFFF',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  emptyState: {
+  filterButtonActive: {backgroundColor: '#8B5CF6', borderColor: '#8B5CF6'},
+  filterText: {fontSize: 14, fontWeight: '600', color: '#6B7280'},
+  filterTextActive: {color: '#FFFFFF'},
+  filterDivider: {width: 1, height: 22, backgroundColor: '#E5E7EB', marginHorizontal: 4},
+  scrollView: {flex: 1},
+  banner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
+    gap: 10,
+    backgroundColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+    borderWidth: 1,
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 12,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
+  bannerText: {flex: 1, fontSize: 13, color: '#4C1D95'},
+  bannerBtn: {backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8},
+  bannerBtnText: {color: '#FFFFFF', fontWeight: '700', fontSize: 13},
+  listHint: {fontSize: 12, color: '#6B7280', marginHorizontal: 16, marginTop: 12},
+  emptyState: {alignItems: 'center', justifyContent: 'center', paddingVertical: 80},
+  emptyTitle: {fontSize: 18, fontWeight: '600', color: '#1F2937', marginTop: 16, marginBottom: 8},
+  emptyText: {fontSize: 14, color: '#6B7280', textAlign: 'center', paddingHorizontal: 32},
 });

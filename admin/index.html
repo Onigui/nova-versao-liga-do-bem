@@ -1255,12 +1255,33 @@
                             <textarea id="discountDescription" class="form-input" rows="2"></textarea>
                         </div>
                         <div class="form-group">
-                            <label>Percentual (%)</label>
-                            <input id="discountPercentage" type="number" min="0" max="100" step="0.1" class="form-input" placeholder="15">
+                            <label>Tipo de promoção</label>
+                            <select id="discountKind" class="form-input" onchange="updateDiscountKindFields()">
+                                <option value="PERCENT">% de desconto — aparece "20% OFF"</option>
+                                <option value="AMOUNT_OFF">R$ de desconto — aparece "R$ 10 OFF"</option>
+                                <option value="FINAL_PRICE">Preço promocional (preço final) — aparece "Por R$ 69,90"</option>
+                                <option value="OTHER">Outro benefício — ex.: "Leve 3, pague 2"</option>
+                            </select>
                         </div>
-                        <div class="form-group">
-                            <label>Valor fixo (R$) — opcional</label>
-                            <input id="discountFixed" type="number" min="0" step="0.01" class="form-input" placeholder="0">
+                        <div class="form-group" data-kind="PERCENT">
+                            <label>Percentual (%)</label>
+                            <input id="discountPercentage" type="number" min="1" max="100" step="0.1" class="form-input" placeholder="15">
+                        </div>
+                        <div class="form-group" data-kind="AMOUNT_OFF">
+                            <label>Quanto sai do preço (R$)</label>
+                            <input id="discountFixed" type="number" min="0.01" step="0.01" class="form-input" placeholder="10,00">
+                        </div>
+                        <div class="form-group" data-kind="FINAL_PRICE">
+                            <label>Preço para membros (R$)</label>
+                            <input id="discountPromoPrice" type="number" min="0.01" step="0.01" class="form-input" placeholder="69,90">
+                        </div>
+                        <div class="form-group" data-kind="FINAL_PRICE">
+                            <label>Preço normal (R$) — opcional, mostra "De … por …"</label>
+                            <input id="discountOriginalPrice" type="number" min="0.01" step="0.01" class="form-input" placeholder="89,90">
+                        </div>
+                        <div class="form-group" data-kind="OTHER">
+                            <label>Benefício (até 40 letras)</label>
+                            <input id="discountBenefit" maxlength="40" class="form-input" placeholder="Leve 3, pague 2">
                         </div>
                         <div class="form-group">
                             <label>Válido de</label>
@@ -5441,7 +5462,7 @@
                     return;
                 }
                 tbody.innerHTML = rows.map(d => {
-                    const value = d.percentage != null ? `${d.percentage}%` : (d.fixedAmount != null ? `R$ ${Number(d.fixedAmount).toFixed(2)}` : '—');
+                    const value = d.badge || (d.percentage != null ? `${d.percentage}% OFF` : (d.fixedAmount != null ? `R$ ${Number(d.fixedAmount).toFixed(2)} OFF` : '—'));
                     const until = d.validUntil ? new Date(d.validUntil).toLocaleDateString('pt-BR') : 'Sem fim';
                     const from = d.validFrom ? new Date(d.validFrom).toLocaleDateString('pt-BR') : '—';
                     return `
@@ -5637,12 +5658,24 @@
             document.getElementById('discountPartnerId').value = discount?.partnerId || discount?.partner?.id || '';
             document.getElementById('discountName').value = discount?.name || '';
             document.getElementById('discountDescription').value = discount?.description || '';
+            document.getElementById('discountKind').value = discount?.kind || (discount?.fixedAmount != null ? 'AMOUNT_OFF' : 'PERCENT');
             document.getElementById('discountPercentage').value = discount?.percentage ?? '';
             document.getElementById('discountFixed').value = discount?.fixedAmount ?? '';
+            document.getElementById('discountPromoPrice').value = discount?.promoPrice ?? '';
+            document.getElementById('discountOriginalPrice').value = discount?.originalPrice ?? '';
+            document.getElementById('discountBenefit').value = discount?.benefitText || '';
+            updateDiscountKindFields();
             document.getElementById('discountValidFrom').value = discount?.validFrom ? String(discount.validFrom).slice(0, 10) : new Date().toISOString().slice(0, 10);
             document.getElementById('discountValidUntil').value = discount?.validUntil ? String(discount.validUntil).slice(0, 10) : '';
             document.getElementById('discountActive').checked = discount?.isActive !== false;
             openModal('discountModal');
+        }
+
+        function updateDiscountKindFields() {
+            const kind = document.getElementById('discountKind').value;
+            document.querySelectorAll('#discountModal [data-kind]').forEach((el) => {
+                el.style.display = el.getAttribute('data-kind') === kind ? '' : 'none';
+            });
         }
 
         function editDiscountById(id) {
@@ -5661,8 +5694,12 @@
                 partnerId: document.getElementById('discountPartnerId').value,
                 name: document.getElementById('discountName').value.trim(),
                 description: document.getElementById('discountDescription').value.trim() || null,
+                kind: document.getElementById('discountKind').value,
                 percentage: document.getElementById('discountPercentage').value === '' ? null : Number(document.getElementById('discountPercentage').value),
                 fixedAmount: document.getElementById('discountFixed').value === '' ? null : Number(document.getElementById('discountFixed').value),
+                promoPrice: document.getElementById('discountPromoPrice').value === '' ? null : Number(document.getElementById('discountPromoPrice').value),
+                originalPrice: document.getElementById('discountOriginalPrice').value === '' ? null : Number(document.getElementById('discountOriginalPrice').value),
+                benefitText: document.getElementById('discountBenefit').value.trim() || null,
                 validFrom: document.getElementById('discountValidFrom').value,
                 validUntil: document.getElementById('discountValidUntil').value || null,
                 isActive: document.getElementById('discountActive').checked,

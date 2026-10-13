@@ -31,7 +31,9 @@ import { verifyGithubOidc } from './lib/githubOidc';
 import { approveDonationFromPayment } from './lib/donations';
 import { sendEmail, isEmailDeliveryConfigured } from './lib/email';
 import { createAccessCode, verifyAccessCode, issueManualAccessCode, accessCodeMessage, ensureAccessCodeSchema } from './lib/accessCode';
-import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts, createPartnerAccess } from './lib/partnerPortal';
+import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts, createPartnerAccess, formatDiscount, saveDiscount } from './lib/partnerPortal';
+import { backfillPartnerCoords, refreshPartnerCoords } from './lib/geocode';
+import { describePromo } from './lib/promo';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -1122,9 +1124,10 @@ export default async function handler(req: any, res: any) {
                   (SELECT COUNT(*)::int FROM partner_discounts d
                     WHERE d."partnerId" = p.id AND d."archivedAt" IS NULL AND d."isActive" = true
                       AND d."validFrom" <= NOW() AND (d."validUntil" IS NULL OR d."validUntil" >= NOW())) AS "activeDiscounts",
-                  (SELECT d.percentage FROM partner_discounts d
-                    WHERE d."partnerId" = p.id AND d."archivedAt" IS NULL AND d."isActive" = true AND d.percentage IS NOT NULL
-                    ORDER BY d."createdAt" DESC LIMIT 1) AS "topPercentage"
+                  (SELECT row_to_json(d) FROM partner_discounts d
+                    WHERE d."partnerId" = p.id AND d."archivedAt" IS NULL AND d."isActive" = true
+                      AND d."validFrom" <= NOW() AND (d."validUntil" IS NULL OR d."validUntil" >= NOW())
+                    ORDER BY d."createdAt" DESC LIMIT 1) AS "topDiscount"
              FROM partners p ORDER BY p."createdAt" DESC LIMIT 500`
         );
         const companies = rows.map((p) => ({
@@ -1133,7 +1136,7 @@ export default async function handler(req: any, res: any) {
           category: p.category,
           status: p.isActive ? 'active' : 'inactive',
           isActive: p.isActive,
-          discount: p.topPercentage != null ? `${Number(p.topPercentage)}%` : 'N/A',
+          discount: p.topDiscount ? describePromo(p.topDiscount).badge : 'N/A',
           activeDiscounts: p.activeDiscounts,
           accessCount: p.accessCount,
           location: [p.city, p.state].filter(Boolean).join('/') || p.address,
@@ -1178,6 +1181,11 @@ export default async function handler(req: any, res: any) {
           d.logo ?? null, d.address, d.latitude ?? null, d.longitude ?? null, d.city, d.state, d.zipCode,
           d.hours ?? null, d.isActive ?? true,
         );
+        try {
+          await refreshPartnerCoords(db, id, { addressChanged: false, coordsGiven: d.latitude != null && d.longitude != null });
+        } catch (e) {
+          console.warn('⚠️ Geocodificação falhou:', e);
+        }
         // Opcional: já cria o acesso do responsável ao App Parceiros (e manda o e-mail)
         let access: any = null;
         let accessError: string | null = null;
@@ -1290,8 +1298,18 @@ export default async function handler(req: any, res: any) {
           ...keys.map((k) => updateData[k]),
           companyId,
         );
-        const partner = updated?.[0];
+        let partner = updated?.[0];
         if (!partner) return res.status(404).json({ error: 'Empresa não encontrada' });
+        try {
+          await ensurePartnerPortalSchema(db);
+          await refreshPartnerCoords(db, partner.id, {
+            addressChanged: ['address', 'city', 'state', 'zipCode'].some((k) => k in updateData),
+            coordsGiven: 'latitude' in updateData && 'longitude' in updateData && updateData.latitude != null,
+          });
+          partner = (await db.$queryRawUnsafe(`SELECT * FROM partners WHERE id = $1`, partner.id))[0] || partner;
+        } catch (e) {
+          console.warn('⚠️ Geocodificação falhou:', e);
+        }
         console.log('✅ Company updated successfully:', partner.id);
         return res.status(200).json({ message: 'Empresa atualizada com sucesso', company: partner });
       } catch (error: any) {
@@ -2020,50 +2038,55 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ partners: [] });
       }
       try {
-        const partners = await db.partner.findMany({
-          where: { isActive: true },
-          orderBy: { name: 'asc' },
-          include: {
-            discounts: {
-              where: {
-                validFrom: { lte: new Date() },
-                validUntil: { gte: new Date() }
-              },
-              take: 1
-            }
-          }
-        });
+        await ensurePartnerPortalSchema(db);
+        // Empresas sem coordenadas ganham localização aos poucos (distância no app do membro)
+        try {
+          await backfillPartnerCoords(db, 2);
+        } catch (e) {
+          console.warn('⚠️ Geocodificação das empresas falhou:', e);
+        }
+        const partners: any[] = await db.$queryRawUnsafe(
+          `SELECT id, name, category, description, address, phone, email, website, latitude, longitude,
+                  city, state, "zipCode", hours, logo
+             FROM partners WHERE "isActive" = true ORDER BY name ASC`,
+        );
 
         // Promoções vigentes de cada parceiro (cadastradas pelo admin ou pelo próprio parceiro)
         let discountsByPartner: Record<string, any[]> = {};
         try {
-          await ensurePartnerPortalSchema(db);
           const all = await listCurrentDiscounts(db, partners.map((p: any) => p.id));
           for (const d of all) (discountsByPartner[d.partnerId] ||= []).push(d);
         } catch (e) {
           console.warn('⚠️ Não foi possível carregar as promoções dos parceiros:', e);
         }
 
-        // Map to expected format
-        const formattedPartners = partners.map(p => ({
-          id: p.id,
-          name: p.name,
-          category: p.category,
-          description: p.description || 'Parceiro da Liga do Bem',
-          address: p.address || `${p.city || ''}${p.state ? ` - ${p.state}` : ''}`.trim(),
-          phone: p.phone,
-          email: p.email,
-          latitude: p.latitude ? parseFloat(p.latitude.toString()) : null,
-          longitude: p.longitude ? parseFloat(p.longitude.toString()) : null,
-          city: p.city,
-          state: p.state,
-          hours: p.hours || 'Seg-Sex: 09:00-18:00 | Sáb: 09:00-13:00',
-          logo: p.logo || null,
-          discount:
-            discountsByPartner[p.id]?.[0]?.short ||
-            (p.discounts?.[0]?.percentage ? `${p.discounts[0].percentage}%` : null),
-          discounts: discountsByPartner[p.id] || [],
-        }));
+        const coord = (v: any) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+        const formattedPartners = partners.map((p: any) => {
+          const list = discountsByPartner[p.id] || [];
+          return {
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            description: p.description || 'Parceiro da Liga do Bem',
+            address: p.address || `${p.city || ''}${p.state ? ` - ${p.state}` : ''}`.trim(),
+            phone: p.phone,
+            email: p.email,
+            website: p.website || null,
+            latitude: coord(p.latitude),
+            longitude: coord(p.longitude),
+            city: p.city,
+            state: p.state,
+            zipCode: p.zipCode,
+            // Sem horário cadastrado → null (o app mostra "Horário não informado", sem inventar)
+            hours: p.hours || null,
+            logo: p.logo || null,
+            /** Selo novo (todos os tipos de promoção). */
+            badge: list[0]?.badge || null,
+            /** Compatível com versões antigas do app (que acrescentam " OFF"): só % e R$ de desconto. */
+            discount: list.find((d: any) => d.short)?.short || null,
+            discounts: list,
+          };
+        });
 
         console.log(`✅ Partners loaded: ${formattedPartners.length}`);
         return res.status(200).json({ partners: formattedPartners });
@@ -6037,70 +6060,52 @@ export default async function handler(req: any, res: any) {
       const db = getPrisma();
       if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
-        const discounts = await db.partnerDiscount.findMany({
-          include: { partner: { select: { id: true, name: true, category: true } } },
-          orderBy: { createdAt: 'desc' },
-          take: 200,
-        });
+        await ensurePartnerPortalSchema(db);
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT d.*, p.name AS "partnerName", p.category AS "partnerCategory"
+             FROM partner_discounts d JOIN partners p ON p.id = d."partnerId"
+            WHERE d."archivedAt" IS NULL
+            ORDER BY d."createdAt" DESC LIMIT 200`,
+        );
+        const discounts = rows.map((r) => ({
+          ...formatDiscount(r),
+          partnerId: r.partnerId,
+          partner: { id: r.partnerId, name: r.partnerName, category: r.partnerCategory },
+        }));
         return res.status(200).json({ discounts, total: discounts.length });
       } catch (error: any) {
         return res.status(500).json({ error: error?.message || 'Erro ao listar descontos' });
       }
     }
 
-    if (path === '/api/admin/discounts' && method === 'POST') {
+    if (
+      (path === '/api/admin/discounts' && method === 'POST') ||
+      (path.match(/^\/api\/admin\/discounts\/[^/]+$/) && method === 'PUT')
+    ) {
       const db = getPrisma();
       if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
-        const partnerId = body?.partnerId;
-        const name = String(body?.name || '').trim();
-        const percentage = body?.percentage != null ? Number(body.percentage) : null;
-        const fixedAmount = body?.fixedAmount != null ? Number(body.fixedAmount) : null;
-        const description = body?.description || null;
-        const validFrom = body?.validFrom ? new Date(body.validFrom) : new Date();
-        const validUntil = body?.validUntil ? new Date(body.validUntil) : null;
-        if (!partnerId || !name) {
-          return res.status(400).json({ error: 'partnerId e name são obrigatórios' });
+        await ensurePartnerPortalSchema(db);
+        let current: any = null;
+        let partnerId = String(body?.partnerId || '').trim();
+        if (method === 'PUT') {
+          const id = path.split('/').pop() as string;
+          current = (await db.$queryRawUnsafe(`SELECT * FROM partner_discounts WHERE id = $1 AND "archivedAt" IS NULL`, id))?.[0];
+          if (!current) return res.status(404).json({ error: 'Desconto não encontrado' });
+          partnerId = partnerId || current.partnerId;
         }
-        if (percentage == null && fixedAmount == null) {
-          return res.status(400).json({ error: 'Informe percentage ou fixedAmount' });
+        if (!partnerId) return res.status(400).json({ error: 'Escolha o parceiro' });
+        const exists: any[] = await db.$queryRawUnsafe(`SELECT id FROM partners WHERE id = $1`, partnerId);
+        if (!exists.length) return res.status(400).json({ error: 'Parceiro não encontrado' });
+        if (current && partnerId !== current.partnerId) {
+          await db.$executeRawUnsafe(`UPDATE partner_discounts SET "partnerId" = $1 WHERE id = $2`, partnerId, current.id);
+          current.partnerId = partnerId;
         }
-        const discount = await db.partnerDiscount.create({
-          data: {
-            partnerId,
-            name,
-            description,
-            percentage,
-            fixedAmount,
-            validFrom,
-            validUntil,
-            isActive: body?.isActive !== false,
-          },
-        });
-        return res.status(201).json({ message: 'Desconto criado', discount });
+        const r = await saveDiscount(db, partnerId, current, body || {});
+        return res.status(r.created ? 201 : 200).json({ message: r.created ? 'Desconto criado' : 'Desconto atualizado', discount: r.discount });
       } catch (error: any) {
-        return res.status(500).json({ error: error?.message || 'Erro ao criar desconto' });
-      }
-    }
-
-    if (path.match(/^\/api\/admin\/discounts\/[^/]+$/) && method === 'PUT') {
-      const db = getPrisma();
-      if (!db) return res.status(503).json({ error: 'Database not configured' });
-      try {
-        const id = path.split('/').pop() as string;
-        const data: any = {};
-        if (body?.name != null) data.name = String(body.name).trim();
-        if (body?.description !== undefined) data.description = body.description;
-        if (body?.percentage !== undefined) data.percentage = body.percentage == null ? null : Number(body.percentage);
-        if (body?.fixedAmount !== undefined) data.fixedAmount = body.fixedAmount == null ? null : Number(body.fixedAmount);
-        if (body?.validFrom) data.validFrom = new Date(body.validFrom);
-        if (body?.validUntil !== undefined) data.validUntil = body.validUntil ? new Date(body.validUntil) : null;
-        if (body?.isActive !== undefined) data.isActive = Boolean(body.isActive);
-        if (body?.partnerId) data.partnerId = body.partnerId;
-        const discount = await db.partnerDiscount.update({ where: { id }, data });
-        return res.status(200).json({ message: 'Desconto atualizado', discount });
-      } catch (error: any) {
-        return res.status(500).json({ error: error?.message || 'Erro ao atualizar desconto' });
+        const status = error?.status && error.status < 500 ? error.status : 500;
+        return res.status(status).json({ error: error?.message || 'Erro ao salvar desconto' });
       }
     }
 
@@ -6109,7 +6114,13 @@ export default async function handler(req: any, res: any) {
       if (!db) return res.status(503).json({ error: 'Database not configured' });
       try {
         const id = path.split('/').pop() as string;
-        await db.partnerDiscount.delete({ where: { id } });
+        await ensurePartnerPortalSchema(db);
+        // Arquiva: o histórico de validações continua apontando para a promoção
+        const n = await db.$executeRawUnsafe(
+          `UPDATE partner_discounts SET "archivedAt" = NOW(), "isActive" = false, "updatedAt" = NOW() WHERE id = $1 AND "archivedAt" IS NULL`,
+          id,
+        );
+        if (!n) return res.status(404).json({ error: 'Desconto não encontrado' });
         return res.status(200).json({ message: 'Desconto removido' });
       } catch (error: any) {
         return res.status(500).json({ error: error?.message || 'Erro ao excluir desconto' });

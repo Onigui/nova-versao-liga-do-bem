@@ -7,7 +7,9 @@
  */
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { cardTokenSecret, issueCardToken, parseCardCode, CARD_CODE_ERRORS } from './cardToken';
+import { refreshPartnerCoords } from './geocode';
+import { BENEFIT_TEXT_MAX, PROMO_KINDS, PROMO_SCHEMA_SQL, describePromo, promoKind } from './promo';
+import { cardTokenSecret, cardShortCode, cardShortCodeExpiresAt, issueCardToken, parseCardCode, CARD_CODE_ERRORS } from './cardToken';
 import { isMembershipCurrentlyActive } from './membershipBilling';
 import { sendEmail, isEmailDeliveryConfigured, escapeHtml } from './email';
 import { handlePartnerPushRoutes, handleAdminPushRoutes } from './partnerPush';
@@ -67,6 +69,8 @@ export async function ensurePartnerPortalSchema(db: any, force = false) {
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
      )`,
     `ALTER TABLE partner_discounts ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3)`,
+    ...PROMO_SCHEMA_SQL,
+    `ALTER TABLE partners ADD COLUMN IF NOT EXISTS "geocodeTriedAt" TIMESTAMP(3)`,
   ];
   for (const sql of statements) await db.$executeRawUnsafe(sql);
   schemaEnsuredAt = Date.now();
@@ -128,30 +132,120 @@ async function loadPartner(db: any, partnerId: string) {
   return rows?.[0] || null;
 }
 
-function formatDiscount(d: any) {
+export function formatDiscount(d: any) {
+  const p = describePromo(d);
   return {
     id: d.id,
     name: d.name,
     description: d.description,
+    kind: p.kind,
     percentage: d.percentage != null ? Number(d.percentage) : null,
     fixedAmount: d.fixedAmount != null ? Number(d.fixedAmount) : null,
+    promoPrice: d.promoPrice != null ? Number(d.promoPrice) : null,
+    originalPrice: d.originalPrice != null ? Number(d.originalPrice) : null,
+    benefitText: d.benefitText || null,
     isActive: d.isActive,
     validFrom: d.validFrom,
     validUntil: d.validUntil,
-    /** Formato curto usado no selo do app do membro ("20%" → o app acrescenta "OFF"). */
-    short:
-      d.percentage != null
-        ? `${Number(d.percentage)}%`
-        : d.fixedAmount != null
-          ? `R$ ${Number(d.fixedAmount).toFixed(2).replace('.', ',')}`
-          : null,
-    label:
-      d.percentage != null
-        ? `${Number(d.percentage)}% OFF`
-        : d.fixedAmount != null
-          ? `R$ ${Number(d.fixedAmount).toFixed(2).replace('.', ',')} OFF`
-          : 'Benefício',
+    /** Selo do cartão no app do membro: "20% OFF", "R$ 10 OFF", "Por R$ 69,90", "Leve 3, pague 2". */
+    badge: p.badge,
+    /** Linha principal: "20% de desconto", "De R$ 89,90 por R$ 69,90"… */
+    label: p.label,
+    /** Só para % e R$ de desconto (versões antigas do app acrescentam " OFF"). */
+    short: p.short,
+    /** Economia em % quando há preço "de" e "por". */
+    savings: p.savings,
   };
+}
+
+/** Cria ou atualiza uma promoção (App Parceiros e admin usam a mesma regra). */
+export async function saveDiscount(db: any, partnerId: string, current: any | null, body: any) {
+  const isNew = !current;
+  const name = str(body.name, 120);
+  const description = str(body.description, 1000);
+  const percentage = num(body.percentage, 'Percentual', 1, 100);
+  const fixedAmount = num(body.fixedAmount, 'Valor do desconto', 0.01, 100000);
+  const promoPrice = num(body.promoPrice, 'Preço promocional', 0.01, 1000000);
+  const originalPrice = num(body.originalPrice, 'Preço normal', 0.01, 1000000);
+  const benefitText = str(body.benefitText, BENEFIT_TEXT_MAX);
+  const validFrom = date(body.validFrom, 'Data de início');
+  const validUntil = date(body.validUntil, 'Data de fim');
+  const isActive = body.isActive === undefined ? undefined : Boolean(body.isActive);
+  const pick = (v: any, cur: any) => (v !== undefined ? v : cur ?? null);
+
+  // Tipo: o que veio no corpo vence; senão, deduz pelo campo enviado; senão, mantém o atual.
+  let kind = String(body.kind || '').toUpperCase();
+  if (kind && !(PROMO_KINDS as readonly string[]).includes(kind)) throw new HttpError(400, 'Tipo de promoção inválido');
+  if (!kind) {
+    kind =
+      percentage != null ? 'PERCENT'
+      : fixedAmount != null ? 'AMOUNT_OFF'
+      : promoPrice != null ? 'FINAL_PRICE'
+      : benefitText ? 'OTHER'
+      : current ? promoKind(current) : 'PERCENT';
+  }
+
+  const merged: any = {
+    name: name !== undefined ? name : current?.name,
+    description: description !== undefined ? description : current?.description ?? null,
+    kind,
+    percentage: pick(percentage, current?.percentage),
+    fixedAmount: pick(fixedAmount, current?.fixedAmount),
+    promoPrice: pick(promoPrice, current?.promoPrice),
+    originalPrice: pick(originalPrice, current?.originalPrice),
+    benefitText: pick(benefitText, current?.benefitText),
+    validFrom: validFrom !== undefined && validFrom !== null ? validFrom : current?.validFrom ?? new Date(),
+    validUntil: validUntil !== undefined ? validUntil : current?.validUntil ?? null,
+    isActive: isActive !== undefined ? isActive : current?.isActive ?? true,
+  };
+  // Cada tipo usa só os seus campos; os outros são limpos.
+  const keep: Record<string, string[]> = {
+    PERCENT: ['percentage'],
+    AMOUNT_OFF: ['fixedAmount'],
+    FINAL_PRICE: ['promoPrice', 'originalPrice'],
+    OTHER: ['benefitText'],
+  };
+  for (const f of ['percentage', 'fixedAmount', 'promoPrice', 'originalPrice', 'benefitText']) {
+    if (!keep[kind].includes(f)) merged[f] = null;
+  }
+  if (kind === 'PERCENT' && merged.percentage == null) throw new HttpError(400, 'Informe o percentual de desconto');
+  if (kind === 'AMOUNT_OFF' && merged.fixedAmount == null) throw new HttpError(400, 'Informe quanto será descontado (R$)');
+  if (kind === 'FINAL_PRICE' && merged.promoPrice == null) throw new HttpError(400, 'Informe o preço promocional');
+  if (kind === 'FINAL_PRICE' && merged.originalPrice != null && Number(merged.originalPrice) <= Number(merged.promoPrice)) {
+    throw new HttpError(400, 'O preço normal precisa ser maior que o preço promocional');
+  }
+  if (kind === 'OTHER' && !merged.benefitText) throw new HttpError(400, 'Descreva o benefício (ex.: Leve 3, pague 2)');
+  if (!merged.name) throw new HttpError(400, 'Dê um nome para a promoção');
+  if (merged.validUntil && new Date(merged.validUntil) < new Date(merged.validFrom)) {
+    throw new HttpError(400, 'A data de fim é anterior à de início');
+  }
+
+  if (isNew) {
+    const id = crypto.randomUUID();
+    await db.$executeRawUnsafe(
+      `INSERT INTO partner_discounts
+         (id, "partnerId", name, description, percentage, "fixedAmount", "isActive", "validFrom", "validUntil",
+          kind, "promoPrice", "originalPrice", "benefitText", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+      id, partnerId, merged.name, merged.description, merged.percentage, merged.fixedAmount,
+      merged.isActive, merged.validFrom, merged.validUntil,
+      merged.kind, merged.promoPrice, merged.originalPrice, merged.benefitText,
+    );
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM partner_discounts WHERE id = $1`, id);
+    return { created: true, discount: formatDiscount(rows[0]) };
+  } else {
+    await db.$executeRawUnsafe(
+      `UPDATE partner_discounts SET name = $1, description = $2, percentage = $3, "fixedAmount" = $4,
+              "isActive" = $5, "validFrom" = $6, "validUntil" = $7,
+              kind = $10, "promoPrice" = $11, "originalPrice" = $12, "benefitText" = $13, "updatedAt" = NOW()
+        WHERE id = $8 AND "partnerId" = $9`,
+      merged.name, merged.description, merged.percentage, merged.fixedAmount,
+      merged.isActive, merged.validFrom, merged.validUntil, current.id, partnerId,
+      merged.kind, merged.promoPrice, merged.originalPrice, merged.benefitText,
+    );
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM partner_discounts WHERE id = $1`, current.id);
+    return { created: false, discount: formatDiscount(rows[0]) };
+  }
 }
 
 /** Descontos que o membro vê no app principal agora. */
@@ -326,7 +420,8 @@ async function validateCard(ctx: Ctx, acc: { id: string; partnerId: string }, us
   if ((recent?.[0]?.minute || 0) >= VALIDATIONS_PER_MINUTE) {
     throw new HttpError(429, 'Muitas validações seguidas. Aguarde um minuto.');
   }
-  if (parsed.ok && parsed.kind === 'MANUAL' && (recent?.[0]?.manual || 0) >= MANUAL_LOOKUPS_PER_HOUR) {
+  const typedByHand = parsed.ok ? parsed.kind === 'MANUAL' : ['CODE_REQUIRED', 'WRONG_CODE'].includes((parsed as any).reason);
+  if (typedByHand && (recent?.[0]?.manual || 0) >= MANUAL_LOOKUPS_PER_HOUR) {
     throw new HttpError(429, 'Limite de consultas digitadas atingido. Use a leitura do QR.');
   }
 
@@ -341,7 +436,8 @@ async function validateCard(ctx: Ctx, acc: { id: string; partnerId: string }, us
 
   if (parsed.ok === false) {
     const reason = (parsed as { reason: string }).reason;
-    await logAttempt('INVALID', false);
+    // Código digitado errado conta no limite de digitação (evita tentar todos os números)
+    await logAttempt(reason === 'WRONG_CODE' ? 'MANUAL' : 'INVALID', false);
     return { status: 200, json: { valid: false, reason, message: CARD_CODE_ERRORS[reason] } };
   }
 
@@ -391,7 +487,7 @@ async function validateCard(ctx: Ctx, acc: { id: string; partnerId: string }, us
         parsed.kind === 'LEGACY'
           ? 'QR antigo (sem assinatura). Confira o documento e peça para o membro atualizar o app.'
           : parsed.kind === 'MANUAL'
-            ? 'Número digitado: confira o nome com um documento com foto.'
+            ? 'Número e código digitados: confira o nome com um documento com foto.'
             : null,
       validationId,
       member: {
@@ -455,9 +551,16 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
       );
       const m = rows?.[0];
       if (!m?.memberId) throw new HttpError(404, 'Você ainda não tem carteirinha.', 'NO_MEMBERSHIP');
-      const t = issueCardToken(cardTokenSecret(ctx.jwtSecret), m.memberId);
+      const secret = cardTokenSecret(ctx.jwtSecret);
+      const t = issueCardToken(secret, m.memberId);
       res.setHeader('Cache-Control', 'no-store');
-      res.status(200).json({ ...t, memberId: m.memberId, active: isMembershipCurrentlyActive(m) });
+      res.status(200).json({
+        ...t,
+        memberId: m.memberId,
+        active: isMembershipCurrentlyActive(m),
+        shortCode: cardShortCode(secret, m.memberId),
+        shortCodeExpiresAt: cardShortCodeExpiresAt(),
+      });
       return true;
     }
 
@@ -589,6 +692,14 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
         `UPDATE partners SET ${sets.join(', ')}, "updatedAt" = NOW() WHERE id = $${params.length}`,
         ...params,
       );
+      try {
+        await refreshPartnerCoords(db, acc.partnerId, {
+          addressChanged: ['address', 'city', 'state', 'zipCode'].some((k) => fields[k] !== undefined),
+          coordsGiven: fields.latitude != null && fields.longitude != null,
+        });
+      } catch (e) {
+        console.warn('⚠️ Geocodificação falhou:', e);
+      }
       res.status(200).json({ message: 'Dados da empresa atualizados', partner: await loadPartner(db, acc.partnerId) });
       return true;
     }
@@ -632,9 +743,8 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
     const discMatch = path.match(/^\/api\/partner\/discounts\/([^/]+)$/);
     if ((path === '/api/partner/discounts' && method === 'POST') || (discMatch && method === 'PUT')) {
       requireOwner(acc);
-      const isNew = !discMatch;
       let current: any = null;
-      if (!isNew) {
+      if (discMatch) {
         const rows: any[] = await db.$queryRawUnsafe(
           `SELECT * FROM partner_discounts WHERE id = $1 AND "partnerId" = $2 AND "archivedAt" IS NULL`,
           discMatch![1],
@@ -643,53 +753,8 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
         current = rows?.[0];
         if (!current) throw new HttpError(404, 'Promoção não encontrada');
       }
-      const name = str(body.name, 120);
-      const description = str(body.description, 1000);
-      const percentage = num(body.percentage, 'Percentual', 1, 100);
-      const fixedAmount = num(body.fixedAmount, 'Valor do desconto', 0.01, 100000);
-      const validFrom = date(body.validFrom, 'Data de início');
-      const validUntil = date(body.validUntil, 'Data de fim');
-      const isActive = body.isActive === undefined ? undefined : Boolean(body.isActive);
-
-      const merged = {
-        name: name !== undefined ? name : current?.name,
-        description: description !== undefined ? description : current?.description ?? null,
-        percentage: percentage !== undefined ? percentage : current?.percentage ?? null,
-        fixedAmount: fixedAmount !== undefined ? fixedAmount : current?.fixedAmount ?? null,
-        validFrom: validFrom !== undefined && validFrom !== null ? validFrom : current?.validFrom ?? new Date(),
-        validUntil: validUntil !== undefined ? validUntil : current?.validUntil ?? null,
-        isActive: isActive !== undefined ? isActive : current?.isActive ?? true,
-      };
-      // Percentual e valor fixo são excludentes: o que veio no corpo vence.
-      if (percentage != null) merged.fixedAmount = null;
-      else if (fixedAmount != null) merged.percentage = null;
-      if (!merged.name) throw new HttpError(400, 'Dê um nome para a promoção');
-      if (merged.validUntil && new Date(merged.validUntil) < new Date(merged.validFrom)) {
-        throw new HttpError(400, 'A data de fim é anterior à de início');
-      }
-
-      if (isNew) {
-        const id = crypto.randomUUID();
-        await db.$executeRawUnsafe(
-          `INSERT INTO partner_discounts
-             (id, "partnerId", name, description, percentage, "fixedAmount", "isActive", "validFrom", "validUntil", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
-          id, acc.partnerId, merged.name, merged.description, merged.percentage, merged.fixedAmount,
-          merged.isActive, merged.validFrom, merged.validUntil,
-        );
-        const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM partner_discounts WHERE id = $1`, id);
-        res.status(201).json({ message: 'Promoção criada', discount: formatDiscount(rows[0]) });
-      } else {
-        await db.$executeRawUnsafe(
-          `UPDATE partner_discounts SET name = $1, description = $2, percentage = $3, "fixedAmount" = $4,
-                  "isActive" = $5, "validFrom" = $6, "validUntil" = $7, "updatedAt" = NOW()
-            WHERE id = $8 AND "partnerId" = $9`,
-          merged.name, merged.description, merged.percentage, merged.fixedAmount,
-          merged.isActive, merged.validFrom, merged.validUntil, current.id, acc.partnerId,
-        );
-        const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM partner_discounts WHERE id = $1`, current.id);
-        res.status(200).json({ message: 'Promoção atualizada', discount: formatDiscount(rows[0]) });
-      }
+      const r = await saveDiscount(db, acc.partnerId, current, body);
+      res.status(r.created ? 201 : 200).json({ message: r.created ? 'Promoção criada' : 'Promoção atualizada', discount: r.discount });
       return true;
     }
 
