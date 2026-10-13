@@ -64,6 +64,70 @@
   }
   window.adminToast = toast;
 
+
+  // ---------------------------------------------------------------- código de primeiro acesso
+  /**
+   * Mostra o código de 6 dígitos para o admin repassar (WhatsApp/pessoalmente).
+   * data: { email, accessCode, accessCodeExpiresAt, shareMessage, emailSent }
+   */
+  function showAccessCode(data, opts = {}) {
+    if (!data?.accessCode) return;
+    document.getElementById('fx-code-dialog')?.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'fx-code-dialog';
+    wrap.className = 'fx-dialog-overlay';
+    const expires = data.accessCodeExpiresAt ? new Date(data.accessCodeExpiresAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const emailLine = data.emailSent === true
+      ? 'Também enviamos as instruções por e-mail.'
+      : data.emailSent === false
+        ? 'O e-mail automático não pôde ser enviado. Mande o código abaixo pelo WhatsApp.'
+        : '';
+    wrap.innerHTML = `
+      <div class="fx-dialog" role="dialog" aria-modal="true" aria-labelledby="fx-code-title">
+        <h3 id="fx-code-title">${esc(opts.title || 'Código de primeiro acesso')}</h3>
+        <p class="fx-dialog-text">Com este código, <strong>${esc(data.email)}</strong> cria a própria senha no app, em
+          "${opts.app === 'member' ? 'Esqueci minha senha' : 'Primeiro acesso / Esqueci a senha'}" → "Já tenho um código".</p>
+        ${emailLine ? `<p class="fx-dialog-note ${data.emailSent ? 'ok' : 'warn'}">${esc(emailLine)}</p>` : ''}
+        <div class="fx-code" aria-label="Código ${esc(data.accessCode.split('').join(' '))}">${esc(data.accessCode.slice(0, 3))}<span></span>${esc(data.accessCode.slice(3))}</div>
+        <p class="fx-dialog-text fx-center">Vale até ${esc(expires)} e só pode ser usado uma vez.</p>
+        <div class="fx-dialog-actions">
+          <a class="fx-btn primary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(data.shareMessage || '')}">Enviar pelo WhatsApp</a>
+          <button type="button" class="fx-btn" data-copy>Copiar mensagem</button>
+          <button type="button" class="fx-btn" data-close>Fechar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = () => wrap.remove();
+    wrap.querySelector('[data-close]').addEventListener('click', close);
+    wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) close(); });
+    wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    wrap.querySelector('[data-copy]').addEventListener('click', async (e) => {
+      try {
+        await navigator.clipboard.writeText(data.shareMessage || data.accessCode);
+        e.target.textContent = 'Copiado';
+      } catch {
+        window.prompt('Copie a mensagem:', data.shareMessage || data.accessCode);
+      }
+    });
+    setTimeout(() => wrap.querySelector('a.fx-btn').focus(), 30);
+  }
+  window.showAccessCode = showAccessCode;
+
+  async function requestAccessCode(url, opts) {
+    try {
+      const r = await fetch(url, { method: 'POST', headers: authHeaders(), body: '{}' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(data.error || 'Não foi possível gerar o código.', 'bad'); return; }
+      showAccessCode(data, opts);
+    } catch {
+      toast('Sem conexão com o servidor. Tente de novo.', 'bad');
+    }
+  }
+  window.generatePartnerAccessCode = (accountId) =>
+    requestAccessCode(`${API_BASE_URL}/api/admin/partner-accounts/${encodeURIComponent(accountId)}/access-code`, { title: 'Novo código de acesso', app: 'partner' });
+  window.generateMemberAccessCode = (userId) =>
+    requestAccessCode(`${API_BASE_URL}/api/admin/members/${encodeURIComponent(userId)}/access-code`, { title: 'Novo código de acesso', app: 'member' });
+
   // ---------------------------------------------------------------- validação de campos
   function setError(input, message) {
     const field = input.closest('.fx-field');
@@ -486,10 +550,10 @@
         this.close(true);
         const name = data.company?.name || 'Empresa';
         toast(this.mode === 'edit' ? `${name}: alterações salvas.` : `${name} cadastrada.`);
-        if (data.access) {
-          toast(data.access.emailSent
-            ? `Acesso criado: enviamos um e-mail para ${data.access.email}.`
-            : `Acesso criado para ${data.access.email}, mas o e-mail não foi enviado. Peça para usar "Primeiro acesso" no App Parceiros.`, data.access.emailSent ? 'ok' : 'warn', 8000);
+        if (data.access?.accessCode) {
+          showAccessCode(data.access, { app: 'partner' });
+        } else if (data.access) {
+          toast(`${data.access.email} já tinha conta: entra no App Parceiros com a senha de sempre.`, 'ok', 8000);
         } else if (data.accessError) {
           toast(`A empresa foi cadastrada, mas o acesso não: ${data.accessError} Crie pelo botão "Acessos".`, 'warn', 10000);
         }
@@ -601,7 +665,10 @@
         this.dirty = false;
         this.close(true);
         if (this.mode === 'edit') toast(`${body.name}: alterações salvas.`);
-        else toast(data.emailSent ? `${body.name} cadastrado. Enviamos o e-mail de boas-vindas.` : `${body.name} cadastrado. Peça para usar "Esqueci minha senha" no app para criar a senha.`, data.emailSent ? 'ok' : 'warn', 8000);
+        else {
+          toast(`${body.name} cadastrado.`);
+          showAccessCode(data, { app: body.role === 'PARTNER' ? 'partner' : 'member' });
+        }
         if (typeof loadMembers === 'function') loadMembers();
       } catch {
         this.note.textContent = 'Sem conexão com o servidor. Tente de novo.';

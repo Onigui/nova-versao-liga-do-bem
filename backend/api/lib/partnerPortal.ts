@@ -11,6 +11,7 @@ import { cardTokenSecret, issueCardToken, parseCardCode, CARD_CODE_ERRORS } from
 import { isMembershipCurrentlyActive } from './membershipBilling';
 import { sendEmail, isEmailDeliveryConfigured, escapeHtml } from './email';
 import { handlePartnerPushRoutes, handleAdminPushRoutes } from './partnerPush';
+import { issueManualAccessCode, accessCodeMessage } from './accessCode';
 
 type Ctx = {
   req: any;
@@ -242,7 +243,42 @@ export async function createPartnerAccess(
     if (!r.ok) console.warn('⚠️ E-mail de acesso do parceiro não enviado:', r.error);
   }
 
-  return { accountId, userId, email, role, createdUser: created, emailSent };
+  // Código de primeiro acesso: funciona mesmo se o e-mail não chegar (entregue por WhatsApp)
+  // Conta que já existia: a pessoa entra com a senha que já tem (nada de código que troque a senha dela)
+  if (!created) {
+    return { accountId, userId, email, role, createdUser: false, emailSent, accessCode: null, accessCodeExpiresAt: null, shareMessage: null };
+  }
+  const access = await issueManualAccessCode(db, email, role === 'OWNER' ? 'ADMIN' : 'PARTNER_OWNER');
+  const accName: any[] = await db.$queryRawUnsafe(`SELECT name FROM users WHERE id = $1`, userId);
+  return {
+    accountId, userId, email, role, createdUser: true, emailSent,
+    accessCode: access.code,
+    accessCodeExpiresAt: access.expiresAt,
+    shareMessage: accessCodeMessage({ name: accName[0]?.name, email, code: access.code, app: 'partner', partnerName: partner.name }),
+  };
+}
+
+/** Gera um código novo de primeiro acesso para uma conta de parceiro (admin ou responsável). */
+async function newCodeForAccount(db: any, accountId: string, partnerId: string | null, source: 'ADMIN' | 'PARTNER_OWNER') {
+  const rows: any[] = await db.$queryRawUnsafe(
+    `SELECT a.id, a."partnerId", u.email, u.name, u.role::text AS "userRole", p.name AS "partnerName"
+       FROM partner_accounts a JOIN users u ON u.id = a."userId" JOIN partners p ON p.id = a."partnerId"
+      WHERE a.id = $1 ${partnerId ? 'AND a."partnerId" = $2' : ''}`,
+    ...(partnerId ? [accountId, partnerId] : [accountId]),
+  );
+  const a = rows?.[0];
+  if (!a) throw new HttpError(404, 'Acesso não encontrado');
+  // O responsável só gera código para contas criadas como parceiro (nunca para a conta de um membro)
+  if (source === 'PARTNER_OWNER' && a.userRole !== 'PARTNER') {
+    throw new HttpError(403, 'Esta pessoa já tem conta na Liga do Bem e entra com a própria senha. Se esqueceu, ela usa "Esqueci a senha".', 'EXISTING_ACCOUNT');
+  }
+  const c = await issueManualAccessCode(db, a.email, source);
+  return {
+    email: a.email,
+    accessCode: c.code,
+    accessCodeExpiresAt: c.expiresAt,
+    shareMessage: accessCodeMessage({ name: a.name, email: a.email, code: c.code, app: 'partner', partnerName: a.partnerName }),
+  };
 }
 
 // ---------------------------------------------------------------- validação
@@ -348,7 +384,7 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
   const isPartnerRoute = path.startsWith('/api/partner/');
   const isAdminRoute =
     /^\/api\/admin\/partners\/[^/]+\/accounts$/.test(path) ||
-    /^\/api\/admin\/partner-accounts\/[^/]+$/.test(path) ||
+    /^\/api\/admin\/partner-accounts\/[^/]+(\/access-code)?$/.test(path) ||
     path === '/api/admin/partner-validations' ||
     path.startsWith('/api/admin/partner-push-');
   const isCardToken = path === '/api/membership/card-token';
@@ -408,6 +444,11 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
           createdById: adminId,
         });
         res.status(201).json({ message: 'Acesso criado', ...r });
+        return true;
+      }
+      const codeMatch = path.match(/^\/api\/admin\/partner-accounts\/([^/]+)\/access-code$/);
+      if (codeMatch && method === 'POST') {
+        res.status(200).json(await newCodeForAccount(db, codeMatch[1], null, 'ADMIN'));
         return true;
       }
       const delMatch = path.match(/^\/api\/admin\/partner-accounts\/([^/]+)$/);
@@ -674,6 +715,12 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
         createdById: userId,
       });
       res.status(201).json({ message: 'Funcionário cadastrado', ...r });
+      return true;
+    }
+    const staffCode = path.match(/^\/api\/partner\/staff\/([^/]+)\/access-code$/);
+    if (staffCode && method === 'POST') {
+      requireOwner(acc);
+      res.status(200).json(await newCodeForAccount(db, staffCode[1], acc.partnerId, 'PARTNER_OWNER'));
       return true;
     }
     const staffMatch = path.match(/^\/api\/partner\/staff\/([^/]+)$/);

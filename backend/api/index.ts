@@ -30,6 +30,7 @@ import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
 import { verifyGithubOidc } from './lib/githubOidc';
 import { approveDonationFromPayment } from './lib/donations';
 import { sendEmail, isEmailDeliveryConfigured } from './lib/email';
+import { createAccessCode, verifyAccessCode, issueManualAccessCode, accessCodeMessage, ensureAccessCodeSchema } from './lib/accessCode';
 import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts, createPartnerAccess } from './lib/partnerPortal';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
@@ -1397,14 +1398,45 @@ export default async function handler(req: any, res: any) {
           emailSent = r.ok;
           if (!r.ok) console.warn('⚠️ Convite de novo usuário não enviado:', r.error);
         }
+        // Código de primeiro acesso (vale 72 h): funciona mesmo se o e-mail não chegar
+        const access = await issueManualAccessCode(db, email, 'ADMIN');
         return res.status(201).json({
           message: 'Usuário cadastrado',
           member: { id, name, email, phone, role, isActive: body?.isActive !== false },
           emailSent,
+          accessCode: access.code,
+          accessCodeExpiresAt: access.expiresAt,
+          shareMessage: accessCodeMessage({ name, email, code: access.code, app: role === 'PARTNER' ? 'partner' : 'member' }),
         });
       } catch (error: any) {
         console.error('❌ Erro ao cadastrar usuário:', error);
         return res.status(500).json({ error: 'Não foi possível cadastrar o usuário.', detail: error?.message });
+      }
+    }
+
+    // Admin: gera código de acesso para o usuário criar/redefinir a senha sem depender de e-mail
+    if (path.match(/^\/api\/admin\/members\/[^/]+\/access-code$/) && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const id = path.split('/')[4];
+        const rows: any[] = await db.$queryRawUnsafe(`SELECT email, name, role::text AS role FROM users WHERE id = $1`, id);
+        const u = rows?.[0];
+        if (!u) return res.status(404).json({ error: 'Usuário não encontrado' });
+        const c = await issueManualAccessCode(db, u.email, 'ADMIN');
+        const partnerRows: any[] = await db.$queryRawUnsafe(
+          `SELECT p.name FROM partner_accounts a JOIN partners p ON p.id = a."partnerId" WHERE a."userId" = $1 LIMIT 1`, id,
+        ).catch(() => []);
+        const app = partnerRows[0] || u.role === 'PARTNER' ? 'partner' : 'member';
+        return res.status(200).json({
+          email: u.email,
+          accessCode: c.code,
+          accessCodeExpiresAt: c.expiresAt,
+          shareMessage: accessCodeMessage({ name: u.name, email: u.email, code: c.code, app, partnerName: partnerRows[0]?.name }),
+        });
+      } catch (error: any) {
+        console.error('❌ Erro ao gerar código de acesso:', error);
+        return res.status(500).json({ error: 'Não foi possível gerar o código.' });
       }
     }
 
@@ -1847,7 +1879,8 @@ export default async function handler(req: any, res: any) {
           console.error('❌ Recuperação de senha: SMTP/Resend não configurado');
           return res.status(503).json({
             error:
-              'Recuperação de senha temporariamente indisponível. Entre em contato com a Liga do Bem para redefinir sua senha.',
+              'Não conseguimos enviar o e-mail agora. Peça um código de acesso à Liga do Bem (ou ao responsável da sua empresa) e toque em "Já tenho um código".',
+            code: 'EMAIL_UNAVAILABLE',
             emailRequired: true,
           });
         }
@@ -1856,9 +1889,11 @@ export default async function handler(req: any, res: any) {
           'Se o e-mail estiver cadastrado, enviamos um código para redefinir a senha. Verifique sua caixa de entrada e o spam.';
 
         // Rate limit simples: no máximo 3 pedidos em 15 min por e-mail
+        await ensureAccessCodeSchema(db);
         const recent: any[] = await db.$queryRawUnsafe(
           `SELECT COUNT(*)::int AS c FROM password_reset_tokens
-           WHERE lower(email) = lower($1) AND "createdAt" > NOW() - INTERVAL '15 minutes'`,
+           WHERE lower(email) = lower($1) AND "createdAt" > NOW() - INTERVAL '15 minutes'
+             AND COALESCE(source, 'EMAIL') = 'EMAIL'`,
           email
         );
         if ((recent?.[0]?.c || 0) >= 3) {
@@ -1867,10 +1902,11 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        const user = await db.user.findUnique({
-          where: { email },
-          select: { id: true, email: true, isActive: true },
-        });
+        const userRows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, email, "isActive" FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+          email,
+        );
+        const user = userRows?.[0];
 
         // Sempre a mesma resposta se o e-mail não existir (anti-enumeração)
         if (!user || !user.isActive) {
@@ -1881,38 +1917,20 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        const crypto = require('crypto');
-        const code = String(crypto.randomInt(100000, 1000000));
-        const codeHash = await bcrypt.hash(code, 10);
-        const tokenId = crypto.randomUUID();
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
-
-        await db.$executeRawUnsafe(
-          `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE email = $1 AND "usedAt" IS NULL`,
-          email
-        );
-
-        await db.$executeRawUnsafe(
-          `INSERT INTO password_reset_tokens (id, email, code, "expiresAt", "createdAt")
-           VALUES ($1, $2, $3, $4, NOW())`,
-          tokenId,
-          email,
-          codeHash,
-          expiresAt
-        );
-
-        const mail = await sendPasswordResetEmail(email, code);
+        // O código novo só substitui os anteriores se o e-mail for entregue:
+        // assim um código gerado pelo admin continua valendo quando o e-mail falha.
+        const issued = await createAccessCode(db, email, { ttlMinutes: 15, source: 'EMAIL' });
+        const mail = await sendPasswordResetEmail(email, issued.code);
         if (!mail.ok) {
-          await db.$executeRawUnsafe(
-            `UPDATE password_reset_tokens SET "usedAt" = NOW() WHERE id = $1`,
-            tokenId
-          );
+          await issued.discard();
           console.error('❌ Falha ao enviar e-mail de recuperação:', mail.error);
           return res.status(503).json({
             error:
-              'Não foi possível enviar o e-mail de recuperação. Tente novamente mais tarde ou contate a Liga do Bem.',
+              'Não conseguimos enviar o e-mail agora. Peça um código de acesso à Liga do Bem (ou ao responsável da sua empresa) e toque em "Já tenho um código".',
+            code: 'EMAIL_UNAVAILABLE',
           });
         }
+        await issued.supersedeOthers();
 
         console.log(`📧 Código de recuperação enviado por e-mail para ${email}`);
 
@@ -1951,36 +1969,14 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
         }
 
-        const rows: Array<{
-          id: string;
-          email: string;
-          code: string;
-          expiresAt: Date;
-          usedAt: Date | null;
-        }> = await db.$queryRawUnsafe(
-          `SELECT id, email, code, "expiresAt", "usedAt"
-           FROM password_reset_tokens
-           WHERE lower(email) = lower($1) AND "usedAt" IS NULL AND "expiresAt" > NOW()
-           ORDER BY "createdAt" DESC
-           LIMIT 5`,
-          email
-        );
-
-        let matched: (typeof rows)[0] | null = null;
-        for (const row of rows || []) {
-          const stored = (row.code || '').toString();
-          // Aceita hash bcrypt (novo) — nunca plaintext em produção
-          if (stored.startsWith('$2')) {
-            const ok = await bcrypt.compare(code, stored);
-            if (ok) {
-              matched = row;
-              break;
-            }
-          }
-        }
-
-        if (!matched) {
-          return res.status(400).json({ error: 'Código inválido ou expirado' });
+        const check = await verifyAccessCode(db, email, code);
+        if (!check.ok) {
+          return res.status(400).json({
+            error: check.attemptsLeft > 0
+              ? `Código inválido. Você ainda tem ${check.attemptsLeft} tentativa(s).`
+              : 'Código inválido ou expirado. Peça um código novo.',
+            code: 'INVALID_CODE',
+          });
         }
 
         const users: Array<{ id: string }> = await db.$queryRawUnsafe(
