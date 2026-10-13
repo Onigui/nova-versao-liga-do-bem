@@ -34,6 +34,7 @@ import { createAccessCode, verifyAccessCode, issueManualAccessCode, accessCodeMe
 import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts, createPartnerAccess, formatDiscount, saveDiscount } from './lib/partnerPortal';
 import { backfillPartnerCoords, refreshPartnerCoords } from './lib/geocode';
 import { describePromo } from './lib/promo';
+import { dispatchDuePushCampaigns } from './lib/partnerPush';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -2031,6 +2032,21 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // Despachante das notificações pagas agendadas. Público e idempotente: só envia o que já
+    // foi aprovado e cujo horário chegou (chamado pelo GitHub Actions a cada 10 min).
+    if (path === '/api/cron/partner-push' && (method === 'GET' || method === 'POST')) {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const r = await dispatchDuePushCampaigns(db, 5);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ ok: true, due: r.due, sent: r.sent.length, at: new Date().toISOString() });
+      } catch (error: any) {
+        console.error('❌ Despachante de notificações:', error);
+        return res.status(500).json({ ok: false, error: error?.message });
+      }
+    }
+
     // Partners - GET all (public, only active)
     if (path === '/api/partners' && method === 'GET') {
       const db = getPrisma();
@@ -2039,6 +2055,12 @@ export default async function handler(req: any, res: any) {
       }
       try {
         await ensurePartnerPortalSchema(db);
+        // Se havia notificação agendada vencida (agendador atrasado), envia agora
+        try {
+          await dispatchDuePushCampaigns(db, 2);
+        } catch (e) {
+          console.warn('⚠️ Despacho de notificações agendadas falhou:', e);
+        }
         // Empresas sem coordenadas ganham localização aos poucos (distância no app do membro)
         try {
           await backfillPartnerCoords(db, 2);

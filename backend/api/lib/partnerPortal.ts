@@ -812,6 +812,82 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
       return true;
     }
 
+    // ---------- painel: validações por semana, promoções mais usadas, dias de movimento
+    if (path === '/api/partner/dashboard' && method === 'GET') {
+      const local = `(("validatedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo')`;
+      const weeks: any[] = await db.$queryRawUnsafe(
+        `WITH w AS (
+           SELECT generate_series(
+             date_trunc('week', (NOW() AT TIME ZONE 'America/Sao_Paulo')) - INTERVAL '11 weeks',
+             date_trunc('week', (NOW() AT TIME ZONE 'America/Sao_Paulo')),
+             INTERVAL '1 week') AS wk)
+         SELECT to_char(w.wk, 'YYYY-MM-DD') AS week,
+                COUNT(v.id) FILTER (WHERE v."membershipActive")::int AS validations,
+                COUNT(v.id) FILTER (WHERE v."discountId" IS NOT NULL)::int AS "withDiscount"
+           FROM w LEFT JOIN partner_validations v
+             ON v."partnerId" = $1 AND date_trunc('week', ${local.replace(/"validatedAt"/g, 'v."validatedAt"')}) = w.wk
+          GROUP BY w.wk ORDER BY w.wk`,
+        acc.partnerId,
+      );
+      const kpiSql = (from: string, to: string) =>
+        `SELECT COUNT(*) FILTER (WHERE "membershipActive")::int AS validations,
+                COUNT(DISTINCT "memberId") FILTER (WHERE "membershipActive")::int AS members,
+                COUNT(*) FILTER (WHERE "discountId" IS NOT NULL)::int AS "discountsUsed",
+                COALESCE(SUM(amount), 0)::float AS amount
+           FROM partner_validations
+          WHERE "partnerId" = $1 AND "validatedAt" > NOW() - INTERVAL '${from}' AND "validatedAt" <= NOW() - INTERVAL '${to}'`;
+      const [cur] = await db.$queryRawUnsafe(kpiSql('30 days', '0 days'), acc.partnerId);
+      const [prev] = await db.$queryRawUnsafe(kpiSql('60 days', '30 days'), acc.partnerId);
+      const top: any[] = await db.$queryRawUnsafe(
+        `SELECT d.*, COUNT(v.id)::int AS uses
+           FROM partner_validations v JOIN partner_discounts d ON d.id = v."discountId"
+          WHERE v."partnerId" = $1 AND v."validatedAt" > NOW() - INTERVAL '90 days'
+          GROUP BY d.id ORDER BY uses DESC, d.name ASC LIMIT 5`,
+        acc.partnerId,
+      );
+      const dow: any[] = await db.$queryRawUnsafe(
+        `SELECT EXTRACT(DOW FROM ${local})::int AS dow, COUNT(*)::int AS n
+           FROM partner_validations
+          WHERE "partnerId" = $1 AND "membershipActive" AND "validatedAt" > NOW() - INTERVAL '90 days'
+          GROUP BY 1`,
+        acc.partnerId,
+      );
+      const peak: any[] = await db.$queryRawUnsafe(
+        `SELECT EXTRACT(HOUR FROM ${local})::int AS hour, COUNT(*)::int AS n
+           FROM partner_validations
+          WHERE "partnerId" = $1 AND "membershipActive" AND "validatedAt" > NOW() - INTERVAL '90 days'
+          GROUP BY 1 ORDER BY n DESC, hour ASC LIMIT 1`,
+        acc.partnerId,
+      );
+      let push = { sent: 0, recipients: 0 };
+      try {
+        const pr: any[] = await db.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS sent, COALESCE(SUM(recipients), 0)::int AS recipients
+             FROM partner_push_campaigns WHERE "partnerId" = $1 AND status = 'SENT' AND "sentAt" > NOW() - INTERVAL '90 days'`,
+          acc.partnerId,
+        );
+        push = pr[0] || push;
+      } catch {
+        /* tabela ainda não existe */
+      }
+      const byDow = Array.from({ length: 7 }, (_, i) => dow.find((d) => d.dow === i)?.n || 0);
+      if (acc.role !== 'OWNER') {
+        cur.amount = null;
+        prev.amount = null;
+      }
+      res.status(200).json({
+        weeks,
+        kpis: { current: cur, previous: prev },
+        topDiscounts: top.map((t) => ({ ...formatDiscount(t), uses: t.uses })),
+        byWeekday: byDow,
+        peakHour: peak[0]?.hour ?? null,
+        push,
+        // valor das compras só para o responsável (funcionário vê contagens)
+        showAmounts: acc.role === 'OWNER',
+      });
+      return true;
+    }
+
     if (path === '/api/partner/validations' && method === 'GET') {
       const limit = Math.min(Math.max(parseInt(ctx.req.query?.limit, 10) || 50, 1), 200);
       const rows: any[] = await db.$queryRawUnsafe(

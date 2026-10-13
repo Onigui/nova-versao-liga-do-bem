@@ -12,10 +12,12 @@ import {
   formatDateBR,
 } from '../PartnerContext';
 import {Badge, Button, Card, Field, styles as ui} from '../ui';
+import SlotPicker, {formatSlot} from '../components/SlotPicker';
 
 export const PUSH_STATUS = {
   AWAITING_PAYMENT: {text: 'Aguardando pagamento', tone: 'warn'},
   PENDING_REVIEW: {text: 'Paga · em análise pela Liga', tone: 'warn'},
+  SCHEDULED: {text: 'Aprovada · agendada', tone: 'ok'},
   SENDING: {text: 'Enviando…', tone: 'ok'},
   SENT: {text: 'Enviada', tone: 'ok'},
   REJECTED: {text: 'Não aprovada', tone: 'bad'},
@@ -49,6 +51,11 @@ export default function PushCampaignsScreen({navigation}) {
   const [body, setBody] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [slot, setSlot] = useState(null);
+  const [slotsKey, setSlotsKey] = useState(0);
+  const [moving, setMoving] = useState(false);
+  const [newSlot, setNewSlot] = useState(null);
+  const [moveMsg, setMoveMsg] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -66,7 +73,7 @@ export default function PushCampaignsScreen({navigation}) {
   );
 
   const open = data?.campaigns?.find(c =>
-    ['AWAITING_PAYMENT', 'PENDING_REVIEW', 'SENDING'].includes(c.status),
+    ['AWAITING_PAYMENT', 'PENDING_REVIEW', 'SCHEDULED', 'SENDING'].includes(c.status),
   );
   const limits = data?.limits || {titleMax: 50, bodyMax: 180};
   const blockedUntil = data?.nextAllowedAt;
@@ -78,20 +85,44 @@ export default function PushCampaignsScreen({navigation}) {
       setFormError(err);
       return;
     }
+    if (!slot) {
+      setFormError('Escolha o dia e o horário do envio.');
+      return;
+    }
     setFormError('');
     setSaving(true);
     try {
       const r = await api('POST', '/partner/push-campaigns', {
         title: title.trim(),
         body: body.trim(),
+        scheduledFor: slot,
       });
       setTitle('');
       setBody('');
+      setSlot(null);
       navigation.navigate('PushPayment', {campaignId: r.campaign.id});
     } catch (e) {
       setFormError(e.message);
+      if (/horário/i.test(e.message)) {
+        setSlot(null);
+        setSlotsKey(k => k + 1);
+      }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const reschedule = async () => {
+    if (!newSlot || !open) return;
+    try {
+      const r = await api('POST', `/partner/push-campaigns/${open.id}/reschedule`, {scheduledFor: newSlot});
+      setMoveMsg(r.message || 'Horário alterado.');
+      setMoving(false);
+      setNewSlot(null);
+      load();
+    } catch (e) {
+      setMoveMsg(e.message);
+      setSlotsKey(k => k + 1);
     }
   };
 
@@ -130,7 +161,7 @@ export default function PushCampaignsScreen({navigation}) {
             : 'Carregando…'}
         </Text>
         <Text style={[ui.muted, {marginTop: 6, fontSize: 12}]}>
-          A Liga revisa antes de enviar. Se não aprovar, o valor é devolvido.
+          Você escolhe o dia e o horário. A Liga revisa antes de enviar; se não aprovar, o valor é devolvido.
         </Text>
       </Card>
       {error ? (
@@ -153,6 +184,32 @@ export default function PushCampaignsScreen({navigation}) {
               tone={PUSH_STATUS[open.status]?.tone}
             />
           </View>
+          {open.scheduledFor ? (
+            <Text style={{color: COLORS.primaryDark, fontWeight: '700', marginTop: 8}} testID="agendada-para">
+              🗓️ Envio: {formatSlot(open.scheduledFor)}
+            </Text>
+          ) : null}
+          {moveMsg ? <Text style={[ui.muted, {marginTop: 6}]}>{moveMsg}</Text> : null}
+          {isOwner && open.scheduledFor && ['AWAITING_PAYMENT', 'PENDING_REVIEW', 'SCHEDULED'].includes(open.status) ? (
+            moving ? (
+              <View style={{marginTop: 12}}>
+                <SlotPicker value={newSlot} onChange={setNewSlot} campaignId={open.id} refreshKey={slotsKey} />
+                <Button title="Confirmar novo horário" onPress={reschedule} disabled={!newSlot} testID="confirmar-horario" />
+                <Button title="Cancelar" variant="ghost" onPress={() => setMoving(false)} style={{marginTop: 4}} />
+              </View>
+            ) : (
+              <Button
+                title="Trocar horário"
+                variant="secondary"
+                onPress={() => {
+                  setMoveMsg('');
+                  setMoving(true);
+                }}
+                style={{marginTop: 10, minHeight: 42}}
+                testID="trocar-horario"
+              />
+            )
+          ) : null}
           {open.status === 'AWAITING_PAYMENT' && isOwner ? (
             <Button
               title="Pagar agora"
@@ -211,6 +268,8 @@ export default function PushCampaignsScreen({navigation}) {
             placeholder="Ex.: Só nesta semana, membros da Liga têm 20% no banho e tosa. Mostre a carteirinha!"
             testID="push-mensagem"
           />
+          <Text style={[ui.label, {fontSize: 15, marginTop: 4}]}>Quando enviar?</Text>
+          <SlotPicker value={slot} onChange={setSlot} refreshKey={slotsKey} />
           <Text style={ui.label}>Prévia no celular do membro</Text>
           <View
             style={{
@@ -220,7 +279,7 @@ export default function PushCampaignsScreen({navigation}) {
               marginBottom: 12,
             }}>
             <Text style={{color: '#94A3B8', fontSize: 11}}>
-              Liga do Bem · agora
+              Liga do Bem · {slot ? formatSlot(slot) : 'no horário escolhido'}
             </Text>
             <Text
               style={{color: '#FFFFFF', fontWeight: '700', marginTop: 2}}
@@ -266,7 +325,12 @@ export default function PushCampaignsScreen({navigation}) {
               />
             </View>
             <Text style={[ui.muted, {fontSize: 13, marginTop: 2}]}>
-              {formatDateTimeBR(c.sentAt || c.createdAt)} ·{' '}
+              {c.sentAt
+                ? formatDateTimeBR(c.sentAt)
+                : c.scheduledFor
+                  ? `Agendada: ${formatSlot(c.scheduledFor)}`
+                  : formatDateTimeBR(c.createdAt)}{' '}
+              ·{' '}
               {formatMoney(c.price)}
               {c.status === 'SENT' && c.recipients != null
                 ? ` · ${c.recipients} pessoa(s)`
