@@ -1,11 +1,24 @@
-import React, {useState} from 'react';
+import React, {useCallback, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {ScrollView, Text, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {COLORS, usePartner} from '../PartnerContext';
 import {Button, Card, Field, styles as ui} from '../ui';
 
 export default function ValidateScreen({navigation}) {
-  const {partner, stats} = usePartner();
+  const {partner, stats, api} = usePartner();
+  const [canStamp, setCanStamp] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      api?.('GET', '/partner/vet')
+        .then(r => alive && setCanStamp(!!r?.canStamp))
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, [api]),
+  );
   const [typed, setTyped] = useState('');
   const [shortCode, setShortCode] = useState('');
   const memberOk = /^MEM\d{4,20}$/.test(typed.trim());
@@ -51,6 +64,25 @@ export default function ValidateScreen({navigation}) {
           testID="escanear"
         />
       </Card>
+
+      {canStamp ? (
+        <Card style={{borderColor: '#99F6E4'}}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10}}>
+            <Icon name="ribbon" size={28} color={COLORS.primary} />
+            <View style={{flex: 1}}>
+              <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text}}>Carimbar carteira de vacinação</Text>
+              <Text style={ui.muted}>Leia o QR do pet no app do tutor (Meus Pets → Mostrar ao veterinário).</Text>
+            </View>
+          </View>
+          <Button
+            title="Ler QR do pet"
+            variant="secondary"
+            icon={<Icon name="paw" size={20} color={COLORS.primary} />}
+            onPress={() => navigation.navigate('Scanner', {mode: 'pet'})}
+            testID="carimbar-pet"
+          />
+        </Card>
+      ) : null}
 
       <Card>
         <Text style={{fontWeight: '700', color: COLORS.text, marginBottom: 8}}>

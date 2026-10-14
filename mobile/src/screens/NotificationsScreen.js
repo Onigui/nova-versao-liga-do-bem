@@ -154,7 +154,8 @@ export default function NotificationsScreen({navigation}) {
         if (screen === 'MembershipCard') {
           navigation.navigate('Cartão');
         } else if (screen) {
-          navigation.navigate(screen);
+          // Leva junto os dados (ex.: petId para abrir a carteira de vacinação certa)
+          navigation.navigate(screen, notification.data || undefined);
         }
         break;
       default:

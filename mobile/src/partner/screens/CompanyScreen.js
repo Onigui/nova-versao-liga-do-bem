@@ -114,6 +114,21 @@ export default function CompanyScreen({navigation}) {
 
       <Card>
         <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text}}>
+          Veterinário: carimbo de vacinas
+        </Text>
+        <Text style={[ui.muted, {marginVertical: 6}]}>
+          Com o CRMV aprovado pela Liga, você registra vacinas direto na carteira digital do pet.
+        </Text>
+        <Button
+          title="Meu CRMV"
+          variant="secondary"
+          onPress={() => navigation.navigate('VetProfile')}
+          testID="meu-crmv"
+        />
+      </Card>
+
+      <Card>
+        <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text}}>
           Notificação para todos os membros
         </Text>
         <Text style={[ui.muted, {marginVertical: 6}]}>

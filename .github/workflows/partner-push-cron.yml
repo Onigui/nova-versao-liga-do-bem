@@ -1,6 +1,8 @@
-# Envia no horário as notificações pagas já aprovadas (o plano gratuito da Vercel não tem
-# agendador frequente). O endpoint é público e idempotente: só envia o que já está na hora.
-name: Notificações agendadas dos parceiros
+# Agendador gratuito (o plano Hobby da Vercel só tem cron diário). Os endpoints são públicos e
+# idempotentes: só enviam o que já está na hora.
+#  - notificações pagas aprovadas cujo horário chegou
+#  - lembretes da próxima dose de vacina (o servidor só envia das 9h às 20h)
+name: Agendador (notificações e lembretes)
 
 on:
   schedule:
@@ -12,9 +14,14 @@ permissions: {}
 jobs:
   dispatch:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
-      - name: Disparar envios vencidos
+      - name: Notificações pagas vencidas
         run: |
           curl -fsS --retry 3 --retry-delay 10 --max-time 60 \
             -X POST "https://nova-versao-liga-do-bem.vercel.app/api/cron/partner-push"
+      - name: Lembretes de vacina
+        if: always()
+        run: |
+          curl -fsS --retry 3 --retry-delay 10 --max-time 60 \
+            -X POST "https://nova-versao-liga-do-bem.vercel.app/api/cron/vaccine-reminders"

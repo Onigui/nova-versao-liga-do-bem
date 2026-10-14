@@ -11,7 +11,8 @@ import {useIsFocused} from '@react-navigation/native';
 import {COLORS} from '../PartnerContext';
 import {Button} from '../ui';
 
-export default function ScannerScreen({navigation}) {
+export default function ScannerScreen({navigation, route}) {
+  const petMode = route?.params?.mode === 'pet';
   const device = useCameraDevice('back');
   const {hasPermission, requestPermission} = useCameraPermission();
   const [asked, setAsked] = useState(false);
@@ -32,7 +33,9 @@ export default function ScannerScreen({navigation}) {
       const value = codes?.find(c => c?.value)?.value;
       if (!value || handled.current) return;
       handled.current = true;
-      navigation.replace('ValidationResult', {code: value});
+      // QR do pet (LDBP.…) vai para o carimbo; o da carteirinha, para a validação
+      if (petMode || String(value).startsWith('LDBP.')) navigation.replace('PetVisit', {code: value});
+      else navigation.replace('ValidationResult', {code: value});
     },
   });
 
@@ -41,7 +44,9 @@ export default function ScannerScreen({navigation}) {
       <View style={s.center}>
         <Icon name="camera-outline" size={56} color={COLORS.primary} />
         <Text style={s.msg}>
-          Precisamos da câmera para ler o QR da carteirinha.
+          {petMode
+            ? 'Precisamos da câmera para ler o QR do pet.'
+            : 'Precisamos da câmera para ler o QR da carteirinha.'}
         </Text>
         <Button
           title="Permitir câmera"
@@ -83,7 +88,9 @@ export default function ScannerScreen({navigation}) {
       />
       <View style={s.overlay} pointerEvents="none">
         <View style={s.frame} />
-        <Text style={s.overlayText}>Aponte para o QR da carteirinha</Text>
+        <Text style={s.overlayText}>
+          {petMode ? 'Aponte para o QR do pet (no app do tutor)' : 'Aponte para o QR da carteirinha'}
+        </Text>
       </View>
       <View style={s.bottom}>
         <Pressable
