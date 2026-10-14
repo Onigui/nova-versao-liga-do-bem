@@ -41,6 +41,7 @@ import { handleQuotes, isQuotePath } from './lib/quotes';
 import { handleHealth, isHealthPath } from './lib/health';
 import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
+import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -437,6 +438,16 @@ export default async function handler(req: any, res: any) {
     // Catálogo padrão da Liga e tabela de preços dos parceiros
     if (isCatalogPath(path)) {
       const handled = await handleCatalog({
+        req, res, path, method, body, db: getPrisma(),
+        isAdmin: isAdminRequest(req),
+        authUser: () => decodeAuthUser(req),
+      });
+      if (handled) return;
+    }
+
+    // Achados e perdidos com mapa (avisos, fotos, alertas por perto, página para compartilhar)
+    if (isLostFoundPath(path)) {
+      const handled = await handleLostFound({
         req, res, path, method, body, db: getPrisma(),
         isAdmin: isAdminRequest(req),
         authUser: () => decodeAuthUser(req),
