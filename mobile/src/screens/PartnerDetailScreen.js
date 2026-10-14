@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import {parseOpeningHours, getTodayHours, openStatus} from '../utils/openingHour
 import PromoCard from '../components/PromoCard';
 import {partnerBadge} from '../utils/promo';
 import {formatDistance} from '../utils/geo';
+import {brl} from '../utils/priceCompare';
+import {API_BASE_PATH} from '../config/apiConfig';
 
 const {width} = Dimensions.get('window');
 
@@ -25,6 +27,20 @@ const {width} = Dimensions.get('window');
 export default function PartnerDetailScreen({route, navigation, partner: partnerProp, preview: previewProp}) {
   const partner = partnerProp || route?.params?.partner;
   const preview = previewProp || route?.params?.preview;
+  const [prices, setPrices] = useState(null);
+  const [showAllPrices, setShowAllPrices] = useState(false);
+  const partnerId = partnerProp?.id || route?.params?.partner?.id;
+  useEffect(() => {
+    if (preview || !partnerId || String(partnerId).startsWith('fallback')) return;
+    let alive = true;
+    fetch(`${API_BASE_PATH}/partners/${partnerId}/prices`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => alive && d && setPrices(d.prices || []))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [partnerId, preview]);
 
   const partnerData = partner || {
     id: '1',
@@ -117,6 +133,35 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
               <Text style={styles.promoHint}>
                 Mostre o QR da sua carteirinha no caixa para usar.
               </Text>
+            </View>
+          ) : null}
+
+          {/* Tabela de preços do parceiro */}
+          {prices?.length ? (
+            <View style={styles.section} testID="tabela-precos">
+              <Text style={styles.sectionTitle}>Tabela de preços</Text>
+              {(showAllPrices ? prices : prices.slice(0, 6)).map(p => (
+                <View key={p.item.id} style={[styles.priceRow, !p.available && {opacity: 0.5}]}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.priceName}>{p.item.label}</Text>
+                    <Text style={styles.priceMeta}>
+                      {p.item.categoryLabel}
+                      {!p.available ? ' · indisponível' : ''}
+                      {p.note ? ` · ${p.note}` : ''}
+                    </Text>
+                  </View>
+                  <View style={{alignItems: 'flex-end'}}>
+                    {p.price ? <Text style={styles.priceOld}>{brl(p.price)}</Text> : null}
+                    <Text style={styles.priceValue}>{brl(p.memberPrice)}</Text>
+                  </View>
+                </View>
+              ))}
+              {prices.length > 6 ? (
+                <TouchableOpacity onPress={() => setShowAllPrices(v => !v)}>
+                  <Text style={styles.priceMore}>{showAllPrices ? 'Mostrar menos' : `Ver todos (${prices.length})`}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <Text style={styles.promoHint}>Preço de membro em destaque. Mostre a carteirinha no caixa.</Text>
             </View>
           ) : null}
 
@@ -319,6 +364,12 @@ const styles = StyleSheet.create({
   promoName: {fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2},
   promoDesc: {fontSize: 13, color: '#6B7280', marginTop: 2},
   promoHint: {fontSize: 12, color: '#6B7280', marginTop: 4},
+  priceRow: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6'},
+  priceName: {fontSize: 14, fontWeight: '600', color: '#1F2937'},
+  priceMeta: {fontSize: 12, color: '#6B7280', marginTop: 2},
+  priceOld: {fontSize: 12, color: '#9CA3AF', textDecorationLine: 'line-through'},
+  priceValue: {fontSize: 16, fontWeight: '800', color: '#6D28D9'},
+  priceMore: {color: '#7C3AED', fontWeight: '700', marginTop: 10},
   discountBadge: {
     position: 'absolute',
     top: 16,

@@ -39,6 +39,8 @@ import VaccinationCardScreen from '../screens/VaccinationCardScreen';
 import AddPetScreen from '../screens/AddPetScreen';
 import AddVaccinationScreen from '../screens/AddVaccinationScreen';
 import PetQrScreen from '../screens/PetQrScreen';
+import ComparePricesScreen from '../screens/ComparePricesScreen';
+import PriceOffersScreen from '../screens/PriceOffersScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -371,6 +373,16 @@ export function AppStack() {
         name="PetQr"
         component={PetQrScreen}
         options={{headerShown: false, presentation: 'modal'}}
+      />
+      <Stack.Screen
+        name="ComparePrices"
+        component={ComparePricesScreen}
+        options={{headerShown: true, title: 'Comparar preços', headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6'}}
+      />
+      <Stack.Screen
+        name="PriceOffers"
+        component={PriceOffersScreen}
+        options={{headerShown: true, title: 'Preços', headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6'}}
       />
     </Stack.Navigator>
   );
