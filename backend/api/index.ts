@@ -37,6 +37,7 @@ import { describePromo } from './lib/promo';
 import { dispatchDuePushCampaigns } from './lib/partnerPush';
 import { handlePetHealth, isPetHealthPath } from './lib/petHealth';
 import { handleCatalog, isCatalogPath } from './lib/catalog';
+import { handleQuotes, isQuotePath } from './lib/quotes';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -433,6 +434,16 @@ export default async function handler(req: any, res: any) {
     // Catálogo padrão da Liga e tabela de preços dos parceiros
     if (isCatalogPath(path)) {
       const handled = await handleCatalog({
+        req, res, path, method, body, db: getPrisma(),
+        isAdmin: isAdminRequest(req),
+        authUser: () => decodeAuthUser(req),
+      });
+      if (handled) return;
+    }
+
+    // Orçamento em tempo real (antes da carteira: /api/partner/pets/visits/:id/quote é daqui)
+    if (isQuotePath(path)) {
+      const handled = await handleQuotes({
         req, res, path, method, body, db: getPrisma(),
         isAdmin: isAdminRequest(req),
         authUser: () => decodeAuthUser(req),
