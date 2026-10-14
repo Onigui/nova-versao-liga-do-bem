@@ -17,6 +17,8 @@ import {partnerBadge} from '../utils/promo';
 import {formatDistance} from '../utils/geo';
 import {brl} from '../utils/priceCompare';
 import {API_BASE_PATH} from '../config/apiConfig';
+import {RatingSummary, ReviewCard} from '../components/Reviews';
+import {memberApi} from '../utils/quotes';
 
 const {width} = Dimensions.get('window');
 
@@ -29,7 +31,18 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
   const preview = previewProp || route?.params?.preview;
   const [prices, setPrices] = useState(null);
   const [showAllPrices, setShowAllPrices] = useState(false);
+  const [reviews, setReviews] = useState(null);
   const partnerId = partnerProp?.id || route?.params?.partner?.id;
+  useEffect(() => {
+    if (preview || !partnerId || String(partnerId).startsWith('fallback')) return;
+    let alive = true;
+    memberApi()('GET', `/partners/${partnerId}/reviews?limit=2`)
+      .then(d => alive && setReviews(d))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [partnerId, preview]);
   useEffect(() => {
     if (preview || !partnerId || String(partnerId).startsWith('fallback')) return;
     let alive = true;
@@ -162,6 +175,34 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
                 </TouchableOpacity>
               ) : null}
               <Text style={styles.promoHint}>Preço de membro em destaque. Mostre a carteirinha no caixa.</Text>
+            </View>
+          ) : null}
+
+          {/* Avaliações (só de quem foi atendido) */}
+          {reviews ? (
+            <View style={styles.section} testID="avaliacoes">
+              <Text style={styles.sectionTitle}>Avaliações</Text>
+              <RatingSummary summary={reviews.summary} />
+              {reviews.reviews.map(r => (
+                <ReviewCard
+                  key={r.id}
+                  review={r}
+                  partnerName={partnerData.name}
+                  tagLabels={Object.fromEntries((reviews.tags || []).map(t => [t.id, t.label]))}
+                />
+              ))}
+              <View style={{flexDirection: 'row', gap: 16, marginTop: 10}}>
+                {reviews.summary.count > reviews.reviews.length ? (
+                  <TouchableOpacity onPress={() => navigation.navigate('PartnerReviews', {partnerId, partnerName: partnerData.name})} testID="ver-avaliacoes">
+                    <Text style={styles.priceMore}>Ver todas ({reviews.summary.count})</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {reviews.me?.canReview ? (
+                  <TouchableOpacity onPress={() => navigation.navigate('ReviewForm', {partnerId, partnerName: partnerData.name})} testID="avaliar-empresa">
+                    <Text style={styles.priceMore}>{reviews.me.review ? 'Editar minha avaliação' : '★ Avaliar'}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
           ) : null}
 

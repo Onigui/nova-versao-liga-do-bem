@@ -1,7 +1,6 @@
 /**
  * Orçamento em tempo real: utilitários compartilhados (app dos membros e App Parceiros).
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_PATH} from '../config/apiConfig';
 
 export const QUOTE_DEADLINES = [
@@ -15,6 +14,8 @@ export const MAX_ITEMS = 25;
 /** Chamada autenticada do app dos membros (token salvo no login). */
 export function memberApi(fetchImpl = fetch) {
   return async function request(method, path, body) {
+    // require tardio: telas que só importam utilitários não precisam do módulo nativo
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default || require('@react-native-async-storage/async-storage');
     const token = await AsyncStorage.getItem('auth_token');
     let res;
     try {

@@ -28,6 +28,8 @@ import QuotesInboxScreen from './screens/QuotesInboxScreen';
 import QuoteRespondScreen from './screens/QuoteRespondScreen';
 import ReservationsScreen from './screens/ReservationsScreen';
 import VetQuoteScreen from './screens/VetQuoteScreen';
+import ReviewsScreen from './screens/ReviewsScreen';
+import VetNoteScreen from './screens/VetNoteScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -240,6 +242,16 @@ export function PartnerAppStack() {
           name="VetQuote"
           component={VetQuoteScreen}
           options={{title: 'Lista para orçamento'}}
+        />
+        <Stack.Screen
+          name="Reviews"
+          component={ReviewsScreen}
+          options={{title: 'Avaliações'}}
+        />
+        <Stack.Screen
+          name="VetNote"
+          component={VetNoteScreen}
+          options={({route}) => ({title: route.params?.entry ? 'Corrigir registro' : 'Registrar atendimento'})}
         />
       </Stack.Navigator>
     </PartnerProvider>

@@ -38,6 +38,8 @@ import { dispatchDuePushCampaigns } from './lib/partnerPush';
 import { handlePetHealth, isPetHealthPath } from './lib/petHealth';
 import { handleCatalog, isCatalogPath } from './lib/catalog';
 import { handleQuotes, isQuotePath } from './lib/quotes';
+import { handleHealth, isHealthPath } from './lib/health';
+import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -434,6 +436,25 @@ export default async function handler(req: any, res: any) {
     // Catálogo padrão da Liga e tabela de preços dos parceiros
     if (isCatalogPath(path)) {
       const handled = await handleCatalog({
+        req, res, path, method, body, db: getPrisma(),
+        isAdmin: isAdminRequest(req),
+        authUser: () => decodeAuthUser(req),
+      });
+      if (handled) return;
+    }
+
+    // Histórico de saúde do pet (tutor e veterinário no atendimento)
+    if (isHealthPath(path)) {
+      const handled = await handleHealth({
+        req, res, path, method, body, db: getPrisma(),
+        authUser: () => decodeAuthUser(req),
+      });
+      if (handled) return;
+    }
+
+    // Avaliações dos parceiros (só de quem foi atendido)
+    if (isReviewPath(path)) {
+      const handled = await handleReviews({
         req, res, path, method, body, db: getPrisma(),
         isAdmin: isAdminRequest(req),
         authUser: () => decodeAuthUser(req),
@@ -2115,6 +2136,13 @@ export default async function handler(req: any, res: any) {
           console.warn('⚠️ Não foi possível carregar as promoções dos parceiros:', e);
         }
 
+        let ratings: Record<string, { rating: number; count: number }> = {};
+        try {
+          ratings = await partnerRatings(db, partners.map((p: any) => p.id));
+        } catch (e) {
+          console.warn('⚠️ Não foi possível carregar as avaliações:', e);
+        }
+
         const coord = (v: any) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
         const formattedPartners = partners.map((p: any) => {
           const list = discountsByPartner[p.id] || [];
@@ -2140,6 +2168,8 @@ export default async function handler(req: any, res: any) {
             /** Compatível com versões antigas do app (que acrescentam " OFF"): só % e R$ de desconto. */
             discount: list.find((d: any) => d.short)?.short || null,
             discounts: list,
+            rating: ratings[p.id]?.rating ?? null,
+            reviewCount: ratings[p.id]?.count || 0,
           };
         });
 

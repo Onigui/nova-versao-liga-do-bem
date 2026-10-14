@@ -191,8 +191,9 @@ export function WeekdayChart({counts, width}) {
   );
 }
 
-export default function DashboardScreen() {
+export default function DashboardScreen({navigation}) {
   const {api} = usePartner();
+  const [reviews, setReviews] = useState(null);
   const {width: screenW} = useWindowDimensions();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -203,6 +204,9 @@ export default function DashboardScreen() {
     try {
       setData(await api('GET', '/partner/dashboard'));
       setError('');
+      api('GET', '/partner/reviews')
+        .then(r => setReviews(r?.summary && typeof r.summary.count === 'number' ? r.summary : null))
+        .catch(() => {});
     } catch (e) {
       setError(e.message);
     }
@@ -265,6 +269,21 @@ export default function DashboardScreen() {
               <Kpi label="Notificações enviadas" value={data.push?.sent || 0} change={null} />
             )}
           </View>
+
+          <Pressable onPress={() => navigation?.navigate('Reviews')} testID="abrir-avaliacoes">
+            <Card style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+              <Icon name="star" size={28} color="#F59E0B" />
+              <View style={{flex: 1}}>
+                <Text style={ui.sectionTitle}>Avaliações dos clientes</Text>
+                <Text style={ui.muted}>
+                  {reviews?.count
+                    ? `${String(reviews.rating.toFixed(1)).replace('.', ',')} de 5 · ${reviews.count} ${reviews.count === 1 ? 'avaliação' : 'avaliações'}`
+                    : 'Ainda sem avaliações'}
+                </Text>
+              </View>
+              <Icon name="chevron-forward" size={20} color={COLORS.muted} />
+            </Card>
+          </Pressable>
 
           <Card>
             <Text style={ui.sectionTitle}>Validações por semana</Text>

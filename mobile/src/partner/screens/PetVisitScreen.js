@@ -8,6 +8,9 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {COLORS, formatDateBR, usePartner} from '../PartnerContext';
 import {Badge, Button, Card, styles as ui} from '../ui';
 import {categoryLabel} from '../../utils/vaccineCatalog';
+import {useFocusEffect} from '@react-navigation/native';
+import HealthTimeline from '../../components/HealthTimeline';
+import {kg} from '../../utils/health';
 
 export function petAge(birthDate, now = Date.now()) {
   if (!birthDate) return null;
@@ -59,6 +62,22 @@ export default function PetVisitScreen({route, navigation}) {
   useEffect(() => {
     lookup();
   }, [lookup]);
+
+  // Histórico de saúde (só enquanto o atendimento está aberto); recarrega ao voltar do registro
+  const [history, setHistory] = useState(null);
+  const openVisitId = data?.visitId;
+  useFocusEffect(
+    useCallback(() => {
+      if (!openVisitId) return undefined;
+      let alive = true;
+      api('GET', `/partner/pets/visits/${openVisitId}/history`)
+        .then(h => alive && setHistory(Array.isArray(h?.items) ? h : null))
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, [api, openVisitId]),
+  );
 
   // Volta do formulário com o registro novo ou corrigido (ou anulado)
   const saved = route?.params?.saved;
@@ -151,6 +170,14 @@ export default function PetVisitScreen({route, navigation}) {
         testID="carimbar"
       />
       <Button
+        title="Registrar consulta ou atendimento"
+        variant="secondary"
+        icon={<Icon name="clipboard" size={20} color={COLORS.primary} />}
+        onPress={() => navigation.navigate('VetNote', {visitId, pet})}
+        style={{marginBottom: 12}}
+        testID="registrar-consulta"
+      />
+      <Button
         title="Montar lista para orçamento"
         variant="secondary"
         icon={<Icon name="list" size={20} color={COLORS.primary} />}
@@ -158,6 +185,24 @@ export default function PetVisitScreen({route, navigation}) {
         style={{marginBottom: 12}}
         testID="montar-lista"
       />
+
+      {history ? (
+        <Card>
+          <Text style={ui.sectionTitle}>Histórico de saúde</Text>
+          {history.weights?.length ? (
+            <Text style={[ui.muted, {marginTop: 4}]} testID="pesos">
+              Peso: {history.weights.slice(-4).map(w => kg(w.weight)).join(' → ')}
+            </Text>
+          ) : null}
+          <HealthTimeline
+            items={history.items.filter(i => i.type !== 'VACCINATION').slice(0, 10)}
+            color={COLORS.primary}
+            canEdit={it => it.type === 'ENTRY' && it.mine && it.correctableUntil && new Date(it.correctableUntil).getTime() > Date.now()}
+            onEdit={it => navigation.navigate('VetNote', {visitId, pet, entry: it})}
+            emptyText="Nenhuma consulta registrada ainda."
+          />
+        </Card>
+      ) : null}
 
       <Card>
         <Text style={ui.sectionTitle}>Carteira de {pet.name}</Text>
