@@ -44,6 +44,10 @@ import PriceOffersScreen from '../screens/PriceOffersScreen';
 import QuotesListScreen from '../screens/QuotesListScreen';
 import QuoteNewScreen from '../screens/QuoteNewScreen';
 import QuoteDetailScreen from '../screens/QuoteDetailScreen';
+import PetHealthScreen from '../screens/PetHealthScreen';
+import HealthEntryFormScreen from '../screens/HealthEntryFormScreen';
+import ReviewFormScreen from '../screens/ReviewFormScreen';
+import PartnerReviewsScreen from '../screens/PartnerReviewsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -401,6 +405,26 @@ export function AppStack() {
         name="QuoteDetail"
         component={QuoteDetailScreen}
         options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Orçamento'}}
+      />
+      <Stack.Screen
+        name="PetHealth"
+        component={PetHealthScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Histórico de saúde'}}
+      />
+      <Stack.Screen
+        name="HealthEntryForm"
+        component={HealthEntryFormScreen}
+        options={({route}) => ({headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: route.params?.entry ? 'Editar registro' : 'Registro de saúde'})}
+      />
+      <Stack.Screen
+        name="ReviewForm"
+        component={ReviewFormScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Avaliar'}}
+      />
+      <Stack.Screen
+        name="PartnerReviews"
+        component={PartnerReviewsScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Avaliações'}}
       />
     </Stack.Navigator>
   );

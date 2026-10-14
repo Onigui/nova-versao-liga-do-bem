@@ -44,6 +44,14 @@ export default function PartnerListCard({partner, onPress, onNavigate, disabled}
             <Ionicons name="pricetag" size={14} color="#8B5CF6" />
             <Text style={styles.metaText}>{partner.category}</Text>
           </View>
+          {partner.reviewCount ? (
+            <View style={styles.metaItem} testID="nota">
+              <Ionicons name="star" size={13} color="#F59E0B" />
+              <Text style={[styles.metaText, {color: '#92400E', fontWeight: '700'}]}>
+                {String(Number(partner.rating).toFixed(1)).replace('.', ',')} ({partner.reviewCount})
+              </Text>
+            </View>
+          ) : null}
           {distance ? (
             <View style={styles.metaItem}>
               <Ionicons name="location" size={14} color="#10B981" />
@@ -123,7 +131,7 @@ const styles = StyleSheet.create({
   logoInitial: {fontSize: 20, fontWeight: '800', color: '#7C3AED'},
   partnerInfo: {flex: 1},
   partnerName: {fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 6},
-  partnerMeta: {flexDirection: 'row', gap: 12, marginBottom: 6},
+  partnerMeta: {flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 2, marginBottom: 6},
   metaItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
   metaText: {fontSize: 12, color: '#6B7280'},
   partnerAddress: {fontSize: 13, color: '#9CA3AF', marginBottom: 4},

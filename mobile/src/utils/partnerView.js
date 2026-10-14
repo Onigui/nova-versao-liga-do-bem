@@ -34,5 +34,8 @@ export function toMemberPartner(p, discounts) {
     logo: p?.logo || null,
     website: p?.website || null,
     discounts: list,
+    /** Avaliações (só de quem foi atendido): média e quantidade */
+    rating: p?.rating != null ? Number(p.rating) : null,
+    reviewCount: Number(p?.reviewCount) || 0,
   };
 }

@@ -11,6 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import PendingReviewsCard from '../components/PendingReviewsCard';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_CONFIG } from '../config/appConfig';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
@@ -240,6 +241,8 @@ export default function HomeScreen({navigation}) {
           )}
         </View>
       </LinearGradient>
+
+      <PendingReviewsCard navigation={navigation} enabled={!!(isAuthenticated && user)} />
 
       {/* Stats */}
       <View style={styles.statsContainer}>

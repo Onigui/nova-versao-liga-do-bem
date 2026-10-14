@@ -418,6 +418,16 @@ export default function VaccinationCardScreen({navigation, route}) {
           </LinearGradient>
         </View>
 
+        <TouchableOpacity
+          style={styles.addVaccinationButton}
+          onPress={() => navigation.navigate('PetHealth', {petId})}
+          testID="historico-saude">
+          <LinearGradient colors={['#2563EB', '#7C3AED']} style={styles.addVaccinationButtonGradient}>
+            <Ionicons name="pulse" size={24} color="#FFFFFF" />
+            <Text style={styles.addVaccinationButtonText}>Histórico de saúde (consultas, exames, peso)</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* Carimbo pelo veterinário e compartilhamento */}
         <TouchableOpacity
           style={styles.addVaccinationButton}
