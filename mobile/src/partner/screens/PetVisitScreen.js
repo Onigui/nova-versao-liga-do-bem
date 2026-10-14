@@ -150,6 +150,14 @@ export default function PetVisitScreen({route, navigation}) {
         style={{marginBottom: 12}}
         testID="carimbar"
       />
+      <Button
+        title="Montar lista para orçamento"
+        variant="secondary"
+        icon={<Icon name="list" size={20} color={COLORS.primary} />}
+        onPress={() => navigation.navigate('VetQuote', {visitId, pet})}
+        style={{marginBottom: 12}}
+        testID="montar-lista"
+      />
 
       <Card>
         <Text style={ui.sectionTitle}>Carteira de {pet.name}</Text>

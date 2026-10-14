@@ -344,6 +344,13 @@ export default function HomeScreen({navigation}) {
             onPress={() => navigation.navigate('ComparePrices')}
           />
           <QuickAction
+            icon="flash"
+            title="Orçamento em tempo real"
+            subtitle="Monte a lista e as lojas mandam propostas"
+            color="#7C3AED"
+            onPress={() => navigation.navigate('QuotesList')}
+          />
+          <QuickAction
             icon="medical"
             title="Cartão de Vacinas"
             subtitle="Gerencie vacinações dos pets"

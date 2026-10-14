@@ -24,6 +24,10 @@ import PriceEditScreen from './screens/PriceEditScreen';
 import StaffScreen from './screens/StaffScreen';
 import PushCampaignsScreen from './screens/PushCampaignsScreen';
 import PushPaymentScreen from './screens/PushPaymentScreen';
+import QuotesInboxScreen from './screens/QuotesInboxScreen';
+import QuoteRespondScreen from './screens/QuoteRespondScreen';
+import ReservationsScreen from './screens/ReservationsScreen';
+import VetQuoteScreen from './screens/VetQuoteScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -216,6 +220,26 @@ export function PartnerAppStack() {
           name="PushPayment"
           component={PushPaymentScreen}
           options={{title: 'Pagamento'}}
+        />
+        <Stack.Screen
+          name="QuotesInbox"
+          component={QuotesInboxScreen}
+          options={{title: 'Orçamentos'}}
+        />
+        <Stack.Screen
+          name="QuoteRespond"
+          component={QuoteRespondScreen}
+          options={{title: 'Pedido de orçamento'}}
+        />
+        <Stack.Screen
+          name="Reservations"
+          component={ReservationsScreen}
+          options={{title: 'Reservas'}}
+        />
+        <Stack.Screen
+          name="VetQuote"
+          component={VetQuoteScreen}
+          options={{title: 'Lista para orçamento'}}
         />
       </Stack.Navigator>
     </PartnerProvider>

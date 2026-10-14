@@ -8,11 +8,15 @@ import {Button, Card, Field, styles as ui} from '../ui';
 export default function ValidateScreen({navigation}) {
   const {partner, stats, api} = usePartner();
   const [canStamp, setCanStamp] = useState(false);
+  const [quotes, setQuotes] = useState(null);
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       api?.('GET', '/partner/vet')
         .then(r => alive && setCanStamp(!!r?.canStamp))
+        .catch(() => {});
+      api?.('GET', '/partner/quotes')
+        .then(r => alive && setQuotes(r || null))
         .catch(() => {});
       return () => {
         alive = false;
@@ -62,6 +66,27 @@ export default function ValidateScreen({navigation}) {
           onPress={() => navigation.navigate('Scanner')}
           style={{alignSelf: 'stretch'}}
           testID="escanear"
+        />
+      </Card>
+
+      <Card style={quotes?.pending ? {borderColor: '#FCD34D', backgroundColor: '#FFFBEB'} : null}>
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10}}>
+          <Icon name="flash" size={28} color={quotes?.pending ? COLORS.warn : COLORS.primary} />
+          <View style={{flex: 1}}>
+            <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text}} testID="orcamentos-titulo">
+              {quotes?.pending
+                ? `${quotes.pending} ${quotes.pending === 1 ? 'pedido de orçamento esperando' : 'pedidos de orçamento esperando'}`
+                : 'Orçamentos dos membros'}
+            </Text>
+            <Text style={ui.muted}>Mande sua proposta às cegas: ninguém vê o preço do outro.</Text>
+          </View>
+        </View>
+        <Button
+          title={quotes?.pending ? 'Responder agora' : 'Ver orçamentos e reservas'}
+          variant={quotes?.pending ? 'primary' : 'secondary'}
+          icon={<Icon name="document-text" size={20} color={quotes?.pending ? '#FFFFFF' : COLORS.primary} />}
+          onPress={() => navigation.navigate('QuotesInbox')}
+          testID="abrir-orcamentos"
         />
       </Card>
 
