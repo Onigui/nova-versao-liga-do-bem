@@ -49,6 +49,11 @@ import HealthEntryFormScreen from '../screens/HealthEntryFormScreen';
 import ReviewFormScreen from '../screens/ReviewFormScreen';
 import PartnerReviewsScreen from '../screens/PartnerReviewsScreen';
 import NotaFiscalScreen from '../screens/NotaFiscalScreen';
+import LostFoundScreen from '../screens/LostFoundScreen';
+import LostFoundNewScreen from '../screens/LostFoundNewScreen';
+import LostFoundDetailScreen from '../screens/LostFoundDetailScreen';
+import LostFoundAlertsScreen from '../screens/LostFoundAlertsScreen';
+import LostFoundMineScreen from '../screens/LostFoundMineScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -431,6 +436,31 @@ export function AppStack() {
         name="NotaFiscal"
         component={NotaFiscalScreen}
         options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#059669', title: 'Nota Fiscal Paulista'}}
+      />
+      <Stack.Screen
+        name="LostFound"
+        component={LostFoundScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Achados e perdidos'}}
+      />
+      <Stack.Screen
+        name="LostFoundNew"
+        component={LostFoundNewScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Publicar aviso'}}
+      />
+      <Stack.Screen
+        name="LostFoundDetail"
+        component={LostFoundDetailScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Aviso'}}
+      />
+      <Stack.Screen
+        name="LostFoundAlerts"
+        component={LostFoundAlertsScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Alertas por perto'}}
+      />
+      <Stack.Screen
+        name="LostFoundMine"
+        component={LostFoundMineScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Meus avisos'}}
       />
     </Stack.Navigator>
   );
