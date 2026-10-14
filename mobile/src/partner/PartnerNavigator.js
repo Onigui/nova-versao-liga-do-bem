@@ -19,6 +19,8 @@ import DashboardScreen from './screens/DashboardScreen';
 import VetProfileScreen from './screens/VetProfileScreen';
 import PetVisitScreen from './screens/PetVisitScreen';
 import StampFormScreen from './screens/StampFormScreen';
+import PriceTableScreen from './screens/PriceTableScreen';
+import PriceEditScreen from './screens/PriceEditScreen';
 import StaffScreen from './screens/StaffScreen';
 import PushCampaignsScreen from './screens/PushCampaignsScreen';
 import PushPaymentScreen from './screens/PushPaymentScreen';
@@ -169,6 +171,16 @@ export function PartnerAppStack() {
           options={({route}) => ({
             title: route.params?.discount ? 'Editar promoção' : 'Nova promoção',
           })}
+        />
+        <Stack.Screen
+          name="PriceTable"
+          component={PriceTableScreen}
+          options={{title: 'Tabela de preços'}}
+        />
+        <Stack.Screen
+          name="PriceEdit"
+          component={PriceEditScreen}
+          options={({route}) => ({title: route.params?.newItem ? 'Novo item' : 'Preço'})}
         />
         <Stack.Screen
           name="VetProfile"

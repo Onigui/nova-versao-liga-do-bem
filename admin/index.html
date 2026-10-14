@@ -1248,6 +1248,28 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Catálogo padrão (tabela de preços dos parceiros) -->
+                <div class="table-container" style="margin-top: 24px;">
+                    <div class="table-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <h3 class="table-title">Catálogo de preços <span id="catalogSuggestedBadge" style="display:none; background:#B45309; color:#fff; border-radius:999px; padding:2px 10px; font-size:0.8rem; margin-left:6px;"></span></h3>
+                        <form id="catalogAddForm" style="display:flex; gap:8px; flex-wrap:wrap; align-items:end;">
+                            <label style="font-size:0.8rem;">Categoria<br><select id="catalogCategory" class="form-input" style="width:190px"></select></label>
+                            <label style="font-size:0.8rem;">Nome<br><input id="catalogName" class="form-input" style="width:190px" placeholder="Ex.: Ecocardiograma" required minlength="3" maxlength="80"></label>
+                            <label style="font-size:0.8rem;">Detalhe<br><input id="catalogVariant" class="form-input" style="width:150px" placeholder="Ex.: porte grande" maxlength="60"></label>
+                            <label style="font-size:0.8rem;">Para<br><select id="catalogSpecies" class="form-input" style="width:160px"><option value="ALL">Cães e gatos</option><option value="DOG">Cães</option><option value="CAT">Gatos</option></select></label>
+                            <button class="btn btn-primary" type="submit" style="padding:8px 14px;">Adicionar</button>
+                        </form>
+                    </div>
+                    <p style="margin: 0 16px 8px; color:#64748B; font-size:0.85rem;">
+                        Todos os parceiros dão preço aos mesmos itens, e assim o membro compara. Itens criados por um parceiro aparecem só na página dele até você incluí-los no catálogo.
+                    </p>
+                    <div id="catalogMsg" style="margin: 0 16px 8px; font-size:0.85rem;"></div>
+                    <table class="table">
+                        <thead><tr><th>Item</th><th>Categoria</th><th>Parceiros com preço</th><th>Origem</th><th>Ações</th></tr></thead>
+                        <tbody id="catalog-table-body"><tr><td colspan="5">Carregando…</td></tr></tbody>
+                    </table>
+                </div>
             </section>
 
             <div id="discountModal" class="modal-overlay">
@@ -2957,6 +2979,7 @@
                 loadEvents();
             } else if (sectionId === 'discounts') {
                 loadDiscountsAdmin();
+                loadCatalogAdmin();
             } else if (sectionId === 'app-config') {
                 loadAppConfig();
             } else if (sectionId === 'app-versions') {
@@ -5511,6 +5534,65 @@
             const token = localStorage.getItem('admin_token');
             return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Admin-Token': token };
         }
+        // ========== CATÁLOGO DE PREÇOS ==========
+        async function loadCatalogAdmin() {
+            const tbody = document.getElementById('catalog-table-body');
+            if (!tbody) return;
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/catalog-items`, { headers: adminHeaders() });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Erro ao carregar');
+                const sel = document.getElementById('catalogCategory');
+                if (!sel.options.length) sel.innerHTML = data.categories.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.label)}</option>`).join('');
+                const suggested = data.items.filter((i) => i.custom).length;
+                const badge = document.getElementById('catalogSuggestedBadge');
+                badge.style.display = suggested ? 'inline-block' : 'none';
+                badge.textContent = `${suggested} sugerido(s) por parceiros`;
+                tbody.innerHTML = data.items.map((i) => {
+                    const id = escHtml(i.id);
+                    const actions = i.custom
+                        ? `<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem;background:var(--success-green);color:#fff" onclick="promoteCatalogItem('${id}')">Incluir no catálogo</button>`
+                        : `<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem" onclick="toggleCatalogItem('${id}', ${i.isActive ? 'false' : 'true'})">${i.isActive ? 'Desativar' : 'Reativar'}</button>`;
+                    return `<tr style="${i.isActive ? '' : 'opacity:0.5'}">
+                        <td><strong>${escHtml(i.label)}</strong></td>
+                        <td>${escHtml(i.categoryLabel)}</td>
+                        <td>${Number(i.offers || 0)}</td>
+                        <td>${i.custom ? `Sugerido por ${escHtml(i.partnerName || 'parceiro')}` : 'Catálogo da Liga'}</td>
+                        <td style="white-space:nowrap">${actions}</td></tr>`;
+                }).join('') || '<tr><td colspan="5">Catálogo vazio.</td></tr>';
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color:#B91C1C">${escHtml(e.message)}</td></tr>`;
+            }
+        }
+        async function promoteCatalogItem(id) {
+            if (!confirm('Incluir este item no catálogo padrão? Todos os parceiros poderão dar preço a ele.')) return;
+            const r = await fetch(`${API_BASE_URL}/api/admin/catalog-items/${encodeURIComponent(id)}/promote`, { method: 'POST', headers: adminHeaders(), body: '{}' });
+            if (!r.ok) alert((await r.json().catch(() => ({}))).error || 'Erro');
+            loadCatalogAdmin();
+        }
+        async function toggleCatalogItem(id, active) {
+            const r = await fetch(`${API_BASE_URL}/api/admin/catalog-items/${encodeURIComponent(id)}`, { method: 'PUT', headers: adminHeaders(), body: JSON.stringify({ isActive: active }) });
+            if (!r.ok) alert((await r.json().catch(() => ({}))).error || 'Erro');
+            loadCatalogAdmin();
+        }
+        document.getElementById('catalogAddForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('catalogMsg');
+            const r = await fetch(`${API_BASE_URL}/api/admin/catalog-items`, {
+                method: 'POST', headers: adminHeaders(),
+                body: JSON.stringify({
+                    category: document.getElementById('catalogCategory').value,
+                    name: document.getElementById('catalogName').value,
+                    variant: document.getElementById('catalogVariant').value,
+                    species: document.getElementById('catalogSpecies').value,
+                }),
+            });
+            const data = await r.json().catch(() => ({}));
+            msg.style.color = r.ok ? '#15803D' : '#B91C1C';
+            msg.textContent = r.ok ? `Incluído: ${data.item.label}` : (data.error || 'Erro ao incluir');
+            if (r.ok) { document.getElementById('catalogName').value = ''; document.getElementById('catalogVariant').value = ''; loadCatalogAdmin(); }
+        });
+
         // ========== VETERINÁRIOS (CRMV) ==========
         const VET_STATUS = { PENDING: ['Aguardando sua conferência', '#B45309'], APPROVED: ['Aprovado', '#15803D'], REJECTED: ['Reprovado', '#B91C1C'] };
         async function loadVets() {

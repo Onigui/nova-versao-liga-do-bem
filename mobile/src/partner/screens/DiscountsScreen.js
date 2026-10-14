@@ -59,6 +59,14 @@ export default function DiscountsScreen({navigation}) {
             As promoções "no ar" aparecem para os membros no app Liga do Bem, na
             página da sua empresa.
           </Text>
+          <Button
+            title="Tabela de preços (comparação)"
+            variant="secondary"
+            icon={<Icon name="pricetags-outline" size={20} color={COLORS.primary} />}
+            onPress={() => navigation.navigate('PriceTable')}
+            style={{marginBottom: 10}}
+            testID="tabela-precos"
+          />
           {isOwner ? (
             <Button
               title="Nova promoção"

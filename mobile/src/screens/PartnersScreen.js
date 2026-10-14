@@ -218,6 +218,12 @@ export default function PartnersScreen({navigation, route}) {
         </View>
       </View>
 
+      <TouchableOpacity style={styles.compareBtn} onPress={() => navigation.navigate('ComparePrices')} testID="comparar-precos">
+        <Ionicons name="pricetags" size={18} color="#6D28D9" />
+        <Text style={styles.compareText}>Comparar preços de consultas, vacinas e produtos</Text>
+        <Ionicons name="chevron-forward" size={18} color="#6D28D9" />
+      </TouchableOpacity>
+
       {/* Filtros */}
       <View style={styles.filtersContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
@@ -321,6 +327,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   searchInput: {flex: 1, fontSize: 15, color: '#1F2937'},
+  compareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F5F3FF',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  compareText: {flex: 1, color: '#5B21B6', fontWeight: '700', fontSize: 13},
   filtersContainer: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
