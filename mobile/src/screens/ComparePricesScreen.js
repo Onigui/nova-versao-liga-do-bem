@@ -114,9 +114,19 @@ export default function ComparePricesScreen({navigation, route, fetchImpl = fetc
           keyExtractor={i => i.id}
           contentContainerStyle={{padding: 16, paddingBottom: 32}}
           ListHeaderComponent={
-            <Text style={styles.hint}>
-              {error || 'Preços informados pelos parceiros. O preço de membro vale mostrando a carteirinha.'}
-            </Text>
+            <View>
+              <TouchableOpacity style={styles.quoteBanner} onPress={() => navigation.navigate('QuotesList')} testID="orcamento-tempo-real">
+                <Ionicons name="flash" size={22} color="#FFFFFF" />
+                <View style={{flex: 1}}>
+                  <Text style={styles.quoteTitle}>Orçamento em tempo real</Text>
+                  <Text style={styles.quoteText}>Monte sua lista e receba propostas das lojas, às cegas</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Text style={styles.hint}>
+                {error || 'Preços informados pelos parceiros. O preço de membro vale mostrando a carteirinha.'}
+              </Text>
+            </View>
           }
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -179,6 +189,9 @@ const styles = StyleSheet.create({
   chipTextActive: {color: '#FFFFFF'},
   divider: {width: 1, height: 20, backgroundColor: '#E5E7EB', marginHorizontal: 4},
   hint: {fontSize: 12, color: '#6B7280', marginBottom: 10},
+  quoteBanner: {flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#7C3AED', borderRadius: 14, padding: 14, marginBottom: 12},
+  quoteTitle: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'},
+  quoteText: {color: '#EDE9FE', fontSize: 12, marginTop: 2},
   row: {
     flexDirection: 'row',
     alignItems: 'center',

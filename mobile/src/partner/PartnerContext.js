@@ -95,12 +95,13 @@ export function PartnerProvider({children}) {
     () => ({
       ...state,
       api,
+      token,
       refresh,
       logout,
       isOwner: state.account?.role === 'OWNER',
       setPartner: partner => setState(s => ({...s, partner})),
     }),
-    [state, api, refresh, logout],
+    [state, api, token, refresh, logout],
   );
   return (
     <PartnerContext.Provider value={value}>{children}</PartnerContext.Provider>

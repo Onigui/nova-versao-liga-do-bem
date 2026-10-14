@@ -41,6 +41,9 @@ import AddVaccinationScreen from '../screens/AddVaccinationScreen';
 import PetQrScreen from '../screens/PetQrScreen';
 import ComparePricesScreen from '../screens/ComparePricesScreen';
 import PriceOffersScreen from '../screens/PriceOffersScreen';
+import QuotesListScreen from '../screens/QuotesListScreen';
+import QuoteNewScreen from '../screens/QuoteNewScreen';
+import QuoteDetailScreen from '../screens/QuoteDetailScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -383,6 +386,21 @@ export function AppStack() {
         name="PriceOffers"
         component={PriceOffersScreen}
         options={{headerShown: true, title: 'Preços', headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6'}}
+      />
+      <Stack.Screen
+        name="QuotesList"
+        component={QuotesListScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Meus orçamentos'}}
+      />
+      <Stack.Screen
+        name="QuoteNew"
+        component={QuoteNewScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Novo orçamento'}}
+      />
+      <Stack.Screen
+        name="QuoteDetail"
+        component={QuoteDetailScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Orçamento'}}
       />
     </Stack.Navigator>
   );

@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import NotificationService from './src/services/NotificationService';
+import { navigationRef, openFromNotification, flushPendingNavigation } from './src/services/pushNavigation';
 import UpdateChecker from './src/components/UpdateChecker';
 
 import { AuthStack, AppStack } from './src/navigation/AppNavigator';
@@ -106,7 +107,7 @@ export default function App() {
 
     let unsubscribe;
     try {
-      unsubscribe = NotificationService.setupNotificationListeners();
+      unsubscribe = NotificationService.setupNotificationListeners({ onOpened: openFromNotification });
     } catch (error) {
       console.warn('Erro ao configurar notificações:', error);
     }
@@ -138,7 +139,7 @@ export default function App() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <PaperProvider>
           <AuthProvider>
-            <NavigationContainer>
+            <NavigationContainer ref={navigationRef} onReady={flushPendingNavigation} onStateChange={flushPendingNavigation}>
               <AppNavigation />
             </NavigationContainer>
             <UpdateChecker />

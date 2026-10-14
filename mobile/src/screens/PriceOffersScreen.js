@@ -123,9 +123,18 @@ export default function PriceOffersScreen({navigation, route, fetchImpl = fetch}
         </TouchableOpacity>
       )}
       ListFooterComponent={
-        <Text style={styles.footer}>
-          O preço de membro vale mostrando a carteirinha da Liga no caixa. Confirme a disponibilidade com o parceiro.
-        </Text>
+        <View>
+          <TouchableOpacity
+            style={styles.quoteBtn}
+            onPress={() => navigation.navigate('QuoteNew', {item: {id: item?.id, label: item?.label, category: data?.item?.category || item?.category}})}
+            testID="pedir-orcamento">
+            <Ionicons name="flash" size={18} color="#7C3AED" />
+            <Text style={styles.quoteBtnText}>Pedir orçamento: as lojas mandam propostas</Text>
+          </TouchableOpacity>
+          <Text style={styles.footer}>
+            O preço de membro vale mostrando a carteirinha da Liga no caixa. Confirme a disponibilidade com o parceiro.
+          </Text>
+        </View>
       }
     />
   );
@@ -179,4 +188,17 @@ const styles = StyleSheet.create({
   price: {fontSize: 18, fontWeight: '800', color: '#6D28D9'},
   memberLabel: {fontSize: 11, color: '#6B7280'},
   footer: {fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 10},
+  quoteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#C4B5FD',
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    height: 48,
+    marginTop: 6,
+  },
+  quoteBtnText: {color: '#6D28D9', fontWeight: '700', fontSize: 14},
 });
