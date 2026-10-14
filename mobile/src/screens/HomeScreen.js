@@ -284,6 +284,13 @@ export default function HomeScreen({navigation}) {
         <Text style={styles.sectionTitle}>Ações Rápidas</Text>
         <View style={styles.quickActions}>
           <QuickAction
+            icon="search"
+            title="Achados e perdidos"
+            subtitle="Mapa de animais perdidos e encontrados perto de você"
+            color="#DC2626"
+            onPress={() => navigation.navigate('LostFound')}
+          />
+          <QuickAction
             icon="card"
             title="Cartão"
             subtitle="Ativo só com plano pago"

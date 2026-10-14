@@ -1016,6 +1016,26 @@
                         </tbody>
                     </table>
                 </div>
+                <!-- Achados e perdidos (moderação) -->
+                <div class="table-container" style="margin-top: 24px;">
+                    <div class="table-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <h3 class="table-title">Achados e perdidos <span id="lfFlaggedBadge" style="display:none; background:#B91C1C; color:#fff; border-radius:999px; padding:2px 10px; font-size:0.8rem; margin-left:6px;"></span></h3>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <span id="lfStats" style="font-size:0.85rem; color:#334155;"></span>
+                            <select id="lfFilter" class="form-input" style="width:260px" onchange="loadLostFoundAdmin()">
+                                <option value="flagged=1">Denunciados / escondidos</option>
+                                <option value="">Todos (últimos 200)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p style="margin: 0 16px 8px; color:#64748B; font-size:0.85rem;">
+                        Os avisos entram no mapa na hora. Com 3 denúncias, o aviso é escondido automaticamente até você revisar aqui.
+                    </p>
+                    <table class="table">
+                        <thead><tr><th>Foto</th><th>Aviso</th><th>Quem publicou</th><th>Denúncias</th><th>Situação</th><th>Ações</th></tr></thead>
+                        <tbody id="lf-table-body"><tr><td colspan="6">Carregando…</td></tr></tbody>
+                    </table>
+                </div>
             </section>
 
             <!-- Events Section -->
@@ -3032,6 +3052,7 @@
             } else if (sectionId === 'animals') {
                 loadAnimals();
                 loadAdoptionsAdmin();
+                loadLostFoundAdmin();
             } else if (sectionId === 'events') {
                 loadEvents();
             } else if (sectionId === 'discounts') {
@@ -5650,6 +5671,53 @@
             msg.textContent = r.ok ? `Incluído: ${data.item.label}` : (data.error || 'Erro ao incluir');
             if (r.ok) { document.getElementById('catalogName').value = ''; document.getElementById('catalogVariant').value = ''; loadCatalogAdmin(); }
         });
+
+        // ========== ACHADOS E PERDIDOS (MODERAÇÃO) ==========
+        const LF_TYPE = { LOST: ['Perdido', '#DC2626'], FOUND: ['Encontrado', '#059669'], SIGHTED: ['Visto solto', '#D97706'] };
+        const LF_STATUS = { ACTIVE: 'No mapa', RESOLVED: 'Voltou para casa', EXPIRED: 'Expirado', REMOVED: 'Apagado pelo autor' };
+        async function loadLostFoundAdmin() {
+            const tbody = document.getElementById('lf-table-body');
+            if (!tbody) return;
+            const filter = document.getElementById('lfFilter')?.value || '';
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/lostfound${filter ? `?${filter}` : ''}`, { headers: adminHeaders() });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Erro ao carregar');
+                const hidden = data.reports.filter((x) => x.hidden).length;
+                const badge = document.getElementById('lfFlaggedBadge');
+                badge.style.display = hidden ? 'inline-block' : 'none';
+                badge.textContent = `${hidden} escondido(s)`;
+                const sum = (t, st) => data.stats.filter((x) => (!t || x.type === t) && (!st || x.status === st)).reduce((a, x) => a + x.n, 0);
+                document.getElementById('lfStats').textContent = `${sum(null, 'ACTIVE')} no mapa · ${sum(null, 'RESOLVED')} reencontros`;
+                tbody.innerHTML = data.reports.map((v) => {
+                    const [tl, tc] = LF_TYPE[v.type] || ['—', '#64748B'];
+                    const id = escHtml(v.id);
+                    const photo = v.photos[0] ? `<img src="${API_BASE_URL}${escHtml(v.photos[0])}" style="width:56px;height:56px;object-fit:cover;border-radius:8px">` : '';
+                    return `<tr style="${v.hidden ? 'background:#FEF2F2' : ''}">
+                        <td>${photo}</td>
+                        <td><strong style="color:${tc}">${tl}</strong> · ${escHtml(v.colors)}${v.petName ? ` · ${escHtml(v.petName)}` : ''}<br><span style="color:#64748B;font-size:0.8rem">${escHtml([v.locationNote, v.district].filter(Boolean).join(' · '))} · ${new Date(v.createdAt).toLocaleString('pt-BR')}</span>${v.description ? `<div style="font-size:0.8rem;max-width:320px">${escHtml(v.description)}</div>` : ''}</td>
+                        <td>${escHtml(v.author || '')}<br><span style="color:#64748B;font-size:0.8rem">${escHtml(v.userEmail || '')}${v.whatsapp ? ` · ${escHtml(v.whatsapp)}` : ''}</span></td>
+                        <td style="max-width:220px;font-size:0.85rem">${v.flags ? `<strong>${v.flags}</strong>: ${escHtml(v.flagReasons || '')}` : '—'}</td>
+                        <td>${v.hidden ? `<span style="color:#B91C1C;font-weight:600">Escondido</span><br><span style="font-size:0.8rem">${escHtml(v.hiddenReason || '')}</span>` : escHtml(LF_STATUS[v.status] || v.status)}</td>
+                        <td style="white-space:nowrap">${v.hidden
+                            ? `<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem" onclick="moderateLostFound('${id}','show')">Liberar</button>`
+                            : `<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem;background:#B91C1C;color:#fff" onclick="moderateLostFound('${id}','hide')">Esconder</button>`}</td></tr>`;
+                }).join('') || '<tr><td colspan="6">Nada para revisar.</td></tr>';
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" style="color:#B91C1C">${escHtml(e.message)}</td></tr>`;
+            }
+        }
+        async function moderateLostFound(id, action) {
+            let body = {};
+            if (action === 'hide') {
+                const reason = prompt('Motivo para esconder o aviso:', 'Golpe / aviso falso');
+                if (!reason) return;
+                body = { reason };
+            }
+            const r = await fetch(`${API_BASE_URL}/api/admin/lostfound/${encodeURIComponent(id)}/${action}`, { method: 'POST', headers: adminHeaders(), body: JSON.stringify(body) });
+            if (!r.ok) alert((await r.json().catch(() => ({}))).error || 'Erro');
+            loadLostFoundAdmin();
+        }
 
         // ========== NOTA FISCAL PAULISTA ==========
         const NFP_STATUS = { DECLARED: ['Aguardando conferência', '#B45309'], CONFIRMED: ['Confirmado', '#15803D'], LAPSED: ['Não encontrado', '#B91C1C'] };
