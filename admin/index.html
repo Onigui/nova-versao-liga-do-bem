@@ -865,7 +865,7 @@
                 <div class="table-container" style="margin-top: 24px;">
                     <div class="table-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
                         <h3 class="table-title">Avaliações dos membros <span id="reviewsReportedBadge" style="display:none; background:#B91C1C; color:#fff; border-radius:999px; padding:2px 10px; font-size:0.8rem; margin-left:6px;"></span></h3>
-                        <select id="reviewsFilter" class="form-input" style="width:220px" onchange="loadReviewsAdmin()">
+                        <select id="reviewsFilter" class="form-input" style="width:270px" onchange="loadReviewsAdmin()">
                             <option value="reported=1">Denunciadas pelas empresas</option>
                             <option value="low=1">Notas 1 e 2</option>
                             <option value="">Todas</option>
@@ -2104,6 +2104,41 @@
                         <span>→</span>
                     </button>
                 </div>
+
+                <!-- Nota Fiscal Paulista -->
+                <div class="table-container" style="margin-top: 24px;" id="nfp-admin">
+                    <div class="table-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <h3 class="table-title">Nota Fiscal Paulista · apoiadores</h3>
+                        <div id="nfpStats" style="font-size:0.9rem; color:#334155;"></div>
+                    </div>
+                    <form id="nfpSettingsForm" style="display:flex; gap:8px; flex-wrap:wrap; align-items:end; margin: 0 16px 12px;">
+                        <label style="font-size:0.8rem;">Nome da entidade na NFP<br><input id="nfpEntityName" class="form-input" style="width:240px" required minlength="3" maxlength="100"></label>
+                        <label style="font-size:0.8rem;">CNPJ<br><input id="nfpCnpj" class="form-input" style="width:190px" placeholder="00.000.000/0000-00"></label>
+                        <label style="font-size:0.8rem; display:flex; gap:6px; align-items:center;"><input type="checkbox" id="nfpEnabled"> Mostrar no app</label>
+                        <button class="btn btn-primary" type="submit" style="padding:8px 14px;">Salvar</button>
+                        <span id="nfpSettingsMsg" style="font-size:0.85rem;"></span>
+                    </form>
+                    <div style="margin: 0 16px 12px; padding: 12px; border: 1px dashed #CBD5E1; border-radius: 10px;">
+                        <strong>Conferir doadores</strong>
+                        <p style="margin:4px 0 8px; color:#64748B; font-size:0.85rem;">
+                            No painel da entidade na Nota Fiscal Paulista, exporte ou copie a lista de doadores (CPF e nome) e cole aqui, ou envie o arquivo CSV/TXT.
+                            O sistema confere pelo CPF do cadastro (aceita CPF mascarado, conferindo também o primeiro nome). Os CPFs da lista não ficam salvos.
+                        </p>
+                        <textarea id="nfpImportText" class="form-input" rows="5" style="width:100%; font-family:monospace;" placeholder="CPF;Nome&#10;529.982.247-25;Ana Souza"></textarea>
+                        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+                            <input type="file" id="nfpImportFile" accept=".csv,.txt,.tsv">
+                            <label style="font-size:0.85rem;"><input type="checkbox" id="nfpFullList"> É a lista completa de doadores ativos (quem não estiver nela perde o selo)</label>
+                            <label style="font-size:0.85rem;"><input type="checkbox" id="nfpNameOnly"> Aceitar quando só o nome completo bate</label>
+                            <button class="btn btn-secondary" type="button" onclick="nfpImport(true)">Pré-visualizar</button>
+                            <button class="btn btn-primary" type="button" id="nfpApplyBtn" onclick="nfpImport(false)" disabled>Confirmar apoiadores</button>
+                        </div>
+                        <div id="nfpPreview" style="margin-top:10px; font-size:0.85rem;"></div>
+                    </div>
+                    <table class="table">
+                        <thead><tr><th>Membro</th><th>CPF</th><th>Situação</th><th>Desde</th><th>Ações</th></tr></thead>
+                        <tbody id="nfp-table-body"><tr><td colspan="5">Carregando…</td></tr></tbody>
+                    </table>
+                </div>
             </section>
         </main>
     </div>
@@ -3013,6 +3048,7 @@
             } else if (sectionId === 'payments') {
                 loadPaymentStats();
                 loadPayments(1);
+                loadNfpAdmin();
             } else if (sectionId === 'notifications') {
                 loadNotificationStats();
                 loadNotificationHistory();
@@ -5614,6 +5650,98 @@
             msg.textContent = r.ok ? `Incluído: ${data.item.label}` : (data.error || 'Erro ao incluir');
             if (r.ok) { document.getElementById('catalogName').value = ''; document.getElementById('catalogVariant').value = ''; loadCatalogAdmin(); }
         });
+
+        // ========== NOTA FISCAL PAULISTA ==========
+        const NFP_STATUS = { DECLARED: ['Aguardando conferência', '#B45309'], CONFIRMED: ['Confirmado', '#15803D'], LAPSED: ['Não encontrado', '#B91C1C'] };
+        const nfpDate = (d) => (d ? new Date(d).toLocaleDateString('pt-BR') : '—');
+        async function loadNfpAdmin() {
+            const tbody = document.getElementById('nfp-table-body');
+            if (!tbody) return;
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/nfp`, { headers: adminHeaders() });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Erro ao carregar');
+                document.getElementById('nfpEntityName').value = data.settings.entityName || '';
+                document.getElementById('nfpCnpj').value = data.settings.cnpj || '';
+                document.getElementById('nfpEnabled').checked = !!data.settings.enabled;
+                const last = data.imports[0];
+                document.getElementById('nfpStats').innerHTML =
+                    `<strong style="color:#15803D">${data.stats.confirmed}</strong> confirmados · <strong style="color:#B45309">${data.stats.declared}</strong> aguardando · ${data.stats.lapsed} não encontrados` +
+                    (last ? ` · última conferência ${nfpDate(last.createdAt)}` : ' · nenhuma conferência ainda');
+                tbody.innerHTML = data.supporters.map((s) => {
+                    const [label, color] = NFP_STATUS[s.status] || ['—', '#64748B'];
+                    const id = escHtml(s.userId);
+                    return `<tr>
+                        <td><strong>${escHtml(s.name)}</strong><br><span style="color:#64748B;font-size:0.8rem">${escHtml(s.email)}</span></td>
+                        <td>${escHtml(s.cpf || 'sem CPF')}</td>
+                        <td style="color:${color};font-weight:600">${label}</td>
+                        <td>${nfpDate(s.status === 'CONFIRMED' ? s.confirmedAt : s.status === 'LAPSED' ? s.lapsedAt : s.declaredAt)}</td>
+                        <td style="white-space:nowrap">
+                            ${s.status !== 'CONFIRMED' ? `<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem" onclick="nfpManual('${id}','confirm')">Confirmar</button>` : ''}
+                            <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem" onclick="nfpManual('${id}','revoke')">Remover</button>
+                        </td></tr>`;
+                }).join('') || '<tr><td colspan="5">Ninguém marcou ainda.</td></tr>';
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color:#B91C1C">${escHtml(e.message)}</td></tr>`;
+            }
+        }
+        document.getElementById('nfpSettingsForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('nfpSettingsMsg');
+            const r = await fetch(`${API_BASE_URL}/api/admin/nfp/settings`, {
+                method: 'PUT', headers: adminHeaders(),
+                body: JSON.stringify({
+                    entityName: document.getElementById('nfpEntityName').value,
+                    cnpj: document.getElementById('nfpCnpj').value,
+                    enabled: document.getElementById('nfpEnabled').checked,
+                }),
+            });
+            const data = await r.json().catch(() => ({}));
+            msg.style.color = r.ok ? '#15803D' : '#B91C1C';
+            msg.textContent = r.ok ? 'Salvo' : (data.error || 'Erro');
+            if (r.ok) loadNfpAdmin();
+        });
+        document.getElementById('nfpImportFile')?.addEventListener('change', async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            document.getElementById('nfpImportText').value = await f.text();
+            document.getElementById('nfpApplyBtn').disabled = true;
+        });
+        document.getElementById('nfpImportText')?.addEventListener('input', () => { document.getElementById('nfpApplyBtn').disabled = true; });
+        const NFP_ROW = { MATCHED: ['Conferido', '#15803D'], AMBIGUOUS: ['Mais de um membro', '#B45309'], NOT_FOUND: ['Não é usuário do app', '#64748B'], INVALID: ['CPF inválido', '#B91C1C'] };
+        async function nfpImport(dryRun) {
+            const out = document.getElementById('nfpPreview');
+            const fullList = document.getElementById('nfpFullList').checked;
+            if (!dryRun && fullList && !confirm('Lista completa: quem estiver confirmado e não aparecer nela perde o selo e recebe um aviso. Continuar?')) return;
+            out.textContent = 'Conferindo…';
+            const r = await fetch(`${API_BASE_URL}/api/admin/nfp/import`, {
+                method: 'POST', headers: adminHeaders(),
+                body: JSON.stringify({ text: document.getElementById('nfpImportText').value, dryRun, fullList, allowNameOnly: document.getElementById('nfpNameOnly').checked }),
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) { out.innerHTML = `<span style="color:#B91C1C">${escHtml(data.error || 'Erro')}</span>`; return; }
+            const c = data.counts;
+            if (!dryRun) {
+                out.innerHTML = `<strong style="color:#15803D">Pronto:</strong> ${c.matched} conferidos, ${c.newlyConfirmed} novos apoiadores avisados${fullList ? `, ${c.lapsed} perderam o selo` : ''}.`;
+                document.getElementById('nfpApplyBtn').disabled = true;
+                document.getElementById('nfpImportText').value = '';
+                loadNfpAdmin();
+                return;
+            }
+            const rows = (data.rows || []).filter((x) => x.status !== 'NOT_FOUND').slice(0, 200);
+            out.innerHTML = `<div><strong>${c.total}</strong> linhas · <strong style="color:#15803D">${c.matched}</strong> membros conferidos · ${c.notFound} não usam o app · ${c.ambiguous} com mais de um membro · ${c.invalid} CPF inválido${fullList ? ` · <strong style="color:#B91C1C">${c.wouldLapse}</strong> perderiam o selo` : ''}</div>` +
+                (rows.length ? `<table class="table" style="margin-top:6px"><thead><tr><th>Linha</th><th>CPF</th><th>Nome na lista</th><th>Resultado</th><th>Membro</th></tr></thead><tbody>${rows.map((x) => {
+                    const [l, col] = NFP_ROW[x.status];
+                    return `<tr><td>${x.line}</td><td>${escHtml(x.cpf)}</td><td>${escHtml(x.name)}</td><td style="color:${col}">${l}${x.method ? ` (${x.method === 'CPF' ? 'CPF' : x.method === 'NOME' ? 'nome' : 'CPF parcial + nome'})` : ''}</td><td>${escHtml(x.userName || '')}</td></tr>`;
+                }).join('')}</tbody></table>` : '');
+            document.getElementById('nfpApplyBtn').disabled = !c.matched && !(fullList && c.wouldLapse);
+        }
+        async function nfpManual(userId, action) {
+            if (action === 'revoke' && !confirm('Remover este membro da lista de apoiadores?')) return;
+            const r = await fetch(`${API_BASE_URL}/api/admin/nfp/supporters/${encodeURIComponent(userId)}/${action}`, { method: 'POST', headers: adminHeaders(), body: '{}' });
+            if (!r.ok) alert((await r.json().catch(() => ({}))).error || 'Erro');
+            loadNfpAdmin();
+        }
 
         // ========== AVALIAÇÕES (MODERAÇÃO) ==========
         async function loadReviewsAdmin() {

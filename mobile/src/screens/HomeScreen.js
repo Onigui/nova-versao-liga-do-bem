@@ -354,6 +354,13 @@ export default function HomeScreen({navigation}) {
             onPress={() => navigation.navigate('QuotesList')}
           />
           <QuickAction
+            icon="receipt"
+            title="Nota Fiscal Paulista"
+            subtitle="Doe os créditos das suas notas para a Liga"
+            color="#059669"
+            onPress={() => navigation.navigate('NotaFiscal')}
+          />
+          <QuickAction
             icon="medical"
             title="Cartão de Vacinas"
             subtitle="Gerencie vacinações dos pets"

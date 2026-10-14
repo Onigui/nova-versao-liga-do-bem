@@ -48,6 +48,7 @@ import PetHealthScreen from '../screens/PetHealthScreen';
 import HealthEntryFormScreen from '../screens/HealthEntryFormScreen';
 import ReviewFormScreen from '../screens/ReviewFormScreen';
 import PartnerReviewsScreen from '../screens/PartnerReviewsScreen';
+import NotaFiscalScreen from '../screens/NotaFiscalScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -425,6 +426,11 @@ export function AppStack() {
         name="PartnerReviews"
         component={PartnerReviewsScreen}
         options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Avaliações'}}
+      />
+      <Stack.Screen
+        name="NotaFiscal"
+        component={NotaFiscalScreen}
+        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#059669', title: 'Nota Fiscal Paulista'}}
       />
     </Stack.Navigator>
   );
