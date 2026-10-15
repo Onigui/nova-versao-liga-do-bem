@@ -15,6 +15,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 const CATEGORY_LABEL = {VACCINE: 'Vacina', DEWORMER: 'Vermífugo', ANTIPARASITIC: 'Antipulgas/carrapatos'};
 
@@ -184,7 +185,7 @@ export default function VaccinationCardScreen({navigation, route}) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#6D28D9" />
         <Text style={styles.loadingText}>Carregando carteirinha...</Text>
       </View>
     );
@@ -208,7 +209,7 @@ export default function VaccinationCardScreen({navigation, route}) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButtonHeader}
           onPress={() => navigation.goBack()}>
@@ -234,7 +235,7 @@ export default function VaccinationCardScreen({navigation, route}) {
                   <Image source={{uri: pet.photo}} style={styles.petPhotoCard} />
                 ) : (
                   <View style={styles.petPhotoPlaceholderCard}>
-                    <Ionicons name="paw" size={32} color="#8B5CF6" />
+                    <Ionicons name="paw" size={32} color="#6D28D9" />
                   </View>
                 )}
                 <View style={styles.petInfoCard}>
@@ -489,15 +490,16 @@ export default function VaccinationCardScreen({navigation, route}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   loadingText: {
+    ...F.regular,
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
@@ -510,7 +512,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#EF4444',
     marginTop: 16,
     marginBottom: 24,
@@ -518,12 +520,12 @@ const styles = StyleSheet.create({
   backButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     borderRadius: 8,
   },
   backButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
   header: {
@@ -533,6 +535,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButtonHeader: {
     padding: 8,
@@ -575,7 +580,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     marginRight: 16,
     borderWidth: 3,
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
   },
   petPhotoPlaceholderCard: {
     width: 80,
@@ -586,33 +591,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 16,
     borderWidth: 3,
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
   },
   petInfoCard: {
     flex: 1,
   },
   petNameCard: {
     fontSize: 24,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#111827',
     marginBottom: 4,
   },
   petDetailsCard: {
+    ...F.regular,
     fontSize: 16,
     color: '#6B7280',
     marginBottom: 4,
   },
   petAdditionalInfo: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginTop: 2,
   },
   microchipText: {
+    ...F.regular,
     fontSize: 14,
     color: '#9CA3AF',
     marginTop: 4,
   },
   petNotesText: {
+    ...F.regular,
     fontSize: 13,
     color: '#9CA3AF',
     marginTop: 4,
@@ -632,12 +641,13 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#111827',
     letterSpacing: 1,
     marginBottom: 4,
   },
   cardSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
   },
@@ -650,12 +660,13 @@ const styles = StyleSheet.create({
   },
   emptyVaccinationsText: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyVaccinationsSubtext: {
+    ...F.regular,
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
@@ -681,11 +692,12 @@ const styles = StyleSheet.create({
   },
   stampVaccineName: {
     fontSize: 18,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#111827',
     marginBottom: 2,
   },
   stampVaccineType: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
   },
@@ -701,6 +713,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   stampDetailText: {
+    ...F.regular,
     fontSize: 14,
     color: '#374151',
     flex: 1,
@@ -710,7 +723,8 @@ const styles = StyleSheet.create({
     borderColor: '#6EE7B7',
     backgroundColor: '#F0FDF4',
   },
-  selfNote: {fontSize: 12, color: '#9CA3AF', marginTop: 4},
+  selfNote: {
+    ...F.regular, fontSize: 12, color: '#9CA3AF', marginTop: 4},
   summaryRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16, justifyContent: 'center'},
   summaryPill: {
     flexDirection: 'row',
@@ -723,7 +737,7 @@ const styles = StyleSheet.create({
   },
   pillLate: {backgroundColor: '#FEE2E2'},
   pillSoon: {backgroundColor: '#FEF3C7'},
-  summaryText: {fontSize: 12, fontWeight: '700', color: '#047857'},
+  summaryText: {fontSize: 12, ...F.bold, color: '#047857'},
   shareRow: {flexDirection: 'row', gap: 10, marginBottom: 6},
   shareButton: {
     flex: 1,
@@ -737,8 +751,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
   },
-  shareText: {fontSize: 14, fontWeight: '700', color: '#7C3AED'},
-  shareHint: {fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 16},
+  shareText: {fontSize: 14, ...F.bold, color: '#7C3AED'},
+  shareHint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 16},
   photoBackdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center', padding: 16},
   photoFull: {width: '100%', height: '75%'},
   photoCaption: {color: '#FFFFFF', marginTop: 12},
@@ -753,7 +768,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: 12,
-    fontWeight: '800',
+    ...F.heavy,
     color: '#047857',
     flex: 1,
   },
@@ -764,6 +779,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   stampNotesText: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     fontStyle: 'italic',
@@ -782,7 +798,7 @@ const styles = StyleSheet.create({
   },
   addVaccinationButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
 });

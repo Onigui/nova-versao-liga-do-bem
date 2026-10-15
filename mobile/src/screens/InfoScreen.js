@@ -16,6 +16,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
+import {F} from '../theme/home';
 
 if (
   Platform.OS === 'android' &&
@@ -57,7 +58,7 @@ function getSectionTheme(section) {
   return (
     SECTION_THEMES.find((theme) => theme.match.test(haystack)) || {
       icon: 'help-circle',
-      color: '#8B5CF6',
+      color: '#6D28D9',
     }
   );
 }
@@ -260,12 +261,12 @@ export default function InfoScreen({navigation}) {
       onPressAction = () => handleOpenUrl(`mailto:${item.email}`);
     } else if (kind === 'website') {
       iconName = 'globe-outline';
-      iconColor = '#EC4899';
+      iconColor = '#6D28D9';
       displayValue = item.website;
       onPressAction = () => handleOpenUrl(item.website);
     } else if (kind === 'copy') {
       iconName = 'copy-outline';
-      iconColor = '#8B5CF6';
+      iconColor = '#6D28D9';
       displayValue = item.copy.text;
       onPressAction = () => handleCopy(item.copy.text, item.copy.label || item.title);
     } else if (item.description) {
@@ -313,7 +314,7 @@ export default function InfoScreen({navigation}) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#0EA5E9', '#0284C7']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -468,6 +469,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F7FB',
   },
   loadingText: {
+    ...F.regular,
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
@@ -476,17 +478,21 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 28,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     marginBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#FFFFFF',
     marginBottom: 8,
   },
   headerSubtitle: {
+    ...F.regular,
     fontSize: 15,
     color: 'rgba(255, 255, 255, 0.92)',
   },
@@ -518,7 +524,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 13,
-    fontWeight: '600',
+    ...F.semibold,
   },
   disclaimerCard: {
     flexDirection: 'row',
@@ -532,6 +538,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   disclaimerText: {
+    ...F.regular,
     flex: 1,
     fontSize: 13,
     lineHeight: 19,
@@ -542,6 +549,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
+    ...F.regular,
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
@@ -573,11 +581,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    ...F.bold,
     color: '#0F172A',
     marginBottom: 2,
   },
   sectionDescription: {
+    ...F.regular,
     fontSize: 13,
     color: '#64748B',
     lineHeight: 19,
@@ -612,18 +621,19 @@ const styles = StyleSheet.create({
   },
   helpItemTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#0F172A',
     marginBottom: 2,
   },
   helpItemSubtitle: {
+    ...F.regular,
     fontSize: 12,
     color: '#64748B',
     marginBottom: 2,
   },
   helpItemValue: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     marginTop: 2,
   },
   guideCard: {
@@ -643,7 +653,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     color: '#059669',
-    fontWeight: '600',
+    ...F.semibold,
   },
   guideBody: {
     paddingHorizontal: 14,
@@ -652,6 +662,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#E2E8F0',
   },
   guideIntro: {
+    ...F.regular,
     marginTop: 12,
     marginBottom: 10,
     fontSize: 13,
@@ -676,9 +687,10 @@ const styles = StyleSheet.create({
   stepBadgeText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    ...F.bold,
   },
   stepText: {
+    ...F.regular,
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
@@ -694,6 +706,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   warningText: {
+    ...F.regular,
     flex: 1,
     fontSize: 12,
     lineHeight: 18,
@@ -708,6 +721,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tipText: {
+    ...F.regular,
     flex: 1,
     fontSize: 12,
     lineHeight: 18,
@@ -719,6 +733,7 @@ const styles = StyleSheet.create({
     padding: 28,
   },
   noItemsText: {
+    ...F.regular,
     fontSize: 14,
     color: '#9CA3AF',
     fontStyle: 'italic',
@@ -752,11 +767,12 @@ const styles = StyleSheet.create({
   },
   veterinaryButtonTitle: {
     fontSize: 17,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#FFFFFF',
     marginBottom: 4,
   },
   veterinaryButtonSubtitle: {
+    ...F.regular,
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.9)',
     lineHeight: 18,

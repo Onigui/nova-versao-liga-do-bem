@@ -12,6 +12,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
+import {F} from '../theme/home';
 
 const API_BASE_URL = API_BASE_PATH;
 
@@ -232,7 +233,7 @@ export default function AdoptionsScreen({navigation}) {
                     <Ionicons
                       name={animal.gender === 'Macho' ? 'male' : 'female'}
                       size={14}
-                      color={animal.gender === 'Macho' ? '#3B82F6' : '#EC4899'}
+                      color={animal.gender === 'Macho' ? '#3B82F6' : '#6D28D9'}
                     />
                     <Text style={styles.metaText}>{animal.gender}</Text>
                   </View>
@@ -243,7 +244,7 @@ export default function AdoptionsScreen({navigation}) {
                   onPress={() => navigation.navigate('AnimalDetail', {animal})}
                   activeOpacity={0.7}>
                   <Text style={styles.adoptButtonText}>Conhecer</Text>
-                  <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
+                  <Ionicons name="arrow-forward" size={16} color="#6D28D9" />
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -267,7 +268,7 @@ export default function AdoptionsScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   searchContainer: {
     backgroundColor: '#FFFFFF',
@@ -286,6 +287,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   searchInput: {
+    ...F.regular,
     flex: 1,
     fontSize: 15,
     color: '#1F2937',
@@ -314,12 +316,12 @@ const styles = StyleSheet.create({
     height: 36,
   },
   filterButtonActive: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
+    borderColor: '#6D28D9',
   },
   filterText: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
   },
   filterTextActive: {
@@ -368,11 +370,12 @@ const styles = StyleSheet.create({
   },
   animalName: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 4,
   },
   animalBreed: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 12,
@@ -388,6 +391,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
+    ...F.regular,
     fontSize: 13,
     color: '#6B7280',
   },
@@ -402,8 +406,8 @@ const styles = StyleSheet.create({
   },
   adoptButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#8B5CF6',
+    ...F.semibold,
+    color: '#6D28D9',
   },
   emptyState: {
     alignItems: 'center',
@@ -412,12 +416,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',

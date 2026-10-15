@@ -7,6 +7,7 @@ import {ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, To
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {API_BASE_PATH} from '../config/apiConfig';
 import {PRICE_CATEGORIES, brl} from '../utils/priceCompare';
+import {F} from '../theme/home';
 
 const SPECIES = [
   {id: null, label: 'Todos'},
@@ -107,7 +108,7 @@ export default function ComparePricesScreen({navigation, route, fetchImpl = fetc
       </View>
 
       {items == null ? (
-        <ActivityIndicator style={{marginTop: 40}} color="#8B5CF6" />
+        <ActivityIndicator style={{marginTop: 40}} color="#6D28D9" />
       ) : (
         <FlatList
           data={items}
@@ -160,7 +161,7 @@ export default function ComparePricesScreen({navigation, route, fetchImpl = fetc
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
   top: {backgroundColor: '#FFFFFF', paddingTop: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB'},
   searchBar: {
     flexDirection: 'row',
@@ -171,7 +172,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginHorizontal: 16,
   },
-  searchInput: {flex: 1, fontSize: 15, color: '#1F2937', paddingVertical: 12},
+  searchInput: {
+    ...F.regular, flex: 1, fontSize: 15, color: '#1F2937', paddingVertical: 12},
   chips: {paddingHorizontal: 16, paddingVertical: 10, gap: 6, alignItems: 'center'},
   chip: {
     flexDirection: 'row',
@@ -184,14 +186,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  chipActive: {backgroundColor: '#8B5CF6', borderColor: '#8B5CF6'},
-  chipText: {fontSize: 13, fontWeight: '600', color: '#4B5563'},
+  chipActive: {backgroundColor: '#6D28D9', borderColor: '#6D28D9'},
+  chipText: {fontSize: 13, ...F.semibold, color: '#4B5563'},
   chipTextActive: {color: '#FFFFFF'},
   divider: {width: 1, height: 20, backgroundColor: '#E5E7EB', marginHorizontal: 4},
-  hint: {fontSize: 12, color: '#6B7280', marginBottom: 10},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginBottom: 10},
   quoteBanner: {flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#7C3AED', borderRadius: 14, padding: 14, marginBottom: 12},
-  quoteTitle: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'},
-  quoteText: {color: '#EDE9FE', fontSize: 12, marginTop: 2},
+  quoteTitle: {color: '#FFFFFF', fontSize: 15, ...F.heavy, },
+  quoteText: {
+    ...F.regular, color: '#EDE9FE', fontSize: 12, marginTop: 2},
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,11 +205,14 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8,
   },
-  itemName: {fontSize: 15, fontWeight: '700', color: '#1F2937'},
-  itemMeta: {fontSize: 12, color: '#6B7280', marginTop: 2},
-  from: {fontSize: 11, color: '#6B7280'},
-  price: {fontSize: 17, fontWeight: '800', color: '#6D28D9'},
+  itemName: {fontSize: 15, ...F.bold, color: '#1F2937'},
+  itemMeta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 2},
+  from: {
+    ...F.regular, fontSize: 11, color: '#6B7280'},
+  price: {fontSize: 17, ...F.heavy, color: '#6D28D9'},
   empty: {alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24},
-  emptyTitle: {fontSize: 17, fontWeight: '700', color: '#1F2937', marginTop: 12},
-  emptyText: {fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 6},
+  emptyTitle: {fontSize: 17, ...F.bold, color: '#1F2937', marginTop: 12},
+  emptyText: {
+    ...F.regular, fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 6},
 });

@@ -6,6 +6,7 @@ import React, {useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {dayLabel, groupByMonth, kg, kindInfo} from '../utils/health';
+import {F} from '../theme/home';
 
 function Row({item, color, onPhoto, onEdit, canEdit}) {
   const [open, setOpen] = useState(false);
@@ -96,16 +97,19 @@ export default function HealthTimeline({items, color = '#7C3AED', onPhoto, onEdi
 }
 
 const styles = StyleSheet.create({
-  month: {fontSize: 12, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', marginTop: 14, marginBottom: 6},
+  month: {fontSize: 12, ...F.heavy, color: '#6B7280', textTransform: 'uppercase', marginTop: 14, marginBottom: 6},
   row: {flexDirection: 'row', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, marginBottom: 8},
   dot: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center'},
-  title: {fontSize: 15, fontWeight: '700', color: '#1F2937', flexShrink: 1},
+  title: {fontSize: 15, ...F.bold, color: '#1F2937', flexShrink: 1},
   verified: {flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#D1FAE5', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1},
-  verifiedText: {fontSize: 9, fontWeight: '800', color: '#047857'},
-  meta: {fontSize: 12, color: '#6B7280', marginTop: 2},
-  preview: {fontSize: 13, color: '#4B5563', marginTop: 3},
-  body: {fontSize: 14, color: '#374151', lineHeight: 20},
+  verifiedText: {fontSize: 9, ...F.heavy, color: '#047857'},
+  meta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 2},
+  preview: {
+    ...F.regular, fontSize: 13, color: '#4B5563', marginTop: 3},
+  body: {
+    ...F.regular, fontSize: 14, color: '#374151', lineHeight: 20},
   link: {flexDirection: 'row', alignItems: 'center', gap: 4},
-  linkText: {fontWeight: '700', fontSize: 13},
+  linkText: {...F.bold, fontSize: 13},
   empty: {textAlign: 'center', color: '#6B7280', marginTop: 24},
 });

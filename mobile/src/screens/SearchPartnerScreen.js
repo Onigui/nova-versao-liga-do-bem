@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {F} from '../theme/home';
 
 export default function SearchPartnerScreen() {
   const [cnpj, setCnpj] = useState('');
@@ -127,7 +128,7 @@ export default function SearchPartnerScreen() {
       <View style={styles.partnerCard}>
         <View style={styles.cardHeader}>
           <View style={styles.partnerTitle}>
-            <Ionicons name="storefront" size={32} color="#8B5CF6" />
+            <Ionicons name="storefront" size={32} color="#6D28D9" />
             <View style={styles.titleText}>
               <Text style={styles.partnerName}>{partnerData.name}</Text>
               <Text style={styles.fantasyName}>{partnerData.fantasyName}</Text>
@@ -175,7 +176,7 @@ export default function SearchPartnerScreen() {
 
             {partnerData.website && (
               <TouchableOpacity style={styles.infoRow} onPress={openWebsite}>
-                <Ionicons name="globe" size={20} color="#8B5CF6" />
+                <Ionicons name="globe" size={20} color="#6D28D9" />
                 <Text style={[styles.infoText, styles.linkText]}>
                   {partnerData.website}
                 </Text>
@@ -257,7 +258,7 @@ export default function SearchPartnerScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.searchContainer}>
           <View style={styles.inputContainer}>
-            <Ionicons name="search" size={24} color="#8B5CF6" />
+            <Ionicons name="search" size={24} color="#6D28D9" />
             <TextInput
               style={styles.input}
               placeholder="Digite o CNPJ (ex: 12.345.678/0001-90)"
@@ -301,7 +302,7 @@ export default function SearchPartnerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     backgroundColor: 'white',
@@ -312,11 +313,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#111827',
     marginBottom: 4,
   },
   headerSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
   },
@@ -341,13 +343,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
+    ...F.regular,
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
     color: '#111827',
   },
   searchButton: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -359,7 +362,7 @@ const styles = StyleSheet.create({
   searchButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   helpContainer: {
     backgroundColor: 'white',
@@ -372,6 +375,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   helpText: {
+    ...F.regular,
     flex: 1,
     marginLeft: 12,
     fontSize: 14,
@@ -407,19 +411,20 @@ const styles = StyleSheet.create({
   },
   partnerName: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#111827',
     marginBottom: 2,
   },
   fantasyName: {
+    ...F.regular,
     fontSize: 16,
     color: '#6B7280',
     marginBottom: 4,
   },
   partnerCategory: {
     fontSize: 14,
-    color: '#8B5CF6',
-    fontWeight: '600',
+    color: '#6D28D9',
+    ...F.semibold,
   },
   partnerStatus: {
     flexDirection: 'row',
@@ -435,7 +440,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
+    ...F.semibold,
   },
   cardContent: {
     padding: 20,
@@ -450,10 +455,11 @@ const styles = StyleSheet.create({
   },
   discountText: {
     fontSize: 16,
-    fontWeight: '700',
+    ...F.bold,
     color: '#10B981',
   },
   description: {
+    ...F.regular,
     fontSize: 16,
     color: '#4B5563',
     lineHeight: 24,
@@ -464,7 +470,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#111827',
     marginBottom: 12,
   },
@@ -474,16 +480,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   infoText: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginLeft: 12,
     flex: 1,
   },
   linkText: {
-    color: '#8B5CF6',
+    color: '#6D28D9',
     textDecorationLine: 'underline',
   },
   hoursText: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
@@ -502,7 +510,7 @@ const styles = StyleSheet.create({
   serviceText: {
     fontSize: 12,
     color: '#4B5563',
-    fontWeight: '500',
+    ...F.semibold,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -514,11 +522,12 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#111827',
     marginLeft: 8,
   },
   reviewsText: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginLeft: 4,
@@ -529,6 +538,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   memberText: {
+    ...F.regular,
     fontSize: 14,
     color: '#1E40AF',
     marginBottom: 4,
@@ -549,7 +559,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mapButton: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
   },
   callButton: {
     backgroundColor: '#10B981',
@@ -557,6 +567,6 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
 });

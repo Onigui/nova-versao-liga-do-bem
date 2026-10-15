@@ -10,6 +10,7 @@ import useUserLocation from '../services/useUserLocation';
 import {useAuth} from '../services/AuthService';
 import {memberApi} from '../utils/quotes';
 import {LF_SEX, LF_SIZES, LF_SPECIES, LF_TYPES, LF_WITH, buildReportBody, formatPhone, nowInput} from '../utils/lostfound';
+import {F} from '../theme/home';
 
 function getPicker(kind) {
   try {
@@ -304,24 +305,28 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
 
 const styles = StyleSheet.create({
   banner: {flexDirection: 'row', gap: 10, alignItems: 'center', borderRadius: 12, padding: 12},
-  bannerText: {flex: 1, fontSize: 13, fontWeight: '600'},
-  section: {fontSize: 16, fontWeight: '800', color: '#1F2937', marginTop: 20, marginBottom: 8},
-  label: {fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6},
-  hint: {fontSize: 12, color: '#6B7280', flex: 1},
-  input: {backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#1F2937'},
+  bannerText: {flex: 1, fontSize: 13, ...F.semibold, },
+  section: {fontSize: 16, ...F.heavy, color: '#1F2937', marginTop: 20, marginBottom: 8},
+  label: {fontSize: 13, ...F.bold, color: '#374151', marginBottom: 6},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', flex: 1},
+  input: {
+    ...F.regular, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#1F2937'},
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 6},
   chip: {paddingHorizontal: 12, height: 34, borderRadius: 17, justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB'},
-  chipText: {fontSize: 13, fontWeight: '600', color: '#4B5563'},
+  chipText: {fontSize: 13, ...F.semibold, color: '#4B5563'},
   photo: {width: 96, height: 96, borderRadius: 12},
   removePhoto: {position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 12},
   addPhoto: {width: 96, height: 96, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF'},
-  addPhotoText: {fontSize: 12, color: '#6B7280', marginTop: 2},
+  addPhotoText: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 2},
   map: {height: 180, borderRadius: 14},
   mapSecondary: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB'},
-  mapSecondaryText: {fontWeight: '700', fontSize: 14},
+  mapSecondaryText: {...F.bold, fontSize: 14},
   switchRow: {flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12},
   warn: {flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: 12, padding: 10, marginTop: 12},
-  warnText: {flex: 1, fontSize: 12, color: '#92400E'},
+  warnText: {
+    ...F.regular, flex: 1, fontSize: 12, color: '#92400E'},
   save: {height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20},
-  saveText: {color: '#FFFFFF', fontWeight: '800', fontSize: 16},
+  saveText: {color: '#FFFFFF', ...F.heavy, fontSize: 16},
 });

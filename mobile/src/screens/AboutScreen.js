@@ -8,6 +8,7 @@ import {
   Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {F} from '../theme/home';
 
 export default function AboutScreen() {
   const handleContact = (type, value) => {
@@ -52,7 +53,7 @@ export default function AboutScreen() {
         <Text style={styles.sectionTitle}>Nossos Valores</Text>
         <View style={styles.valuesList}>
           <View style={styles.valueItem}>
-            <Ionicons name="heart" size={24} color="#8B5CF6" />
+            <Ionicons name="heart" size={24} color="#6D28D9" />
             <Text style={styles.valueText}>Amor pelos animais</Text>
           </View>
           <View style={styles.valueItem}>
@@ -77,7 +78,7 @@ export default function AboutScreen() {
           <TouchableOpacity
             style={styles.contactItem}
             onPress={() => handleContact('phone', '+5514999999999')}>
-            <Ionicons name="call" size={24} color="#8B5CF6" />
+            <Ionicons name="call" size={24} color="#6D28D9" />
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>Telefone</Text>
               <Text style={styles.contactValue}>(14) 99999-9999</Text>
@@ -87,7 +88,7 @@ export default function AboutScreen() {
           <TouchableOpacity
             style={styles.contactItem}
             onPress={() => handleContact('email', 'contato@ligadobem.com')}>
-            <Ionicons name="mail" size={24} color="#8B5CF6" />
+            <Ionicons name="mail" size={24} color="#6D28D9" />
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>Email</Text>
               <Text style={styles.contactValue}>contato@ligadobem.com</Text>
@@ -97,7 +98,7 @@ export default function AboutScreen() {
           <TouchableOpacity
             style={styles.contactItem}
             onPress={() => handleContact('website', 'https://ligadobem.com')}>
-            <Ionicons name="globe" size={24} color="#8B5CF6" />
+            <Ionicons name="globe" size={24} color="#6D28D9" />
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>Website</Text>
               <Text style={styles.contactValue}>ligadobem.com</Text>
@@ -105,7 +106,7 @@ export default function AboutScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.contactItem}>
-            <Ionicons name="location" size={24} color="#8B5CF6" />
+            <Ionicons name="location" size={24} color="#6D28D9" />
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>Endereço</Text>
               <Text style={styles.contactValue}>Botucatu - SP</Text>
@@ -147,7 +148,7 @@ export default function AboutScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     padding: 20,
@@ -155,11 +156,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 4,
   },
   headerSubtitle: {
+    ...F.regular,
     fontSize: 16,
     color: '#6B7280',
   },
@@ -169,11 +171,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 16,
   },
   sectionText: {
+    ...F.regular,
     fontSize: 16,
     lineHeight: 24,
     color: '#4B5563',
@@ -200,7 +203,7 @@ const styles = StyleSheet.create({
   valueText: {
     marginLeft: 12,
     fontSize: 14,
-    fontWeight: '500',
+    ...F.semibold,
     color: '#1F2937',
     flex: 1,
   },
@@ -226,13 +229,14 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   contactLabel: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 2,
   },
   contactValue: {
     fontSize: 16,
-    fontWeight: '500',
+    ...F.semibold,
     color: '#1F2937',
   },
   socialList: {
@@ -253,7 +257,7 @@ const styles = StyleSheet.create({
   socialText: {
     marginTop: 8,
     fontSize: 14,
-    fontWeight: '500',
+    ...F.semibold,
     color: '#1F2937',
   },
   versionContainer: {
@@ -262,6 +266,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
   versionText: {
+    ...F.regular,
     fontSize: 14,
     color: '#9CA3AF',
     marginBottom: 4,

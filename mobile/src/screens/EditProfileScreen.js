@@ -17,6 +17,7 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { logInfo, logError, logDebug } from '../services/RemoteLogger';
+import {F} from '../theme/home';
 // Importar image picker - usar require para evitar erro se não estiver instalado
 let launchImageLibrary;
 let launchCamera;
@@ -704,7 +705,7 @@ function EditProfileScreenContent({navigation}) {
   if (loadingProfile) {
     return (
       <View style={[styles.container, {justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF'}]}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#6D28D9" />
         <Text style={{marginTop: 16, color: '#6B7280', fontSize: 16}}>Carregando perfil...</Text>
       </View>
     );
@@ -712,7 +713,7 @@ function EditProfileScreenContent({navigation}) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
@@ -739,14 +740,14 @@ function EditProfileScreenContent({navigation}) {
               <Image source={{uri: formData.avatar}} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={50} color="#8B5CF6" />
+                <Ionicons name="person" size={50} color="#6D28D9" />
               </View>
             )}
           </View>
           <TouchableOpacity
             style={styles.changeAvatarButton}
             onPress={handleImagePicker}>
-            <Ionicons name="camera" size={20} color="#8B5CF6" />
+            <Ionicons name="camera" size={20} color="#6D28D9" />
             <Text style={styles.changeAvatarText}>Alterar Foto</Text>
           </TouchableOpacity>
         </View>
@@ -815,7 +816,7 @@ function EditProfileScreenContent({navigation}) {
           onPress={handleSave}
           disabled={loading}>
           <LinearGradient
-            colors={['#8B5CF6', '#7C3AED']}
+            colors={['#6D28D9', '#5B21B6']}
             style={styles.saveButtonGradient}>
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
@@ -844,7 +845,7 @@ export default function EditProfileScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     paddingTop: 50,
@@ -852,6 +853,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     padding: 8,
@@ -859,7 +863,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
   },
   errorContainer: {
@@ -871,6 +875,7 @@ const styles = StyleSheet.create({
     borderColor: '#FCA5A5',
   },
   errorText: {
+    ...F.regular,
     color: '#DC2626',
     fontSize: 14,
   },
@@ -908,8 +913,8 @@ const styles = StyleSheet.create({
   },
   changeAvatarText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#8B5CF6',
+    ...F.semibold,
+    color: '#6D28D9',
   },
   formSection: {
     marginBottom: 24,
@@ -919,11 +924,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 8,
   },
   input: {
+    ...F.regular,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     padding: 12,
@@ -937,6 +943,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   helperText: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     marginTop: 4,
@@ -959,6 +966,6 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
 });

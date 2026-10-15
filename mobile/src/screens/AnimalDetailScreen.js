@@ -15,6 +15,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_PATH } from '../config/apiConfig';
+import {F} from '../theme/home';
 
 const {width} = Dimensions.get('window');
 
@@ -168,7 +169,7 @@ export default function AnimalDetailScreen({route, navigation}) {
             <Ionicons
               name={isFavorite ? 'heart' : 'heart-outline'}
               size={24}
-              color={isFavorite ? '#EC4899' : '#FFFFFF'}
+              color={isFavorite ? '#6D28D9' : '#FFFFFF'}
             />
           </TouchableOpacity>
         </View>
@@ -187,7 +188,7 @@ export default function AnimalDetailScreen({route, navigation}) {
               <Ionicons
                 name={animalData.gender === 'Macho' ? 'male' : 'female'}
                 size={20}
-                color={animalData.gender === 'Macho' ? '#3B82F6' : '#EC4899'}
+                color={animalData.gender === 'Macho' ? '#3B82F6' : '#6D28D9'}
               />
             </View>
           </View>
@@ -269,7 +270,7 @@ export default function AnimalDetailScreen({route, navigation}) {
           {/* Rescue Info */}
           {animalData.rescueDate && (
             <View style={styles.rescueInfo}>
-              <Ionicons name="information-circle" size={20} color="#8B5CF6" />
+              <Ionicons name="information-circle" size={20} color="#6D28D9" />
               <Text style={styles.rescueInfoText}>
                 Resgatado em{' '}
                 {new Date(animalData.rescueDate).toLocaleDateString('pt-BR')}
@@ -283,7 +284,7 @@ export default function AnimalDetailScreen({route, navigation}) {
       <View style={styles.footer}>
         <TouchableOpacity style={styles.adoptButton} onPress={handleAdopt}>
           <LinearGradient
-            colors={['#8B5CF6', '#7C3AED']}
+            colors={['#6D28D9', '#5B21B6']}
             style={styles.adoptButtonGradient}
             start={{x: 0, y: 0}}
             end={{x: 1, y: 0}}>
@@ -388,7 +389,7 @@ export default function AnimalDetailScreen({route, navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F6F5FB',
   },
   imageContainer: {
     position: 'relative',
@@ -420,11 +421,12 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 28,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 4,
   },
   breed: {
+    ...F.regular,
     fontSize: 16,
     color: '#6B7280',
   },
@@ -454,18 +456,19 @@ const styles = StyleSheet.create({
   quickInfoText: {
     fontSize: 13,
     color: '#6B7280',
-    fontWeight: '500',
+    ...F.semibold,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 12,
   },
   description: {
+    ...F.regular,
     fontSize: 15,
     color: '#6B7280',
     lineHeight: 24,
@@ -482,13 +485,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   detailLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#9CA3AF',
     marginBottom: 4,
   },
   detailValue: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
   },
   rescueInfo: {
@@ -501,6 +505,7 @@ const styles = StyleSheet.create({
     marginBottom: 80,
   },
   rescueInfoText: {
+    ...F.regular,
     flex: 1,
     fontSize: 14,
     color: '#6B7280',
@@ -519,6 +524,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   specialNeedsText: {
+    ...F.regular,
     fontSize: 15,
     color: '#1F2937',
     lineHeight: 24,
@@ -546,7 +552,7 @@ const styles = StyleSheet.create({
   adoptButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   modalOverlay: {
     flex: 1,
@@ -570,7 +576,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
   },
   modalBody: {
@@ -578,6 +584,7 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   modalSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 20,
@@ -588,11 +595,12 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 8,
   },
   formInput: {
+    ...F.regular,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
@@ -616,19 +624,19 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
   },
   modalSubmitButton: {
     flex: 1,
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     alignItems: 'center',
   },
   modalSubmitText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
 });

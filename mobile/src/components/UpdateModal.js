@@ -11,6 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import UpdateService from '../services/UpdateService';
+import {F} from '../theme/home';
 
 export default function UpdateModal({visible, updateInfo, onDismiss, onUpdateComplete}) {
   const [downloading, setDownloading] = useState(false);
@@ -336,7 +337,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#FFF',
     marginTop: 12,
   },
@@ -345,7 +346,7 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#333',
     marginBottom: 16,
     textAlign: 'center',
@@ -355,11 +356,12 @@ const styles = StyleSheet.create({
   },
   releaseNotesTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#666',
     marginBottom: 8,
   },
   releaseNotes: {
+    ...F.regular,
     fontSize: 14,
     color: '#555',
     lineHeight: 20,
@@ -376,7 +378,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     color: '#E74C3C',
-    fontWeight: '600',
+    ...F.semibold,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -387,6 +389,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   errorText: {
+    ...F.regular,
     marginLeft: 8,
     fontSize: 14,
     color: '#E74C3C',
@@ -397,6 +400,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   progressText: {
+    ...F.regular,
     fontSize: 14,
     color: '#666',
     marginBottom: 12,
@@ -431,13 +435,14 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     marginLeft: 8,
   },
   cancelButton: {
     backgroundColor: 'transparent',
   },
   cancelButtonText: {
+    ...F.regular,
     color: '#666',
     fontSize: 16,
   },

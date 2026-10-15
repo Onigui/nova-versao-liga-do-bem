@@ -6,6 +6,7 @@ import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {RATING_WORDS, relativeDay} from '../utils/health';
+import {F} from '../theme/home';
 
 const GOLD = '#F59E0B';
 
@@ -104,22 +105,29 @@ export function ReviewCard({review, tagLabels = {}, partnerName, footer}) {
 }
 
 const styles = StyleSheet.create({
-  none: {fontSize: 13, color: '#6B7280'},
+  none: {
+    ...F.regular, fontSize: 13, color: '#6B7280'},
   sumRow: {flexDirection: 'row', alignItems: 'center', gap: 14},
-  big: {fontSize: 34, fontWeight: '900', color: '#1F2937'},
-  count: {fontSize: 11, color: '#6B7280', marginTop: 2},
-  distN: {width: 10, fontSize: 11, color: '#6B7280'},
+  big: {fontSize: 34, ...F.heavy, color: '#1F2937'},
+  count: {
+    ...F.regular, fontSize: 11, color: '#6B7280', marginTop: 2},
+  distN: {
+    ...F.regular, width: 10, fontSize: 11, color: '#6B7280'},
   barBg: {flex: 1, height: 7, borderRadius: 4, backgroundColor: '#F3F4F6', overflow: 'hidden'},
   bar: {height: 7, borderRadius: 4, backgroundColor: GOLD},
   tags: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8},
   tag: {backgroundColor: '#FEF3C7', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3},
-  tagText: {fontSize: 11, color: '#92400E', fontWeight: '600'},
+  tagText: {fontSize: 11, color: '#92400E', ...F.semibold, },
   card: {backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#F3F4F6'},
-  author: {fontSize: 14, fontWeight: '700', color: '#1F2937'},
-  when: {fontSize: 11, color: '#9CA3AF'},
-  word: {fontSize: 12, color: '#6B7280'},
-  comment: {fontSize: 14, color: '#374151', marginTop: 6, lineHeight: 20},
+  author: {fontSize: 14, ...F.bold, color: '#1F2937'},
+  when: {
+    ...F.regular, fontSize: 11, color: '#9CA3AF'},
+  word: {
+    ...F.regular, fontSize: 12, color: '#6B7280'},
+  comment: {
+    ...F.regular, fontSize: 14, color: '#374151', marginTop: 6, lineHeight: 20},
   reply: {backgroundColor: '#F9FAFB', borderLeftWidth: 3, borderLeftColor: '#D1D5DB', borderRadius: 6, padding: 8, marginTop: 8},
-  replyTitle: {fontSize: 12, fontWeight: '700', color: '#4B5563'},
-  replyText: {fontSize: 13, color: '#374151', marginTop: 2},
+  replyTitle: {fontSize: 12, ...F.bold, color: '#4B5563'},
+  replyText: {
+    ...F.regular, fontSize: 13, color: '#374151', marginTop: 2},
 });

@@ -19,6 +19,7 @@ import {useAuth} from '../services/AuthService';
 import {API_BASE_PATH} from '../config/apiConfig';
 import useCardCode from '../services/useCardCode';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
+import {F} from '../theme/home';
 
 const STATUS_LABELS = {
   ACTIVE: 'ATIVO',
@@ -217,7 +218,7 @@ export default function MembershipCardScreen({navigation}) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#6D28D9" />
         <Text style={styles.loadingText}>Carregando cartão...</Text>
       </View>
     );
@@ -230,7 +231,7 @@ export default function MembershipCardScreen({navigation}) {
           <Ionicons
             name="card"
             size={64}
-            color="#8B5CF6"
+            color="#6D28D9"
             style={styles.loginIcon}
           />
           <Text style={styles.loginTitle}>Acesse seu Cartão de Membro</Text>
@@ -265,7 +266,7 @@ export default function MembershipCardScreen({navigation}) {
       }>
       <View style={styles.cardContainer}>
         <LinearGradient
-          colors={['#8B5CF6', '#A855F7']}
+          colors={['#3B1A78', '#6D28D9']}
           style={styles.card}
           start={{x: 0, y: 0}}
           end={{x: 1, y: 1}}>
@@ -318,7 +319,7 @@ export default function MembershipCardScreen({navigation}) {
                   color="#1F2937"
                 />
               ) : isActiveMember && cardCode.source === 'loading' ? (
-                <ActivityIndicator size="large" color="#8B5CF6" />
+                <ActivityIndicator size="large" color="#6D28D9" />
               ) : isActiveMember && cardCode.source === 'offline' ? (
                 <View style={styles.qrBlocked}>
                   <Ionicons name="cloud-offline-outline" size={36} color="#9CA3AF" />
@@ -363,7 +364,7 @@ export default function MembershipCardScreen({navigation}) {
 
       <View style={styles.infoContainer}>
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={24} color="#8B5CF6" />
+          <Ionicons name="information-circle" size={24} color="#6D28D9" />
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>Como usar seu cartão</Text>
             <Text style={styles.infoText}>
@@ -399,7 +400,7 @@ export default function MembershipCardScreen({navigation}) {
 
       <View style={styles.actionsContainer}>
         <TouchableOpacity style={styles.actionButton} onPress={handleShareCard}>
-          <Ionicons name="share-outline" size={20} color="#8B5CF6" />
+          <Ionicons name="share-outline" size={20} color="#6D28D9" />
           <Text style={styles.actionButtonText}>Compartilhar Cartão</Text>
         </TouchableOpacity>
 
@@ -427,20 +428,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     alignItems: 'center',
   },
-  shortCodeLabel: {color: '#EDE9FE', fontSize: 11, fontWeight: '600'},
-  shortCode: {color: '#FFFFFF', fontSize: 22, fontWeight: '900', letterSpacing: 4},
+  shortCodeLabel: {color: '#EDE9FE', fontSize: 11, ...F.semibold, },
+  shortCode: {color: '#FFFFFF', fontSize: 22, ...F.heavy, letterSpacing: 4},
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
     padding: 24,
   },
   loadingText: {
+    ...F.regular,
     fontSize: 16,
     color: '#6B7280',
     marginTop: 12,
@@ -448,14 +450,14 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     marginTop: 16,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
   },
   retryButtonText: {
     color: '#FFFFFF',
-    fontWeight: '600',
+    ...F.semibold,
   },
   loginContainer: {
     flex: 1,
@@ -480,12 +482,13 @@ const styles = StyleSheet.create({
   },
   loginTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#1F2937',
     textAlign: 'center',
     marginBottom: 8,
   },
   loginSubtitle: {
+    ...F.regular,
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
@@ -497,7 +500,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#8B5CF6',
+    shadowColor: '#6D28D9',
     shadowOffset: {width: 0, height: 8},
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -523,6 +526,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   logo: {
+    ...F.regular,
     fontSize: 28,
   },
   statusContainer: {
@@ -542,18 +546,19 @@ const styles = StyleSheet.create({
   statusText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    ...F.bold,
   },
   memberInfo: {
     marginBottom: 24,
   },
   memberName: {
     fontSize: 22,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginBottom: 4,
   },
   memberEmail: {
+    ...F.regular,
     fontSize: 14,
     color: 'rgba(255,255,255,0.85)',
     marginBottom: 8,
@@ -561,7 +566,7 @@ const styles = StyleSheet.create({
   memberId: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.75)',
-    fontWeight: '600',
+    ...F.semibold,
   },
   qrContainer: {
     alignItems: 'center',
@@ -588,11 +593,12 @@ const styles = StyleSheet.create({
   },
   qrPlaceholder: {
     color: '#6B7280',
-    fontWeight: '600',
+    ...F.semibold,
     textAlign: 'center',
     fontSize: 12,
   },
   qrLabel: {
+    ...F.regular,
     color: 'rgba(255,255,255,0.9)',
     fontSize: 13,
     textAlign: 'center',
@@ -608,13 +614,14 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   validityLabel: {
+    ...F.regular,
     color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
   },
   validityDate: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    ...F.bold,
   },
   infoContainer: {
     paddingHorizontal: 20,
@@ -632,11 +639,12 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 4,
   },
   infoText: {
+    ...F.regular,
     fontSize: 13,
     color: '#6B7280',
     lineHeight: 18,
@@ -654,16 +662,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1.5,
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
     gap: 8,
   },
   secondaryButton: {
     borderColor: '#E5E7EB',
   },
   actionButtonText: {
-    color: '#8B5CF6',
+    color: '#6D28D9',
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
   },
   secondaryButtonText: {
     color: '#6B7280',

@@ -11,6 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import {F} from '../theme/home';
 
 export default function DonationScreen({navigation}) {
   const {user} = useAuth();
@@ -77,7 +78,7 @@ export default function DonationScreen({navigation}) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <Ionicons name="heart" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Fazer Doação</Text>
         <Text style={styles.headerSubtitle}>
@@ -207,7 +208,7 @@ export default function DonationScreen({navigation}) {
               </View>
             </View>
             {paymentMethod === 'pix' && (
-              <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
+              <Ionicons name="checkmark-circle" size={24} color="#6D28D9" />
             )}
           </TouchableOpacity>
 
@@ -229,7 +230,7 @@ export default function DonationScreen({navigation}) {
               </View>
             </View>
             {paymentMethod === 'card' && (
-              <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
+              <Ionicons name="checkmark-circle" size={24} color="#6D28D9" />
             )}
           </TouchableOpacity>
 
@@ -251,7 +252,7 @@ export default function DonationScreen({navigation}) {
               </View>
             </View>
             {paymentMethod === 'boleto' && (
-              <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
+              <Ionicons name="checkmark-circle" size={24} color="#6D28D9" />
             )}
           </TouchableOpacity>
         </View>
@@ -284,7 +285,7 @@ export default function DonationScreen({navigation}) {
             style={styles.donateButton}
             onPress={handleDonate}>
             <LinearGradient
-              colors={['#8B5CF6', '#7C3AED']}
+              colors={['#6D28D9', '#5B21B6']}
               style={styles.donateButtonGradient}
               start={{x: 0, y: 0}}
               end={{x: 1, y: 0}}>
@@ -344,25 +345,30 @@ export default function DonationScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     padding: 40,
     alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginTop: 16,
     marginBottom: 8,
   },
   headerSubtitle: {
+    ...F.regular,
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
   },
   headerUser: {
+    ...F.regular,
     marginTop: 10,
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.85)',
@@ -372,7 +378,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 16,
   },
@@ -393,12 +399,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   typeButtonActive: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
+    borderColor: '#6D28D9',
   },
   typeButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
   },
   typeButtonTextActive: {
@@ -413,12 +419,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   membershipNoteText: {
+    ...F.regular,
     flex: 1,
     fontSize: 13,
     color: '#5B21B6',
     lineHeight: 18,
   },
   recurringHint: {
+    ...F.regular,
     marginTop: 12,
     fontSize: 12,
     color: '#6B7280',
@@ -441,22 +449,22 @@ const styles = StyleSheet.create({
   },
   amountButtonActive: {
     backgroundColor: '#F5F3FF',
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
   },
   amountButtonText: {
     fontSize: 18,
-    fontWeight: '700',
+    ...F.bold,
     color: '#6B7280',
   },
   amountButtonTextActive: {
-    color: '#8B5CF6',
+    color: '#6D28D9',
   },
   customAmountContainer: {
     marginTop: 8,
   },
   customAmountLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
     marginBottom: 12,
   },
@@ -471,7 +479,7 @@ const styles = StyleSheet.create({
   },
   currencySymbol: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginRight: 8,
   },
@@ -479,7 +487,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 54,
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
   },
   paymentMethod: {
@@ -495,7 +503,7 @@ const styles = StyleSheet.create({
   },
   paymentMethodActive: {
     backgroundColor: '#F5F3FF',
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
   },
   paymentMethodLeft: {
     flexDirection: 'row',
@@ -511,11 +519,12 @@ const styles = StyleSheet.create({
   },
   paymentMethodTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 2,
   },
   paymentMethodSubtitle: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
   },
@@ -535,17 +544,17 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
+    ...F.semibold,
   },
   summaryValue: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
   },
   summaryValueLarge: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#8B5CF6',
+    ...F.bold,
+    color: '#6D28D9',
   },
   donateButtonContainer: {
     padding: 20,
@@ -564,7 +573,7 @@ const styles = StyleSheet.create({
   donateButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   impactSection: {
     padding: 20,
@@ -573,11 +582,12 @@ const styles = StyleSheet.create({
   },
   impactTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 8,
   },
   impactSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 16,
@@ -596,11 +606,12 @@ const styles = StyleSheet.create({
   },
   impactCardTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 4,
   },
   impactCardText: {
+    ...F.regular,
     fontSize: 13,
     color: '#6B7280',
   },
@@ -624,23 +635,24 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
   },
   modalAmount: {
     fontSize: 32,
-    fontWeight: '700',
-    color: '#8B5CF6',
+    ...F.bold,
+    color: '#6D28D9',
     marginBottom: 4,
   },
   modalHolder: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 20,
   },
   modalLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
     marginBottom: 8,
   },
@@ -652,7 +664,7 @@ const styles = StyleSheet.create({
   },
   pixKeyText: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#111827',
   },
   copyButton: {
@@ -668,16 +680,17 @@ const styles = StyleSheet.create({
   copyButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
   },
   modalHint: {
+    ...F.regular,
     fontSize: 13,
     color: '#6B7280',
     lineHeight: 20,
     marginBottom: 16,
   },
   confirmButton: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     borderRadius: 12,
     height: 50,
     alignItems: 'center',
@@ -687,7 +700,7 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   cancelButton: {
     height: 44,
@@ -697,6 +710,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#6B7280',
     fontSize: 15,
-    fontWeight: '500',
+    ...F.semibold,
   },
 });

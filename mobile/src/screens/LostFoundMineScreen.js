@@ -6,6 +6,7 @@ import {ActivityIndicator, FlatList, StyleSheet, Text, View} from 'react-native'
 import {useFocusEffect} from '@react-navigation/native';
 import {memberApi} from '../utils/quotes';
 import {ReportRow} from './LostFoundScreen';
+import {F} from '../theme/home';
 
 const STATUS = {ACTIVE: 'No mapa', RESOLVED: '💚 Voltou para casa', EXPIRED: 'Expirado: renove para voltar ao mapa'};
 
@@ -44,5 +45,5 @@ export default function LostFoundMineScreen({navigation, fetchImpl = fetch}) {
 
 const styles = StyleSheet.create({
   empty: {textAlign: 'center', color: '#6B7280', marginTop: 40},
-  status: {fontSize: 12, fontWeight: '700', color: '#6B7280', marginBottom: 4, marginLeft: 4},
+  status: {fontSize: 12, ...F.bold, color: '#6B7280', marginBottom: 4, marginLeft: 4},
 });

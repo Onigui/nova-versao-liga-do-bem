@@ -5,6 +5,7 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {dayLabel, kg, weightChart} from '../utils/health';
+import {F} from '../theme/home';
 
 export default function WeightChart({weights, color = '#7C3AED', width = 300}) {
   const c = weightChart(weights, width, 110);
@@ -33,7 +34,8 @@ export default function WeightChart({weights, color = '#7C3AED', width = 300}) {
 const styles = StyleSheet.create({
   chartBox: {backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, overflow: 'hidden'},
   chartHead: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline'},
-  chartTitle: {fontSize: 15, fontWeight: '800', color: '#1F2937'},
-  chartNow: {fontSize: 20, fontWeight: '900', color: '#1F2937'},
-  chartMeta: {fontSize: 12, color: '#6B7280', marginBottom: 6},
+  chartTitle: {fontSize: 15, ...F.heavy, color: '#1F2937'},
+  chartNow: {fontSize: 20, ...F.heavy, color: '#1F2937'},
+  chartMeta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginBottom: 6},
 });

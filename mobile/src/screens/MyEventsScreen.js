@@ -14,6 +14,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 export default function MyEventsScreen({navigation}) {
   const {user} = useAuth();
@@ -175,7 +176,7 @@ export default function MyEventsScreen({navigation}) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+        <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}>
@@ -184,7 +185,7 @@ export default function MyEventsScreen({navigation}) {
           <Text style={styles.headerTitle}>Meus Eventos</Text>
         </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color="#6D28D9" />
           <Text style={styles.loadingText}>Carregando eventos...</Text>
         </View>
       </View>
@@ -200,7 +201,7 @@ export default function MyEventsScreen({navigation}) {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -240,7 +241,7 @@ export default function MyEventsScreen({navigation}) {
               style={styles.eventsButton}
               onPress={() => navigation.navigate('EventsCalendar')}>
               <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
+                colors={['#6D28D9', '#5B21B6']}
                 style={styles.eventsButtonGradient}>
                 <Ionicons name="calendar" size={20} color="#FFFFFF" />
                 <Text style={styles.eventsButtonText}>Ver Eventos Disponíveis</Text>
@@ -287,7 +288,7 @@ export default function MyEventsScreen({navigation}) {
                       <Ionicons
                         name={getTypeIcon(event.type)}
                         size={48}
-                        color="#8B5CF6"
+                        color="#6D28D9"
                       />
                     </View>
                   )}
@@ -376,19 +377,22 @@ export default function MyEventsScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     paddingTop: 60,
     paddingBottom: 30,
     paddingHorizontal: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     marginBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
   },
   loadingContainer: {
@@ -398,6 +402,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
+    ...F.regular,
     marginTop: 16,
     color: '#6B7280',
     fontSize: 14,
@@ -427,13 +432,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   summaryLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 8,
   },
   summaryValue: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
   },
   emptyContainer: {
@@ -443,12 +449,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
@@ -470,7 +477,7 @@ const styles = StyleSheet.create({
   eventsButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   eventsList: {
     gap: 16,
@@ -513,7 +520,7 @@ const styles = StyleSheet.create({
   },
   eventTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 6,
   },
@@ -523,6 +530,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   eventTypeText: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
   },
@@ -536,9 +544,10 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    ...F.semibold,
   },
   eventDescription: {
+    ...F.regular,
     fontSize: 14,
     color: '#4B5563',
     marginBottom: 12,
@@ -556,6 +565,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   eventDateText: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
   },
@@ -565,6 +575,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   eventLocationText: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     flex: 1,
@@ -583,7 +594,7 @@ const styles = StyleSheet.create({
   upcomingText: {
     fontSize: 11,
     color: '#3B82F6',
-    fontWeight: '600',
+    ...F.semibold,
   },
   pastBadge: {
     flexDirection: 'row',
@@ -599,7 +610,7 @@ const styles = StyleSheet.create({
   pastText: {
     fontSize: 11,
     color: '#10B981',
-    fontWeight: '600',
+    ...F.semibold,
   },
 });
 

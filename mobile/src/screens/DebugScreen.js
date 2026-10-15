@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import {F} from '../theme/home';
 
 // Importação segura do RemoteLogger
 let remoteLogger = null;
@@ -306,7 +307,7 @@ export default function DebugScreen({navigation}) {
       {/* Logs */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color="#6D28D9" />
         </View>
       ) : (
         <ScrollView 
@@ -372,23 +373,26 @@ export default function DebugScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#3B1A78',
     paddingTop: 50,
     paddingBottom: 16,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     padding: 8,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     flex: 1,
     marginLeft: 8,
@@ -414,11 +418,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   filterButtonActive: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
   },
   filterButtonText: {
     fontSize: 12,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
   },
   filterButtonTextActive: {
@@ -460,14 +464,16 @@ const styles = StyleSheet.create({
   },
   logLevelText: {
     fontSize: 10,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
   },
   logTime: {
+    ...F.regular,
     fontSize: 10,
     color: '#6B7280',
   },
   logMessage: {
+    ...F.regular,
     fontSize: 14,
     color: '#1F2937',
     marginBottom: 4,
@@ -489,11 +495,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginTop: 16,
   },
   emptySubtext: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginTop: 8,

@@ -11,6 +11,7 @@ import {useAuth} from '../services/AuthService';
 import {formatDistance} from '../utils/geo';
 import {brl, sortOffers, spread, updatedLabel} from '../utils/priceCompare';
 import {toMemberPartner} from '../utils/partnerView';
+import {F} from '../theme/home';
 
 function useAuthSafe() {
   try {
@@ -49,7 +50,7 @@ export default function PriceOffersScreen({navigation, route, fetchImpl = fetch}
   );
   const diff = spread(data?.offers);
 
-  if (!data && !error) return <ActivityIndicator style={{marginTop: 40}} color="#8B5CF6" />;
+  if (!data && !error) return <ActivityIndicator style={{marginTop: 40}} color="#6D28D9" />;
 
   return (
     <FlatList
@@ -141,9 +142,10 @@ export default function PriceOffersScreen({navigation, route, fetchImpl = fetch}
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
-  title: {fontSize: 20, fontWeight: '800', color: '#1F2937'},
-  subtitle: {fontSize: 13, color: '#6B7280', marginTop: 4},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
+  title: {fontSize: 20, ...F.heavy, color: '#1F2937'},
+  subtitle: {
+    ...F.regular, fontSize: 13, color: '#6B7280', marginTop: 4},
   sortRow: {flexDirection: 'row', gap: 8, marginVertical: 14},
   sortBtn: {
     flexDirection: 'row',
@@ -156,8 +158,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  sortBtnActive: {backgroundColor: '#8B5CF6', borderColor: '#8B5CF6'},
-  sortText: {fontSize: 14, fontWeight: '600', color: '#4B5563'},
+  sortBtnActive: {backgroundColor: '#6D28D9', borderColor: '#6D28D9'},
+  sortText: {fontSize: 14, ...F.semibold, color: '#4B5563'},
   error: {color: '#B91C1C', marginBottom: 10},
   card: {
     flexDirection: 'row',
@@ -177,17 +179,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  logoText: {fontSize: 18, fontWeight: '800', color: '#7C3AED'},
-  partner: {fontSize: 15, fontWeight: '700', color: '#1F2937', flexShrink: 1},
+  logoText: {fontSize: 18, ...F.heavy, color: '#7C3AED'},
+  partner: {fontSize: 15, ...F.bold, color: '#1F2937', flexShrink: 1},
   best: {backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2},
-  bestText: {fontSize: 9, fontWeight: '800', color: '#166534'},
-  meta: {fontSize: 12, color: '#6B7280', marginTop: 2},
-  note: {fontSize: 12, color: '#4B5563', marginTop: 2},
-  updated: {fontSize: 11, color: '#9CA3AF', marginTop: 2},
-  old: {fontSize: 12, color: '#9CA3AF', textDecorationLine: 'line-through'},
-  price: {fontSize: 18, fontWeight: '800', color: '#6D28D9'},
-  memberLabel: {fontSize: 11, color: '#6B7280'},
-  footer: {fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 10},
+  bestText: {fontSize: 9, ...F.heavy, color: '#166534'},
+  meta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 2},
+  note: {
+    ...F.regular, fontSize: 12, color: '#4B5563', marginTop: 2},
+  updated: {
+    ...F.regular, fontSize: 11, color: '#9CA3AF', marginTop: 2},
+  old: {
+    ...F.regular, fontSize: 12, color: '#9CA3AF', textDecorationLine: 'line-through'},
+  price: {fontSize: 18, ...F.heavy, color: '#6D28D9'},
+  memberLabel: {
+    ...F.regular, fontSize: 11, color: '#6B7280'},
+  footer: {
+    ...F.regular, fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 10},
   quoteBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -200,5 +208,5 @@ const styles = StyleSheet.create({
     height: 48,
     marginTop: 6,
   },
-  quoteBtnText: {color: '#6D28D9', fontWeight: '700', fontSize: 14},
+  quoteBtnText: {color: '#6D28D9', ...F.bold, fontSize: 14},
 });

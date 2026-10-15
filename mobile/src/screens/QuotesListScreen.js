@@ -6,8 +6,9 @@ import {ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View} f
 import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {STATUS_LABEL, memberApi, timeLeft} from '../utils/quotes';
+import {F} from '../theme/home';
 
-const PURPLE = '#8B5CF6';
+const PURPLE = '#6D28D9';
 
 export default function QuotesListScreen({navigation, fetchImpl = fetch}) {
   const api = useMemo(() => memberApi(fetchImpl), [fetchImpl]);
@@ -77,17 +78,20 @@ export default function QuotesListScreen({navigation, fetchImpl = fetch}) {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
   error: {color: '#B91C1C', marginBottom: 10},
   empty: {alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24},
-  emptyTitle: {fontSize: 18, fontWeight: '800', color: '#1F2937', marginTop: 12},
-  emptyText: {fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 8, lineHeight: 20},
+  emptyTitle: {fontSize: 18, ...F.heavy, color: '#1F2937', marginTop: 12},
+  emptyText: {
+    ...F.regular, fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 8, lineHeight: 20},
   card: {flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10},
-  preview: {fontSize: 15, fontWeight: '700', color: '#1F2937'},
-  meta: {fontSize: 12, color: '#6B7280', marginTop: 4},
+  preview: {fontSize: 15, ...F.bold, color: '#1F2937'},
+  meta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 4},
   count: {alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, minWidth: 74},
-  countN: {fontSize: 20, fontWeight: '900', color: '#4B5563'},
-  countL: {fontSize: 10, color: '#6B7280'},
+  countN: {fontSize: 20, ...F.heavy, color: '#4B5563'},
+  countL: {
+    ...F.regular, fontSize: 10, color: '#6B7280'},
   fab: {
     position: 'absolute',
     right: 16,
@@ -101,5 +105,5 @@ const styles = StyleSheet.create({
     height: 52,
     elevation: 4,
   },
-  fabText: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'},
+  fabText: {color: '#FFFFFF', fontSize: 15, ...F.heavy, },
 });

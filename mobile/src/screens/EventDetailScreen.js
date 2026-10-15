@@ -15,6 +15,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_PATH } from '../config/apiConfig';
+import {F} from '../theme/home';
 
 const {width} = Dimensions.get('window');
 
@@ -181,7 +182,7 @@ export default function EventDetailScreen({route, navigation}) {
   if (!eventData) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator style={{marginTop: 80}} size="large" color="#8B5CF6" />
+        <ActivityIndicator style={{marginTop: 80}} size="large" color="#6D28D9" />
       </View>
     );
   }
@@ -207,7 +208,7 @@ export default function EventDetailScreen({route, navigation}) {
         <View style={styles.content}>
           {/* Category Badge */}
           <View style={styles.categoryBadge}>
-            <Ionicons name="calendar" size={14} color="#8B5CF6" />
+            <Ionicons name="calendar" size={14} color="#6D28D9" />
             <Text style={styles.categoryText}>{eventData.category}</Text>
           </View>
 
@@ -218,7 +219,7 @@ export default function EventDetailScreen({route, navigation}) {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <View style={styles.infoIconContainer}>
-                <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+                <Ionicons name="calendar-outline" size={20} color="#6D28D9" />
               </View>
               <View style={styles.infoText}>
                 <Text style={styles.infoLabel}>Data</Text>
@@ -236,7 +237,7 @@ export default function EventDetailScreen({route, navigation}) {
 
             <View style={styles.infoRow}>
               <View style={styles.infoIconContainer}>
-                <Ionicons name="time-outline" size={20} color="#8B5CF6" />
+                <Ionicons name="time-outline" size={20} color="#6D28D9" />
               </View>
               <View style={styles.infoText}>
                 <Text style={styles.infoLabel}>Horário</Text>
@@ -254,7 +255,7 @@ export default function EventDetailScreen({route, navigation}) {
               <Text style={styles.locationName}>{eventData.location}</Text>
               <Text style={styles.locationAddress}>{eventData.address}</Text>
               <Text style={styles.locationAction}>
-                <Ionicons name="navigate" size={12} color="#8B5CF6" /> Como
+                <Ionicons name="navigate" size={12} color="#6D28D9" /> Como
                 chegar
               </Text>
             </View>
@@ -318,7 +319,7 @@ export default function EventDetailScreen({route, navigation}) {
           disabled={isLoading}>
           <LinearGradient
             colors={
-              isRegistered ? ['#EF4444', '#DC2626'] : ['#8B5CF6', '#7C3AED']
+              isRegistered ? ['#EF4444', '#DC2626'] : ['#6D28D9', '#5B21B6']
             }
             style={styles.registerButtonGradient}
             start={{x: 0, y: 0}}
@@ -346,7 +347,7 @@ export default function EventDetailScreen({route, navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F6F5FB',
   },
   image: {
     width: width,
@@ -369,12 +370,12 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     fontSize: 12,
-    color: '#8B5CF6',
-    fontWeight: '600',
+    color: '#6D28D9',
+    ...F.semibold,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 24,
     lineHeight: 32,
@@ -402,13 +403,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#9CA3AF',
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     textTransform: 'capitalize',
   },
@@ -428,7 +430,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -438,26 +440,27 @@ const styles = StyleSheet.create({
   },
   locationName: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 2,
   },
   locationAddress: {
+    ...F.regular,
     fontSize: 13,
     color: '#6B7280',
     marginBottom: 4,
   },
   locationAction: {
     fontSize: 13,
-    color: '#8B5CF6',
-    fontWeight: '600',
+    color: '#6D28D9',
+    ...F.semibold,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 12,
   },
@@ -469,8 +472,8 @@ const styles = StyleSheet.create({
   },
   vacanciesCount: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#8B5CF6',
+    ...F.semibold,
+    color: '#6D28D9',
   },
   progressBar: {
     height: 8,
@@ -481,14 +484,16 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     borderRadius: 4,
   },
   vacanciesText: {
+    ...F.regular,
     fontSize: 13,
     color: '#6B7280',
   },
   description: {
+    ...F.regular,
     fontSize: 15,
     color: '#6B7280',
     lineHeight: 24,
@@ -505,6 +510,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   bringText: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
   },
@@ -535,7 +541,7 @@ const styles = StyleSheet.create({
   registerButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   registerButtonDisabled: {
     opacity: 0.6,

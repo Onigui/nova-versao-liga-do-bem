@@ -58,6 +58,14 @@ import LostFoundDetailScreen from '../screens/LostFoundDetailScreen';
 import LostFoundAlertsScreen from '../screens/LostFoundAlertsScreen';
 import LostFoundMineScreen from '../screens/LostFoundMineScreen';
 
+// Topo das telas com cabeçalho do navegador: roxo profundo do Início, título branco em Plus Jakarta Sans
+const HEADER = {
+  headerStyle: {backgroundColor: '#3B1A78', elevation: 0, shadowOpacity: 0, borderBottomWidth: 0},
+  headerTintColor: '#FFFFFF',
+  headerTitleStyle: {fontSize: 17, ...F.bold},
+  headerBackTitleVisible: false,
+};
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -77,10 +85,8 @@ export function AuthStack() {
         name="Legal"
         component={LegalScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Termos e Privacidade',
-          headerStyle: {backgroundColor: '#ffffff'},
-          headerTintColor: '#8B5CF6',
         }}
       />
     </Stack.Navigator>
@@ -166,79 +172,55 @@ export function AppStack() {
       <Stack.Screen
         name="Adoções"
         component={AdoptionsScreen}
-        options={{headerShown: true, title: 'Adoção', headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#6D28D9'}}
+        options={{headerShown: true, ...HEADER, title: 'Adoção',}}
       />
       <Stack.Screen name="Services" component={ServicesScreen} />
       <Stack.Screen 
         name="SearchPartner" 
         component={SearchPartnerScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Buscar Parceiro',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="PartnerDetail" 
         component={PartnerDetailScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Parceiro',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="AnimalDetail" 
         component={AnimalDetailScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Detalhes do Animal',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="EventDetail" 
         component={EventDetailScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Detalhes do Evento',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="Notifications" 
         component={NotificationsScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Notificações',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="Donation" 
         component={DonationScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Fazer Doação',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen
@@ -252,72 +234,48 @@ export function AppStack() {
         name="About" 
         component={AboutScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Sobre Nós',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="Volunteer" 
         component={VolunteerScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Voluntariado',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen
         name="Legal"
         component={LegalScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Termos e Privacidade',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="Transparency" 
         component={TransparencyScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Transparência',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="EventsCalendar" 
         component={EventsCalendarScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Eventos',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-          },
-          headerTintColor: '#8B5CF6',
         }}
       />
       <Stack.Screen 
         name="Debug" 
         component={DebugScreen}
         options={{
-          headerShown: true,
+          headerShown: true, ...HEADER,
           title: 'Debug & Logs',
-          headerStyle: {
-            backgroundColor: '#8B5CF6',
-          },
-          headerTintColor: '#FFFFFF',
         }}
       />
       <Stack.Screen 
@@ -398,77 +356,77 @@ export function AppStack() {
       <Stack.Screen
         name="ComparePrices"
         component={ComparePricesScreen}
-        options={{headerShown: true, title: 'Comparar preços', headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6'}}
+        options={{headerShown: true, ...HEADER, title: 'Comparar preços',}}
       />
       <Stack.Screen
         name="PriceOffers"
         component={PriceOffersScreen}
-        options={{headerShown: true, title: 'Preços', headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6'}}
+        options={{headerShown: true, ...HEADER, title: 'Preços',}}
       />
       <Stack.Screen
         name="QuotesList"
         component={QuotesListScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Meus orçamentos'}}
+        options={{headerShown: true, ...HEADER, title: 'Meus orçamentos'}}
       />
       <Stack.Screen
         name="QuoteNew"
         component={QuoteNewScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Novo orçamento'}}
+        options={{headerShown: true, ...HEADER, title: 'Novo orçamento'}}
       />
       <Stack.Screen
         name="QuoteDetail"
         component={QuoteDetailScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Orçamento'}}
+        options={{headerShown: true, ...HEADER, title: 'Orçamento'}}
       />
       <Stack.Screen
         name="PetHealth"
         component={PetHealthScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Histórico de saúde'}}
+        options={{headerShown: true, ...HEADER, title: 'Histórico de saúde'}}
       />
       <Stack.Screen
         name="HealthEntryForm"
         component={HealthEntryFormScreen}
-        options={({route}) => ({headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: route.params?.entry ? 'Editar registro' : 'Registro de saúde'})}
+        options={({route}) => ({headerShown: true, ...HEADER, title: route.params?.entry ? 'Editar registro' : 'Registro de saúde'})}
       />
       <Stack.Screen
         name="ReviewForm"
         component={ReviewFormScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Avaliar'}}
+        options={{headerShown: true, ...HEADER, title: 'Avaliar'}}
       />
       <Stack.Screen
         name="PartnerReviews"
         component={PartnerReviewsScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#8B5CF6', title: 'Avaliações'}}
+        options={{headerShown: true, ...HEADER, title: 'Avaliações'}}
       />
       <Stack.Screen
         name="NotaFiscal"
         component={NotaFiscalScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#059669', title: 'Nota Fiscal Paulista'}}
+        options={{headerShown: true, ...HEADER, title: 'Nota Fiscal Paulista'}}
       />
       <Stack.Screen
         name="LostFound"
         component={LostFoundScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Achados e perdidos'}}
+        options={{headerShown: true, ...HEADER, title: 'Achados e perdidos'}}
       />
       <Stack.Screen
         name="LostFoundNew"
         component={LostFoundNewScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Publicar aviso'}}
+        options={{headerShown: true, ...HEADER, title: 'Publicar aviso'}}
       />
       <Stack.Screen
         name="LostFoundDetail"
         component={LostFoundDetailScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Aviso'}}
+        options={{headerShown: true, ...HEADER, title: 'Aviso'}}
       />
       <Stack.Screen
         name="LostFoundAlerts"
         component={LostFoundAlertsScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Alertas por perto'}}
+        options={{headerShown: true, ...HEADER, title: 'Alertas por perto'}}
       />
       <Stack.Screen
         name="LostFoundMine"
         component={LostFoundMineScreen}
-        options={{headerShown: true, headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#7C3AED', title: 'Meus avisos'}}
+        options={{headerShown: true, ...HEADER, title: 'Meus avisos'}}
       />
     </Stack.Navigator>
   );

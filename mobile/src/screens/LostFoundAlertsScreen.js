@@ -7,6 +7,7 @@ import {ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, Touchabl
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import useUserLocation from '../services/useUserLocation';
 import {memberApi} from '../utils/quotes';
+import {F} from '../theme/home';
 
 const PURPLE = '#7C3AED';
 const RADII = [1, 3, 5, 10];
@@ -100,15 +101,18 @@ export default function LostFoundAlertsScreen({navigation, fetchImpl = fetch}) {
 
 const styles = StyleSheet.create({
   hero: {flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: '#F5F3FF', borderRadius: 14, padding: 14, marginBottom: 12},
-  heroText: {flex: 1, color: '#4C1D95', fontSize: 13, lineHeight: 19},
+  heroText: {
+    ...F.regular, flex: 1, color: '#4C1D95', fontSize: 13, lineHeight: 19},
   row: {flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginTop: 8},
-  rowText: {flex: 1, fontSize: 15, color: '#1F2937'},
-  label: {fontSize: 13, fontWeight: '700', color: '#374151', marginTop: 16, marginBottom: 6},
+  rowText: {
+    ...F.regular, flex: 1, fontSize: 15, color: '#1F2937'},
+  label: {fontSize: 13, ...F.bold, color: '#374151', marginTop: 16, marginBottom: 6},
   chips: {flexDirection: 'row', gap: 8, flexWrap: 'wrap'},
   chip: {paddingHorizontal: 14, height: 36, borderRadius: 18, justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB'},
   chipOn: {backgroundColor: PURPLE, borderColor: PURPLE},
-  chipText: {fontSize: 13, fontWeight: '700', color: '#4B5563'},
-  hint: {fontSize: 12, color: '#6B7280', marginTop: 14, lineHeight: 17},
+  chipText: {fontSize: 13, ...F.bold, color: '#4B5563'},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 14, lineHeight: 17},
   save: {height: 52, borderRadius: 14, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', marginTop: 20},
-  saveText: {color: '#FFFFFF', fontWeight: '800', fontSize: 16},
+  saveText: {color: '#FFFFFF', ...F.heavy, fontSize: 16},
 });

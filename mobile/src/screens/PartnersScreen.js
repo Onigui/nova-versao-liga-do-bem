@@ -23,6 +23,7 @@ import {toMemberPartner} from '../utils/partnerView';
 import {applyPartnerFilters, availableCategories, categoryFromRoute} from '../utils/partnerFilters';
 import useUserLocation from '../services/useUserLocation';
 import {useAuth} from '../services/AuthService';
+import {F} from '../theme/home';
 
 const CACHE_KEY = 'partners_cache_v2';
 
@@ -212,8 +213,12 @@ export default function PartnersScreen({navigation, route}) {
 
   return (
     <View style={styles.container}>
-      {/* Busca */}
+      {/* Topo roxo com a busca (mesmo visual do Início) */}
       <View style={styles.searchContainer}>
+        <Text style={styles.heroTitle}>Parceiros</Text>
+        <Text style={styles.heroSub}>
+          {partners.length ? `${partners.length} lugares com desconto para membros` : 'Descontos para membros da Liga do Bem'}
+        </Text>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
@@ -290,7 +295,7 @@ export default function PartnersScreen({navigation, route}) {
         ))}
 
         {loading ? (
-          <ActivityIndicator style={{marginTop: 40}} color="#8B5CF6" />
+          <ActivityIndicator style={{marginTop: 40}} color="#6D28D9" />
         ) : filteredPartners.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name={loadError ? 'cloud-offline-outline' : 'search-outline'} size={64} color="#D1D5DB" />
@@ -324,23 +329,29 @@ export default function PartnersScreen({navigation, route}) {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
   searchContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#3B1A78',
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 48,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    marginBottom: 12,
   },
+  heroTitle: {...F.heavy, color: '#FFFFFF', fontSize: 26},
+  heroSub: {...F.regular, color: '#DDD6FE', fontSize: 13, marginTop: 2, marginBottom: 14},
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
   },
-  searchInput: {flex: 1, fontSize: 15, color: '#1F2937'},
+  searchInput: {
+    ...F.regular, flex: 1, fontSize: 15, color: '#1F2937'},
   compareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -352,7 +363,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  compareText: {flex: 1, color: '#5B21B6', fontWeight: '700', fontSize: 13},
+  compareText: {flex: 1, color: '#5B21B6', ...F.bold, fontSize: 13},
   filtersContainer: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -372,8 +383,8 @@ const styles = StyleSheet.create({
     gap: 6,
     height: 36,
   },
-  filterButtonActive: {backgroundColor: '#8B5CF6', borderColor: '#8B5CF6'},
-  filterText: {fontSize: 14, fontWeight: '600', color: '#6B7280'},
+  filterButtonActive: {backgroundColor: '#6D28D9', borderColor: '#6D28D9'},
+  filterText: {fontSize: 14, ...F.semibold, color: '#6B7280'},
   filterTextActive: {color: '#FFFFFF'},
   filterDivider: {width: 1, height: 22, backgroundColor: '#E5E7EB', marginHorizontal: 4},
   scrollView: {flex: 1},
@@ -389,11 +400,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 12,
   },
-  bannerText: {flex: 1, fontSize: 13, color: '#4C1D95'},
+  bannerText: {
+    ...F.regular, flex: 1, fontSize: 13, color: '#4C1D95'},
   bannerBtn: {backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8},
-  bannerBtnText: {color: '#FFFFFF', fontWeight: '700', fontSize: 13},
-  listHint: {fontSize: 12, color: '#6B7280', marginHorizontal: 16, marginTop: 12},
+  bannerBtnText: {color: '#FFFFFF', ...F.bold, fontSize: 13},
+  listHint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginHorizontal: 16, marginTop: 12},
   emptyState: {alignItems: 'center', justifyContent: 'center', paddingVertical: 80},
-  emptyTitle: {fontSize: 18, fontWeight: '600', color: '#1F2937', marginTop: 16, marginBottom: 8},
-  emptyText: {fontSize: 14, color: '#6B7280', textAlign: 'center', paddingHorizontal: 32},
+  emptyTitle: {fontSize: 18, ...F.semibold, color: '#1F2937', marginTop: 16, marginBottom: 8},
+  emptyText: {
+    ...F.regular, fontSize: 14, color: '#6B7280', textAlign: 'center', paddingHorizontal: 32},
 });

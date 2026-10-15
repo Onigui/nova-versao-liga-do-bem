@@ -11,6 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
+import {F} from '../theme/home';
 
 export default function EventsCalendarScreen({navigation}) {
   const {isAuthenticated} = useAuth();
@@ -110,7 +111,7 @@ export default function EventsCalendarScreen({navigation}) {
 
   const getCategoryColor = category => {
     const colors = {
-      Adoção: '#8B5CF6',
+      Adoção: '#6D28D9',
       Saúde: '#10B981',
       Educação: '#F59E0B',
       Voluntariado: '#3B82F6',
@@ -121,7 +122,7 @@ export default function EventsCalendarScreen({navigation}) {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <Ionicons name="calendar" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Calendário de Eventos</Text>
         <Text style={styles.headerSubtitle}>Participe e faça a diferença!</Text>
@@ -266,20 +267,24 @@ export default function EventsCalendarScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     padding: 40,
     alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginTop: 16,
     marginBottom: 8,
   },
   headerSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
   },
@@ -305,11 +310,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   monthButtonActive: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
   },
   monthText: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
   },
   monthTextActive: {
@@ -320,7 +325,7 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     padding: 20,
     paddingBottom: 12,
@@ -347,13 +352,13 @@ const styles = StyleSheet.create({
   },
   eventDay: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#8B5CF6',
+    ...F.bold,
+    color: '#6D28D9',
     lineHeight: 32,
   },
   eventMonth: {
     fontSize: 12,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
     textTransform: 'uppercase',
   },
@@ -370,7 +375,7 @@ const styles = StyleSheet.create({
   eventTitle: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginRight: 8,
   },
@@ -381,7 +386,7 @@ const styles = StyleSheet.create({
   },
   categoryBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
+    ...F.semibold,
   },
   eventMeta: {
     gap: 6,
@@ -393,6 +398,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   metaText: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     flex: 1,
@@ -410,7 +416,7 @@ const styles = StyleSheet.create({
   },
   vacanciesText: {
     fontSize: 13,
-    fontWeight: '600',
+    ...F.semibold,
   },
   emptyState: {
     alignItems: 'center',
@@ -419,12 +425,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
