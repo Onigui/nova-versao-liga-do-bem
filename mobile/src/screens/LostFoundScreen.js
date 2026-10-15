@@ -10,6 +10,7 @@ import LeafletMap from '../components/LeafletMap';
 import useUserLocation from '../services/useUserLocation';
 import {memberApi} from '../utils/quotes';
 import {LF_TYPES, distanceLabel, photoUrl, speciesLabel, timeAgo, toMarkers} from '../utils/lostfound';
+import {F} from '../theme/home';
 
 const PURPLE = '#7C3AED';
 const FILTERS = [
@@ -190,33 +191,35 @@ export default function LostFoundScreen({navigation, fetchImpl = fetch}) {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
   top: {backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E5E7EB'},
   modes: {flexDirection: 'row', alignItems: 'center', gap: 8},
   mode: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6'},
   modeOn: {backgroundColor: PURPLE},
-  modeText: {fontSize: 13, fontWeight: '700', color: '#4B5563'},
+  modeText: {fontSize: 13, ...F.bold, color: '#4B5563'},
   iconBtn: {padding: 4},
   filters: {flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap'},
   chip: {paddingHorizontal: 12, height: 30, borderRadius: 15, justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB'},
-  chipText: {fontSize: 12, fontWeight: '700', color: '#4B5563'},
-  reunited: {fontSize: 12, color: '#047857', fontWeight: '600', marginTop: 8},
-  hint: {fontSize: 12, color: '#6B7280', marginBottom: 8},
+  chipText: {fontSize: 12, ...F.bold, color: '#4B5563'},
+  reunited: {fontSize: 12, color: '#047857', ...F.semibold, marginTop: 8},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginBottom: 8},
   row: {flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 10, marginBottom: 8},
   photo: {width: 64, height: 64, borderRadius: 12},
   tag: {alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2},
-  tagText: {fontSize: 10, fontWeight: '900'},
-  title: {fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 3},
-  meta: {fontSize: 12, color: '#6B7280', marginTop: 2},
+  tagText: {fontSize: 10, ...F.heavy, },
+  title: {fontSize: 15, ...F.bold, color: '#1F2937', marginTop: 3},
+  meta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 2},
   empty: {alignItems: 'center', paddingVertical: 50},
   emptyText: {color: '#6B7280', marginTop: 8},
   preview: {position: 'absolute', left: 12, right: 12, bottom: 90, elevation: 6},
   previewClose: {position: 'absolute', right: 6, top: 6, padding: 4},
   fab: {position: 'absolute', right: 16, bottom: 24, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: PURPLE, borderRadius: 28, paddingHorizontal: 20, height: 52, elevation: 4},
-  fabText: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'},
+  fabText: {color: '#FFFFFF', fontSize: 15, ...F.heavy, },
   backdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end'},
   sheet: {backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32},
-  sheetTitle: {fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 12},
+  sheetTitle: {fontSize: 18, ...F.heavy, color: '#1F2937', marginBottom: 12},
   option: {flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 16, marginBottom: 10},
-  optionText: {fontSize: 16, fontWeight: '800'},
+  optionText: {fontSize: 16, ...F.heavy, },
 });

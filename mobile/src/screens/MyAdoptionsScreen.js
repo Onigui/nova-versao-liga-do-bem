@@ -14,6 +14,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 export default function MyAdoptionsScreen({navigation}) {
   const {user} = useAuth();
@@ -157,7 +158,7 @@ export default function MyAdoptionsScreen({navigation}) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+        <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}>
@@ -166,7 +167,7 @@ export default function MyAdoptionsScreen({navigation}) {
           <Text style={styles.headerTitle}>Minhas Adoções</Text>
         </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color="#6D28D9" />
           <Text style={styles.loadingText}>Carregando adoções...</Text>
         </View>
       </View>
@@ -181,7 +182,7 @@ export default function MyAdoptionsScreen({navigation}) {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -216,7 +217,7 @@ export default function MyAdoptionsScreen({navigation}) {
               style={styles.adoptButton}
               onPress={() => navigation.navigate('Adoptions')}>
               <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
+                colors={['#6D28D9', '#5B21B6']}
                 style={styles.adoptButtonGradient}>
                 <Ionicons name="paw" size={20} color="#FFFFFF" />
                 <Text style={styles.adoptButtonText}>Ver Animais para Adoção</Text>
@@ -349,19 +350,22 @@ export default function MyAdoptionsScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     paddingTop: 60,
     paddingBottom: 30,
     paddingHorizontal: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     marginBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
   },
   loadingContainer: {
@@ -371,6 +375,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
+    ...F.regular,
     marginTop: 16,
     color: '#6B7280',
     fontSize: 14,
@@ -400,13 +405,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   summaryLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 8,
   },
   summaryValue: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
   },
   emptyContainer: {
@@ -416,12 +422,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
@@ -443,7 +450,7 @@ const styles = StyleSheet.create({
   adoptButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   adoptionsList: {
     gap: 16,
@@ -472,6 +479,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   animalImageEmoji: {
+    ...F.regular,
     fontSize: 64,
   },
   adoptionContent: {
@@ -489,7 +497,7 @@ const styles = StyleSheet.create({
   },
   animalName: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 4,
   },
@@ -499,15 +507,18 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   animalSpecies: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
   },
   animalDetailsSeparator: {
+    ...F.regular,
     fontSize: 14,
     color: '#9CA3AF',
     marginHorizontal: 6,
   },
   animalBreed: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
   },
@@ -521,9 +532,10 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    ...F.semibold,
   },
   adoptionNotes: {
+    ...F.regular,
     fontSize: 14,
     color: '#4B5563',
     marginBottom: 12,
@@ -541,6 +553,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   adoptionDateText: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
   },

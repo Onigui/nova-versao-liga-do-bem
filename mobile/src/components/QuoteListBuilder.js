@@ -9,11 +9,12 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {API_BASE_PATH} from '../config/apiConfig';
 import {PRICE_CATEGORIES} from '../utils/priceCompare';
 import {MAX_ITEMS} from '../utils/quotes';
+import {F} from '../theme/home';
 
 let keySeq = 0;
 const nextKey = () => `k${++keySeq}`;
 
-export default function QuoteListBuilder({value, onChange, color = '#8B5CF6', species = null, fetchImpl = fetch}) {
+export default function QuoteListBuilder({value, onChange, color = '#6D28D9', species = null, fetchImpl = fetch}) {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -154,13 +155,16 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     paddingHorizontal: 12,
   },
-  searchInput: {flex: 1, fontSize: 15, color: '#1F2937', paddingVertical: 12},
+  searchInput: {
+    ...F.regular, flex: 1, fontSize: 15, color: '#1F2937', paddingVertical: 12},
   results: {backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', marginTop: 6, overflow: 'hidden'},
   result: {flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6'},
-  resultName: {fontSize: 14, fontWeight: '600', color: '#1F2937'},
-  resultMeta: {fontSize: 12, color: '#6B7280'},
+  resultName: {fontSize: 14, ...F.semibold, color: '#1F2937'},
+  resultMeta: {
+    ...F.regular, fontSize: 12, color: '#6B7280'},
   free: {padding: 12, backgroundColor: '#F9FAFB'},
-  freeTitle: {fontSize: 13, color: '#374151', marginBottom: 8},
+  freeTitle: {
+    ...F.regular, fontSize: 13, color: '#374151', marginBottom: 8},
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 6},
   chip: {
     flexDirection: 'row',
@@ -173,7 +177,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  chipText: {fontSize: 12, fontWeight: '600', color: '#4B5563'},
+  chipText: {fontSize: 12, ...F.semibold, color: '#4B5563'},
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -183,8 +187,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 8,
   },
-  rowName: {fontSize: 15, fontWeight: '700', color: '#1F2937'},
+  rowName: {fontSize: 15, ...F.bold, color: '#1F2937'},
   qtyBtn: {width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center'},
-  qty: {minWidth: 22, textAlign: 'center', fontSize: 16, fontWeight: '800', color: '#1F2937'},
-  empty: {fontSize: 13, color: '#6B7280', marginTop: 12, textAlign: 'center'},
+  qty: {minWidth: 22, textAlign: 'center', fontSize: 16, ...F.heavy, color: '#1F2937'},
+  empty: {
+    ...F.regular, fontSize: 13, color: '#6B7280', marginTop: 12, textAlign: 'center'},
 });

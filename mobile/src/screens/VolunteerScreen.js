@@ -16,6 +16,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAuth} from '../services/AuthService';
 import {API_BASE_PATH} from '../config/apiConfig';
+import {F} from '../theme/home';
 
 const ROLES = [
   'Cuidador de animais',
@@ -138,7 +139,7 @@ export default function VolunteerScreen({navigation}) {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={['#8B5CF6', '#EC4899']}
+          colors={['#3B1A78', '#5B21B6']}
           style={styles.loginPromptContainer}>
           <Ionicons name="people" size={64} color="#FFFFFF" />
           <Text style={styles.loginPromptTitle}>Seja Voluntário!</Text>
@@ -153,7 +154,7 @@ export default function VolunteerScreen({navigation}) {
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#6D28D9" />
         <Text style={styles.loadingText}>Carregando...</Text>
       </View>
     );
@@ -166,7 +167,7 @@ export default function VolunteerScreen({navigation}) {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <Text style={styles.headerTitle}>Meu Voluntariado</Text>
         {isVolunteer && volunteerWork?.role ? (
           <Text style={styles.headerRole}>{volunteerWork.role}</Text>
@@ -226,7 +227,7 @@ export default function VolunteerScreen({navigation}) {
             style={styles.actionCard}
             onPress={() => navigation.navigate('EventsCalendar')}>
             <LinearGradient
-              colors={['#8B5CF6', '#7C3AED']}
+              colors={['#6D28D9', '#5B21B6']}
               style={styles.actionGradient}>
               <Ionicons name="calendar" size={28} color="#FFFFFF" />
             </LinearGradient>
@@ -374,13 +375,13 @@ export default function VolunteerScreen({navigation}) {
           </Text>
         </View>
         <View style={styles.benefitCard}>
-          <Ionicons name="gift" size={20} color="#EC4899" />
+          <Ionicons name="gift" size={20} color="#6D28D9" />
           <Text style={styles.benefitText}>
             Troque pontos por brindes exclusivos
           </Text>
         </View>
         <View style={styles.benefitCard}>
-          <Ionicons name="heart" size={20} color="#8B5CF6" />
+          <Ionicons name="heart" size={20} color="#6D28D9" />
           <Text style={styles.benefitText}>
             Faça a diferença na vida dos animais
           </Text>
@@ -448,7 +449,7 @@ export default function VolunteerScreen({navigation}) {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
   centered: {justifyContent: 'center', alignItems: 'center'},
   loadingText: {marginTop: 12, color: '#6B7280'},
   loginPromptContainer: {
@@ -459,21 +460,26 @@ const styles = StyleSheet.create({
   },
   loginPromptTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginTop: 24,
     marginBottom: 12,
   },
   loginPromptText: {
+    ...F.regular,
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     lineHeight: 24,
   },
-  header: {padding: 24, paddingTop: 32},
+  header: {padding: 24, paddingTop: 32,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+  },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginBottom: 8,
     textAlign: 'center',
@@ -493,15 +499,16 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 22,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginBottom: 4,
   },
-  statLabel: {fontSize: 11, color: 'rgba(255,255,255,0.85)'},
+  statLabel: {
+    ...F.regular, fontSize: 11, color: 'rgba(255,255,255,0.85)'},
   section: {padding: 20},
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 16,
   },
@@ -521,15 +528,16 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   levelInfo: {flex: 1},
-  levelTitle: {fontSize: 16, fontWeight: '700', color: '#1F2937'},
-  levelSubtitle: {fontSize: 13, color: '#6B7280', marginTop: 2},
+  levelTitle: {fontSize: 16, ...F.bold, color: '#1F2937'},
+  levelSubtitle: {
+    ...F.regular, fontSize: 13, color: '#6B7280', marginTop: 2},
   progressBar: {
     height: 8,
     backgroundColor: '#E5E7EB',
     borderRadius: 4,
     overflow: 'hidden',
   },
-  progressFill: {height: '100%', backgroundColor: '#8B5CF6'},
+  progressFill: {height: '100%', backgroundColor: '#6D28D9'},
   actionsGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: 12},
   actionCard: {width: '47%', alignItems: 'center'},
   actionGradient: {
@@ -542,11 +550,12 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 13,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#374151',
     textAlign: 'center',
   },
-  emptyText: {color: '#6B7280', fontSize: 14, marginBottom: 8},
+  emptyText: {
+    ...F.regular, color: '#6B7280', fontSize: 14, marginBottom: 8},
   rankRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -555,9 +564,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  rankPos: {width: 40, fontWeight: '700', color: '#8B5CF6'},
-  rankName: {flex: 1, color: '#1F2937', fontWeight: '500'},
-  rankPoints: {color: '#6B7280', fontWeight: '600'},
+  rankPos: {width: 40, ...F.bold, color: '#6D28D9'},
+  rankName: {flex: 1, color: '#1F2937', ...F.semibold, },
+  rankPoints: {color: '#6B7280', ...F.semibold, },
   eventCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -576,9 +585,10 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   eventInfo: {flex: 1},
-  eventTitle: {fontSize: 15, fontWeight: '600', color: '#1F2937'},
+  eventTitle: {fontSize: 15, ...F.semibold, color: '#1F2937'},
   eventMeta: {flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4},
-  eventMetaText: {fontSize: 12, color: '#6B7280', marginRight: 8},
+  eventMetaText: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginRight: 8},
   benefitCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -588,7 +598,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 12,
   },
-  benefitText: {flex: 1, fontSize: 14, color: '#374151'},
+  benefitText: {
+    ...F.regular, flex: 1, fontSize: 14, color: '#374151'},
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -601,8 +612,9 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 36,
   },
-  modalTitle: {fontSize: 20, fontWeight: '700', color: '#1F2937'},
-  modalSubtitle: {fontSize: 14, color: '#6B7280', marginBottom: 16, marginTop: 4},
+  modalTitle: {fontSize: 20, ...F.bold, color: '#1F2937'},
+  modalSubtitle: {
+    ...F.regular, fontSize: 14, color: '#6B7280', marginBottom: 16, marginTop: 4},
   roleOption: {
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
@@ -610,9 +622,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  roleOptionActive: {borderColor: '#8B5CF6', backgroundColor: '#F5F3FF'},
-  roleOptionText: {color: '#374151', fontWeight: '500'},
-  roleOptionTextActive: {color: '#8B5CF6', fontWeight: '700'},
+  roleOptionActive: {borderColor: '#6D28D9', backgroundColor: '#F5F3FF'},
+  roleOptionText: {color: '#374151', ...F.semibold, },
+  roleOptionTextActive: {color: '#6D28D9', ...F.bold, },
   descInput: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -625,13 +637,13 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   submitButton: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     borderRadius: 12,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  submitButtonText: {color: '#FFFFFF', fontWeight: '600', fontSize: 16},
+  submitButtonText: {color: '#FFFFFF', ...F.semibold, fontSize: 16},
   cancelButton: {height: 44, justifyContent: 'center', alignItems: 'center'},
-  cancelButtonText: {color: '#6B7280', fontWeight: '500'},
+  cancelButtonText: {color: '#6B7280', ...F.semibold, },
 });

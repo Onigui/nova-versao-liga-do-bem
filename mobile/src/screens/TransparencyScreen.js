@@ -11,6 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {API_BASE_PATH} from '../config/apiConfig';
+import {F} from '../theme/home';
 
 export default function TransparencyScreen() {
   const [period, setPeriod] = useState('month');
@@ -93,7 +94,7 @@ export default function TransparencyScreen() {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <Ionicons name="pie-chart" size={48} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Transparência Financeira</Text>
         <Text style={styles.headerSubtitle}>
@@ -123,7 +124,7 @@ export default function TransparencyScreen() {
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color="#6D28D9" />
           <Text style={styles.loadingText}>Carregando dados...</Text>
         </View>
       ) : error ? (
@@ -269,7 +270,7 @@ export default function TransparencyScreen() {
           </View>
 
           <View style={styles.infoBanner}>
-            <Ionicons name="shield-checkmark" size={24} color="#8B5CF6" />
+            <Ionicons name="shield-checkmark" size={24} color="#6D28D9" />
             <View style={styles.infoBannerText}>
               <Text style={styles.infoBannerTitle}>Transparência Total</Text>
               <Text style={styles.infoBannerSubtitle}>
@@ -285,16 +286,21 @@ export default function TransparencyScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
-  header: {padding: 40, alignItems: 'center'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
+  header: {padding: 40, alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+  },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginTop: 16,
     marginBottom: 8,
   },
-  headerSubtitle: {fontSize: 14, color: 'rgba(255, 255, 255, 0.9)'},
+  headerSubtitle: {
+    ...F.regular, fontSize: 14, color: 'rgba(255, 255, 255, 0.9)'},
   periodSelector: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -310,20 +316,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  periodButtonActive: {backgroundColor: '#8B5CF6'},
-  periodText: {fontSize: 14, fontWeight: '600', color: '#6B7280'},
+  periodButtonActive: {backgroundColor: '#6D28D9'},
+  periodText: {fontSize: 14, ...F.semibold, color: '#6B7280'},
   periodTextActive: {color: '#FFFFFF'},
   loadingBox: {padding: 40, alignItems: 'center'},
   loadingText: {marginTop: 12, color: '#6B7280'},
   errorText: {color: '#EF4444', textAlign: 'center', marginBottom: 12},
   retryButton: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
   },
-  retryButtonText: {color: '#FFFFFF', fontWeight: '600'},
-  emptyHint: {color: '#6B7280', fontSize: 14, marginBottom: 8},
+  retryButtonText: {color: '#FFFFFF', ...F.semibold, },
+  emptyHint: {
+    ...F.regular, color: '#6B7280', fontSize: 14, marginBottom: 8},
   summaryContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -338,16 +345,17 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 14,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginTop: 8,
     marginBottom: 4,
   },
-  summaryLabel: {fontSize: 11, color: '#6B7280'},
+  summaryLabel: {
+    ...F.regular, fontSize: 11, color: '#6B7280'},
   section: {paddingHorizontal: 20, marginBottom: 24},
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 16,
   },
@@ -367,8 +375,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  incomeLabel: {fontSize: 15, color: '#374151', fontWeight: '500'},
-  incomeValue: {fontSize: 15, fontWeight: '700', color: '#1F2937'},
+  incomeLabel: {fontSize: 15, color: '#374151', ...F.semibold, },
+  incomeValue: {fontSize: 15, ...F.bold, color: '#1F2937'},
   categoryCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -380,8 +388,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
-  categoryName: {fontSize: 15, fontWeight: '600', color: '#1F2937'},
-  categoryValue: {fontSize: 14, fontWeight: '600', color: '#6B7280'},
+  categoryName: {fontSize: 15, ...F.semibold, color: '#1F2937'},
+  categoryValue: {fontSize: 14, ...F.semibold, color: '#6B7280'},
   progressContainer: {flexDirection: 'row', alignItems: 'center'},
   progressBar: {
     flex: 1,
@@ -393,6 +401,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {height: '100%', borderRadius: 4},
   progressPercentage: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     width: 48,
@@ -422,10 +431,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   transactionInfo: {flex: 1},
-  transactionTitle: {fontSize: 14, fontWeight: '600', color: '#1F2937'},
-  transactionDate: {fontSize: 12, color: '#9CA3AF', marginTop: 2},
-  transactionValuePositive: {fontSize: 14, fontWeight: '700', color: '#10B981'},
-  transactionValueNegative: {fontSize: 14, fontWeight: '700', color: '#EF4444'},
+  transactionTitle: {fontSize: 14, ...F.semibold, color: '#1F2937'},
+  transactionDate: {
+    ...F.regular, fontSize: 12, color: '#9CA3AF', marginTop: 2},
+  transactionValuePositive: {fontSize: 14, ...F.bold, color: '#10B981'},
+  transactionValueNegative: {fontSize: 14, ...F.bold, color: '#EF4444'},
   infoBanner: {
     flexDirection: 'row',
     backgroundColor: '#F5F3FF',
@@ -438,9 +448,10 @@ const styles = StyleSheet.create({
   infoBannerText: {flex: 1},
   infoBannerTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 4,
   },
-  infoBannerSubtitle: {fontSize: 13, color: '#6B7280', lineHeight: 18},
+  infoBannerSubtitle: {
+    ...F.regular, fontSize: 13, color: '#6B7280', lineHeight: 18},
 });

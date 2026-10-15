@@ -9,6 +9,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import QRCode from 'react-native-qrcode-svg';
 import {API_BASE_PATH} from '../config/apiConfig';
+import {F} from '../theme/home';
 
 const RENEW_BEFORE_MS = 90 * 1000;
 
@@ -91,8 +92,9 @@ export default function PetQrScreen({route, navigation, fetchImpl = fetch}) {
 const styles = StyleSheet.create({
   container: {flex: 1, alignItems: 'center', paddingTop: 60, paddingHorizontal: 24},
   close: {position: 'absolute', top: 44, right: 16, padding: 8},
-  title: {color: '#FFFFFF', fontSize: 24, fontWeight: '800', textAlign: 'center'},
-  subtitle: {color: '#EDE9FE', fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 24},
+  title: {color: '#FFFFFF', fontSize: 24, ...F.heavy, textAlign: 'center'},
+  subtitle: {
+    ...F.regular, color: '#EDE9FE', fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 24},
   qrBox: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -105,5 +107,6 @@ const styles = StyleSheet.create({
   err: {color: '#4B5563', textAlign: 'center', marginTop: 10},
   tips: {marginTop: 28, gap: 12, alignSelf: 'stretch'},
   tip: {flexDirection: 'row', gap: 10, alignItems: 'center'},
-  tipText: {color: '#FFFFFF', flex: 1, fontSize: 14},
+  tipText: {
+    ...F.regular, color: '#FFFFFF', flex: 1, fontSize: 14},
 });

@@ -19,6 +19,7 @@ import {brl} from '../utils/priceCompare';
 import {API_BASE_PATH} from '../config/apiConfig';
 import {RatingSummary, ReviewCard} from '../components/Reviews';
 import {memberApi} from '../utils/quotes';
+import {F} from '../theme/home';
 
 const {width} = Dimensions.get('window');
 
@@ -98,7 +99,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
         {/* Header com Gradient */}
-        <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+        <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
           <View style={styles.logoContainer}>
             {partnerData.logo ? (
               <Image
@@ -108,7 +109,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
               />
             ) : (
               <View style={styles.logoFallback}>
-                <Ionicons name="storefront" size={42} color="#8B5CF6" />
+                <Ionicons name="storefront" size={42} color="#6D28D9" />
               </View>
             )}
           </View>
@@ -126,7 +127,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
           {/* Title */}
           <Text style={styles.name}>{partnerData.name}</Text>
           <View style={styles.categoryBadge}>
-            <Ionicons name="storefront" size={14} color="#8B5CF6" />
+            <Ionicons name="storefront" size={14} color="#6D28D9" />
             <Text style={styles.categoryText}>{partnerData.category}</Text>
           </View>
 
@@ -241,7 +242,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
 
             <TouchableOpacity style={styles.locationCard} onPress={openMaps}>
               <View style={styles.locationIcon}>
-                <Ionicons name="location" size={24} color="#8B5CF6" />
+                <Ionicons name="location" size={24} color="#6D28D9" />
               </View>
               <View style={styles.locationText}>
                 <Text style={styles.locationAddress}>
@@ -251,7 +252,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
                   {distance ? `A ${distance} de você · abrir no mapa` : 'Abrir no Google Maps'}
                 </Text>
               </View>
-              <Ionicons name="navigate" size={24} color="#8B5CF6" />
+              <Ionicons name="navigate" size={24} color="#6D28D9" />
             </TouchableOpacity>
           </View>
 
@@ -360,7 +361,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     height: 200,
@@ -401,16 +402,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DDD6FE',
   },
-  promoLabel: {fontSize: 18, fontWeight: '800', color: '#7C3AED'},
-  promoName: {fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2},
-  promoDesc: {fontSize: 13, color: '#6B7280', marginTop: 2},
-  promoHint: {fontSize: 12, color: '#6B7280', marginTop: 4},
+  promoLabel: {fontSize: 18, ...F.heavy, color: '#7C3AED'},
+  promoName: {fontSize: 15, ...F.bold, color: '#1F2937', marginTop: 2},
+  promoDesc: {
+    ...F.regular, fontSize: 13, color: '#6B7280', marginTop: 2},
+  promoHint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 4},
   priceRow: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6'},
-  priceName: {fontSize: 14, fontWeight: '600', color: '#1F2937'},
-  priceMeta: {fontSize: 12, color: '#6B7280', marginTop: 2},
-  priceOld: {fontSize: 12, color: '#9CA3AF', textDecorationLine: 'line-through'},
-  priceValue: {fontSize: 16, fontWeight: '800', color: '#6D28D9'},
-  priceMore: {color: '#7C3AED', fontWeight: '700', marginTop: 10},
+  priceName: {fontSize: 14, ...F.semibold, color: '#1F2937'},
+  priceMeta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 2},
+  priceOld: {
+    ...F.regular, fontSize: 12, color: '#9CA3AF', textDecorationLine: 'line-through'},
+  priceValue: {fontSize: 16, ...F.heavy, color: '#6D28D9'},
+  priceMore: {color: '#7C3AED', ...F.bold, marginTop: 10},
   discountBadge: {
     position: 'absolute',
     top: 16,
@@ -423,14 +428,14 @@ const styles = StyleSheet.create({
   discountText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    ...F.bold,
   },
   content: {
     padding: 24,
   },
   name: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 8,
     textAlign: 'center',
@@ -444,19 +449,20 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     fontSize: 14,
-    color: '#8B5CF6',
-    fontWeight: '600',
+    color: '#6D28D9',
+    ...F.semibold,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 12,
   },
   description: {
+    ...F.regular,
     fontSize: 15,
     color: '#6B7280',
     lineHeight: 24,
@@ -481,13 +487,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contactLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#9CA3AF',
     marginBottom: 2,
   },
   contactValue: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
   },
   locationCard: {
@@ -505,14 +512,14 @@ const styles = StyleSheet.create({
   },
   locationAddress: {
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginBottom: 4,
   },
   locationAction: {
     fontSize: 13,
-    color: '#8B5CF6',
-    fontWeight: '500',
+    color: '#6D28D9',
+    ...F.semibold,
   },
   hoursCard: {
     backgroundColor: '#F9FAFB',
@@ -541,12 +548,12 @@ const styles = StyleSheet.create({
   hoursTodayLabel: {
     fontSize: 12,
     color: '#6B7280',
-    fontWeight: '500',
+    ...F.semibold,
   },
   hoursTodayValue: {
     fontSize: 16,
     color: '#111827',
-    fontWeight: '700',
+    ...F.bold,
   },
   hoursRow: {
     flexDirection: 'row',
@@ -559,21 +566,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDE9FE',
   },
   hoursDay: {
+    ...F.regular,
     fontSize: 14,
     color: '#4B5563',
   },
   hoursDayToday: {
     color: '#5B21B6',
-    fontWeight: '700',
+    ...F.bold,
   },
   hoursRange: {
     fontSize: 14,
     color: '#111827',
-    fontWeight: '600',
+    ...F.semibold,
   },
   hoursClosed: {
     color: '#9CA3AF',
-    fontWeight: '500',
+    ...F.semibold,
   },
   howToCard: {
     backgroundColor: '#F9FAFB',
@@ -589,7 +597,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -597,9 +605,10 @@ const styles = StyleSheet.create({
   stepNumberText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    ...F.bold,
   },
   stepText: {
+    ...F.regular,
     flex: 1,
     fontSize: 14,
     color: '#6B7280',

@@ -13,6 +13,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 export default function MyDonationsScreen({navigation}) {
   const {user} = useAuth();
@@ -144,7 +145,7 @@ export default function MyDonationsScreen({navigation}) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+        <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}>
@@ -153,7 +154,7 @@ export default function MyDonationsScreen({navigation}) {
           <Text style={styles.headerTitle}>Minhas Doações</Text>
         </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color="#6D28D9" />
           <Text style={styles.loadingText}>Carregando doações...</Text>
         </View>
       </View>
@@ -166,7 +167,7 @@ export default function MyDonationsScreen({navigation}) {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -203,7 +204,7 @@ export default function MyDonationsScreen({navigation}) {
               style={styles.donateButton}
               onPress={() => navigation.navigate('Donation')}>
               <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
+                colors={['#6D28D9', '#5B21B6']}
                 style={styles.donateButtonGradient}>
                 <Ionicons name="heart" size={20} color="#FFFFFF" />
                 <Text style={styles.donateButtonText}>Fazer uma Doação</Text>
@@ -219,7 +220,7 @@ export default function MyDonationsScreen({navigation}) {
                     <Ionicons
                       name={getMethodIcon(donation.method)}
                       size={24}
-                      color="#8B5CF6"
+                      color="#6D28D9"
                     />
                   </View>
                   <View style={styles.donationInfo}>
@@ -271,19 +272,22 @@ export default function MyDonationsScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     paddingTop: 60,
     paddingBottom: 30,
     paddingHorizontal: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     marginBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
   },
   loadingContainer: {
@@ -293,6 +297,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
+    ...F.regular,
     marginTop: 16,
     color: '#6B7280',
     fontSize: 14,
@@ -322,13 +327,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   summaryLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 8,
   },
   summaryValue: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
   },
   emptyContainer: {
@@ -338,12 +344,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#1F2937',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
@@ -365,7 +372,7 @@ const styles = StyleSheet.create({
   donateButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
   },
   donationsList: {
     gap: 12,
@@ -400,11 +407,12 @@ const styles = StyleSheet.create({
   },
   donationAmount: {
     fontSize: 20,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 4,
   },
   donationMethod: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
   },
@@ -415,9 +423,10 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    ...F.semibold,
   },
   donationDescription: {
+    ...F.regular,
     fontSize: 14,
     color: '#4B5563',
     marginBottom: 12,
@@ -436,6 +445,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   donationDateText: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
   },

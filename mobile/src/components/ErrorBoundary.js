@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   button: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

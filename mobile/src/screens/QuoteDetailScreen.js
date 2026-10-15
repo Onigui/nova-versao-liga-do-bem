@@ -9,8 +9,9 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {brl} from '../utils/priceCompare';
 import {toMemberPartner} from '../utils/partnerView';
 import {STATUS_LABEL, groupPerItemByStore, memberApi, timeLeft, validLabel} from '../utils/quotes';
+import {F} from '../theme/home';
 
-const PURPLE = '#8B5CF6';
+const PURPLE = '#6D28D9';
 const POLL_MS = 20000;
 
 function SourceTag({source}) {
@@ -302,13 +303,14 @@ export default function QuoteDetailScreen({navigation, route, fetchImpl = fetch}
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
   head: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   status: {flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4},
-  statusText: {fontSize: 12, fontWeight: '800'},
+  statusText: {fontSize: 12, ...F.heavy, },
   liveDot: {width: 8, height: 8, borderRadius: 4, backgroundColor: '#16A34A'},
-  title: {fontSize: 20, fontWeight: '800', color: '#1F2937', marginTop: 10},
-  meta: {fontSize: 12, color: '#6B7280', marginTop: 2},
+  title: {fontSize: 20, ...F.heavy, color: '#1F2937', marginTop: 10},
+  meta: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 2},
   error: {color: '#B91C1C', marginTop: 8},
   tabs: {flexDirection: 'row', gap: 8, marginVertical: 14},
   tab: {
@@ -324,31 +326,38 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   tabActive: {backgroundColor: PURPLE, borderColor: PURPLE},
-  tabText: {fontSize: 14, fontWeight: '700', color: '#4B5563'},
+  tabText: {fontSize: 14, ...F.bold, color: '#4B5563'},
   empty: {alignItems: 'center', paddingVertical: 40, paddingHorizontal: 16},
-  emptyTitle: {fontSize: 17, fontWeight: '700', color: '#1F2937', marginTop: 12},
-  emptyText: {fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 6},
+  emptyTitle: {fontSize: 17, ...F.bold, color: '#1F2937', marginTop: 12},
+  emptyText: {
+    ...F.regular, fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 6},
   card: {backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1.5, borderColor: '#F3F4F6'},
   cardHead: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  store: {fontSize: 16, fontWeight: '800', color: '#1F2937'},
-  total: {fontSize: 19, fontWeight: '800', color: '#6D28D9'},
+  store: {fontSize: 16, ...F.heavy, color: '#1F2937'},
+  total: {fontSize: 19, ...F.heavy, color: '#6D28D9'},
   tag: {borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2},
-  tagText: {fontSize: 9, fontWeight: '800'},
+  tagText: {fontSize: 9, ...F.heavy, },
   line: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#F3F4F6'},
-  lineName: {flex: 1, fontSize: 14, color: '#374151'},
-  lineNote: {fontSize: 12, color: '#6B7280'},
-  linePrice: {fontSize: 14, fontWeight: '700', color: '#1F2937', minWidth: 76, textAlign: 'right'},
-  quoteNote: {fontSize: 13, color: '#4B5563', fontStyle: 'italic', marginTop: 6},
+  lineName: {
+    ...F.regular, flex: 1, fontSize: 14, color: '#374151'},
+  lineNote: {
+    ...F.regular, fontSize: 12, color: '#6B7280'},
+  linePrice: {fontSize: 14, ...F.bold, color: '#1F2937', minWidth: 76, textAlign: 'right'},
+  quoteNote: {
+    ...F.regular, fontSize: 13, color: '#4B5563', fontStyle: 'italic', marginTop: 6},
   reserve: {backgroundColor: PURPLE, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', marginTop: 10},
-  reserveText: {color: '#FFFFFF', fontWeight: '800', fontSize: 14, textAlign: 'center'},
+  reserveText: {color: '#FFFFFF', ...F.heavy, fontSize: 14, textAlign: 'center'},
   rsv: {backgroundColor: '#F5F3FF', borderColor: '#DDD6FE', borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 10},
-  rsvLabel: {fontSize: 12, color: '#5B21B6', fontWeight: '600'},
-  rsvCode: {fontSize: 30, fontWeight: '900', letterSpacing: 6, color: '#4C1D95', marginVertical: 4},
-  rsvMeta: {fontSize: 12, color: '#6B7280'},
+  rsvLabel: {fontSize: 12, color: '#5B21B6', ...F.semibold, },
+  rsvCode: {fontSize: 30, ...F.heavy, letterSpacing: 6, color: '#4C1D95', marginVertical: 4},
+  rsvMeta: {
+    ...F.regular, fontSize: 12, color: '#6B7280'},
   summary: {backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, alignItems: 'center', marginBottom: 10},
-  summaryText: {fontSize: 13, color: '#6B7280'},
-  summaryTotal: {fontSize: 26, fontWeight: '900', color: '#6D28D9', marginTop: 2},
-  summarySave: {fontSize: 12, color: '#166534', fontWeight: '600', marginTop: 4, textAlign: 'center'},
+  summaryText: {
+    ...F.regular, fontSize: 13, color: '#6B7280'},
+  summaryTotal: {fontSize: 26, ...F.heavy, color: '#6D28D9', marginTop: 2},
+  summarySave: {fontSize: 12, color: '#166534', ...F.semibold, marginTop: 4, textAlign: 'center'},
   itemRow: {flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginBottom: 6},
-  footer: {fontSize: 11, color: '#6B7280', textAlign: 'center', marginTop: 16, lineHeight: 16},
+  footer: {
+    ...F.regular, fontSize: 11, color: '#6B7280', textAlign: 'center', marginTop: 16, lineHeight: 16},
 });

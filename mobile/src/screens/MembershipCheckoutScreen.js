@@ -22,6 +22,7 @@ import BoletoAddressForm, {
   saveAddress,
   validateAddress,
 } from '../components/BoletoAddressForm';
+import {F} from '../theme/home';
 
 const METHODS = [
   {id: 'PIX', label: 'PIX', icon: 'qr-code-outline', hint: 'Aprovação rápida'},
@@ -739,7 +740,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backBtn: {padding: 4},
-  headerTitle: {fontSize: 18, fontWeight: '700', color: '#0F172A'},
+  headerTitle: {fontSize: 18, ...F.bold, color: '#0F172A'},
   content: {padding: 16, paddingBottom: 40},
   infoBanner: {
     flexDirection: 'row',
@@ -749,10 +750,11 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
   },
-  infoBannerText: {flex: 1, color: '#0C4A6E', fontSize: 13, lineHeight: 18},
+  infoBannerText: {
+    ...F.regular, flex: 1, color: '#0C4A6E', fontSize: 13, lineHeight: 18},
   sectionTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    ...F.bold,
     color: '#0F172A',
     marginBottom: 10,
   },
@@ -768,9 +770,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   planCardActive: {borderColor: '#0EA5E9', backgroundColor: '#F0F9FF'},
-  planName: {fontSize: 16, fontWeight: '700', color: '#0F172A'},
-  planDesc: {fontSize: 12, color: '#64748B', marginTop: 2},
-  planPrice: {fontSize: 16, fontWeight: '800', color: '#0284C7'},
+  planName: {fontSize: 16, ...F.bold, color: '#0F172A'},
+  planDesc: {
+    ...F.regular, fontSize: 12, color: '#64748B', marginTop: 2},
+  planPrice: {fontSize: 16, ...F.heavy, color: '#0284C7'},
   methodsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
   methodChip: {
     flexDirection: 'row',
@@ -784,18 +787,21 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   methodChipActive: {borderColor: '#0EA5E9', backgroundColor: '#E0F2FE'},
-  methodLabel: {fontSize: 13, color: '#64748B', fontWeight: '600'},
+  methodLabel: {fontSize: 13, color: '#64748B', ...F.semibold, },
   methodLabelActive: {color: '#0284C7'},
-  hint: {marginTop: 8, marginBottom: 8, fontSize: 12, color: '#64748B'},
+  hint: {
+    ...F.regular, marginTop: 8, marginBottom: 8, fontSize: 12, color: '#64748B'},
   fieldBlock: {marginBottom: 12},
   fieldLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    ...F.bold,
     color: '#0F172A',
     marginBottom: 4,
   },
-  fieldHint: {fontSize: 11, color: '#64748B', marginBottom: 6},
+  fieldHint: {
+    ...F.regular, fontSize: 11, color: '#64748B', marginBottom: 6},
   input: {
+    ...F.regular,
     backgroundColor: '#FFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -847,9 +853,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#0284C7',
   },
-  installmentText: {flex: 1, fontSize: 13, color: '#334155', lineHeight: 18},
-  installmentTextActive: {color: '#0C4A6E', fontWeight: '600'},
-  secureHint: {marginTop: 8, fontSize: 12, color: '#64748B', lineHeight: 18},
+  installmentText: {
+    ...F.regular, flex: 1, fontSize: 13, color: '#334155', lineHeight: 18},
+  installmentTextActive: {color: '#0C4A6E', ...F.semibold, },
+  secureHint: {
+    ...F.regular, marginTop: 8, fontSize: 12, color: '#64748B', lineHeight: 18},
   payButton: {
     marginTop: 18,
     backgroundColor: '#0284C7',
@@ -857,7 +865,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
-  payButtonText: {color: '#FFF', fontSize: 16, fontWeight: '700'},
+  payButtonText: {color: '#FFF', fontSize: 16, ...F.bold, },
   resultBox: {
     marginTop: 18,
     backgroundColor: '#FFF',
@@ -866,7 +874,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  resultTitle: {fontSize: 16, fontWeight: '700', color: '#0F172A'},
+  resultTitle: {fontSize: 16, ...F.bold, color: '#0F172A'},
   resultSub: {marginTop: 4, color: '#64748B'},
   qrLocal: {alignSelf: 'center', padding: 12, backgroundColor: '#FFFFFF', borderRadius: 12, marginVertical: 12},
   qrImage: {width: 180, height: 180, alignSelf: 'center', marginVertical: 12},
@@ -880,13 +888,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#E0F2FE',
   },
-  secondaryBtnText: {color: '#0284C7', fontWeight: '700'},
+  secondaryBtnText: {color: '#0284C7', ...F.bold, },
   barcode: {
+    ...F.regular,
     fontSize: 13,
     color: '#0F172A',
     backgroundColor: '#F8FAFC',
     padding: 10,
     borderRadius: 8,
   },
-  pollHint: {marginTop: 12, fontSize: 12, color: '#64748B', lineHeight: 18},
+  pollHint: {
+    ...F.regular, marginTop: 12, fontSize: 12, color: '#64748B', lineHeight: 18},
 });

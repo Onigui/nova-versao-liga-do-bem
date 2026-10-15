@@ -14,6 +14,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_PATH} from '../config/apiConfig';
 import NotificationService from '../services/NotificationService';
+import {F} from '../theme/home';
 
 export default function NotificationsScreen({navigation}) {
   const [notifications, setNotifications] = useState([]);
@@ -190,11 +191,11 @@ export default function NotificationsScreen({navigation}) {
       case 'PAYMENT_REMINDER':
         return '#F59E0B';
       case 'DONATION_CONFIRMATION':
-        return '#EC4899';
+        return '#6D28D9';
       case 'ADOPTION_UPDATE':
         return '#10B981';
       case 'VOLUNTEER_OPPORTUNITY':
-        return '#8B5CF6';
+        return '#6D28D9';
       case 'GENERAL':
         return '#6B7280';
       default:
@@ -277,7 +278,7 @@ export default function NotificationsScreen({navigation}) {
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingBox]}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#6D28D9" />
         <Text style={styles.loadingText}>Carregando notificações...</Text>
       </View>
     );
@@ -319,7 +320,7 @@ export default function NotificationsScreen({navigation}) {
               setRefreshing(true);
               loadNotifications();
             }}
-            colors={['#8B5CF6']}
+            colors={['#6D28D9']}
           />
         }
       />
@@ -330,7 +331,7 @@ export default function NotificationsScreen({navigation}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   loadingBox: {
     justifyContent: 'center',
@@ -354,7 +355,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
   },
   unreadBadge: {
@@ -370,16 +371,16 @@ const styles = StyleSheet.create({
   unreadBadgeText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    ...F.bold,
   },
   markAllButton: {
     marginTop: 10,
     alignSelf: 'flex-start',
   },
   markAllText: {
-    color: '#8B5CF6',
+    color: '#6D28D9',
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
   },
   list: {
     padding: 16,
@@ -421,27 +422,29 @@ const styles = StyleSheet.create({
   notificationTitle: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#374151',
   },
   unreadTitle: {
     color: '#1F2937',
-    fontWeight: '700',
+    ...F.bold,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     marginLeft: 8,
   },
   notificationBody: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
     marginBottom: 8,
   },
   notificationTime: {
+    ...F.regular,
     fontSize: 12,
     color: '#9CA3AF',
   },
@@ -453,12 +456,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#374151',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',

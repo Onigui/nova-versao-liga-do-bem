@@ -7,8 +7,9 @@ import {Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, Toucha
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import QuoteListBuilder from '../components/QuoteListBuilder';
 import {QUOTE_DEADLINES, buildItems, memberApi} from '../utils/quotes';
+import {F} from '../theme/home';
 
-const PURPLE = '#8B5CF6';
+const PURPLE = '#6D28D9';
 const SPECIES_ID = s => (/gat/i.test(s || '') ? 'CAT' : /c[aã]o|cachorr/i.test(s || '') ? 'DOG' : null);
 
 function getPicker(kind) {
@@ -164,11 +165,13 @@ export default function QuoteNewScreen({navigation, route, fetchImpl = fetch}) {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
   hero: {flexDirection: 'row', gap: 10, backgroundColor: '#F5F3FF', borderRadius: 14, padding: 14, alignItems: 'center'},
-  heroText: {flex: 1, fontSize: 13, color: '#4C1D95', lineHeight: 18},
-  section: {fontSize: 15, fontWeight: '800', color: '#1F2937', marginTop: 20, marginBottom: 8},
-  hint: {fontSize: 12, color: '#6B7280', marginTop: 6},
+  heroText: {
+    ...F.regular, flex: 1, fontSize: 13, color: '#4C1D95', lineHeight: 18},
+  section: {fontSize: 15, ...F.heavy, color: '#1F2937', marginTop: 20, marginBottom: 8},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 6},
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -181,7 +184,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   chipActive: {backgroundColor: PURPLE, borderColor: PURPLE},
-  chipText: {fontSize: 13, fontWeight: '600', color: '#4B5563'},
+  chipText: {fontSize: 13, ...F.semibold, color: '#4B5563'},
   photoRow: {flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 10},
   photo: {width: 56, height: 56, borderRadius: 8, backgroundColor: '#F3F4F6'},
   notes: {
@@ -205,5 +208,5 @@ const styles = StyleSheet.create({
     height: 54,
     marginTop: 24,
   },
-  sendText: {color: '#FFFFFF', fontSize: 16, fontWeight: '800'},
+  sendText: {color: '#FFFFFF', fontSize: 16, ...F.heavy, },
 });

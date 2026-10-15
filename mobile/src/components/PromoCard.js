@@ -8,6 +8,7 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {describePromo} from '../utils/promo';
+import {F} from '../theme/home';
 
 const ICON = {
   PERCENT: 'pricetag',
@@ -64,14 +65,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  original: {fontSize: 12, color: '#6B7280', textDecorationLine: 'line-through', marginTop: 4},
-  headline: {fontSize: 22, fontWeight: '900', marginTop: 2, textAlign: 'center'},
-  headlineText: {fontSize: 15, lineHeight: 19},
-  caption: {fontSize: 11, color: '#6B7280', textAlign: 'center', marginTop: 2},
+  original: {
+    ...F.regular, fontSize: 12, color: '#6B7280', textDecorationLine: 'line-through', marginTop: 4},
+  headline: {fontSize: 22, ...F.heavy, marginTop: 2, textAlign: 'center'},
+  headlineText: {
+    ...F.regular, fontSize: 15, lineHeight: 19},
+  caption: {
+    ...F.regular, fontSize: 11, color: '#6B7280', textAlign: 'center', marginTop: 2},
   savings: {borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 6},
-  savingsText: {color: '#FFFFFF', fontSize: 10, fontWeight: '800'},
+  savingsText: {color: '#FFFFFF', fontSize: 10, ...F.heavy, },
   info: {flex: 1, padding: 12, justifyContent: 'center'},
-  name: {fontSize: 15, fontWeight: '700', color: '#1F2937'},
-  desc: {fontSize: 13, color: '#4B5563', marginTop: 4},
-  until: {fontSize: 12, color: '#9CA3AF', marginTop: 6},
+  name: {fontSize: 15, ...F.bold, color: '#1F2937'},
+  desc: {
+    ...F.regular, fontSize: 13, color: '#4B5563', marginTop: 4},
+  until: {
+    ...F.regular, fontSize: 12, color: '#9CA3AF', marginTop: 6},
 });

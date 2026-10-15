@@ -7,6 +7,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {RatingSummary, ReviewCard} from '../components/Reviews';
 import {memberApi} from '../utils/quotes';
+import {F} from '../theme/home';
 
 const PURPLE = '#7C3AED';
 
@@ -57,5 +58,5 @@ const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
   box: {backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16},
   btn: {flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PURPLE, height: 48, borderRadius: 12, marginTop: 12},
-  btnText: {color: '#FFFFFF', fontWeight: '800', fontSize: 15},
+  btnText: {color: '#FFFFFF', ...F.heavy, fontSize: 15},
 });

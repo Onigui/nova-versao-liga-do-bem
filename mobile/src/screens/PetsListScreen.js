@@ -15,6 +15,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 export default function PetsListScreen({navigation, route}) {
   // Na barra inferior (aba Pets) não há para onde voltar
@@ -143,7 +144,7 @@ export default function PetsListScreen({navigation, route}) {
   if (!isAuthenticated) {
     return (
       <View style={styles.container}>
-        <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.loginPromptContainer}>
+        <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.loginPromptContainer}>
           <Ionicons name="paw" size={64} color="#FFFFFF" />
           <Text style={styles.loginPromptTitle}>Cartão de Vacinas</Text>
           <Text style={styles.loginPromptText}>
@@ -162,7 +163,7 @@ export default function PetsListScreen({navigation, route}) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#6D28D9" />
         <Text style={styles.loadingText}>Carregando pets...</Text>
       </View>
     );
@@ -170,7 +171,7 @@ export default function PetsListScreen({navigation, route}) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         {asTab ? null : (
           <TouchableOpacity
             style={styles.backButton}
@@ -197,7 +198,7 @@ export default function PetsListScreen({navigation, route}) {
               style={styles.addButton}
               onPress={() => navigation.navigate('AddPet', {onSave: loadPets})}>
               <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
+                colors={['#6D28D9', '#5B21B6']}
                 style={styles.addButtonGradient}>
                 <Ionicons name="add" size={24} color="#FFFFFF" />
                 <Text style={styles.addButtonText}>Adicionar Pet</Text>
@@ -210,7 +211,7 @@ export default function PetsListScreen({navigation, route}) {
               style={styles.addPetCard}
               onPress={() => navigation.navigate('AddPet', {onSave: loadPets})}>
               <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
+                colors={['#6D28D9', '#5B21B6']}
                 style={styles.addPetCardGradient}>
                 <Ionicons name="add-circle" size={32} color="#FFFFFF" />
                 <Text style={styles.addPetCardText}>Adicionar Novo Pet</Text>
@@ -228,7 +229,7 @@ export default function PetsListScreen({navigation, route}) {
                     <Image source={{uri: pet.photo}} style={styles.petPhoto} />
                   ) : (
                     <View style={styles.petPhotoPlaceholder}>
-                      <Ionicons name="paw" size={40} color="#8B5CF6" />
+                      <Ionicons name="paw" size={40} color="#6D28D9" />
                     </View>
                   )}
                   <View style={styles.petInfo}>
@@ -259,15 +260,16 @@ export default function PetsListScreen({navigation, route}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   loadingText: {
+    ...F.regular,
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
@@ -280,12 +282,13 @@ const styles = StyleSheet.create({
   },
   loginPromptTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#FFFFFF',
     marginTop: 24,
     marginBottom: 8,
   },
   loginPromptText: {
+    ...F.regular,
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
@@ -299,24 +302,28 @@ const styles = StyleSheet.create({
   },
   loginPromptButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#8B5CF6',
+    ...F.semibold,
+    color: '#6D28D9',
   },
   header: {
     paddingTop: 50,
     paddingBottom: 30,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     marginBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#FFFFFF',
     marginBottom: 8,
   },
   headerSubtitle: {
+    ...F.regular,
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
   },
@@ -332,12 +339,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#111827',
     marginTop: 24,
     marginBottom: 8,
   },
   emptyText: {
+    ...F.regular,
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
@@ -357,7 +365,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
   addPetCard: {
@@ -374,7 +382,7 @@ const styles = StyleSheet.create({
   },
   addPetCardText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
   petCard: {
@@ -412,11 +420,12 @@ const styles = StyleSheet.create({
   },
   petName: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#111827',
     marginBottom: 4,
   },
   petDetails: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 8,
@@ -428,7 +437,7 @@ const styles = StyleSheet.create({
   },
   vaccinationCount: {
     fontSize: 14,
-    fontWeight: '500',
+    ...F.semibold,
     color: '#10B981',
   },
 });

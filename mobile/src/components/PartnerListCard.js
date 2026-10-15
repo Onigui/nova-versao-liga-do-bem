@@ -6,6 +6,7 @@ import {Image, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {formatDistance} from '../utils/geo';
+import {F} from '../theme/home';
 
 export default function PartnerListCard({partner, onPress, onNavigate, disabled}) {
   // Selo pronto vindo da promoção ("20% OFF", "Por R$ 69,90"…); dados antigos: "20%" + " OFF"
@@ -17,7 +18,7 @@ export default function PartnerListCard({partner, onPress, onNavigate, disabled}
     <TouchableOpacity style={styles.partnerCard} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
       {badge ? (
         <LinearGradient
-          colors={['#8B5CF6', '#7C3AED']}
+          colors={['#6D28D9', '#5B21B6']}
           style={styles.discountBadge}
           start={{x: 0, y: 0}}
           end={{x: 1, y: 0}}>
@@ -41,7 +42,7 @@ export default function PartnerListCard({partner, onPress, onNavigate, disabled}
         </Text>
         <View style={styles.partnerMeta}>
           <View style={styles.metaItem}>
-            <Ionicons name="pricetag" size={14} color="#8B5CF6" />
+            <Ionicons name="pricetag" size={14} color="#6D28D9" />
             <Text style={styles.metaText}>{partner.category}</Text>
           </View>
           {partner.reviewCount ? (
@@ -76,7 +77,7 @@ export default function PartnerListCard({partner, onPress, onNavigate, disabled}
 
       <View style={styles.partnerActions}>
         <TouchableOpacity style={styles.actionIcon} onPress={onNavigate} disabled={disabled}>
-          <Ionicons name="navigate" size={20} color="#8B5CF6" />
+          <Ionicons name="navigate" size={20} color="#6D28D9" />
         </TouchableOpacity>
         <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
       </View>
@@ -114,8 +115,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  discountText: {color: '#FFFFFF', fontSize: 12, fontWeight: '700', maxWidth: 170},
-  distanceText: {color: '#047857', fontWeight: '700'},
+  discountText: {color: '#FFFFFF', fontSize: 12, ...F.bold, maxWidth: 170},
+  distanceText: {color: '#047857', ...F.bold, },
   dot: {width: 7, height: 7, borderRadius: 4},
   logo: {
     width: 48,
@@ -128,13 +129,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImage: {width: '100%', height: '100%'},
-  logoInitial: {fontSize: 20, fontWeight: '800', color: '#7C3AED'},
+  logoInitial: {fontSize: 20, ...F.heavy, color: '#7C3AED'},
   partnerInfo: {flex: 1},
-  partnerName: {fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 6},
+  partnerName: {fontSize: 16, ...F.bold, color: '#1F2937', marginBottom: 6},
   partnerMeta: {flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 2, marginBottom: 6},
   metaItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
-  metaText: {fontSize: 12, color: '#6B7280'},
-  partnerAddress: {fontSize: 13, color: '#9CA3AF', marginBottom: 4},
+  metaText: {
+    ...F.regular, fontSize: 12, color: '#6B7280'},
+  partnerAddress: {
+    ...F.regular, fontSize: 13, color: '#9CA3AF', marginBottom: 4},
   partnerActions: {flexDirection: 'row', alignItems: 'center', gap: 8},
   actionIcon: {
     width: 36,

@@ -17,6 +17,7 @@ import {launchImageLibrary} from 'react-native-image-picker';
 import {Calendar} from 'react-native-calendars';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 const formatDateToPT = (date) => {
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
@@ -94,15 +95,15 @@ const parseDateFromCalendar = (dateString) => {
 
 const calendarTheme = {
   calendarBackground: '#FFFFFF',
-  textSectionTitleColor: '#8B5CF6',
-  selectedDayBackgroundColor: '#8B5CF6',
+  textSectionTitleColor: '#6D28D9',
+  selectedDayBackgroundColor: '#6D28D9',
   selectedDayTextColor: '#FFFFFF',
-  todayTextColor: '#8B5CF6',
+  todayTextColor: '#6D28D9',
   dayTextColor: '#111827',
   textDisabledColor: '#D1D5DB',
-  dotColor: '#8B5CF6',
+  dotColor: '#6D28D9',
   selectedDotColor: '#FFFFFF',
-  arrowColor: '#8B5CF6',
+  arrowColor: '#6D28D9',
   monthTextColor: '#111827',
   textDayFontWeight: '500',
   textMonthFontWeight: 'bold',
@@ -284,7 +285,7 @@ export default function AddPetScreen({navigation, route}) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -304,7 +305,7 @@ export default function AddPetScreen({navigation, route}) {
               <Image source={{uri: photo}} style={styles.photo} />
             ) : (
               <View style={styles.photoPlaceholder}>
-                <Ionicons name="camera" size={40} color="#8B5CF6" />
+                <Ionicons name="camera" size={40} color="#6D28D9" />
                 <Text style={styles.photoPlaceholderText}>Adicionar foto</Text>
               </View>
             )}
@@ -359,7 +360,7 @@ export default function AddPetScreen({navigation, route}) {
                   ? formatDateToPT(birthDate)
                   : 'Toque para selecionar a data'}
               </Text>
-              <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+              <Ionicons name="calendar-outline" size={20} color="#6D28D9" />
             </TouchableOpacity>
           </View>
 
@@ -445,7 +446,7 @@ export default function AddPetScreen({navigation, route}) {
           onPress={handleSave}
           disabled={saving}>
           <LinearGradient
-            colors={['#8B5CF6', '#7C3AED']}
+            colors={['#6D28D9', '#5B21B6']}
             style={styles.saveButtonGradient}>
             {saving ? (
               <ActivityIndicator color="#FFFFFF" />
@@ -478,7 +479,7 @@ export default function AddPetScreen({navigation, route}) {
                   ? {
                       [formatDateForCalendar(birthDate)]: {
                         selected: true,
-                        selectedColor: '#8B5CF6',
+                        selectedColor: '#6D28D9',
                         selectedTextColor: '#FFFFFF',
                       },
                     }
@@ -534,7 +535,7 @@ export default function AddPetScreen({navigation, route}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     paddingTop: 50,
@@ -543,13 +544,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     padding: 8,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#FFFFFF',
   },
   placeholder: {
@@ -571,7 +575,7 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 4,
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
   },
   photoPlaceholder: {
     width: 120,
@@ -581,9 +585,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
   },
   photoPlaceholderText: {
+    ...F.regular,
     marginTop: 8,
     fontSize: 14,
     color: '#6B7280',
@@ -595,7 +600,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
@@ -609,11 +614,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#374151',
     marginBottom: 8,
   },
   input: {
+    ...F.regular,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
@@ -626,10 +632,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inputText: {
+    ...F.regular,
     fontSize: 16,
     color: '#111827',
   },
   inputPlaceholder: {
+    ...F.regular,
     fontSize: 16,
     color: '#9CA3AF',
   },
@@ -651,17 +659,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   genderButtonActive: {
-    borderColor: '#8B5CF6',
+    borderColor: '#6D28D9',
     backgroundColor: '#F3F4F6',
   },
   genderButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    ...F.semibold,
     color: '#6B7280',
   },
   genderButtonTextActive: {
-    color: '#8B5CF6',
-    fontWeight: '600',
+    color: '#6D28D9',
+    ...F.semibold,
   },
   saveButton: {
     borderRadius: 12,
@@ -681,7 +689,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
   modalOverlay: {
@@ -699,11 +707,12 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#111827',
     marginBottom: 8,
   },
   modalSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 16,
@@ -717,11 +726,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalInputLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 8,
   },
   modalInput: {
+    ...F.regular,
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
@@ -748,15 +759,15 @@ const styles = StyleSheet.create({
   },
   modalButtonCancelText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#374151',
   },
   modalButtonConfirm: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
   },
   modalButtonConfirmText: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
 });

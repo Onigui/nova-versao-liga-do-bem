@@ -16,6 +16,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Calendar } from 'react-native-calendars';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 // Função para formatar data para DD/MM/YYYY
 const formatDateToPT = (date) => {
@@ -269,7 +270,7 @@ export default function AddVaccinationScreen({navigation, route}) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -313,7 +314,7 @@ export default function AddVaccinationScreen({navigation, route}) {
               <Text style={styles.inputText}>
                 {formatDateToPT(applicationDate)}
               </Text>
-              <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+              <Ionicons name="calendar-outline" size={20} color="#6D28D9" />
             </TouchableOpacity>
           </View>
 
@@ -325,7 +326,7 @@ export default function AddVaccinationScreen({navigation, route}) {
               <Text style={nextDoseDate ? styles.inputText : styles.inputPlaceholder}>
                 {nextDoseDate ? formatDateToPT(nextDoseDate) : 'Toque para selecionar a data'}
               </Text>
-              <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+              <Ionicons name="calendar-outline" size={20} color="#6D28D9" />
             </TouchableOpacity>
           </View>
 
@@ -425,7 +426,7 @@ export default function AddVaccinationScreen({navigation, route}) {
               markedDates={{
                 [formatDateForCalendar(applicationDate)]: {
                   selected: true,
-                  selectedColor: '#8B5CF6',
+                  selectedColor: '#6D28D9',
                   selectedTextColor: '#FFFFFF',
                 },
               }}
@@ -438,15 +439,15 @@ export default function AddVaccinationScreen({navigation, route}) {
               enableSwipeMonths={true}
               theme={{
                 calendarBackground: '#FFFFFF',
-                textSectionTitleColor: '#8B5CF6',
-                selectedDayBackgroundColor: '#8B5CF6',
+                textSectionTitleColor: '#6D28D9',
+                selectedDayBackgroundColor: '#6D28D9',
                 selectedDayTextColor: '#FFFFFF',
-                todayTextColor: '#8B5CF6',
+                todayTextColor: '#6D28D9',
                 dayTextColor: '#111827',
                 textDisabledColor: '#D1D5DB',
-                dotColor: '#8B5CF6',
+                dotColor: '#6D28D9',
                 selectedDotColor: '#FFFFFF',
-                arrowColor: '#8B5CF6',
+                arrowColor: '#6D28D9',
                 monthTextColor: '#111827',
                 textDayFontWeight: '500',
                 textMonthFontWeight: 'bold',
@@ -505,7 +506,7 @@ export default function AddVaccinationScreen({navigation, route}) {
                   ? {
                       [formatDateForCalendar(nextDoseDate)]: {
                         selected: true,
-                        selectedColor: '#8B5CF6',
+                        selectedColor: '#6D28D9',
                         selectedTextColor: '#FFFFFF',
                       },
                     }
@@ -520,15 +521,15 @@ export default function AddVaccinationScreen({navigation, route}) {
               enableSwipeMonths={true}
               theme={{
                 calendarBackground: '#FFFFFF',
-                textSectionTitleColor: '#8B5CF6',
-                selectedDayBackgroundColor: '#8B5CF6',
+                textSectionTitleColor: '#6D28D9',
+                selectedDayBackgroundColor: '#6D28D9',
                 selectedDayTextColor: '#FFFFFF',
-                todayTextColor: '#8B5CF6',
+                todayTextColor: '#6D28D9',
                 dayTextColor: '#111827',
                 textDisabledColor: '#D1D5DB',
-                dotColor: '#8B5CF6',
+                dotColor: '#6D28D9',
                 selectedDotColor: '#FFFFFF',
-                arrowColor: '#8B5CF6',
+                arrowColor: '#6D28D9',
                 monthTextColor: '#111827',
                 textDayFontWeight: '500',
                 textMonthFontWeight: 'bold',
@@ -583,7 +584,7 @@ export default function AddVaccinationScreen({navigation, route}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F6F5FB',
   },
   header: {
     paddingTop: 50,
@@ -592,13 +593,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   backButton: {
     padding: 8,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#FFFFFF',
   },
   placeholder: {
@@ -616,11 +620,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#374151',
     marginBottom: 8,
   },
   input: {
+    ...F.regular,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
@@ -633,10 +638,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inputText: {
+    ...F.regular,
     fontSize: 16,
     color: '#111827',
   },
   inputPlaceholder: {
+    ...F.regular,
     fontSize: 16,
     color: '#9CA3AF',
   },
@@ -662,7 +669,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
   modalOverlay: {
@@ -680,11 +687,12 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    ...F.bold,
     color: '#111827',
     marginBottom: 8,
   },
   modalSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 16,
@@ -698,11 +706,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalInputLabel: {
+    ...F.regular,
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 8,
   },
   modalInput: {
+    ...F.regular,
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
@@ -729,15 +739,15 @@ const styles = StyleSheet.create({
   },
   modalButtonCancelText: {
     fontSize: 16,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#374151',
   },
   modalButtonConfirm: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#6D28D9',
   },
   modalButtonConfirmText: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#FFFFFF',
   },
   modalButtonSecondary: {
@@ -745,7 +755,7 @@ const styles = StyleSheet.create({
   },
   modalButtonSecondaryText: {
     fontSize: 14,
-    fontWeight: '600',
+    ...F.semibold,
     color: '#6B7280',
   },
 });

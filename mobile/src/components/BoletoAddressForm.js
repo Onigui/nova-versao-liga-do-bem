@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {F} from '../theme/home';
 
 const STORAGE_KEY = 'billing_address_v1';
 
@@ -220,11 +221,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  title: {fontSize: 15, fontWeight: '700', color: '#0F172A'},
-  hint: {fontSize: 12, color: '#64748B', marginBottom: 8},
+  title: {fontSize: 15, ...F.bold, color: '#0F172A'},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#64748B', marginBottom: 8},
   field: {marginTop: 8},
-  label: {fontSize: 13, fontWeight: '600', color: '#334155', marginBottom: 4},
+  label: {fontSize: 13, ...F.semibold, color: '#334155', marginBottom: 4},
   input: {
+    ...F.regular,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#CBD5E1',
@@ -238,5 +241,6 @@ const styles = StyleSheet.create({
   flex1: {flex: 1},
   flex2: {flex: 2},
   spinner: {marginBottom: 12},
-  error: {color: '#B91C1C', fontSize: 12, marginTop: 4},
+  error: {
+    ...F.regular, color: '#B91C1C', fontSize: 12, marginTop: 4},
 });

@@ -52,7 +52,7 @@ function AppNavigation() {
   if (loading) {
     return (
       <View style={styles.bootSplash}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#6D28D9" />
       </View>
     );
   }
@@ -60,8 +60,8 @@ function AppNavigation() {
   return (
     <>
       <StatusBar
-        barStyle={IS_PARTNER_APP ? 'light-content' : 'dark-content'}
-        backgroundColor={IS_PARTNER_APP ? '#0F766E' : '#ffffff'}
+        barStyle="light-content"
+        backgroundColor={IS_PARTNER_APP ? '#0F766E' : '#3B1A78'}
       />
       <RootNavigator />
     </>

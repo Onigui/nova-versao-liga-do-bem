@@ -7,6 +7,7 @@ import {ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, Touch
 import {Stars} from '../components/Reviews';
 import {RATING_WORDS} from '../utils/health';
 import {memberApi} from '../utils/quotes';
+import {F} from '../theme/home';
 
 const PURPLE = '#7C3AED';
 
@@ -131,16 +132,18 @@ export default function ReviewFormScreen({navigation, route, fetchImpl = fetch})
 
 const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
-  title: {fontSize: 22, fontWeight: '800', color: '#1F2937', textAlign: 'center'},
-  text: {fontSize: 14, color: '#4B5563', marginTop: 10, lineHeight: 20, textAlign: 'center'},
-  word: {fontSize: 15, fontWeight: '700', color: '#92400E', marginTop: 8},
-  label: {fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8},
+  title: {fontSize: 22, ...F.heavy, color: '#1F2937', textAlign: 'center'},
+  text: {
+    ...F.regular, fontSize: 14, color: '#4B5563', marginTop: 10, lineHeight: 20, textAlign: 'center'},
+  word: {fontSize: 15, ...F.bold, color: '#92400E', marginTop: 8},
+  label: {fontSize: 14, ...F.bold, color: '#374151', marginBottom: 8},
   tags: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
   tag: {paddingHorizontal: 12, height: 34, borderRadius: 17, justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB'},
   tagOn: {backgroundColor: '#F59E0B', borderColor: '#F59E0B'},
-  tagText: {fontSize: 13, fontWeight: '600', color: '#4B5563'},
+  tagText: {fontSize: 13, ...F.semibold, color: '#4B5563'},
   input: {backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, minHeight: 100, textAlignVertical: 'top', color: '#1F2937'},
-  hint: {fontSize: 12, color: '#6B7280', marginTop: 6},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#6B7280', marginTop: 6},
   save: {height: 52, borderRadius: 14, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', marginTop: 20},
-  saveText: {color: '#FFFFFF', fontWeight: '800', fontSize: 16},
+  saveText: {color: '#FFFFFF', ...F.heavy, fontSize: 16},
 });

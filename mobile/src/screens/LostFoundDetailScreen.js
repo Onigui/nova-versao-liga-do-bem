@@ -10,6 +10,7 @@ import {MapFullscreen, MapPreview} from '../components/MapSheet';
 import {memberApi} from '../utils/quotes';
 import {LF_TYPES, directionsUrl, photoUrl, shareUrl, sizeLabel, speciesLabel, timeAgo, toMarkers, whatsappUrl, whenLabel, withLabel} from '../utils/lostfound';
 import {ReportRow} from './LostFoundScreen';
+import {F} from '../theme/home';
 
 const W = Dimensions.get('window').width;
 
@@ -247,31 +248,37 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
 const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
   tag: {borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3},
-  tagText: {color: '#FFFFFF', fontWeight: '900', fontSize: 12},
-  meta: {fontSize: 12, color: '#6B7280'},
+  tagText: {color: '#FFFFFF', ...F.heavy, fontSize: 12},
+  meta: {
+    ...F.regular, fontSize: 12, color: '#6B7280'},
   closed: {backgroundColor: '#F3F4F6', borderRadius: 10, padding: 10, marginTop: 10},
-  title: {fontSize: 22, fontWeight: '900', color: '#1F2937', marginTop: 10},
-  when: {fontSize: 14, color: '#4B5563', marginTop: 4},
+  title: {fontSize: 22, ...F.heavy, color: '#1F2937', marginTop: 10},
+  when: {
+    ...F.regular, fontSize: 14, color: '#4B5563', marginTop: 4},
   facts: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12},
   fact: {backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6},
-  factK: {fontSize: 10, color: '#6B7280', fontWeight: '700', textTransform: 'uppercase'},
-  factV: {fontSize: 14, color: '#1F2937', fontWeight: '600'},
-  desc: {fontSize: 15, color: '#374151', marginTop: 12, lineHeight: 21},
-  section: {fontSize: 16, fontWeight: '800', color: '#1F2937', marginTop: 18, marginBottom: 6},
-  place: {fontSize: 14, color: '#374151', marginBottom: 8},
+  factK: {fontSize: 10, color: '#6B7280', ...F.bold, textTransform: 'uppercase'},
+  factV: {fontSize: 14, color: '#1F2937', ...F.semibold, },
+  desc: {
+    ...F.regular, fontSize: 15, color: '#374151', marginTop: 12, lineHeight: 21},
+  section: {fontSize: 16, ...F.heavy, color: '#1F2937', marginTop: 18, marginBottom: 6},
+  place: {
+    ...F.regular, fontSize: 14, color: '#374151', marginBottom: 8},
   map: {height: 180, borderRadius: 14},
   mapGo: {height: 50, borderRadius: 14, backgroundColor: '#7C3AED', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center'},
-  mapGoText: {color: '#FFFFFF', fontWeight: '800', fontSize: 15},
+  mapGoText: {color: '#FFFFFF', ...F.heavy, fontSize: 15},
   actions: {flexDirection: 'row', gap: 10, marginTop: 10},
   action: {flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', height: 44, borderRadius: 12, backgroundColor: '#F5F3FF'},
-  actionText: {color: '#6D28D9', fontWeight: '700'},
+  actionText: {color: '#6D28D9', ...F.bold, },
   whats: {flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#16A34A', height: 54, borderRadius: 14, marginTop: 14},
-  whatsText: {color: '#FFFFFF', fontWeight: '800', fontSize: 15},
+  whatsText: {color: '#FFFFFF', ...F.heavy, fontSize: 15},
   warn: {flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: 12, padding: 10, marginTop: 12},
-  warnText: {flex: 1, fontSize: 12, color: '#92400E'},
+  warnText: {
+    ...F.regular, flex: 1, fontSize: 12, color: '#92400E'},
   big: {height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 12},
-  bigText: {color: '#FFFFFF', fontWeight: '800', fontSize: 16},
+  bigText: {color: '#FFFFFF', ...F.heavy, fontSize: 16},
   link: {alignSelf: 'center', marginTop: 14},
-  linkText: {color: '#7C3AED', fontWeight: '700'},
-  input: {backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#1F2937'},
+  linkText: {color: '#7C3AED', ...F.bold, },
+  input: {
+    ...F.regular, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#1F2937'},
 });

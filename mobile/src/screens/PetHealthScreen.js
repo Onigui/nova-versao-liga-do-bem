@@ -12,6 +12,7 @@ import WeightChart from '../components/WeightChart';
 import {API_BASE_PATH} from '../config/apiConfig';
 import {HISTORY_FILTERS, dayLabel, filterHistory} from '../utils/health';
 import {memberApi} from '../utils/quotes';
+import {F} from '../theme/home';
 
 const PURPLE = '#7C3AED';
 
@@ -124,16 +125,17 @@ const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
   stats: {flexDirection: 'row', gap: 8, marginBottom: 12},
   stat: {flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, alignItems: 'center'},
-  statN: {fontSize: 20, fontWeight: '900', color: '#1F2937', marginTop: 2},
-  statL: {fontSize: 11, color: '#6B7280'},
+  statN: {fontSize: 20, ...F.heavy, color: '#1F2937', marginTop: 2},
+  statL: {
+    ...F.regular, fontSize: 11, color: '#6B7280'},
   next: {flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFBEB', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12},
-  nextText: {flex: 1, color: '#92400E', fontWeight: '600'},
+  nextText: {flex: 1, color: '#92400E', ...F.semibold, },
   chip: {paddingHorizontal: 14, height: 34, borderRadius: 17, justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB'},
   chipActive: {backgroundColor: PURPLE, borderColor: PURPLE},
-  chipText: {fontSize: 13, fontWeight: '600', color: '#4B5563'},
+  chipText: {fontSize: 13, ...F.semibold, color: '#4B5563'},
   qr: {flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 16},
-  qrText: {color: PURPLE, fontWeight: '700'},
+  qrText: {color: PURPLE, ...F.bold, },
   fab: {position: 'absolute', right: 16, bottom: 24, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: PURPLE, borderRadius: 28, paddingHorizontal: 20, height: 52, elevation: 4},
-  fabText: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'},
+  fabText: {color: '#FFFFFF', fontSize: 15, ...F.heavy, },
   modal: {flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center', padding: 16},
 });

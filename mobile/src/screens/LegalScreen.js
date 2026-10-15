@@ -2,6 +2,7 @@ import React from 'react';
 import {View, Text, StyleSheet, ScrollView} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {F} from '../theme/home';
 
 export default function LegalScreen({route}) {
   const section = route?.params?.section || 'both';
@@ -10,7 +11,7 @@ export default function LegalScreen({route}) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
+      <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <Ionicons name="shield-checkmark" size={40} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Termos e Privacidade</Text>
         <Text style={styles.headerSubtitle}>Liga do Bem Botucatu</Text>
@@ -67,15 +68,20 @@ export default function LegalScreen({route}) {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F9FAFB'},
-  header: {padding: 32, alignItems: 'center'},
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
+  header: {padding: 32, alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+  },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    ...F.bold,
     color: '#FFFFFF',
     marginTop: 12,
   },
   headerSubtitle: {
+    ...F.regular,
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
     marginTop: 4,
@@ -89,11 +95,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    ...F.bold,
     color: '#1F2937',
     marginBottom: 12,
   },
   paragraph: {
+    ...F.regular,
     fontSize: 14,
     color: '#4B5563',
     lineHeight: 22,

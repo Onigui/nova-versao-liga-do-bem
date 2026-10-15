@@ -5,6 +5,7 @@ import React, {useState} from 'react';
 import {Alert, Image, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {HEALTH_KINDS, dayLabel, parseDateInput, todayInput} from '../utils/health';
+import {F} from '../theme/home';
 
 function getPicker(kind) {
   try {
@@ -161,14 +162,15 @@ export default function HealthEntryForm({mode = 'TUTOR', initial, color = '#7C3A
 }
 
 const styles = StyleSheet.create({
-  label: {fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6},
+  label: {fontSize: 13, ...F.bold, color: '#374151', marginBottom: 6},
   kinds: {flexDirection: 'row', flexWrap: 'wrap', gap: 6},
   kind: {flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB'},
-  kindText: {fontSize: 13, fontWeight: '600', color: '#4B5563'},
-  input: {backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#1F2937'},
+  kindText: {fontSize: 13, ...F.semibold, color: '#4B5563'},
+  input: {
+    ...F.regular, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#1F2937'},
   photoRow: {flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 10},
   photo: {width: 56, height: 56, borderRadius: 8},
   photoBtn: {flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', height: 42, borderRadius: 21, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB'},
   save: {height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20},
-  saveText: {color: '#FFFFFF', fontWeight: '800', fontSize: 16},
+  saveText: {color: '#FFFFFF', ...F.heavy, fontSize: 16},
 });

@@ -9,6 +9,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {API_BASE_PATH} from '../config/apiConfig';
 import {memberApi} from '../utils/quotes';
+import {F} from '../theme/home';
 
 const GREEN = '#059669';
 
@@ -225,29 +226,36 @@ export default function NotaFiscalScreen({navigation, fetchImpl = fetch, clipboa
 
 const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
-  title: {fontSize: 20, fontWeight: '800', color: '#1F2937'},
-  text: {fontSize: 14, color: '#4B5563', marginTop: 8, lineHeight: 20},
+  title: {fontSize: 20, ...F.heavy, color: '#1F2937'},
+  text: {
+    ...F.regular, fontSize: 14, color: '#4B5563', marginTop: 8, lineHeight: 20},
   hero: {backgroundColor: GREEN, borderRadius: 18, padding: 18},
-  heroTitle: {color: '#FFFFFF', fontSize: 20, fontWeight: '900', marginTop: 8},
-  heroText: {color: '#D1FAE5', fontSize: 14, marginTop: 6, lineHeight: 20},
-  heroCount: {color: '#FFFFFF', fontWeight: '800', marginTop: 10},
+  heroTitle: {color: '#FFFFFF', fontSize: 20, ...F.heavy, marginTop: 8},
+  heroText: {
+    ...F.regular, color: '#D1FAE5', fontSize: 14, marginTop: 6, lineHeight: 20},
+  heroCount: {color: '#FFFFFF', ...F.heavy, marginTop: 10},
   status: {flexDirection: 'row', gap: 12, alignItems: 'center', borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 14},
-  statusTitle: {fontSize: 16, fontWeight: '800'},
-  statusText: {fontSize: 13, color: '#374151', marginTop: 2, lineHeight: 18},
-  section: {fontSize: 16, fontWeight: '800', color: '#1F2937', marginTop: 20, marginBottom: 8},
+  statusTitle: {fontSize: 16, ...F.heavy, },
+  statusText: {
+    ...F.regular, fontSize: 13, color: '#374151', marginTop: 2, lineHeight: 18},
+  section: {fontSize: 16, ...F.heavy, color: '#1F2937', marginTop: 20, marginBottom: 8},
   step: {flexDirection: 'row', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 8},
   num: {width: 28, height: 28, borderRadius: 14, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center'},
-  numText: {fontWeight: '900', color: '#065F46'},
-  stepTitle: {fontSize: 15, fontWeight: '700', color: '#1F2937'},
-  stepText: {fontSize: 13, color: '#4B5563', marginTop: 2, lineHeight: 18},
+  numText: {...F.heavy, color: '#065F46'},
+  stepTitle: {fontSize: 15, ...F.bold, color: '#1F2937'},
+  stepText: {
+    ...F.regular, fontSize: 13, color: '#4B5563', marginTop: 2, lineHeight: 18},
   stepBtn: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8},
-  stepBtnText: {color: GREEN, fontWeight: '700'},
+  stepBtnText: {color: GREEN, ...F.bold, },
   cnpj: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: '#A7F3D0', backgroundColor: '#ECFDF5', borderRadius: 10, padding: 10},
-  cnpjText: {fontSize: 16, fontWeight: '800', color: '#065F46', letterSpacing: 0.5},
-  label: {fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6},
-  input: {backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: '#1F2937'},
-  hint: {fontSize: 12, color: '#6B7280'},
+  cnpjText: {fontSize: 16, ...F.heavy, color: '#065F46', letterSpacing: 0.5},
+  label: {fontSize: 13, ...F.bold, color: '#374151', marginBottom: 6},
+  input: {
+    ...F.regular, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: '#1F2937'},
+  hint: {
+    ...F.regular, fontSize: 12, color: '#6B7280'},
   done: {flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: GREEN, height: 52, borderRadius: 14, marginTop: 12},
-  doneText: {color: '#FFFFFF', fontWeight: '800', fontSize: 16},
-  footer: {fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 18, lineHeight: 17},
+  doneText: {color: '#FFFFFF', ...F.heavy, fontSize: 16},
+  footer: {
+    ...F.regular, fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 18, lineHeight: 17},
 });
