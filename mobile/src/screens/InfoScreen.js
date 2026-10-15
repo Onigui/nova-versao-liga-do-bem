@@ -142,7 +142,7 @@ export default function InfoScreen({navigation}) {
   };
 
   const handleVeterinaryPartners = () => {
-    navigation.navigate('Parceiros', { initialCategory: 'veterinária' });
+    navigation.navigate('MainTabs', {screen: 'Parceiros', params: {initialCategory: 'veterinária'}});
   };
 
   const toggleSection = (sectionId) => {

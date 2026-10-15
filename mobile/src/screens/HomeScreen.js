@@ -3,7 +3,7 @@
  * "Para você" (só o que pede ação), meus pets, promoções perto, próximo evento e adoção.
  * Tudo vem de GET /api/home numa chamada só.
  */
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -11,6 +11,7 @@ import {useAuth} from '../services/AuthService';
 import useUserLocation from '../services/useUserLocation';
 import {memberApi} from '../utils/quotes';
 import {toMemberPartner} from '../utils/partnerView';
+import navigateTo from '../navigation/navigateTo';
 import {C, F, HOME_SHORTCUTS, MONTHS_ABBR, dateBR, findService, greeting, money, planName} from '../theme/home';
 
 function useAuthSafe() {
@@ -57,14 +58,39 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
   const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Mostra na hora a última tela salva no aparelho e atualiza por trás
+  const cacheKey = `home_cache_v1:${user?.id || 'anon'}`;
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const raw = await AsyncStorage.getItem(cacheKey);
+        if (alive && raw) setData(d => d || JSON.parse(raw));
+      } catch {
+        /* sem cache */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [cacheKey]);
+
   const load = useCallback(async () => {
     try {
       const qs = here ? `?lat=${here.lat.toFixed(4)}&lng=${here.lng.toFixed(4)}` : '';
-      setData(await api('GET', `/home${qs}`));
+      const fresh = await api('GET', `/home${qs}`);
+      setData(fresh);
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        AsyncStorage.setItem(cacheKey, JSON.stringify(fresh));
+      } catch {
+        /* sem cache */
+      }
     } catch {
       setData(d => d || {offline: true, forYou: [], pets: [], promos: [], counters: {}});
     }
-  }, [api, here?.lat, here?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, cacheKey, here?.lat, here?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFocusEffect(
     useCallback(() => {
@@ -72,7 +98,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
     }, [load]),
   );
 
-  const go = (screen, params) => navigation.navigate(screen, params);
+  const go = (screen, params) => navigateTo(navigation, screen, params);
   const firstName = data?.user?.firstName || String(user?.name || '').split(' ')[0] || 'tudo bem?';
   const m = data?.membership;
   const active = !!m?.active;

@@ -5,6 +5,7 @@ import React, {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {C, F, searchServices} from '../theme/home';
+import navigateTo from '../navigation/navigateTo';
 
 export default function ServicesScreen({navigation, route}) {
   const [query, setQuery] = useState('');
@@ -43,7 +44,7 @@ export default function ServicesScreen({navigation, route}) {
               <Text style={[styles.groupTitle, F.heavy]}>{g.title}</Text>
               <View style={styles.grid}>
                 {g.items.map(s => (
-                  <Pressable key={s.id} style={styles.item} onPress={() => navigation.navigate(s.screen)} testID={`servico-${s.id}`}>
+                  <Pressable key={s.id} style={styles.item} onPress={() => navigateTo(navigation, s.screen)} testID={`servico-${s.id}`}>
                     <View style={[styles.icon, {backgroundColor: s.bg}]}>
                       <Ionicons name={s.icon} size={23} color={s.fg} />
                     </View>

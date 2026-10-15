@@ -144,7 +144,8 @@ describe('utilitários', () => {
   test('toque na notificação abre a tela certa depois do login', () => {
     jest.useFakeTimers();
     expect(targetFromMessage({data: {screen: 'QuoteDetail', id: 'q1'}})).toEqual({name: 'QuoteDetail', params: {id: 'q1'}});
-    expect(targetFromMessage({data: {screen: 'MembershipCard'}}).name).toBe('Cartão');
+    expect(targetFromMessage({data: {screen: 'MembershipCard'}})).toEqual({name: 'MainTabs', params: {screen: 'Cartão', params: {}}});
+    expect(targetFromMessage({data: {screen: 'Parceiros', partnerId: 'p1'}})).toEqual({name: 'MainTabs', params: {screen: 'Parceiros', params: {partnerId: 'p1'}}});
     expect(targetFromMessage({data: {}})).toBeNull();
     openFromNotification({data: {screen: 'QuoteRespond', requestId: 'q9'}});
     expect(navigationRef.navigate).not.toHaveBeenCalled();

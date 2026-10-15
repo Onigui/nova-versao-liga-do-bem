@@ -43,6 +43,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleHome } from './lib/home';
+import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -1786,53 +1787,25 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ error: 'Email, nome e senha são obrigatórios' });
         }
 
-        // CPF é obrigatório no cadastro
-        if (!cpf || !cpf.trim()) {
-          return res.status(400).json({ error: 'CPF é obrigatório para cadastro' });
+        // CPF obrigatório e válido (dígitos verificadores): uma conta por pessoa
+        const cpfCheck = checkCpf(cpf);
+        if (!cpfCheck.ok) {
+          return res.status(400).json({ error: cpfCheck.error, field: 'cpf', code: cpfCheck.code });
         }
-
-        // Validar formato do CPF (11 dígitos)
-        const cpfClean = cpf.replace(/\D/g, '');
-        if (cpfClean.length !== 11) {
-          return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
+        const cpfClean = cpfCheck.digits;
+        if (await cpfInUse(db, cpfClean)) {
+          return res.status(400).json({
+            error: 'Este CPF já tem uma conta. Entre com o seu e-mail ou use "Esqueci minha senha".',
+            field: 'cpf',
+            code: 'CPF_TAKEN',
+          });
+        }
+        const emailTaken: any[] = await db.$queryRawUnsafe(`SELECT 1 FROM users WHERE lower(email) = lower($1) LIMIT 1`, String(email).trim());
+        if (emailTaken[0]) {
+          return res.status(400).json({ error: 'Já existe uma conta com este e-mail. Entre ou recupere a senha.', field: 'email', code: 'EMAIL_TAKEN' });
         }
 
         console.log('📝 Register attempt:', email, 'CPF:', cpfClean);
-
-        // Verificar se email já existe
-        const existingUserByEmail = await db.user.findUnique({
-          where: { email },
-          select: {
-            id: true,
-            email: true,
-          }
-        });
-
-        if (existingUserByEmail) {
-          return res.status(400).json({ error: 'Usuário já existe com este email' });
-        }
-
-        // Verificar se CPF já está em uso (só se coluna existir)
-        try {
-          const existingUserByCpf = await db.user.findFirst({
-            where: { cpf: cpfClean },
-            select: {
-              id: true,
-              email: true,
-            }
-          });
-
-          if (existingUserByCpf) {
-            return res.status(400).json({ error: 'CPF já cadastrado. Este CPF já está em uso por outra conta' });
-          }
-        } catch (error: any) {
-          // Se coluna cpf não existir ainda, apenas logar aviso
-          if (error.message?.includes('cpf') || error.code === 'P2021') {
-            console.warn('⚠️ Coluna cpf não existe ainda, pulando verificação de duplicidade de CPF');
-          } else {
-            throw error;
-          }
-        }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
@@ -5184,73 +5157,28 @@ export default async function handler(req: any, res: any) {
           updateData.phone = phone ? phone.trim() : null;
         }
         
-        // Processar CPF: bloquear alteração se já existe, permitir apenas se for null
-        if (cpf !== undefined) {
-          // Buscar CPF atual do usuário
-          const currentUser = await db.user.findUnique({
-            where: { id: userId },
-            select: { cpf: true }
-          });
-          
-          const cpfClean = cpf ? String(cpf).replace(/\D/g, '') : null;
-          
-          // Se o CPF enviado é o mesmo que já está no banco, não fazer nada (permitir)
-          if (currentUser?.cpf && cpfClean && currentUser.cpf === cpfClean) {
-            console.log('ℹ️ PUT /api/user/profile: CPF não alterado, mantendo valor atual:', cpfClean);
-            // Não adicionar ao updateData, manter o valor atual
+        // CPF: pode ser informado quando não existe (ou o atual é inválido); depois não muda
+        if (cpf !== undefined && cpf !== null && String(cpf).trim() !== '') {
+          const currentRows: any[] = await db.$queryRawUnsafe(`SELECT cpf FROM users WHERE id = $1`, userId);
+          const current = String(currentRows[0]?.cpf || '').replace(/\D/g, '');
+          const check = checkCpf(cpf);
+          if (!check.ok) {
+            return res.status(400).json({ error: check.error, field: 'cpf', code: check.code });
           }
-          // Se o usuário já tem CPF cadastrado e está tentando alterar, bloquear
-          else if (currentUser?.cpf && cpfClean && currentUser.cpf !== cpfClean) {
-            console.warn('⚠️ PUT /api/user/profile: Tentativa de alterar CPF existente bloqueada');
-            return res.status(403).json({
-              error: 'CPF não pode ser alterado após o cadastro. Esta medida previne fraudes.'
-            });
-          }
-          // Se o usuário não tem CPF, permitir cadastrar (apenas se for válido)
-          else if (!currentUser?.cpf && cpfClean) {
-            // Validar formato
-            if (cpfClean.length !== 11) {
-              console.warn('⚠️ PUT /api/user/profile: CPF inválido (não tem 11 dígitos):', cpfClean);
-              return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos' });
-            } else if (cpfClean === '00000000000') {
-              console.warn('⚠️ PUT /api/user/profile: CPF inválido (só zeros)');
-              return res.status(400).json({ error: 'CPF inválido' });
-            }
-            
-            // Verificar se CPF já está em uso por outro usuário
-            try {
-              const existingUser = await db.user.findFirst({
-                where: {
-                  cpf: cpfClean,
-                  id: { not: userId }
-                },
-                select: {
-                  id: true,
-                }
+          if (current && isValidCpfStrict(current)) {
+            if (current !== check.digits) {
+              return res.status(403).json({
+                error: 'CPF não pode ser alterado após o cadastro. Esta medida previne fraudes. Fale com a Liga se precisar corrigir.',
+                field: 'cpf',
+                code: 'CPF_LOCKED',
               });
-              
-              if (existingUser) {
-                console.warn('⚠️ PUT /api/user/profile: CPF já cadastrado para outro usuário');
-                return res.status(400).json({ error: 'CPF já cadastrado para outro usuário' });
-              }
-            } catch (error: any) {
-              if (error.message?.includes('cpf') || error.code === 'P2021') {
-                console.warn('⚠️ Coluna cpf não existe ainda, pulando verificação de duplicidade');
-              } else {
-                throw error;
-              }
             }
-            
-            // CPF válido e não duplicado: adicionar ao updateData
-            updateData.cpf = cpfClean;
-            console.log('✅ PUT /api/user/profile: CPF será cadastrado:', cpfClean);
-          } else if (cpf === null || cpf === '' || !cpfClean) {
-            // Se enviado como null ou vazio, não atualizar (manter o que está no banco)
-            console.log('ℹ️ PUT /api/user/profile: CPF não fornecido ou vazio, mantendo valor atual');
+          } else {
+            if (await cpfInUse(db, check.digits, userId)) {
+              return res.status(400).json({ error: 'Este CPF já está em outra conta. Fale com a Liga.', field: 'cpf', code: 'CPF_TAKEN' });
+            }
+            updateData.cpf = check.digits;
           }
-        } else {
-          // CPF não foi enviado no body, não fazer nada
-          console.log('ℹ️ PUT /api/user/profile: CPF não foi enviado, mantendo valor atual');
         }
         if (avatar !== undefined) {
           updateData.avatar = avatar ? avatar.trim() : null;
