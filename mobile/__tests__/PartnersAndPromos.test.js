@@ -246,6 +246,20 @@ describe('tela de parceiros com GPS', () => {
     const tree = await mount();
     expect(allText(tree.root)).toContain('Guardada');
   });
+
+  test('abre na hora com a última lista e troca pela da internet quando chega', async () => {
+    mockStore.partners_cache_v2 = JSON.stringify([{id: 'z', name: 'Guardada', category: 'Pet Shop', address: 'Rua', discounts: []}]);
+    let release;
+    global.fetch = jest.fn(() => new Promise(r => (release = () => r({ok: true, json: async () => ({partners: API})}))));
+    const tree = await mount();
+    expect(allText(tree.root)).toContain('Guardada'); // internet ainda não respondeu
+    await act(async () => release());
+    await flush();
+    const t = allText(tree.root);
+    expect(t).toContain('PetShop Amigo Fiel');
+    expect(t).not.toContain('Guardada');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('App Parceiros', () => {

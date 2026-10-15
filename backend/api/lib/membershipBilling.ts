@@ -10,6 +10,7 @@ import {
 } from './pagbank';
 import { approveDonationFromPayment, syncDonationFailure } from './donations';
 import { markPartnerPushPaid } from './partnerPushSettle';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 export function isMembershipCurrentlyActive(membership: {
   status?: string | null;
@@ -26,41 +27,46 @@ const SCHEMA_TTL_MS = 6 * 60 * 60 * 1000;
 export async function ensureMembershipBillingSchema(db: any) {
   if (Date.now() - schemaEnsuredAt < SCHEMA_TTL_MS) return;
 
-  await db.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS subscription_plans (
-      id TEXT PRIMARY KEY,
-      code TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      description TEXT,
-      months INTEGER NOT NULL,
-      amount_cents INTEGER NOT NULL,
-      "isActive" BOOLEAN NOT NULL DEFAULT true,
-      "order" INTEGER NOT NULL DEFAULT 0,
-      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
-      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
-    )
-  `);
+  // Tabelas e colunas: uma vez por versão do código. Os planos abaixo continuam sincronizando sempre.
+  const fp = schemaFingerprint(ensureMembershipBillingSchema.toString());
+  if (!(await schemaApplied(db, 'membershipBilling', fp))) {
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS subscription_plans (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT,
+        months INTEGER NOT NULL,
+        amount_cents INTEGER NOT NULL,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "order" INTEGER NOT NULL DEFAULT 0,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+      )
+    `);
 
-  const alterStatements = [
-    `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS "planCode" TEXT`,
-    `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS "planMonths" INTEGER`,
-    `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS "lastPaymentId" TEXT`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "membershipId" TEXT`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS method TEXT`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "pixCopyPaste" TEXT`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "boletoUrl" TEXT`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "boletoBarcode" TEXT`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "planCode" TEXT`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "planMonths" INTEGER`,
-    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "membershipAppliedAt" TIMESTAMP(3)`,
-  ];
+    const alterStatements = [
+      `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS "planCode" TEXT`,
+      `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS "planMonths" INTEGER`,
+      `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS "lastPaymentId" TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "membershipId" TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS method TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "pixCopyPaste" TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "boletoUrl" TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "boletoBarcode" TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "planCode" TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "planMonths" INTEGER`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS "membershipAppliedAt" TIMESTAMP(3)`,
+    ];
 
-  for (const sql of alterStatements) {
-    try {
-      await db.$executeRawUnsafe(sql);
-    } catch (e) {
-      // coluna pode já existir em alguns ambientes
+    for (const sql of alterStatements) {
+      try {
+        await db.$executeRawUnsafe(sql);
+      } catch (e) {
+        // coluna pode já existir em alguns ambientes
+      }
     }
+    await markSchemaApplied(db, 'membershipBilling', fp);
   }
 
   for (const plan of FALLBACK_MEMBERSHIP_PLANS) {

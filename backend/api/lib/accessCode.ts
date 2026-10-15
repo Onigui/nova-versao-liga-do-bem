@@ -7,6 +7,7 @@
  */
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 export const MAX_CODE_ATTEMPTS = 5;
 export const ADMIN_CODE_TTL_HOURS = 72;
@@ -14,11 +15,15 @@ export const ADMIN_CODE_TTL_HOURS = 72;
 let ensured = false;
 export async function ensureAccessCodeSchema(db: any) {
   if (ensured) return;
-  await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    id TEXT PRIMARY KEY, email TEXT NOT NULL, code TEXT NOT NULL,
-    "expiresAt" TIMESTAMP(3) NOT NULL, "usedAt" TIMESTAMP(3), "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW())`);
-  await db.$executeRawUnsafe(`ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`);
-  await db.$executeRawUnsafe(`ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS source TEXT`);
+  const fp = schemaFingerprint(ensureAccessCodeSchema.toString());
+  if (!(await schemaApplied(db, 'accessCode', fp))) {
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL, code TEXT NOT NULL,
+      "expiresAt" TIMESTAMP(3) NOT NULL, "usedAt" TIMESTAMP(3), "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW())`);
+    await db.$executeRawUnsafe(`ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`);
+    await db.$executeRawUnsafe(`ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS source TEXT`);
+    await markSchemaApplied(db, 'accessCode', fp);
+  }
   ensured = true;
 }
 

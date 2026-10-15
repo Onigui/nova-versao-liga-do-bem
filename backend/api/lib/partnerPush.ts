@@ -23,6 +23,7 @@ import {
 import { syncPaymentFromPagBank } from './membershipBilling';
 import { markPartnerPushPaid } from './partnerPushSettle';
 import { sendFcmToTokens } from './push';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 export const PUSH_DEFAULTS = {
   priceCents: 2990,
@@ -48,40 +49,44 @@ class HttpError extends Error {
 let ensuredAt = 0;
 export async function ensurePartnerPushSchema(db: any) {
   if (Date.now() - ensuredAt < 6 * 60 * 60 * 1000) return;
-  // ADD VALUE não pode rodar dentro de transação: vai sozinho.
-  await db.$executeRawUnsafe(`ALTER TYPE "PaymentType" ADD VALUE IF NOT EXISTS 'PARTNER_PUSH'`);
-  await db.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS partner_push_campaigns (
-      id TEXT PRIMARY KEY,
-      "partnerId" TEXT NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
-      "createdById" TEXT NOT NULL,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      "discountId" TEXT,
-      "priceCents" INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'AWAITING_PAYMENT',
-      "paymentId" TEXT,
-      "paidAt" TIMESTAMP(3),
-      "reviewedById" TEXT,
-      "reviewNote" TEXT,
-      "reviewedAt" TIMESTAMP(3),
-      "sentAt" TIMESTAMP(3),
-      recipients INTEGER,
-      "pushSuccess" INTEGER,
-      "refundStatus" TEXT,
-      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
-      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
-    )`);
-  await db.$executeRawUnsafe(
-    `CREATE INDEX IF NOT EXISTS partner_push_campaigns_partner_idx ON partner_push_campaigns("partnerId", "createdAt")`,
-  );
-  await db.$executeRawUnsafe(
-    `CREATE INDEX IF NOT EXISTS partner_push_campaigns_status_idx ON partner_push_campaigns(status)`,
-  );
-  await db.$executeRawUnsafe(`ALTER TABLE partner_push_campaigns ADD COLUMN IF NOT EXISTS "scheduledFor" TIMESTAMP(3)`);
-  await db.$executeRawUnsafe(
-    `CREATE INDEX IF NOT EXISTS partner_push_campaigns_sched_idx ON partner_push_campaigns("scheduledFor")`,
-  );
+  const fp = schemaFingerprint(ensurePartnerPushSchema.toString());
+  if (!(await schemaApplied(db, 'partnerPush', fp))) {
+    // ADD VALUE não pode rodar dentro de transação: vai sozinho.
+    await db.$executeRawUnsafe(`ALTER TYPE "PaymentType" ADD VALUE IF NOT EXISTS 'PARTNER_PUSH'`);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS partner_push_campaigns (
+        id TEXT PRIMARY KEY,
+        "partnerId" TEXT NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
+        "createdById" TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        "discountId" TEXT,
+        "priceCents" INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'AWAITING_PAYMENT',
+        "paymentId" TEXT,
+        "paidAt" TIMESTAMP(3),
+        "reviewedById" TEXT,
+        "reviewNote" TEXT,
+        "reviewedAt" TIMESTAMP(3),
+        "sentAt" TIMESTAMP(3),
+        recipients INTEGER,
+        "pushSuccess" INTEGER,
+        "refundStatus" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+      )`);
+    await db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS partner_push_campaigns_partner_idx ON partner_push_campaigns("partnerId", "createdAt")`,
+    );
+    await db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS partner_push_campaigns_status_idx ON partner_push_campaigns(status)`,
+    );
+    await db.$executeRawUnsafe(`ALTER TABLE partner_push_campaigns ADD COLUMN IF NOT EXISTS "scheduledFor" TIMESTAMP(3)`);
+    await db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS partner_push_campaigns_sched_idx ON partner_push_campaigns("scheduledFor")`,
+    );
+    await markSchemaApplied(db, 'partnerPush', fp);
+  }
   ensuredAt = Date.now();
 }
 
