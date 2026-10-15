@@ -194,6 +194,14 @@ async function updateAppIcon() {
       return;
     }
 
+    // App Parceiros: a mesma arte dentro da lojinha verde (ícone diferente do app dos membros).
+    // Se falhar, ficam os ícones dos Parceiros que estão no repositório.
+    try {
+      await require('./partner-icon').writePartnerIcons(tempImagePath);
+    } catch (e) {
+      console.warn('⚠️ Ícone dos Parceiros: mantendo o do repositório.', e?.message || e);
+    }
+
     if (fs.existsSync(tempImagePath)) {
       fs.unlinkSync(tempImagePath);
     }
