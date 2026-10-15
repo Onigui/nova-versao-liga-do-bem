@@ -5,7 +5,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import LeafletMap from '../components/LeafletMap';
+import {MapFullscreen, MapPreview} from '../components/MapSheet';
 import useUserLocation from '../services/useUserLocation';
 import {useAuth} from '../services/AuthService';
 import {memberApi} from '../utils/quotes';
@@ -75,6 +75,8 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
   });
   const [pets, setPets] = useState([]);
   const [pickTo, setPickTo] = useState(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [draft, setDraft] = useState(null); // ponto escolhido no mapa em tela cheia, antes de confirmar
   const [saving, setSaving] = useState(false);
   const set = patch => setForm(f => ({...f, ...patch}));
 
@@ -89,10 +91,7 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
 
   // Primeira posição do GPS vira o ponto inicial do pino
   useEffect(() => {
-    if (here && !form.location) {
-      set({location: here});
-      setPickTo({...here, key: Date.now()});
-    }
+    if (here && !form.location) set({location: here});
   }, [here?.lat, here?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const choosePet = p => {
@@ -115,6 +114,18 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
       return;
     }
     set({photos: [...form.photos, {uri: a.uri, data: `data:${a.type || 'image/jpeg'};base64,${a.base64}`}]});
+  };
+
+  const pinMarker = useMemo(() => (form.location ? [{id: 'pino', lat: form.location.lat, lng: form.location.lng, color: t.color}] : null), [form.location, t.color]);
+  const openMap = () => {
+    setDraft(null);
+    setPickTo(null);
+    setMapOpen(true);
+  };
+  const confirmMap = () => {
+    const p = draft || form.location || here;
+    if (p) set({location: {lat: p.lat, lng: p.lng}});
+    setMapOpen(false);
   };
 
   const submit = async () => {
@@ -231,15 +242,44 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
       ) : null}
 
       <Text style={styles.section}>Onde e quando</Text>
-      <LeafletMap style={styles.map} center={here || undefined} zoom={16} pick pickTo={pickTo} onPick={p => set({location: p})} testID="mapa-escolher" />
-      <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 6}}>
-        <Text style={styles.hint}>Toque no mapa ou arraste o pino até o local.</Text>
-        {here ? (
-          <TouchableOpacity onPress={() => setPickTo({...here, key: Date.now()})} testID="usar-minha-localizacao">
-            <Text style={{color: t.color, fontWeight: '700', fontSize: 12}}>Usar minha localização</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+      <MapPreview
+        style={styles.map}
+        center={form.location || here}
+        zoom={16}
+        markers={pinMarker}
+        hint={form.location ? 'Toque para ajustar o local' : 'Toque para marcar o local'}
+        onPress={openMap}
+        testID="mapa-escolher"
+      />
+      <Text style={[styles.hint, {marginTop: 6}]}>
+        {form.location ? 'O pino mostra o local escolhido. Toque no mapa para ajustar.' : 'Ainda sem local: toque no mapa para marcar.'}
+      </Text>
+      <MapFullscreen
+        visible={mapOpen}
+        onClose={() => setMapOpen(false)}
+        title={type === 'LOST' ? 'Onde o pet sumiu?' : 'Onde você viu o animal?'}
+        subtitle="Arraste o pino ou toque no mapa. Use dois dedos para aproximar."
+        center={form.location || here || undefined}
+        zoom={17}
+        pick
+        pickTo={pickTo}
+        onPick={setDraft}
+        userLocation={here}
+        testID="mapa-tela-cheia"
+        footer={
+          <>
+            {here ? (
+              <TouchableOpacity style={styles.mapSecondary} onPress={() => setPickTo({...here, key: Date.now()})} testID="usar-minha-localizacao">
+                <Ionicons name="locate" size={18} color={t.color} />
+                <Text style={[styles.mapSecondaryText, {color: t.color}]}>Usar minha localização</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={[styles.save, {backgroundColor: t.color, marginTop: 0}]} onPress={confirmMap} testID="confirmar-local">
+              <Text style={styles.saveText}>Confirmar local</Text>
+            </TouchableOpacity>
+          </>
+        }
+      />
       {field('locationNote', 'Ponto de referência', {maxLength: 120, placeholder: 'Ex.: em frente à padaria, esquina com a Rua X'})}
       {field('district', 'Bairro', {maxLength: 60})}
       {field('when', type === 'LOST' ? 'Quando sumiu' : 'Quando você viu', {placeholder: 'DD/MM/AAAA HH:MM', keyboardType: 'numbers-and-punctuation', maxLength: 16})}
@@ -276,7 +316,9 @@ const styles = StyleSheet.create({
   removePhoto: {position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 12},
   addPhoto: {width: 96, height: 96, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF'},
   addPhotoText: {fontSize: 12, color: '#6B7280', marginTop: 2},
-  map: {height: 260, borderRadius: 14},
+  map: {height: 180, borderRadius: 14},
+  mapSecondary: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB'},
+  mapSecondaryText: {fontWeight: '700', fontSize: 14},
   switchRow: {flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12},
   warn: {flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: 12, padding: 10, marginTop: 12},
   warnText: {flex: 1, fontSize: 12, color: '#92400E'},

@@ -4,6 +4,8 @@
  * Modos:
  *  - marcadores: `markers` [{id, lat, lng, color, approximate, label}] → onMarkerPress(id)
  *  - escolher local: `pick` + `onPick({lat, lng})` → pino arrastável / toque no mapa
+ *  - miniatura: `interactive={false}` → o mapa não pega o toque (não briga com a rolagem da tela);
+ *    use junto com MapPreview/MapFullscreen para abrir o mapa em tela cheia.
  * `userLocation` mostra o ponto azul de onde a pessoa está.
  */
 import React, {useEffect, useMemo, useRef} from 'react';
@@ -19,7 +21,8 @@ function getWebView() {
 
 const LEAFLET = 'https://unpkg.com/leaflet@1.9.4/dist';
 
-export function buildMapHtml({center, zoom = 14, pick = false}) {
+export function buildMapHtml({center, zoom = 14, pick = false, interactive = true, zoomControl = false}) {
+  const lock = interactive ? '' : ',dragging:false,touchZoom:false,doubleClickZoom:false,scrollWheelZoom:false,boxZoom:false,keyboard:false,tap:false';
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="${LEAFLET}/leaflet.css">
@@ -31,7 +34,7 @@ export function buildMapHtml({center, zoom = 14, pick = false}) {
 <script src="${LEAFLET}/leaflet.js"></script>
 <script>
 var send=function(o){window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify(o))};
-var map=L.map('map',{zoomControl:false,attributionControl:true}).setView([${center.lat},${center.lng}],${zoom});
+var map=L.map('map',{zoomControl:${zoomControl && interactive ? 'true' : 'false'},attributionControl:true${lock}}).setView([${center.lat},${center.lng}],${zoom});
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 var layer=L.layerGroup().addTo(map), me=null, picker=null;
 function icon(color,label){return L.divIcon({className:'',iconSize:[30,30],iconAnchor:[15,30],html:'<div class="pin" style="background:'+color+'"><span>'+(label||'')+'</span></div>'})}
@@ -40,11 +43,11 @@ window.setMarkers=function(list,fit){layer.clearLayers();var b=[];
   if(m.approximate){L.circle([m.lat,m.lng],{radius:300,color:m.color,weight:1,fillOpacity:.12}).addTo(layer)}
   var mk=L.marker([m.lat,m.lng],{icon:icon(m.color,m.label)}).addTo(layer);
   mk.on('click',function(){send({type:'marker',id:m.id})});b.push([m.lat,m.lng]);});
- if(fit&&b.length>1){map.fitBounds(b,{padding:[40,40],maxZoom:16})}else if(fit&&b.length===1){map.setView(b[0],15)}};
+ if(fit&&b.length>1){map.fitBounds(b,{padding:[40,40],maxZoom:16})}else if(fit&&b.length===1){map.setView(b[0],map.getZoom()>=15?map.getZoom():15)}};
 window.setMe=function(p,c){if(!p)return;if(c&&!window._centered){window._centered=true;map.setView([p.lat,p.lng],14)}if(me){me.setLatLng([p.lat,p.lng])}else{me=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',iconSize:[16,16],html:'<div class="me"></div>'}),interactive:false}).addTo(map)}};
 window.center=function(p,z){map.setView([p.lat,p.lng],z||map.getZoom())};
 ${
-  pick
+  pick && interactive
     ? `picker=L.marker([${center.lat},${center.lng}],{draggable:true,icon:icon('#7C3AED','')}).addTo(map);
 picker.on('dragend',function(){var p=picker.getLatLng();send({type:'pick',lat:p.lat,lng:p.lng})});
 map.on('click',function(e){picker.setLatLng(e.latlng);send({type:'pick',lat:e.latlng.lat,lng:e.latlng.lng})});
@@ -56,12 +59,12 @@ send({type:'ready'});
 </script></body></html>`;
 }
 
-export default function LeafletMap({center, zoom, markers, onMarkerPress, pick, onPick, onMove, userLocation, pickTo, centerOnUser = false, fit = true, style, testID}) {
+export default function LeafletMap({center, zoom, markers, onMarkerPress, pick, onPick, onMove, userLocation, pickTo, centerOnUser = false, fit = true, interactive = true, zoomControl = false, style, testID}) {
   const WebView = getWebView();
   const ref = useRef(null);
   const ready = useRef(false);
   // O HTML só é montado uma vez (centro inicial); depois tudo muda por injectJavaScript
-  const html = useMemo(() => buildMapHtml({center: center || {lat: -22.8859, lng: -48.4435}, zoom, pick}), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const html = useMemo(() => buildMapHtml({center: center || {lat: -22.8859, lng: -48.4435}, zoom, pick, interactive, zoomControl}), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = js => ready.current && ref.current?.injectJavaScript(`${js};true;`);
 
@@ -95,7 +98,7 @@ export default function LeafletMap({center, zoom, markers, onMarkerPress, pick, 
 
   if (!WebView) return <View style={[styles.box, style]} testID={testID} />;
   return (
-    <View style={[styles.box, style]} testID={testID}>
+    <View style={[styles.box, style]} testID={testID} pointerEvents={interactive ? 'auto' : 'none'}>
       <WebView
         ref={ref}
         originWhitelist={['*']}
@@ -104,6 +107,8 @@ export default function LeafletMap({center, zoom, markers, onMarkerPress, pick, 
         javaScriptEnabled
         domStorageEnabled
         setSupportMultipleWindows={false}
+        scrollEnabled={interactive}
+        nestedScrollEnabled={interactive}
         style={{flex: 1}}
       />
     </View>
