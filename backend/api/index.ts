@@ -42,6 +42,7 @@ import { handleHealth, isHealthPath } from './lib/health';
 import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
+import { handleHome } from './lib/home';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
@@ -442,6 +443,12 @@ export default async function handler(req: any, res: any) {
         isAdmin: isAdminRequest(req),
         authUser: () => decodeAuthUser(req),
       });
+      if (handled) return;
+    }
+
+    // Tela inicial em uma chamada (carteirinha, para você, pets, promoções perto)
+    if (path === '/api/home') {
+      const handled = await handleHome({ req, res, path, method, db: getPrisma(), authUser: () => decodeAuthUser(req) });
       if (handled) return;
     }
 

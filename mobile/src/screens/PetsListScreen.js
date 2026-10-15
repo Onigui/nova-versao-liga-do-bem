@@ -16,7 +16,9 @@ import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function PetsListScreen({navigation}) {
+export default function PetsListScreen({navigation, route}) {
+  // Na barra inferior (aba Pets) não há para onde voltar
+  const asTab = !!route?.params?.asTab;
   const {user, isAuthenticated} = useAuth();
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,14 @@ export default function PetsListScreen({navigation}) {
       setLoading(false);
     }
   }, [isAuthenticated]);
+
+  // Recarrega ao voltar para a tela (ex.: pet cadastrado pelo Início)
+  useEffect(() => {
+    const unsub = navigation?.addListener?.('focus', () => {
+      if (isAuthenticated) loadPets();
+    });
+    return unsub;
+  }, [navigation, isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadPets = async () => {
     try {
@@ -142,11 +152,13 @@ export default function PetsListScreen({navigation}) {
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+        {asTab ? null : (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
         <Text style={styles.headerTitle}>Meus Pets</Text>
         <Text style={styles.headerSubtitle}>Gerencie os cartões de vacinação</Text>
       </LinearGradient>
