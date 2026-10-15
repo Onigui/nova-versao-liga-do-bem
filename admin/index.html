@@ -1387,6 +1387,12 @@
                 </div>
 
                 <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title">Velocidade do banco de dados</h3>
+                    <p class="header-subtitle" style="margin:8px 0 16px;">Mede quanto tempo a API leva para falar com o banco (ida e volta) e para onde ela está conectando. Não mostra senha.</p>
+                    <button class="btn btn-secondary" onclick="runDbDiagnostics()" id="dbDiagBtn">Testar agora</button>
+                    <div id="dbDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
+                </div>
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">Doações por PIX</h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Chave mostrada no app quando a pessoa doa. CNPJ da Liga: 27.644.955/0001-38</p>
                             <div class="form-row">
@@ -4720,6 +4726,31 @@
                     <p class="muted" style="font-size:.8rem">Os parceiros não veem as propostas uns dos outros. Esta tela é só para acompanhar.</p>`;
             } catch (e) {
                 body.innerHTML = `<p style="color:#B91C1C">${escHtml(e.message)}</p>`;
+            }
+        }
+
+        // ---------- Velocidade do banco (em Configurações) ----------
+        async function runDbDiagnostics() {
+            const out = document.getElementById('dbDiagResult');
+            const btn = document.getElementById('dbDiagBtn');
+            btn.disabled = true;
+            out.innerHTML = '<span class="muted">Medindo…</span>';
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/diagnostics/db`, { headers: adminHeaders() });
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.error || 'Erro');
+                const seq = d.selectOne.sequentialMs;
+                const typical = [...seq.slice(1)].sort((a, b) => a - b)[1];
+                const db = d.database || {};
+                const verdict = typical <= 15 ? ['ok', 'Rápido: o banco responde em poucos milissegundos.'] : typical <= 60 ? ['warn', 'Razoável.'] : ['bad', 'Lento: cada consulta demora muito para ir e voltar. Confira a região da conexão.'];
+                out.innerHTML = `<p><strong>${typical} ms</strong> por consulta (típico) · primeira: ${seq[0]} ms · 5 em paralelo: ${d.selectOne.parallel5TotalMs} ms</p>
+                    <p class="muted">API em <strong>${escHtml(d.functionRegion || '—')}</strong> → banco via <strong>${escHtml(db.host || '—')}:${escHtml(db.port || '')}</strong>
+                    ${db.poolerRegion ? `(região ${escHtml(db.poolerRegion)})` : ''}${db.connectionLimit ? ` · connection_limit=${escHtml(db.connectionLimit)}` : ''}${d.selectOne.looksSerialized ? ' · consultas em fila' : ''}</p>
+                    <p><span class="chip ${verdict[0] === 'ok' ? 'DONE' : verdict[0] === 'warn' ? 'RESERVED' : 'CANCELLED'}">${verdict[1]}</span></p>`;
+            } catch (e) {
+                out.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`;
+            } finally {
+                btn.disabled = false;
             }
         }
 

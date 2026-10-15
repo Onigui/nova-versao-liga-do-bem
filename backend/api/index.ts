@@ -43,6 +43,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleHome } from './lib/home';
+import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
@@ -254,7 +255,7 @@ function resolveAnimalAge(animal: { birthDate?: Date | string | null; age?: numb
 
 function getPrisma() {
   if (!prisma && process.env.DATABASE_URL) {
-    prisma = new PrismaClient();
+    prisma = instrumentDb(new PrismaClient());
   }
   return prisma;
 }
@@ -304,7 +305,12 @@ function decodeAuthUser(req: any): { userId: string; email?: string; role?: stri
 // Marca a partida a frio: a primeira requisição depois que a função acordou
 let handlerWarm = false;
 
-export default async function handler(req: any, res: any) {
+export default function handler(req: any, res: any) {
+  // Cada requisição ganha um contador próprio de consultas ao banco (aparece na linha ⏱)
+  return dbStatsStore.run({ q: 0, ms: 0 }, () => handleRequest(req, res));
+}
+
+async function handleRequest(req: any, res: any) {
   // CORS - Permitir todos os subdomínios Vercel
   // IMPORTANTE: Headers CORS devem ser definidos ANTES de qualquer processamento
   const origin = req.headers?.origin;
@@ -369,9 +375,11 @@ export default async function handler(req: any, res: any) {
   const startedAt = Date.now();
   const coldStart = !handlerWarm;
   handlerWarm = true;
+  const dbStats = dbStatsStore.getStore();
   if (typeof res?.on === 'function') {
     res.on('finish', () => {
-      console.log(`⏱ ${method} ${path} ${res.statusCode} ${Date.now() - startedAt}ms${coldStart ? ' cold' : ''}`);
+      const dbPart = dbStats && dbStats.q ? ` db=${dbStats.q}q/${dbStats.ms}ms` : '';
+      console.log(`⏱ ${method} ${path} ${res.statusCode} ${Date.now() - startedAt}ms${dbPart}${coldStart ? ' cold' : ''}`);
     });
   }
 
@@ -430,6 +438,15 @@ export default async function handler(req: any, res: any) {
         authUser: () => decodeAuthUser(req),
       });
       if (handled) return;
+    }
+
+    // Admin: diagnóstico da conexão com o banco (tempo de ida e volta, para onde conecta; sem senha)
+    if (path === '/api/admin/diagnostics/db' && method === 'GET') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      const diag = await dbDiagnostics(db);
+      console.log('🩺 Diagnóstico do banco:', JSON.stringify(diag));
+      return res.status(200).json(diag);
     }
 
     // Admin: painel inicial (indicadores + "precisa da sua atenção") e acompanhamento de orçamentos
