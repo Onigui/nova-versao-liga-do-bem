@@ -6,7 +6,7 @@ import React, {useCallback, useMemo, useState} from 'react';
 import {ActivityIndicator, Alert, Dimensions, Image, Linking, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import LeafletMap from '../components/LeafletMap';
+import {MapFullscreen, MapPreview} from '../components/MapSheet';
 import {memberApi} from '../utils/quotes';
 import {LF_TYPES, directionsUrl, photoUrl, shareUrl, sizeLabel, speciesLabel, timeAgo, toMarkers, whatsappUrl, whenLabel, withLabel} from '../utils/lostfound';
 import {ReportRow} from './LostFoundScreen';
@@ -20,6 +20,7 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
   const [error, setError] = useState('');
   const [matches, setMatches] = useState(null);
   const [flagging, setFlagging] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [reason, setReason] = useState('');
 
   const load = useCallback(async () => {
@@ -122,7 +123,23 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
           {[r.locationNote, r.district, r.city].filter(Boolean).join(' · ') || 'Veja no mapa'}
           {r.approximate ? ' (região aproximada)' : ''}
         </Text>
-        <LeafletMap style={styles.map} center={{lat: r.lat, lng: r.lng}} zoom={16} markers={mapMarkers} fit testID="mapa-aviso" />
+        <MapPreview style={styles.map} center={{lat: r.lat, lng: r.lng}} zoom={16} markers={mapMarkers} onPress={() => setMapOpen(true)} testID="mapa-aviso" />
+        <MapFullscreen
+          visible={mapOpen}
+          onClose={() => setMapOpen(false)}
+          title={`${t.label}: ${speciesLabel(r.species)}${r.petName ? ` ${r.petName}` : ''}`}
+          subtitle={[r.locationNote, r.district, r.city].filter(Boolean).join(' · ') + (r.approximate ? ' (região aproximada)' : '')}
+          center={{lat: r.lat, lng: r.lng}}
+          zoom={16}
+          markers={mapMarkers}
+          testID="mapa-aviso-tela-cheia"
+          footer={
+            <TouchableOpacity style={styles.mapGo} onPress={() => openUrl(directionsUrl(r))} testID="como-chegar-mapa">
+              <Ionicons name="navigate" size={18} color="#FFFFFF" />
+              <Text style={styles.mapGoText}>Como chegar</Text>
+            </TouchableOpacity>
+          }
+        />
         <View style={styles.actions}>
           <TouchableOpacity style={styles.action} onPress={() => openUrl(directionsUrl(r))} testID="como-chegar">
             <Ionicons name="navigate" size={18} color="#7C3AED" />
@@ -242,7 +259,9 @@ const styles = StyleSheet.create({
   desc: {fontSize: 15, color: '#374151', marginTop: 12, lineHeight: 21},
   section: {fontSize: 16, fontWeight: '800', color: '#1F2937', marginTop: 18, marginBottom: 6},
   place: {fontSize: 14, color: '#374151', marginBottom: 8},
-  map: {height: 220, borderRadius: 14},
+  map: {height: 180, borderRadius: 14},
+  mapGo: {height: 50, borderRadius: 14, backgroundColor: '#7C3AED', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center'},
+  mapGoText: {color: '#FFFFFF', fontWeight: '800', fontSize: 15},
   actions: {flexDirection: 'row', gap: 10, marginTop: 10},
   action: {flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', height: 44, borderRadius: 12, backgroundColor: '#F5F3FF'},
   actionText: {color: '#6D28D9', fontWeight: '700'},

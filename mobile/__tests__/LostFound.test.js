@@ -99,6 +99,9 @@ describe('utilitários', () => {
     const b = buildReportBody(ok, Date.parse('2026-10-15T12:00:00Z')).body;
     expect(b).toMatchObject({type: 'LOST', species: 'DOG', petName: 'Thor', petId: 'p1', whatsapp: '14998123456', photos: ['data:x'], lat: 1, lng: 2});
     expect(toMarkers([{...REPORT, type: 'LOST', approximate: true}])[0]).toMatchObject({color: '#DC2626', label: 'P', approximate: true});
+    const still = buildMapHtml({center: {lat: -22.9, lng: -48.4}, pick: true, interactive: false});
+    expect(still).toContain('dragging:false');
+    expect(still).not.toContain('draggable:true');
     const html = buildMapHtml({center: {lat: -22.9, lng: -48.4}, pick: true});
     expect(html).toContain('tile.openstreetmap.org');
     expect(html).toContain('setPick');
@@ -159,10 +162,19 @@ describe('app', () => {
     require('react-native-image-picker').launchCamera.mockResolvedValue({assets: [{uri: 'file://a.jpg', type: 'image/jpeg', base64: 'AAAA'}]});
     await press(tree.root, 'foto-camera');
     await press(tree.root, 'porte-MEDIO');
+    // a miniatura não pega o toque (não briga com a rolagem); tocar abre o mapa em tela cheia
+    const preview = tree.root.findAll(x => x.props.testID === 'mapa-escolher' && x.props.onPress)[0];
+    expect(preview.findAll(x => x.props.interactive === false && x.props.markers).length).toBeGreaterThan(0);
+    expect(tree.root.findAll(x => x.props.pick && x.props.onPick && x.props.zoomControl).length).toBe(0);
+    await press(tree.root, 'mapa-escolher');
+    const picker = tree.root.findAll(x => x.props.pick && x.props.onPick && x.props.zoomControl)[0];
+    await act(async () => picker.props.onPick({lat: -22.9, lng: -48.45}));
+    await press(tree.root, 'confirmar-local');
+    expect(tree.root.findAll(x => x.props.pick && x.props.onPick && x.props.zoomControl).length).toBe(0);
     await press(tree.root, 'publicar-aviso');
     const post = fetchImpl.mock.calls.find(c => c[1]?.method === 'POST');
     const body = JSON.parse(post[1].body);
-    expect(body).toMatchObject({type: 'LOST', species: 'DOG', petId: 'p1', petName: 'Thor', size: 'MEDIO', colors: 'caramelo', lat: -22.8859, lng: -48.4435, whatsapp: '14998123456', photos: ['data:image/jpeg;base64,AAAA']});
+    expect(body).toMatchObject({type: 'LOST', species: 'DOG', petId: 'p1', petName: 'Thor', size: 'MEDIO', colors: 'caramelo', lat: -22.9, lng: -48.45, whatsapp: '14998123456', photos: ['data:image/jpeg;base64,AAAA']});
     expect(Alert.alert.mock.calls[Alert.alert.mock.calls.length - 1][1]).toBe('Avisamos 5 pessoas por perto.');
     expect(nav.replace).toHaveBeenCalledWith('LostFoundDetail', {id: 'new1'});
   });
@@ -185,6 +197,10 @@ describe('app', () => {
     expect(openUrl.mock.calls[0][0]).toMatch(/^https:\/\/wa\.me\/5514997001122/);
     await press(tree.root, 'como-chegar');
     expect(openUrl.mock.calls[1][0]).toContain('destination=-22.89,-48.44');
+    await press(tree.root, 'mapa-aviso');
+    await press(tree.root, 'como-chegar-mapa');
+    expect(openUrl.mock.calls[2][0]).toContain('destination=-22.89,-48.44');
+    await press(tree.root, 'fechar-mapa');
     await press(tree.root, 'compartilhar');
     expect(share.mock.calls[0][0].message).toContain('https://api.test/api/public/lostfound/r1');
     await press(tree.root, 'denunciar');
