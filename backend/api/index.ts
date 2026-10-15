@@ -43,6 +43,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleHome } from './lib/home';
+import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
@@ -444,6 +445,12 @@ export default async function handler(req: any, res: any) {
         isAdmin: isAdminRequest(req),
         authUser: () => decodeAuthUser(req),
       });
+      if (handled) return;
+    }
+
+    // Admin: painel inicial (indicadores + "precisa da sua atenção") e acompanhamento de orçamentos
+    if (isAdminOverviewPath(path)) {
+      const handled = await handleAdminOverview({ req, res, path, method, db: getPrisma(), isAdmin: isAdminRequest(req) });
       if (handled) return;
     }
 
@@ -3348,15 +3355,20 @@ export default async function handler(req: any, res: any) {
         } = body;
 
         // Update or create configs
-        const configsToUpdate = [
-          { key: 'app.logoUrl', value: logoUrl || '', type: 'STRING', isPublic: true },
-          { key: 'app.name', value: appName || 'Liga do Bem', type: 'STRING', isPublic: true },
-          { key: 'app.subtitle', value: appSubtitle || 'Botucatu', type: 'STRING', isPublic: true },
-          { key: 'login.logoUrl', value: loginLogoUrl || '', type: 'STRING', isPublic: true },
-          { key: 'login.appName', value: loginAppName || 'Liga do Bem', type: 'STRING', isPublic: true },
-          { key: 'login.icon', value: loginIcon || '🐾', type: 'STRING', isPublic: true },
-          { key: 'login.iconImage', value: loginIconImage || '', type: 'STRING', isPublic: true },
+        // Marca antiga (logo/nome/tela de login): só grava o que veio no body. O admin novo não manda
+        // mais esses campos (o app não usa), então salvar o PIX não apaga nada.
+        const branding: [string, any, string][] = [
+          ['app.logoUrl', logoUrl, ''],
+          ['app.name', appName, 'Liga do Bem'],
+          ['app.subtitle', appSubtitle, 'Botucatu'],
+          ['login.logoUrl', loginLogoUrl, ''],
+          ['login.appName', loginAppName, 'Liga do Bem'],
+          ['login.icon', loginIcon, '🐾'],
+          ['login.iconImage', loginIconImage, ''],
         ];
+        const configsToUpdate = branding
+          .filter(([, v]) => v !== undefined)
+          .map(([key, v, fallback]) => ({ key, value: v || fallback, type: 'STRING', isPublic: true }));
 
         // PIX: só atualiza se o campo veio no body (permite salvar branding sem apagar PIX)
         if (pixKey !== undefined) {
