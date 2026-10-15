@@ -1,123 +1,165 @@
-import React, {useState, useEffect, useCallback} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  Switch,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+/**
+ * Perfil (aba "Perfil"): mesmo visual da tela inicial — cabeçalho roxo com a carteirinha,
+ * números da pessoa, atalhos da conta em cartões, preferências e a versão real do app instalado.
+ */
+import React, {useCallback, useEffect, useState} from 'react';
+import {ActivityIndicator, Alert, Image, Pressable, ScrollView, StatusBar, StyleSheet, Switch, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {useAuth} from '../services/AuthService';
-import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useAuth} from '../services/AuthService';
+import {API_BASE_PATH} from '../config/apiConfig';
+import {C, F, planName} from '../theme/home';
+import navigateTo from '../navigation/navigateTo';
+import {appVersionLabel} from '../utils/appVersion';
+
+const fmtDate = d => {
+  try {
+    return new Date(d).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'});
+  } catch {
+    return '';
+  }
+};
+const initials = name =>
+  String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(p => p[0].toUpperCase())
+    .join('') || '🙂';
+
+function Row({icon, title, subtitle, onPress, testID, right, danger}) {
+  return (
+    <Pressable onPress={onPress} disabled={!onPress} style={({pressed}) => [styles.row, pressed && onPress && {backgroundColor: '#FAF9FD'}]} testID={testID}>
+      <View style={[styles.rowIcon, danger && {backgroundColor: C.badSoft}]}>
+        <Ionicons name={icon} size={20} color={danger ? C.bad : C.primary} />
+      </View>
+      <View style={{flex: 1}}>
+        <Text style={[styles.rowTitle, F.semibold, danger && {color: C.bad}]}>{title}</Text>
+        {subtitle ? <Text style={[styles.rowSub, F.regular]}>{subtitle}</Text> : null}
+      </View>
+      {right !== undefined ? right : <Ionicons name="chevron-forward" size={18} color="#B8B5C6" />}
+    </Pressable>
+  );
+}
+
+function Group({title, children}) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <View style={{marginTop: 22}}>
+      <Text style={[styles.groupTitle, F.bold]}>{title}</Text>
+      <View style={styles.card}>
+        {items.map((child, i) => (
+          <View key={i}>
+            {i > 0 ? <View style={styles.divider} /> : null}
+            {child}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export default function ProfileScreen({navigation}) {
   const {user, logout, updateUser} = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(user?.notificationsEnabled !== false);
   const [locationEnabled, setLocationEnabled] = useState(user?.locationEnabled !== false);
-  const [stats, setStats] = useState({
-    donations: 0,
-    adoptions: 0,
-    volunteerHours: 0,
-  });
+  const [stats, setStats] = useState({donations: 0, adoptions: 0, volunteerHours: 0});
   const [loadingStats, setLoadingStats] = useState(true);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || null);
-  
-  // Verificar se o usuário é administrador
+  const [membership, setMembership] = useState(null);
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
+  const go = (screen, params) => navigateTo(navigation, screen, params);
 
-  // Função para carregar perfil atualizado
+  // Situação da carteirinha: a mesma que o Início já baixou (sem pedir de novo ao servidor)
+  const loadMembershipFromHome = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const cached = JSON.parse((await AsyncStorage.getItem(`home_cache_v1:${user.id}`)) || 'null');
+      setMembership(cached?.membership || null);
+    } catch {
+      // sem cache: só não mostra a situação
+    }
+  }, [user?.id]);
+
   const loadUserProfile = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) return;
-
       const response = await fetch(`${API_BASE_PATH}/user/profile`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
       });
-
       if (response.ok) {
         const data = await response.json();
-        // Atualizar avatar local
-        if (data.avatar) {
-          setAvatarUrl(data.avatar);
-        }
-        // Atualizar usuário no contexto
-        if (updateUser) {
-          updateUser(data);
-        }
+        if (data.avatar) setAvatarUrl(data.avatar);
+        if (updateUser) updateUser(data);
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
     }
   }, [updateUser]);
 
+  const loadUserStats = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) return;
+      const response = await fetch(`${API_BASE_PATH}/user/stats`, {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStats({donations: data.donations || 0, adoptions: data.adoptions || 0, volunteerHours: data.volunteerHours || 0});
+      }
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
+  // Números da pessoa: uma vez por conta (não a cada atualização do perfil)
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       loadUserStats();
-      // Carregar preferências do usuário
-      if (user.notificationsEnabled !== undefined) {
-        setNotificationsEnabled(user.notificationsEnabled);
-      }
-      if (user.locationEnabled !== undefined) {
-        setLocationEnabled(user.locationEnabled);
-      }
-      // Atualizar avatar do usuário
-      if (user.avatar) {
-        setAvatarUrl(user.avatar);
-      } else {
-        setAvatarUrl(null);
-      }
+      loadMembershipFromHome();
     } else {
       setLoadingStats(false);
     }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Preferências e foto acompanham o usuário salvo
+  useEffect(() => {
+    if (!user) return;
+    if (user.notificationsEnabled !== undefined) setNotificationsEnabled(user.notificationsEnabled);
+    if (user.locationEnabled !== undefined) setLocationEnabled(user.locationEnabled);
+    setAvatarUrl(user.avatar || null);
   }, [user]);
 
-  // Listener para quando a tela recebe foco (volta da tela de edição)
+  // Ao voltar para a aba (ex.: depois de editar o perfil), atualiza dados e carteirinha
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      // Recarregar perfil quando voltar da tela de edição
+    const unsubscribe = navigation?.addListener?.('focus', () => {
       loadUserProfile();
+      loadMembershipFromHome();
     });
-
     return unsubscribe;
-  }, [navigation, loadUserProfile]);
+  }, [navigation, loadUserProfile, loadMembershipFromHome]);
 
   const savePreferences = async (notifications, location) => {
     try {
       setSavingPreferences(true);
       const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        return;
-      }
-
+      if (!token) return;
       const response = await fetch(`${API_BASE_PATH}/user/preferences`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          notificationsEnabled: notifications,
-          locationEnabled: location,
-        }),
+        headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+        body: JSON.stringify({notificationsEnabled: notifications, locationEnabled: location}),
       });
-
       if (response.ok) {
         const data = await response.json();
-        if (data.user && updateUser) {
-          updateUser(data.user);
-        }
+        if (data.user && updateUser) updateUser(data.user);
       } else {
         console.error('Erro ao salvar preferências:', response.status);
       }
@@ -128,45 +170,13 @@ export default function ProfileScreen({navigation}) {
     }
   };
 
-  const handleNotificationsToggle = (value) => {
+  const handleNotificationsToggle = value => {
     setNotificationsEnabled(value);
     savePreferences(value, locationEnabled);
   };
-
-  const handleLocationToggle = (value) => {
+  const handleLocationToggle = value => {
     setLocationEnabled(value);
     savePreferences(notificationsEnabled, value);
-  };
-
-  const loadUserStats = async () => {
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        setLoadingStats(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_PATH}/user/stats`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStats({
-          donations: data.donations || 0,
-          adoptions: data.adoptions || 0,
-          volunteerHours: data.volunteerHours || 0,
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error);
-    } finally {
-      setLoadingStats(false);
-    }
   };
 
   const handleLogout = () => {
@@ -176,464 +186,217 @@ export default function ProfileScreen({navigation}) {
     ]);
   };
 
-  const menuItems = [
-    {
-      icon: 'person-outline',
-      title: 'Editar Perfil',
-      subtitle: 'Altere seus dados pessoais',
-      onPress: () => navigation.navigate('EditProfile'),
-    },
-    {
-      icon: 'card-outline',
-      title: 'Minha Assinatura',
-      subtitle: 'Gerencie seu plano de sócio',
-      onPress: () => navigation.navigate('Cartão'),
-    },
-    {
-      icon: 'heart-outline',
-      title: 'Minhas Doações',
-      subtitle: 'Histórico de contribuições',
-      onPress: () => navigation.navigate('MyDonations'),
-    },
-    {
-      icon: 'paw-outline',
-      title: 'Minhas Adoções',
-      subtitle: 'Acompanhe suas solicitações',
-      onPress: () => navigation.navigate('MyAdoptions'),
-    },
-    {
-      icon: 'calendar-outline',
-      title: 'Meus Eventos',
-      subtitle: 'Eventos que você participou',
-      onPress: () => navigation.navigate('MyEvents'),
-    },
-    {
-      icon: 'notifications-outline',
-      title: 'Notificações',
-      subtitle: 'Ver todas as notificações',
-      onPress: () => navigation.navigate('Notifications'),
-    },
-    // Debug & Logs - Apenas para administradores
-    ...(isAdmin ? [{
-      icon: 'bug-outline',
-      title: 'Debug & Logs',
-      subtitle: 'Ver logs do aplicativo (Admin)',
-      onPress: () => navigation.navigate('Debug'),
-    }] : []),
-    {
-      icon: 'help-circle-outline',
-      title: 'Ajuda & Suporte',
-      subtitle: 'Tire suas dúvidas',
-      onPress: () => navigation.navigate('Info'),
-    },
-    {
-      icon: 'shield-checkmark-outline',
-      title: 'Privacidade',
-      subtitle: 'Termos de uso e privacidade',
-      onPress: () => navigation.navigate('Legal', {section: 'both'}),
-    },
-  ];
+  const active = !!membership?.active;
+  const cardLine = !membership
+    ? null
+    : active
+    ? `${planName(membership.planMonths)}${membership.endDate ? ` · válida até ${fmtDate(membership.endDate)}` : ''}`
+    : membership.endDate
+    ? `Carteirinha vencida em ${fmtDate(membership.endDate)}`
+    : 'Você ainda não tem carteirinha';
+  const cpf = user?.cpf && /^\d{11}$/.test(String(user.cpf)) && user.cpf !== '00000000000' ? String(user.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null;
+  const versionLabel = appVersionLabel();
+  const switchProps = value => ({
+    trackColor: {false: '#E5E7EB', true: '#C4B5FD'},
+    thumbColor: value ? C.primary : '#F3F4F6',
+    disabled: savingPreferences,
+  });
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header com Gradient */}
-      <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.header}>
-        <View style={styles.profileInfo}>
-          <View style={styles.avatarContainer}>
-            {avatarUrl ? (
-              <Image 
-                source={{uri: avatarUrl}} 
-                style={styles.avatarImage}
-                onError={() => {
-                  console.warn('Erro ao carregar avatar, usando placeholder');
-                  setAvatarUrl(null);
-                }}
+    <View style={{flex: 1, backgroundColor: C.bg}}>
+      <StatusBar barStyle="light-content" backgroundColor={C.deep} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 32}}>
+        {/* Cabeçalho */}
+        <View style={styles.hero}>
+          <View style={styles.heroRing} />
+          <View style={styles.heroTop}>
+            <Pressable onPress={() => go('EditProfile')} style={styles.avatarWrap} testID="foto-perfil">
+              {avatarUrl ? (
+                <Image source={{uri: avatarUrl}} style={styles.avatar} onError={() => setAvatarUrl(null)} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarEmpty]}>
+                  <Text style={[styles.avatarText, F.heavy]}>{user ? initials(user.name) : '🙂'}</Text>
+                </View>
+              )}
+              {user ? (
+                <View style={styles.camera}>
+                  <Ionicons name="camera" size={13} color={C.deep} />
+                </View>
+              ) : null}
+            </Pressable>
+            <View style={{flex: 1}}>
+              <Text style={[styles.name, F.heavy]} numberOfLines={1}>
+                {user?.name || 'Visitante'}
+              </Text>
+              <Text style={[styles.email, F.regular]} numberOfLines={1}>
+                {user?.email || 'Entre para acessar todos os recursos'}
+              </Text>
+              {cpf ? <Text style={[styles.email, F.regular]}>CPF {cpf}</Text> : null}
+            </View>
+          </View>
+          {user && cardLine ? (
+            <Pressable onPress={() => (active ? go('Cartão') : go('MembershipCheckout'))} style={styles.cardChip} testID="situacao-carteirinha">
+              <Ionicons name={active ? 'shield-checkmark' : 'card-outline'} size={16} color={active ? '#BBF7D0' : '#FDE68A'} />
+              <Text style={[styles.cardChipText, F.semibold]} numberOfLines={1}>
+                {cardLine}
+              </Text>
+              <Text style={[styles.cardChipCta, F.bold]}>{active ? 'Ver' : 'Ser membro'}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <View style={{paddingHorizontal: 16}}>
+          {/* Números */}
+          {user ? (
+            <View style={styles.stats}>
+              {[
+                ['heart', '#E11D48', stats.donations, 'Doações'],
+                ['paw', C.primary, stats.adoptions, 'Adoções'],
+                ['time', '#059669', `${stats.volunteerHours}h`, 'Voluntário'],
+              ].map(([icon, color, value, label]) => (
+                <View key={label} style={styles.stat}>
+                  <Ionicons name={icon} size={18} color={color} />
+                  {loadingStats ? <ActivityIndicator size="small" color={color} style={{marginTop: 6}} /> : <Text style={[styles.statValue, F.heavy]}>{value}</Text>}
+                  <Text style={[styles.statLabel, F.semibold]}>{label}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Pressable onPress={() => navigation.navigate('Auth')} style={styles.loginCta} testID="entrar">
+              <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
+              <Text style={[styles.loginCtaText, F.bold]}>Entrar ou criar conta</Text>
+            </Pressable>
+          )}
+
+          {user ? (
+            <Group title="Minha conta">
+              <Row icon="person-outline" title="Editar perfil" subtitle="Nome, telefone e foto" onPress={() => go('EditProfile')} testID="editar-perfil" />
+              <Row icon="card-outline" title="Minha carteirinha" subtitle="QR, plano e validade" onPress={() => go('Cartão')} testID="minha-carteirinha" />
+              <Row icon="heart-outline" title="Minhas doações" subtitle="Histórico de contribuições" onPress={() => go('MyDonations')} testID="minhas-doacoes" />
+              <Row icon="paw-outline" title="Minhas adoções" subtitle="Acompanhe suas solicitações" onPress={() => go('MyAdoptions')} testID="minhas-adocoes" />
+              <Row icon="calendar-outline" title="Meus eventos" subtitle="Inscrições e eventos que participou" onPress={() => go('MyEvents')} testID="meus-eventos" />
+            </Group>
+          ) : null}
+
+          {user ? (
+            <Group title="Mais do app">
+              <Row icon="receipt-outline" title="Meus orçamentos" subtitle="Pedidos e propostas dos parceiros" onPress={() => go('QuotesList')} testID="meus-orcamentos" />
+              <Row icon="search-outline" title="Meus avisos de achados e perdidos" onPress={() => go('LostFoundMine')} testID="meus-avisos" />
+              <Row icon="document-text-outline" title="Nota Fiscal Paulista" subtitle="Doe suas notas para a Liga" onPress={() => go('NotaFiscal')} testID="nota-fiscal" />
+              <Row icon="notifications-outline" title="Notificações" subtitle="Ver todas as notificações" onPress={() => go('Notifications')} testID="notificacoes" />
+            </Group>
+          ) : null}
+
+          {user ? (
+            <Group title="Preferências">
+              <Row
+                icon="notifications"
+                title="Notificações push"
+                subtitle="Receber alertas no celular"
+                right={<Switch value={notificationsEnabled} onValueChange={handleNotificationsToggle} {...switchProps(notificationsEnabled)} testID="pref-notificacoes" />}
               />
-            ) : (
-              <View style={styles.avatar}>
-                <Ionicons name="person" size={40} color="#FFFFFF" />
-              </View>
-            )}
-            <TouchableOpacity 
-              style={styles.editAvatarButton}
-              onPress={() => navigation.navigate('EditProfile')}>
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.userName}>{user?.name || 'Visitante'}</Text>
-          <Text style={styles.userEmail}>
-            {user?.email || 'Entre para acessar todos os recursos'}
-          </Text>
-          {user?.cpf && user.cpf.trim() !== '' && user.cpf !== '00000000000' && (
-            <Text style={styles.userCpf}>CPF: {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</Text>
-          )}
-          {user?.role === 'MEMBER' && (
-            <View style={styles.memberBadge}>
-              <Ionicons name="star" size={12} color="#FFFFFF" />
-              <Text style={styles.memberBadgeText}>Membro Ativo</Text>
-            </View>
-          )}
-        </View>
-      </LinearGradient>
+              <Row
+                icon="location"
+                title="Localização"
+                subtitle="Parceiros e avisos perto de você"
+                right={<Switch value={locationEnabled} onValueChange={handleLocationToggle} {...switchProps(locationEnabled)} testID="pref-localizacao" />}
+              />
+            </Group>
+          ) : null}
 
-      {/* Stats Cards */}
-      {user && (
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Ionicons name="heart" size={24} color="#EC4899" />
-            {loadingStats ? (
-              <ActivityIndicator size="small" color="#EC4899" style={{marginTop: 8}} />
-            ) : (
-              <Text style={styles.statValue}>{stats.donations}</Text>
-            )}
-            <Text style={styles.statLabel}>Doações</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Ionicons name="paw" size={24} color="#8B5CF6" />
-            {loadingStats ? (
-              <ActivityIndicator size="small" color="#8B5CF6" style={{marginTop: 8}} />
-            ) : (
-              <Text style={styles.statValue}>{stats.adoptions}</Text>
-            )}
-            <Text style={styles.statLabel}>Adoções</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Ionicons name="time" size={24} color="#10B981" />
-            {loadingStats ? (
-              <ActivityIndicator size="small" color="#10B981" style={{marginTop: 8}} />
-            ) : (
-              <Text style={styles.statValue}>{stats.volunteerHours}h</Text>
-            )}
-            <Text style={styles.statLabel}>Voluntário</Text>
+          <Group title="Ajuda e informações">
+            <Row icon="help-circle-outline" title="Ajuda e suporte" subtitle="Tire suas dúvidas" onPress={() => go('Info')} testID="ajuda" />
+            <Row icon="shield-checkmark-outline" title="Privacidade e termos" onPress={() => go('Legal', {section: 'both'})} testID="privacidade" />
+            {isAdmin ? <Row icon="bug-outline" title="Debug e logs" subtitle="Somente administradores" onPress={() => go('Debug')} testID="debug" /> : null}
+          </Group>
+
+          {user ? (
+            <View style={[styles.card, {marginTop: 22}]}>
+              <Row icon="log-out-outline" title="Sair da conta" danger onPress={handleLogout} right={null} testID="sair" />
+            </View>
+          ) : null}
+
+          <View style={styles.footer}>
+            <Ionicons name="paw" size={16} color="#B8B5C6" />
+            <Text style={[styles.footerText, F.semibold]}>Liga do Bem Botucatu</Text>
+            {versionLabel ? (
+              <Text style={[styles.version, F.regular]} testID="versao-app">
+                {versionLabel}
+              </Text>
+            ) : null}
           </View>
         </View>
-      )}
-
-      {/* Settings Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Configurações</Text>
-
-        {/* Notifications Toggle */}
-        <View style={styles.settingItem}>
-          <View style={styles.settingItemLeft}>
-            <View style={[styles.settingIcon, {backgroundColor: '#FEF3C7'}]}>
-              <Ionicons name="notifications" size={20} color="#F59E0B" />
-            </View>
-            <View style={styles.settingText}>
-              <Text style={styles.settingTitle}>Notificações Push</Text>
-              <Text style={styles.settingSubtitle}>Receber alertas no app</Text>
-            </View>
-          </View>
-          <Switch
-            value={notificationsEnabled}
-            onValueChange={handleNotificationsToggle}
-            trackColor={{false: '#E5E7EB', true: '#C4B5FD'}}
-            thumbColor={notificationsEnabled ? '#8B5CF6' : '#F3F4F6'}
-            disabled={savingPreferences}
-          />
-        </View>
-
-        {/* Location Toggle */}
-        <View style={styles.settingItem}>
-          <View style={styles.settingItemLeft}>
-            <View style={[styles.settingIcon, {backgroundColor: '#DBEAFE'}]}>
-              <Ionicons name="location" size={20} color="#3B82F6" />
-            </View>
-            <View style={styles.settingText}>
-              <Text style={styles.settingTitle}>Localização</Text>
-              <Text style={styles.settingSubtitle}>Parceiros próximos</Text>
-            </View>
-          </View>
-          <Switch
-            value={locationEnabled}
-            onValueChange={handleLocationToggle}
-            trackColor={{false: '#E5E7EB', true: '#C4B5FD'}}
-            thumbColor={locationEnabled ? '#8B5CF6' : '#F3F4F6'}
-            disabled={savingPreferences}
-          />
-        </View>
-      </View>
-
-      {/* Menu Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Minha Conta</Text>
-
-        {menuItems.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.menuItem}
-            onPress={item.onPress}>
-            <View style={styles.menuItemLeft}>
-              <View style={styles.menuIcon}>
-                <Ionicons name={item.icon} size={22} color="#8B5CF6" />
-              </View>
-              <View style={styles.menuText}>
-                <Text style={styles.menuTitle}>{item.title}</Text>
-                <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Logout Button */}
-      {user && (
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-          <Text style={styles.logoutButtonText}>Sair da Conta</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Login Button (se não estiver logado) */}
-      {!user && (
-        <TouchableOpacity
-          style={styles.loginPrompt}
-          onPress={() => navigation.navigate('Auth')}>
-          <LinearGradient
-            colors={['#8B5CF6', '#7C3AED']}
-            style={styles.loginPromptGradient}>
-            <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.loginPromptText}>Fazer Login / Cadastrar</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-
-      {/* Version */}
-      <Text style={styles.version}>Versão 1.0.0</Text>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 40,
-    paddingHorizontal: 24,
-  },
-  profileInfo: {
-    alignItems: 'center',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  editAvatarButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#8B5CF6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 4,
-  },
-  userCpf: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 12,
-  },
-  memberBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
-  },
-  memberBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    marginTop: -30,
-    marginBottom: 24,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  settingItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  settingText: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  settingSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  menuItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  menuIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  menuText: {
-    flex: 1,
-  },
-  menuTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  menuSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 24,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
-    gap: 8,
-  },
-  logoutButtonText: {
-    color: '#EF4444',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  loginPrompt: {
-    marginHorizontal: 24,
-    borderRadius: 12,
+  hero: {
+    backgroundColor: C.deep,
+    paddingTop: 54,
+    paddingHorizontal: 20,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
-    marginBottom: 24,
   },
-  loginPromptGradient: {
+  heroRing: {position: 'absolute', right: -60, top: -70, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(255,255,255,0.06)'},
+  heroTop: {flexDirection: 'row', alignItems: 'center', gap: 14},
+  avatarWrap: {width: 72, height: 72},
+  avatar: {width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: 'rgba(255,255,255,0.25)'},
+  avatarEmpty: {backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center'},
+  avatarText: {color: '#FFFFFF', fontSize: 24},
+  camera: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: C.deep,
+  },
+  name: {color: '#FFFFFF', fontSize: 21},
+  email: {color: C.deepText, fontSize: 13, marginTop: 2},
+  cardChip: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  cardChipText: {flex: 1, color: '#FFFFFF', fontSize: 13},
+  cardChipCta: {color: '#FFFFFF', fontSize: 13, textDecorationLine: 'underline'},
+  stats: {flexDirection: 'row', gap: 10, marginTop: 16},
+  stat: {flex: 1, backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, paddingVertical: 12, alignItems: 'center'},
+  statValue: {color: C.ink, fontSize: 20, marginTop: 4},
+  statLabel: {color: C.muted, fontSize: 12, marginTop: 1},
+  loginCta: {
+    marginTop: 16,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: C.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
     gap: 8,
   },
-  loginPromptText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  version: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 12,
-    marginBottom: 32,
-  },
+  loginCtaText: {color: '#FFFFFF', fontSize: 15},
+  groupTitle: {color: C.muted, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8, marginLeft: 4},
+  card: {backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: 'hidden'},
+  divider: {height: 1, backgroundColor: C.line, marginLeft: 62},
+  row: {flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: 58},
+  rowIcon: {width: 36, height: 36, borderRadius: 11, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center'},
+  rowTitle: {color: C.ink, fontSize: 15},
+  rowSub: {color: C.muted, fontSize: 12, marginTop: 1},
+  footer: {alignItems: 'center', marginTop: 28, gap: 2},
+  footerText: {color: '#9C98AE', fontSize: 12, marginTop: 4},
+  version: {color: '#B8B5C6', fontSize: 12},
 });
