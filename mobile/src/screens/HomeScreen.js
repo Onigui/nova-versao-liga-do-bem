@@ -1,561 +1,438 @@
-import React, {useState, useEffect} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  RefreshControl,
-} from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+/**
+ * Início, estilo app de banco: carteirinha no topo (ou convite para ser membro), atalhos,
+ * "Para você" (só o que pede ação), meus pets, promoções perto, próximo evento e adoção.
+ * Tudo vem de GET /api/home numa chamada só.
+ */
+import React, {useCallback, useMemo, useState} from 'react';
+import {ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
-import PendingReviewsCard from '../components/PendingReviewsCard';
-import { API_BASE_PATH } from '../config/apiConfig';
-import { APP_CONFIG } from '../config/appConfig';
-import {logInfo, logError, logDebug} from '../services/RemoteLogger';
+import useUserLocation from '../services/useUserLocation';
+import {memberApi} from '../utils/quotes';
+import {toMemberPartner} from '../utils/partnerView';
+import {C, F, HOME_SHORTCUTS, MONTHS_ABBR, dateBR, findService, greeting, money, planName} from '../theme/home';
 
-// Importar RemoteLogger para compatibilidade
-const RemoteLogger = { log: logInfo, error: logError, debug: logDebug };
+function useAuthSafe() {
+  try {
+    return useAuth() || {};
+  } catch {
+    return {};
+  }
+}
 
-const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
+const FOR_YOU_STYLE = {
+  VACCINE: {icon: 'medkit', bg: '#FEF3C7', fg: '#B45309'},
+  REVIEW: {icon: 'star', bg: '#FEF3C7', fg: '#B45309'},
+  QUOTE: {icon: 'flash', bg: '#EDE9FE', fg: '#6D28D9'},
+  LOST: {icon: 'search', bg: '#FFE4E6', fg: '#BE123C'},
+  NFP: {icon: 'receipt', bg: '#D1FAE5', fg: '#047857'},
+};
 
-export default function HomeScreen({navigation}) {
-  const {user, isAuthenticated} = useAuth();
-  const [stats, setStats] = useState({
-    totalAnimals: 0,
-    totalAdoptions: 0,
-    totalDonations: 0,
-    totalPartners: 0,
-  });
-  const [loading, setLoading] = useState(true);
+const PET_STATUS = {
+  LATE: {bg: C.badSoft, fg: C.bad},
+  SOON: {bg: C.warnSoft, fg: C.warn},
+  OK: {bg: C.okSoft, fg: C.ok},
+  NONE: {bg: '#F1F0F6', fg: C.muted},
+};
+
+function Section({title, action, onAction, testID}) {
+  return (
+    <View style={styles.sectionRow}>
+      <Text style={[styles.sectionTitle, F.heavy]}>{title}</Text>
+      {action ? (
+        <TouchableOpacity onPress={onAction} hitSlop={8} testID={testID}>
+          <Text style={[styles.link, F.bold]}>{action}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+export default function HomeScreen({navigation, fetchImpl = fetch}) {
+  const api = useMemo(() => memberApi(fetchImpl), [fetchImpl]);
+  const {user} = useAuthSafe();
+  const location = useUserLocation({autoStart: user?.locationEnabled !== false});
+  const here = location.coords ? {lat: location.coords.latitude, lng: location.coords.longitude} : null;
+  const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [logoError, setLogoError] = useState(false);
 
-  const [appConfig, setAppConfig] = useState({
-    logoUrl: null,
-    logoLocal: require('../assets/images/app-logo.png'),
-    appName: APP_CONFIG.appName,
-    appSubtitle: APP_CONFIG.appSubtitle,
-  });
-
-  // Função para traduzir o role do usuário
-  const translateRole = (role) => {
-    const roleTranslations = {
-      'MEMBER': 'Membro',
-      'ADMIN': 'Administrador',
-      'VOLUNTEER': 'Voluntário',
-      'PARTNER': 'Parceiro',
-    };
-    return roleTranslations[role] || role;
-  };
-
-  // Carregar configurações do app da API
-  const loadAppConfig = async () => {
+  const load = useCallback(async () => {
     try {
-      logInfo('🔄 Carregando configurações do app', {url: `${API_BASE_PATH}/app/config`});
-      const response = await fetch(`${API_BASE_PATH}/app/config`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store', // Forçar buscar sempre da API
-      });
-      
-      logDebug('📡 Resposta do servidor', {status: response.status, statusText: response.statusText});
-      
-      if (response.ok) {
-        const config = await response.json();
-        logInfo('✅ Configurações recebidas', config);
-        
-        const logoUrlValue = config['app.logoUrl'];
-        const newConfig = {
-          logoUrl: (logoUrlValue && logoUrlValue.trim() !== '') ? logoUrlValue : null,
-          logoLocal: appConfig.logoLocal, // Preservar logo local
-          appName: config['app.name'] || APP_CONFIG.appName,
-          appSubtitle: config['app.subtitle'] || APP_CONFIG.appSubtitle,
-        };
-        
-        logInfo('📝 Configurações aplicadas', newConfig);
-        logDebug('🖼️ Logo Local', {hasLogoLocal: !!newConfig.logoLocal});
-        logDebug('🖼️ Logo URL', {hasLogo: !!newConfig.logoUrl, logoUrl: newConfig.logoUrl});
-        setAppConfig(newConfig);
-        // Resetar erro de logo quando novas configurações são carregadas
-        if (newConfig.logoUrl) {
-          setLogoError(false);
-        }
-      } else {
-        const errorText = await response.text();
-        logError('❌ Erro ao carregar configurações', {status: response.status, error: errorText});
-      }
-    } catch (error) {
-      logError('❌ Erro ao carregar configurações do app', error);
-      // Usar configurações padrão em caso de erro
+      const qs = here ? `?lat=${here.lat.toFixed(4)}&lng=${here.lng.toFixed(4)}` : '';
+      setData(await api('GET', `/home${qs}`));
+    } catch {
+      setData(d => d || {offline: true, forYou: [], pets: [], promos: [], counters: {}});
     }
-  };
+  }, [api, here?.lat, here?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    loadStats();
-    loadAppConfig();
-  }, []);
-
-  const loadStats = async () => {
-    try {
-      logInfo('🔄 Carregando estatísticas', {url: `${API_BASE_PATH}/stats`});
-      const response = await fetch(`${API_BASE_PATH}/stats`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      logDebug('📡 Resposta do servidor (stats)', {status: response.status, statusText: response.statusText});
-      
-      if (response.ok) {
-        const data = await response.json();
-        logInfo('✅ Estatísticas recebidas', data);
-        
-        // Garantir que todos os valores sejam números válidos
-        const newStats = {
-          totalAnimals: Number(data.stats?.totalAnimals) || 0,
-          totalAdoptions: Number(data.stats?.totalAdoptions) || 0,
-          totalDonations: Number(data.stats?.totalDonations) || 0,
-          totalPartners: Number(data.stats?.totalPartners) || 0,
-        };
-        
-        logInfo('📝 Estatísticas aplicadas', newStats);
-        setStats(newStats);
-      } else {
-        const errorText = await response.text();
-        logError('❌ Erro ao carregar estatísticas', {status: response.status, error: errorText});
-        // Se a resposta não for OK, manter valores em 0
-        setStats({
-          totalAnimals: 0,
-          totalAdoptions: 0,
-          totalDonations: 0,
-          totalPartners: 0,
-        });
-      }
-    } catch (error) {
-      logError('❌ Erro ao carregar estatísticas', error);
-      // Em caso de erro, manter valores em 0
-      setStats({
-        totalAnimals: 0,
-        totalAdoptions: 0,
-        totalDonations: 0,
-        totalPartners: 0,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadStats();
-    await loadAppConfig();
-    setRefreshing(false);
-  };
-
-  const StatCard = ({icon, title, value, color, onPress}) => (
-    <TouchableOpacity
-      style={[styles.statCard, {borderLeftColor: color}]}
-      onPress={onPress}>
-      <View style={styles.statContent}>
-        <View style={[styles.statIcon, {backgroundColor: color}]}>
-          <Ionicons name={icon} size={24} color="white" />
-        </View>
-        <View style={styles.statInfo}>
-          <Text style={styles.statValue}>{value}</Text>
-          <Text style={styles.statTitle}>{title}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
   );
 
-  const QuickAction = ({icon, title, subtitle, color, onPress}) => (
-    <TouchableOpacity style={styles.quickAction} onPress={onPress}>
-      <View style={[styles.quickActionIcon, {backgroundColor: color}]}>
-        <Ionicons name={icon} size={28} color="white" />
+  const go = (screen, params) => navigation.navigate(screen, params);
+  const firstName = data?.user?.firstName || String(user?.name || '').split(' ')[0] || 'tudo bem?';
+  const m = data?.membership;
+  const active = !!m?.active;
+  const expired = m && !m.active && m.status && m.status !== 'PENDING_PAYMENT';
+  const unread = data?.counters?.unreadNotifications || 0;
+  const shortcuts = [...HOME_SHORTCUTS.map(findService).filter(Boolean), {id: 'tudo', label: 'Ver tudo', icon: 'grid', bg: '#F1F0F6', fg: C.ink, screen: 'Services'}];
+
+  if (!data) {
+    return (
+      <View style={[styles.container, {alignItems: 'center', justifyContent: 'center'}]}>
+        <ActivityIndicator color={C.primary} size="large" />
       </View>
-      <View style={styles.quickActionInfo}>
-        <Text style={styles.quickActionTitle}>{title}</Text>
-        <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-    </TouchableOpacity>
-  );
+    );
+  }
 
   return (
     <ScrollView
       style={styles.container}
+      contentContainerStyle={{paddingBottom: 32}}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={async () => {
+            setRefreshing(true);
+            await load();
+            setRefreshing(false);
+          }}
+        />
       }>
-      {/* Header */}
-      <LinearGradient
-        colors={['#8B5CF6', '#A855F7']}
-        style={styles.header}
-        start={{x: 0, y: 0}}
-        end={{x: 1, y: 1}}>
-        <View style={styles.headerContent}>
-          <View style={styles.logoContainer}>
-            {appConfig.logoLocal ? (
-              <Image
-                source={appConfig.logoLocal}
-                style={styles.logo}
-                resizeMode="contain"
-                onLoad={() => {
-                  logInfo('✅ Logo local carregado com sucesso');
-                }}
-              />
-            ) : appConfig.logoUrl && !logoError ? (
-              <Image
-                source={{ uri: appConfig.logoUrl }}
-                style={styles.logo}
-                resizeMode="contain"
-                onError={(error) => {
-                  logError('❌ Erro ao carregar logo da API', {error, url: appConfig.logoUrl});
-                  setLogoError(true);
-                }}
-                onLoad={() => {
-                  logInfo('✅ Logo carregado com sucesso', {url: appConfig.logoUrl});
-                }}
-              />
-            ) : (
-              // Fallback para texto se não houver logo configurado ou se houver erro
-              <View>
-                <Text style={styles.headerTitle}>{appConfig.appName}</Text>
-                <Text style={styles.headerSubtitle}>{appConfig.appSubtitle}</Text>
-              </View>
-            )}
-          </View>
-          {isAuthenticated && user && (
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>
-                Olá, {user.name ? user.name.split(' ')[0] : 'Usuário'}
-              </Text>
-              <Text style={styles.userRole}>{translateRole(user.role)}</Text>
-            </View>
-          )}
-        </View>
-      </LinearGradient>
-
-      <PendingReviewsCard navigation={navigation} enabled={!!(isAuthenticated && user)} />
-
-      {/* Stats */}
-      <View style={styles.statsContainer}>
-        <Text style={styles.sectionTitle}>Nossos Números</Text>
-        <View style={styles.statsGrid}>
-          <StatCard
-            icon="paw"
-            title="Animais"
-            value={stats.totalAnimals || 0}
-            color="#10B981"
-            onPress={() => navigation.navigate('Adoções')}
-          />
-          <StatCard
-            icon="heart"
-            title="Adoções"
-            value={stats.totalAdoptions || 0}
-            color="#F59E0B"
-            onPress={() => navigation.navigate('Adoções')}
-          />
-          <StatCard
-            icon="gift"
-            title="Doações"
-            value={`R$ ${(stats.totalDonations || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            color="#EF4444"
-            onPress={() => navigation.navigate('Donation')}
-          />
-          <StatCard
-            icon="storefront"
-            title="Parceiros"
-            value={stats.totalPartners || 0}
-            color="#3B82F6"
-            onPress={() => navigation.navigate('Parceiros')}
-          />
-        </View>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.quickActionsContainer}>
-        <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-        <View style={styles.quickActions}>
-          <QuickAction
-            icon="search"
-            title="Achados e perdidos"
-            subtitle="Mapa de animais perdidos e encontrados perto de você"
-            color="#DC2626"
-            onPress={() => navigation.navigate('LostFound')}
-          />
-          <QuickAction
-            icon="card"
-            title="Cartão"
-            subtitle="Ativo só com plano pago"
-            color="#8B5CF6"
-            onPress={() => navigation.navigate('Cartão')}
-          />
-          <QuickAction
-            icon="storefront"
-            title="Parceiros"
-            subtitle="Encontre estabelecimentos parceiros"
-            color="#10B981"
-            onPress={() => navigation.navigate('Parceiros')}
-          />
-          <QuickAction
-            icon="paw"
-            title="Adoções"
-            subtitle="Adote um amigo de quatro patas"
-            color="#F59E0B"
-            onPress={() => navigation.navigate('Adoções')}
-          />
-          <QuickAction
-            icon="heart"
-            title="Doar"
-            subtitle="Apoio pontual, separado da associação"
-            color="#EF4444"
-            onPress={() => navigation.navigate('Donation')}
-          />
-          <QuickAction
-            icon="people"
-            title="Voluntariado"
-            subtitle="Doe seu tempo e amor"
-            color="#3B82F6"
-            onPress={() => navigation.navigate('Volunteer')}
-          />
-          <QuickAction
-            icon="calendar"
-            title="Eventos"
-            subtitle="Calendário de atividades"
-            color="#EC4899"
-            onPress={() => navigation.navigate('EventsCalendar')}
-          />
-          <QuickAction
-            icon="pie-chart"
-            title="Transparência"
-            subtitle="Prestação de contas"
-            color="#10B981"
-            onPress={() => navigation.navigate('Transparency')}
-          />
-          <QuickAction
-            icon="notifications"
-            title="Notificações"
-            subtitle="Mensagens e avisos"
-            color="#F59E0B"
-            onPress={() => navigation.navigate('Notifications')}
-          />
-          <QuickAction
-            icon="pricetags"
-            title="Comparar preços"
-            subtitle="Consultas, vacinas e produtos nos parceiros"
-            color="#6D28D9"
-            onPress={() => navigation.navigate('ComparePrices')}
-          />
-          <QuickAction
-            icon="flash"
-            title="Orçamento em tempo real"
-            subtitle="Monte a lista e as lojas mandam propostas"
-            color="#7C3AED"
-            onPress={() => navigation.navigate('QuotesList')}
-          />
-          <QuickAction
-            icon="receipt"
-            title="Nota Fiscal Paulista"
-            subtitle="Doe os créditos das suas notas para a Liga"
-            color="#059669"
-            onPress={() => navigation.navigate('NotaFiscal')}
-          />
-          <QuickAction
-            icon="medical"
-            title="Cartão de Vacinas"
-            subtitle="Gerencie vacinações dos pets"
-            color="#10B981"
-            onPress={() => navigation.navigate('PetsList')}
-          />
-          <QuickAction
-            icon="information-circle"
-            title="Informações"
-            subtitle="Ajuda e contatos úteis"
-            color="#6366F1"
-            onPress={() => navigation.navigate('Info')}
-          />
-        </View>
-      </View>
-
-      {/* Mission */}
-      <View style={styles.missionContainer}>
-        <Text style={styles.sectionTitle}>Nossa Missão</Text>
-        <View style={styles.missionCard}>
-          <Text style={styles.missionText}>
-            Promover o bem-estar animal através de adoções responsáveis,
-            cuidados veterinários e conscientização da comunidade de Botucatu.
+      {/* Cabeçalho */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.avatar} onPress={() => go('Perfil')} accessibilityLabel="Meu perfil">
+          <Text style={[styles.avatarText, F.heavy]}>{(firstName[0] || 'L').toUpperCase()}</Text>
+        </TouchableOpacity>
+        <View style={{flex: 1}}>
+          <Text style={[styles.hello, F.regular]}>{greeting()}</Text>
+          <Text style={[styles.name, F.heavy]} numberOfLines={1}>
+            {firstName}
           </Text>
         </View>
+        <TouchableOpacity style={styles.headBtn} onPress={() => go('Services', {focusSearch: true})} accessibilityLabel="Buscar" testID="buscar">
+          <Ionicons name="search" size={21} color={C.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.headBtn}
+          onPress={() => go('Notifications')}
+          accessibilityLabel={unread ? `Notificações, ${unread} novas` : 'Notificações'}
+          testID="notificacoes">
+          <Ionicons name="notifications-outline" size={21} color={C.ink} />
+          {unread ? <View style={styles.dot} /> : null}
+        </TouchableOpacity>
       </View>
+
+      {/* Carteirinha (o "saldo") ou convite */}
+      {active ? (
+        <View style={styles.cardDeep} testID="carteirinha">
+          <View style={styles.circle1} />
+          <View style={styles.circle2} />
+          <View style={styles.rowBetween}>
+            <Text style={[styles.cardLabel, F.semibold]}>CARTEIRINHA LIGA DO BEM</Text>
+            <View style={styles.activePill}>
+              <Text style={[styles.activePillText, F.heavy]}>ATIVA</Text>
+            </View>
+          </View>
+          <Text style={[styles.cardPlan, F.heavy]}>{planName(m.planMonths)}</Text>
+          <Text style={[styles.cardMeta, F.regular]}>
+            {m.endDate ? `Válida até ${dateBR(m.endDate)}` : 'Ativa'}
+            {m.memberIdMasked ? ` · ID ${m.memberIdMasked}` : ''}
+          </Text>
+          <View style={{flexDirection: 'row', gap: 10, marginTop: 14}}>
+            <TouchableOpacity style={styles.qrBtn} onPress={() => go('Cartão')} testID="mostrar-qr">
+              <Ionicons name="qr-code" size={20} color={C.deep} />
+              <Text style={[styles.qrBtnText, F.heavy]}>Mostrar QR</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.ghostBtn} onPress={() => go('Parceiros')} testID="beneficios">
+              <Text style={[styles.ghostBtnText, F.bold]}>Benefícios</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.cardMeta, F.regular, {marginTop: 12}]}>
+            {m.usesThisYear
+              ? `Você usou a carteirinha ${m.usesThisYear} ${m.usesThisYear === 1 ? 'vez' : 'vezes'} em ${new Date().getFullYear()}`
+              : 'Mostre a carteirinha nos parceiros e aproveite os descontos'}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.invite} testID="convite-membro">
+          <Text style={[styles.inviteLabel, F.bold]}>{expired ? 'SUA CARTEIRINHA VENCEU' : 'SEJA MEMBRO DA LIGA DO BEM'}</Text>
+          <Text style={[styles.inviteTitle, F.heavy]}>
+            {expired ? 'Renove e volte a economizar nos parceiros' : 'Ajude os animais e economize no seu pet'}
+          </Text>
+          {[
+            data.plan?.partners ? `Descontos em ${data.plan.partners} lojas, clínicas e pet shops` : 'Descontos em lojas, clínicas e pet shops parceiros',
+            'Eventos especiais só para membros',
+            'Sua contribuição cuida dos animais resgatados',
+          ].map(p => (
+            <View key={p} style={styles.perk}>
+              <View style={styles.perkIcon}>
+                <Ionicons name="checkmark" size={16} color={C.primary} />
+              </View>
+              <Text style={[styles.perkText, F.semibold]}>{p}</Text>
+            </View>
+          ))}
+          <TouchableOpacity style={styles.cta} onPress={() => go('MembershipCheckout')} testID="quero-ser-membro">
+            <Text style={[styles.ctaText, F.heavy]}>
+              {expired ? 'Renovar carteirinha' : 'Quero ser membro'}
+              {data.plan?.fromPerMonth ? ` · a partir de ${money(data.plan.fromPerMonth)}/mês` : ''}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Atalhos */}
+      <View style={styles.shortcuts}>
+        {shortcuts.map(s => {
+          const badge = s.id === 'achados' ? data.counters?.lostFoundNearby : null;
+          return (
+            <Pressable key={s.id} style={styles.shortcut} onPress={() => go(s.screen)} testID={`atalho-${s.id}`}>
+              <View style={[styles.shortcutIcon, {backgroundColor: s.bg}]}>
+                <Ionicons name={s.icon} size={24} color={s.fg} />
+                {badge ? (
+                  <View style={styles.badge}>
+                    <Text style={[styles.badgeText, F.heavy]}>{badge > 9 ? '9+' : badge}</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={[styles.shortcutLabel, F.semibold]} numberOfLines={2}>
+                {s.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Para você */}
+      {data.forYou?.length ? (
+        <>
+          <Section title="Para você" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 12, paddingHorizontal: 20}}>
+            {data.forYou.map((f, i) => {
+              const st = FOR_YOU_STYLE[f.kind] || FOR_YOU_STYLE.QUOTE;
+              return (
+                <TouchableOpacity
+                  key={`${f.kind}-${i}`}
+                  style={[styles.forYou, f.urgent && {borderColor: '#FDA4AF'}]}
+                  onPress={() => go(f.action.screen, f.action.params)}
+                  testID={`para-voce-${f.kind}`}>
+                  <View style={[styles.forYouIcon, {backgroundColor: st.bg}]}>
+                    <Ionicons name={st.icon} size={20} color={st.fg} />
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={[styles.forYouTitle, F.heavy]} numberOfLines={2}>
+                      {f.title}
+                    </Text>
+                    {f.subtitle ? (
+                      <Text style={[styles.muted, F.regular]} numberOfLines={1}>
+                        {f.subtitle}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.muted} />
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </>
+      ) : null}
+
+      {/* Meus pets */}
+      <Section title="Meus pets" action={data.pets?.length ? 'Ver todos' : null} onAction={() => go('Pets')} testID="ver-pets" />
+      {data.pets?.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 12, paddingHorizontal: 20}}>
+          {data.pets.map(p => {
+            const st = PET_STATUS[p.vaccine?.status] || PET_STATUS.NONE;
+            return (
+              <TouchableOpacity key={p.id} style={styles.pet} onPress={() => go('VaccinationCard', {petId: p.id})} testID={`pet-${p.id}`}>
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+                  {p.photo ? (
+                    <Image source={{uri: p.photo}} style={styles.petAvatar} />
+                  ) : (
+                    <View style={[styles.petAvatar, {backgroundColor: C.primarySoft}]}>
+                      <Text style={[{color: C.primary, fontSize: 17}, F.heavy]}>{(p.name || '?')[0]}</Text>
+                    </View>
+                  )}
+                  <View style={{flex: 1}}>
+                    <Text style={[styles.petName, F.heavy]} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    <Text style={[styles.muted, F.regular]} numberOfLines={1}>
+                      {[p.species, p.breed].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[styles.petStatus, {backgroundColor: st.bg}]}>
+                  <Text style={[{color: st.fg, fontSize: 12}, F.bold]} numberOfLines={1}>
+                    {p.vaccine?.label}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity style={styles.addPet} onPress={() => go('AddPet')} accessibilityLabel="Adicionar pet" testID="adicionar-pet">
+            <Ionicons name="add" size={26} color={C.primary} />
+          </TouchableOpacity>
+        </ScrollView>
+      ) : (
+        <TouchableOpacity style={[styles.row, {marginHorizontal: 20}]} onPress={() => go('AddPet')} testID="cadastrar-pet">
+          <View style={[styles.rowIcon, {backgroundColor: '#CCFBF1'}]}>
+            <Ionicons name="medkit" size={22} color="#0F766E" />
+          </View>
+          <View style={{flex: 1}}>
+            <Text style={[styles.rowTitle, F.heavy]}>Carteira de vacinação digital</Text>
+            <Text style={[styles.muted, F.regular]}>Grátis para todos, carimbada pelo veterinário</Text>
+          </View>
+          <Text style={[styles.link, F.bold]}>Criar</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Promoções perto */}
+      {data.promos?.length ? (
+        <>
+          <Section title={here ? 'Promoções perto de você' : 'Promoções para membros'} action="Ver todas" onAction={() => go('Parceiros')} testID="ver-promocoes" />
+          <View style={{gap: 10, paddingHorizontal: 20}}>
+            {data.promos.map(p => (
+              <TouchableOpacity key={p.id} style={styles.row} onPress={() => go('PartnerDetail', {partner: toMemberPartner(p, p.discounts)})} testID={`promo-${p.id}`}>
+                {p.logo ? (
+                  <Image source={{uri: p.logo}} style={styles.promoLogo} />
+                ) : (
+                  <View style={[styles.promoLogo, {backgroundColor: '#F5F3FF'}]}>
+                    <Text style={[{color: C.primary, fontSize: 18}, F.heavy]}>{(p.name || '?')[0]}</Text>
+                  </View>
+                )}
+                <View style={{flex: 1, minWidth: 0}}>
+                  <Text style={[styles.rowTitle, F.heavy]} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                  <Text style={[styles.muted, F.regular]} numberOfLines={1}>
+                    {[p.category, p.distanceKm != null ? (p.distanceKm < 1 ? `${Math.round(p.distanceKm * 1000)} m` : `${String(p.distanceKm).replace('.', ',')} km`) : null]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
+                </View>
+                <View style={[styles.promoBadge, !active && {backgroundColor: C.primarySoft}]}>
+                  <Text style={[{color: active ? '#FFFFFF' : '#4C1D95', fontSize: 12}, F.heavy]}>{p.badge}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      {/* Evento e adoção */}
+      <View style={styles.grid2}>
+        <TouchableOpacity style={styles.tile} onPress={() => go('EventsCalendar')} testID="proximo-evento">
+          {data.nextEvent ? (
+            <>
+              <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+                <View style={styles.dateBox}>
+                  <Text style={[{color: '#9D174D', fontSize: 17}, F.heavy]}>{new Date(data.nextEvent.startDate).getDate()}</Text>
+                  <Text style={[{color: '#9D174D', fontSize: 10}, F.heavy]}>{MONTHS_ABBR[new Date(data.nextEvent.startDate).getMonth()]}</Text>
+                </View>
+                <Text style={[styles.muted, F.semibold]}>Próximo evento</Text>
+              </View>
+              <Text style={[styles.tileTitle, F.heavy]} numberOfLines={2}>
+                {data.nextEvent.title}
+              </Text>
+              <Text style={[styles.link, F.bold, {fontSize: 13}]}>Quero ir →</Text>
+            </>
+          ) : (
+            <>
+              <View style={[styles.rowIcon, {backgroundColor: '#FCE7F3'}]}>
+                <Ionicons name="calendar" size={22} color="#9D174D" />
+              </View>
+              <Text style={[styles.tileTitle, F.heavy]}>Eventos</Text>
+              <Text style={[styles.muted, F.regular]}>Fique de olho na agenda</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tile} onPress={() => go('Adoções')} testID="adocao">
+          <View style={[styles.rowIcon, {backgroundColor: C.okSoft}]}>
+            <Ionicons name="paw" size={22} color="#15803D" />
+          </View>
+          <Text style={[styles.tileTitle, F.heavy]} numberOfLines={2}>
+            {data.adoption?.available ? `${data.adoption.available} ${data.adoption.available === 1 ? 'amigo esperando' : 'amigos esperando'} um lar` : 'Adoção'}
+          </Text>
+          <Text style={[styles.link, F.bold, {fontSize: 13}]}>Conhecer →</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity style={[styles.row, {marginHorizontal: 20, marginTop: 12}]} onPress={() => go('Transparency')} testID="transparencia">
+        <View style={[styles.rowIcon, {backgroundColor: '#E0F2FE'}]}>
+          <Ionicons name="stats-chart" size={20} color="#0369A1" />
+        </View>
+        <View style={{flex: 1}}>
+          <Text style={[styles.rowTitle, F.heavy]}>Transparência</Text>
+          <Text style={[styles.muted, F.regular]}>Veja como cada real é usado</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={C.muted} />
+      </TouchableOpacity>
+
+      {data.offline ? <Text style={[styles.offline, F.regular]}>Sem conexão. Puxe para atualizar.</Text> : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  logoContainer: {
-    height: 50,
-    justifyContent: 'center',
-  },
-  logo: {
-    height: 50,
-    width: 200,
-    maxWidth: '100%',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: -5,
-  },
-  userInfo: {
-    alignItems: 'flex-end',
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-  },
-  userRole: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  statsContainer: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    width: '48%',
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  statInfo: {
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  statTitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  quickActionsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  quickActions: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  quickAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  quickActionInfo: {
-    flex: 1,
-  },
-  quickActionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  quickActionSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  missionContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
-  missionCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  missionText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#4B5563',
-    textAlign: 'center',
-  },
+  container: {flex: 1, backgroundColor: C.bg},
+  header: {flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8},
+  avatar: {width: 44, height: 44, borderRadius: 22, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center'},
+  avatarText: {color: C.primary, fontSize: 18},
+  hello: {fontSize: 13, color: C.muted},
+  name: {fontSize: 18, color: C.ink},
+  headBtn: {width: 44, height: 44, borderRadius: 14, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center'},
+  dot: {position: 'absolute', top: 9, right: 10, width: 10, height: 10, borderRadius: 5, backgroundColor: '#DB2777', borderWidth: 2, borderColor: '#FFFFFF'},
+  cardDeep: {marginHorizontal: 20, marginTop: 12, borderRadius: 24, backgroundColor: C.deep, padding: 20, overflow: 'hidden'},
+  circle1: {position: 'absolute', right: -40, top: -40, width: 170, height: 170, borderRadius: 85, backgroundColor: 'rgba(255,255,255,0.07)'},
+  circle2: {position: 'absolute', right: 40, bottom: -60, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.05)'},
+  rowBetween: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+  cardLabel: {fontSize: 12, color: C.deepText, letterSpacing: 0.5},
+  activePill: {backgroundColor: '#A7F3D0', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4},
+  activePillText: {fontSize: 11, color: '#064E3B'},
+  cardPlan: {fontSize: 26, color: '#FFFFFF', marginTop: 14},
+  cardMeta: {fontSize: 13, color: C.deepText, marginTop: 2},
+  qrBtn: {flex: 1, height: 48, borderRadius: 14, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8},
+  qrBtnText: {color: C.deep, fontSize: 15},
+  ghostBtn: {height: 48, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center'},
+  ghostBtnText: {color: '#FFFFFF', fontSize: 15},
+  invite: {marginHorizontal: 20, marginTop: 12, borderRadius: 24, backgroundColor: C.card, padding: 20, borderWidth: 2, borderColor: '#DDD6FE', gap: 10},
+  inviteLabel: {fontSize: 12, color: C.primary, letterSpacing: 0.5},
+  inviteTitle: {fontSize: 21, color: C.ink, lineHeight: 27},
+  perk: {flexDirection: 'row', alignItems: 'center', gap: 10},
+  perkIcon: {width: 28, height: 28, borderRadius: 9, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center'},
+  perkText: {flex: 1, fontSize: 14, color: C.ink},
+  cta: {height: 52, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', marginTop: 4, paddingHorizontal: 12},
+  ctaText: {color: '#FFFFFF', fontSize: 15, textAlign: 'center'},
+  shortcuts: {marginHorizontal: 20, marginTop: 20, backgroundColor: C.card, borderRadius: 22, paddingTop: 16, paddingHorizontal: 6, paddingBottom: 6, flexDirection: 'row', flexWrap: 'wrap'},
+  shortcut: {width: '25%', alignItems: 'center', paddingBottom: 10, paddingHorizontal: 2},
+  shortcutIcon: {width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center'},
+  shortcutLabel: {fontSize: 12, color: C.ink, textAlign: 'center', marginTop: 6, lineHeight: 15},
+  badge: {position: 'absolute', top: -4, right: -6, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#DB2777', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#FFFFFF'},
+  badgeText: {color: '#FFFFFF', fontSize: 10},
+  sectionRow: {flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginHorizontal: 20, marginTop: 26, marginBottom: 12},
+  sectionTitle: {fontSize: 18, color: C.ink},
+  link: {color: C.primary, fontSize: 14},
+  muted: {fontSize: 12, color: C.muted},
+  forYou: {width: 280, backgroundColor: C.card, borderRadius: 20, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: 'transparent'},
+  forYouIcon: {width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
+  forYouTitle: {fontSize: 15, color: C.ink},
+  pet: {width: 170, backgroundColor: C.card, borderRadius: 20, padding: 14, gap: 10},
+  petAvatar: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center'},
+  petName: {fontSize: 15, color: C.ink},
+  petStatus: {alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, maxWidth: '100%'},
+  addPet: {width: 64, borderRadius: 20, borderWidth: 2, borderStyle: 'dashed', borderColor: '#C4B5FD', alignItems: 'center', justifyContent: 'center'},
+  row: {backgroundColor: C.card, borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12},
+  rowIcon: {width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
+  rowTitle: {fontSize: 15, color: C.ink},
+  promoLogo: {width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
+  promoBadge: {backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6},
+  grid2: {flexDirection: 'row', gap: 12, marginHorizontal: 20, marginTop: 26},
+  tile: {flex: 1, backgroundColor: C.card, borderRadius: 20, padding: 14, gap: 8},
+  tileTitle: {fontSize: 14, color: C.ink},
+  dateBox: {width: 44, height: 48, borderRadius: 12, backgroundColor: '#FCE7F3', alignItems: 'center', justifyContent: 'center'},
+  offline: {textAlign: 'center', color: C.muted, marginTop: 16},
 });

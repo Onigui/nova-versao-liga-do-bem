@@ -1,4 +1,6 @@
 import React from 'react';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {F} from '../theme/home';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -49,6 +51,7 @@ import HealthEntryFormScreen from '../screens/HealthEntryFormScreen';
 import ReviewFormScreen from '../screens/ReviewFormScreen';
 import PartnerReviewsScreen from '../screens/PartnerReviewsScreen';
 import NotaFiscalScreen from '../screens/NotaFiscalScreen';
+import ServicesScreen from '../screens/ServicesScreen';
 import LostFoundScreen from '../screens/LostFoundScreen';
 import LostFoundNewScreen from '../screens/LostFoundNewScreen';
 import LostFoundDetailScreen from '../screens/LostFoundDetailScreen';
@@ -84,73 +87,72 @@ export function AuthStack() {
   );
 }
 
-// Tabs Principais
+// Botão central da barra (Cartão), elevado como nos apps de banco
+function CardTabButton({onPress, accessibilityState}) {
+  const focused = !!accessibilityState?.selected;
+  return (
+    <TouchableOpacity onPress={onPress} style={tabStyles.centerWrap} accessibilityRole="button" accessibilityLabel="Cartão" testID="aba-cartao">
+      <View style={[tabStyles.center, focused && {backgroundColor: '#4C1D95'}]}>
+        <Icon name="qr-code" size={26} color="#FFFFFF" />
+      </View>
+      <Text style={[tabStyles.centerLabel, F.bold]}>Cartão</Text>
+    </TouchableOpacity>
+  );
+}
+
+const TAB_ICONS = {Home: 'home', Parceiros: 'storefront', Pets: 'paw', Perfil: 'person'};
+
+// Tabs Principais: Início · Parceiros · Cartão (centro) · Pets · Perfil
 export function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Cartão') {
-            iconName = focused ? 'card' : 'card-outline';
-          } else if (route.name === 'Parceiros') {
-            iconName = focused ? 'storefront' : 'storefront-outline';
-          } else if (route.name === 'Adoções') {
-            iconName = focused ? 'paw' : 'paw-outline';
-          } else if (route.name === 'Perfil') {
-            iconName = focused ? 'person' : 'person-outline';
-          }
-
-          return <Icon name={iconName} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: '#8B5CF6',
-        tabBarInactiveTintColor: '#6B7280',
+        tabBarIcon: ({ focused, color, size }) => (
+          <Icon name={`${TAB_ICONS[route.name] || 'ellipse'}${focused ? '' : '-outline'}`} size={size} color={color} />
+        ),
+        tabBarActiveTintColor: '#6D28D9',
+        tabBarInactiveTintColor: '#6B6880',
         tabBarStyle: {
           backgroundColor: '#ffffff',
-          borderTopColor: '#E5E7EB',
+          borderTopColor: '#ECEAF3',
           borderTopWidth: 1,
-          height: 60,
+          height: 64,
           paddingBottom: 8,
-          paddingTop: 8,
+          paddingTop: 6,
         },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
-        },
+        tabBarLabelStyle: {fontSize: 12, ...F.semibold},
         headerShown: false,
       })}
     >
-      <Tab.Screen 
-        name="Home" 
-        component={HomeScreen} 
-        options={{ title: 'Início' }}
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Início' }} />
+      <Tab.Screen name="Parceiros" component={PartnersScreen} options={{ title: 'Parceiros' }} />
+      <Tab.Screen
+        name="Cartão"
+        component={MembershipCardScreen}
+        options={{ title: 'Cartão', tabBarButton: props => <CardTabButton {...props} /> }}
       />
-      <Tab.Screen 
-        name="Cartão" 
-        component={MembershipCardScreen} 
-        options={{ title: 'Cartão' }}
-      />
-      <Tab.Screen 
-        name="Parceiros" 
-        component={PartnersScreen} 
-        options={{ title: 'Parceiros' }}
-      />
-      <Tab.Screen 
-        name="Adoções" 
-        component={AdoptionsScreen} 
-        options={{ title: 'Adoções' }}
-      />
-      <Tab.Screen 
-        name="Perfil" 
-        component={ProfileScreen} 
-        options={{ title: 'Meu Perfil' }}
-      />
+      <Tab.Screen name="Pets" component={PetsListScreen} options={{ title: 'Pets' }} initialParams={{ asTab: true }} />
+      <Tab.Screen name="Perfil" component={ProfileScreen} options={{ title: 'Perfil' }} />
     </Tab.Navigator>
   );
 }
+
+const tabStyles = StyleSheet.create({
+  centerWrap: {flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 6},
+  center: {
+    width: 58,
+    height: 58,
+    marginTop: -26,
+    borderRadius: 20,
+    backgroundColor: '#6D28D9',
+    borderWidth: 4,
+    borderColor: '#F6F5FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+  },
+  centerLabel: {fontSize: 12, color: '#6D28D9', marginTop: 2},
+});
 
 // Stack Principal com navegação para detalhes
 export function AppStack() {
@@ -161,6 +163,12 @@ export function AppStack() {
       }}
     >
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen
+        name="Adoções"
+        component={AdoptionsScreen}
+        options={{headerShown: true, title: 'Adoção', headerStyle: {backgroundColor: '#ffffff'}, headerTintColor: '#6D28D9'}}
+      />
+      <Stack.Screen name="Services" component={ServicesScreen} />
       <Stack.Screen 
         name="SearchPartner" 
         component={SearchPartnerScreen}
