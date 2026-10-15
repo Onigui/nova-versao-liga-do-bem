@@ -1,662 +1,168 @@
-import React, {useState, useEffect, useCallback, useRef} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Image,
-} from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+/**
+ * Entrar (app dos membros): e-mail e senha, ou digital/Face ID quando habilitado.
+ * Mesmo visual do novo Início.
+ */
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {Alert, Platform, Text, View} from 'react-native';
 import {useAuth} from '../services/AuthService';
-import { API_BASE_PATH } from '../config/apiConfig';
-import { APP_CONFIG } from '../config/appConfig';
-import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 import BiometricService from '../services/BiometricService';
-
-const API_BASE_URL = API_BASE_PATH.replace('/api', ''); // Remover /api duplicado
+import {F} from '../theme/home';
+import {A, AuthLayout, Divider, Field, LinkText, PrimaryButton, SecondaryButton} from '../components/auth/AuthUI';
 
 export default function LoginScreen({navigation}) {
   const {login, isAuthenticated} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loginConfig, setLoginConfig] = useState({
-    logoUrl: null,
-    appName: APP_CONFIG.appName,
-    icon: '🐾',
-    iconImage: null,
-  });
-  const [logoError, setLogoError] = useState(false);
-  const [iconError, setIconError] = useState(false);
-  const [localAssets, setLocalAssets] = useState({
-    logo: null,
-    icon: null,
-    iconEmoji: '🐾',
-  });
+  const [errors, setErrors] = useState({});
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [biometryType, setBiometryType] = useState('Biometria');
-  
-  // Assets locais versionados no repositório (evita require undefined no release)
-  useEffect(() => {
-    const iconConfig = require('../assets/images/icon-config.json');
-    setLocalAssets({
-      logo: require('../assets/images/login-logo.png'),
-      icon: require('../assets/images/app-icon.png'),
-      iconEmoji: iconConfig?.icon || '🐾',
-    });
-  }, []);
+  const [biometryType, setBiometryType] = useState('digital');
 
-  // Carregar configurações do app da API
-  const loadLoginConfig = async () => {
+  const checkBiometric = useCallback(async () => {
     try {
-      logInfo('🔄 Carregando configurações de login', {url: `${API_BASE_PATH}/app/config`});
-      const response = await fetch(`${API_BASE_PATH}/app/config`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store', // Forçar buscar sempre da API
-      });
-      
-      logDebug('📡 Resposta do servidor (login)', {status: response.status, statusText: response.statusText});
-      
-      if (response.ok) {
-        const config = await response.json();
-        logInfo('✅ Configurações de login recebidas', config);
-        
-        // Usar configurações de login se disponíveis, senão usar da página inicial
-        const loginLogoUrl = config['login.logoUrl'] || config['app.logoUrl'];
-        const loginIconImage = config['login.iconImage'];
-        
-        const newConfig = {
-          logoUrl: (loginLogoUrl && loginLogoUrl.trim() !== '') ? loginLogoUrl : null,
-          appName: config['login.appName'] || config['app.name'] || APP_CONFIG.appName,
-          icon: config['login.icon'] || '🐾',
-          iconImage: (loginIconImage && loginIconImage.trim() !== '') ? loginIconImage : null,
-        };
-        
-        logInfo('📝 Configurações de login aplicadas', newConfig);
-        logDebug('🖼️ Logo URL', {hasLogo: !!newConfig.logoUrl, logoUrl: newConfig.logoUrl});
-        logDebug('🖼️ Ícone Imagem', {hasIconImage: !!newConfig.iconImage, iconImage: newConfig.iconImage});
-        setLoginConfig(newConfig);
-        // Resetar erros quando novas configurações são carregadas
-        if (newConfig.logoUrl) {
-          setLogoError(false);
-        }
-        if (newConfig.iconImage) {
-          setIconError(false);
-        }
-      } else {
-        const errorText = await response.text();
-        logError('❌ Erro ao carregar configurações de login', {status: response.status, error: errorText});
-      }
-    } catch (error) {
-      logError('❌ Erro ao carregar configurações do login', error);
-    }
-  };
-
-  useEffect(() => {
-    loadLoginConfig();
-    checkBiometric();
-    // Removido checkForUpdates() daqui - será feito após login
-  }, []);
-
-  // Verificar biometria novamente quando a tela ganha foco (após habilitar)
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      checkBiometric();
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  // Solicitar biometria automaticamente quando biometria está habilitada.
-  // Só UMA vez por abertura da tela: antes, cada falha liberava o "loading" e disparava
-  // outra tentativa em 800ms, criando um loop com o erro piscando na tela.
-  const autoBiometricTried = useRef(false);
-  useEffect(() => {
-    if (
-      biometricAvailable &&
-      biometricEnabled &&
-      !loading &&
-      !isAuthenticated &&
-      !autoBiometricTried.current
-    ) {
-      autoBiometricTried.current = true;
-      // Aguardar um pouco para garantir que a tela está totalmente carregada
-      const timer = setTimeout(() => {
-        console.log('🔐 Biometria habilitada, solicitando autenticação automática...');
-        handleBiometricLogin();
-      }, 800); // Aumentar delay para garantir que tudo está carregado
-      return () => clearTimeout(timer);
-    }
-  }, [biometricAvailable, biometricEnabled, loading, isAuthenticated, handleBiometricLogin]);
-
-  const checkBiometric = async () => {
-    try {
-      const { available, biometryType: type } = await BiometricService.isAvailable();
-      setBiometricAvailable(available);
-      
-      if (type === 'FaceID') {
-        setBiometryType('Face ID');
-      } else if (type === 'TouchID') {
-        setBiometryType('Touch ID');
-      } else if (type === 'Biometrics') {
-        setBiometryType(Platform.OS === 'ios' ? 'Face ID' : 'Impressão Digital');
-      }
-
-      const enabled = await BiometricService.isEnabled();
-      setBiometricEnabled(enabled);
-    } catch (error) {
-      console.error('Erro ao verificar biometria:', error);
+      const {available, biometryType: type} = await BiometricService.isAvailable();
+      setBiometricAvailable(!!available);
+      if (type === 'FaceID') setBiometryType('Face ID');
+      else if (type === 'TouchID') setBiometryType('Touch ID');
+      else setBiometryType(Platform.OS === 'ios' ? 'Face ID' : 'digital');
+      setBiometricEnabled(!!(await BiometricService.isEnabled()));
+    } catch {
       setBiometricAvailable(false);
     }
-  };
+  }, []);
 
-  // Removido: checkForUpdates movido para UpdateChecker global
-
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Atenção', 'Preencha todos os campos');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await login(email, password);
-      if (!result.success) {
-        Alert.alert('Erro', result.error || 'Email ou senha incorretos');
-      } else {
-        // Login bem-sucedido - o AuthProvider já atualiza o estado
-        // Aguardar um pouco para garantir que o estado foi atualizado
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Após login bem-sucedido, oferecer para habilitar biometria se disponível
-        // IMPORTANTE: Fazer isso ANTES de verificar atualizações para não bloquear
-        if (biometricAvailable && !biometricEnabled) {
-          // Usar setTimeout para garantir que o Alert aparece após a navegação
-          setTimeout(() => {
-            Alert.alert(
-              'Login Biométrico',
-              `Deseja habilitar ${biometryType} para fazer login mais rápido?`,
-              [
-                {
-                  text: 'Não',
-                  style: 'cancel',
-                  onPress: () => {
-                    // Após recusar, o UpdateChecker global vai verificar atualizações
-                    console.log('✅ Biometria recusada. UpdateChecker global vai verificar atualizações...');
-                  },
-                },
-                {
-                  text: 'Sim',
-                  onPress: async () => {
-                    const biometricResult = await BiometricService.enableBiometric(email, password);
-                    if (biometricResult.success) {
-                      setBiometricEnabled(true);
-                      // Após habilitar biometria, verificar atualizações
-                      Alert.alert('Sucesso', `${biometryType} habilitado com sucesso!`, [
-                        {
-                          text: 'OK',
-                          onPress: () => {
-                            // O UpdateChecker global vai verificar atualizações
-                            console.log('✅ Biometria habilitada. UpdateChecker global vai verificar atualizações...');
-                          },
-                        },
-                      ]);
-                    } else {
-                      Alert.alert('Erro', biometricResult.error || 'Não foi possível habilitar biometria');
-                      // O UpdateChecker global vai verificar atualizações
-                      console.log('✅ Erro ao habilitar biometria. UpdateChecker global vai verificar atualizações...');
-                    }
-                  },
-                },
-              ],
-            );
-          }, 500);
-        } else {
-          // Se biometria já está habilitada ou não disponível, 
-          // o UpdateChecker global vai verificar atualizações automaticamente
-          console.log('✅ Login bem-sucedido. UpdateChecker global vai verificar atualizações...');
-        }
-      }
-    } catch (error) {
-      console.error('Erro no login:', error);
-      Alert.alert(
-        'Erro',
-        'Não foi possível fazer login. Verifique sua conexão e tente novamente.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    checkBiometric();
+    const unsub = navigation.addListener?.('focus', checkBiometric);
+    return unsub;
+  }, [navigation, checkBiometric]);
 
   const handleBiometricLogin = useCallback(async () => {
     setLoading(true);
     try {
       const result = await BiometricService.authenticate();
       if (result.success) {
-        const loginResult = await login(result.email, result.password);
-        if (!loginResult.success) {
-          Alert.alert('Erro', loginResult.error || 'Erro ao fazer login');
-        } else {
-          // Login bem-sucedido - aguardar estado atualizar
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Após login bem-sucedido, 
-          // o UpdateChecker global vai verificar atualizações automaticamente
-          console.log('✅ Login biométrico bem-sucedido. UpdateChecker global vai verificar atualizações...');
-        }
+        const r = await login(result.email, result.password);
+        if (!r.success) Alert.alert('Não foi possível entrar', r.error || 'Entre com e-mail e senha.');
       } else if (result.invalidated) {
         setBiometricEnabled(false);
-        Alert.alert(
-          'Login por digital desativado',
-          'A biometria deste aparelho foi alterada. Entre com seu e-mail e senha e, se quiser, ative o login por digital de novo.',
-        );
-      } else {
-        // Não mostrar alerta se o usuário cancelou (comportamento padrão de apps bancários)
-        if (result.error && !result.error.includes('cancel')) {
-          Alert.alert('Erro', result.error || 'Autenticação biométrica falhou');
-        }
+        Alert.alert('Login por digital desativado', 'A biometria deste aparelho mudou. Entre com e-mail e senha e ative de novo, se quiser.');
+      } else if (result.error && !String(result.error).includes('cancel')) {
+        Alert.alert('Não foi possível', result.error);
       }
-    } catch (error) {
-      console.error('Erro no login biométrico:', error);
-      // Não mostrar alerta se o usuário cancelou
-      if (error.message && !error.message.includes('cancel')) {
-        Alert.alert('Erro', 'Não foi possível fazer login biométrico');
-      }
+    } catch (e) {
+      if (e?.message && !e.message.includes('cancel')) Alert.alert('Não foi possível', 'Tente com e-mail e senha.');
     } finally {
       setLoading(false);
     }
   }, [login]);
 
+  // Pede a digital sozinho UMA vez ao abrir a tela
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (biometricAvailable && biometricEnabled && !isAuthenticated && !autoTried.current) {
+      autoTried.current = true;
+      const t = setTimeout(handleBiometricLogin, 600);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [biometricAvailable, biometricEnabled, isAuthenticated, handleBiometricLogin]);
+
+  const offerBiometric = () => {
+    if (!biometricAvailable || biometricEnabled) return;
+    setTimeout(() => {
+      Alert.alert('Entrar mais rápido', `Quer usar a ${biometryType} para entrar da próxima vez?`, [
+        {text: 'Agora não', style: 'cancel'},
+        {
+          text: 'Usar',
+          onPress: async () => {
+            const r = await BiometricService.enableBiometric(email.trim(), password);
+            if (r.success) setBiometricEnabled(true);
+            else Alert.alert('Não foi possível', r.error || 'Tente de novo no perfil.');
+          },
+        },
+      ]);
+    }, 500);
+  };
+
+  const handleLogin = async () => {
+    const e = {};
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Digite um e-mail válido';
+    if (!password) e.password = 'Digite a sua senha';
+    setErrors(e);
+    if (Object.keys(e).length) return;
+    setLoading(true);
+    try {
+      const r = await login(email.trim(), password);
+      if (!r.success) setErrors({password: r.error || 'E-mail ou senha incorretos'});
+      else offerBiometric();
+    } catch {
+      Alert.alert('Sem conexão', 'Não foi possível entrar. Verifique a internet e tente de novo.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            {/* Ícone acima do logo (sempre mostra se configurado) */}
-            {(localAssets.icon || loginConfig.iconImage || localAssets.iconEmoji || loginConfig.icon) && (
-              <View style={styles.logoCircle}>
-                {localAssets.icon ? (
-                  <Image
-                    source={localAssets.icon}
-                    style={styles.iconImage}
-                    resizeMode="contain"
-                    onLoad={() => {
-                      logInfo('✅ Ícone local de login carregado com sucesso');
-                    }}
-                  />
-                ) : loginConfig.iconImage && !iconError ? (
-                  <Image
-                    source={{ uri: loginConfig.iconImage }}
-                    style={styles.iconImage}
-                    resizeMode="contain"
-                    onError={(error) => {
-                      logError('❌ Erro ao carregar ícone da API', {error, url: loginConfig.iconImage});
-                      setIconError(true);
-                    }}
-                    onLoad={() => {
-                      logInfo('✅ Ícone de login carregado com sucesso', {url: loginConfig.iconImage});
-                    }}
-                  />
-                ) : (
-                  <Text style={styles.logoIcon}>{localAssets.iconEmoji || loginConfig.icon}</Text>
-                )}
-              </View>
-            )}
-            
-            {/* Logo ou texto do app */}
-            {localAssets.logo ? (
-              <Image
-                source={localAssets.logo}
-                style={styles.logoImage}
-                resizeMode="contain"
-                onLoad={() => {
-                  logInfo('✅ Logo local de login carregado com sucesso');
-                }}
-              />
-            ) : loginConfig.logoUrl && !logoError ? (
-              <Image
-                source={{ uri: loginConfig.logoUrl }}
-                style={styles.logoImage}
-                resizeMode="contain"
-                onError={(error) => {
-                  logError('❌ Erro ao carregar logo da API', {error, url: loginConfig.logoUrl});
-                  setLogoError(true);
-                }}
-                onLoad={() => {
-                  logInfo('✅ Logo de login carregado com sucesso', {url: loginConfig.logoUrl});
-                }}
-              />
-            ) : (
-              <>
-                {/* Se não tem logo, mostra texto do app (só se não tiver ícone) */}
-                {(!localAssets.icon && !loginConfig.iconImage && !localAssets.iconEmoji && !loginConfig.icon) && (
-                  <>
-                    <Text style={styles.logoText}>{loginConfig.appName}</Text>
-                    <Text style={styles.logoSubtext}>{APP_CONFIG.appSubtitle}</Text>
-                  </>
-                )}
-              </>
-            )}
-          </View>
-
-          {/* Form Card */}
-          <View style={styles.card}>
-            <Text style={styles.title}>Bem-vindo de volta!</Text>
-            <Text style={styles.subtitle}>
-              Faça login para acessar sua conta
-            </Text>
-
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Seu e-mail"
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            </View>
-
-            {/* Password Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Sua senha"
-                placeholderTextColor="#9CA3AF"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}>
-                <Ionicons
-                  name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                  size={20}
-                  color="#6B7280"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Forgot Password */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ForgotPassword')}
-              style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
-            </TouchableOpacity>
-
-            {/* Biometric Login Button (se habilitado) */}
-            {biometricEnabled && biometricAvailable && (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.biometricButton,
-                    loading && styles.biometricButtonDisabled,
-                  ]}
-                  onPress={handleBiometricLogin}
-                  disabled={loading}>
-                  <LinearGradient
-                    colors={['#10B981', '#059669']}
-                    style={styles.biometricButtonGradient}
-                    start={{x: 0, y: 0}}
-                    end={{x: 1, y: 0}}>
-                    <Ionicons name="finger-print" size={24} color="#FFFFFF" />
-                    <Text style={styles.biometricButtonText}>
-                      Entrar com {biometryType}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                {/* Divider */}
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>ou</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-              </>
-            )}
-
-            {/* Login Button */}
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                loading && styles.loginButtonDisabled,
-              ]}
-              onPress={handleLogin}
-              disabled={loading}>
-              <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
-                style={styles.loginButtonGradient}
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 0}}>
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.loginButtonText}>Entrar</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* Divider (se biometria não estiver habilitada) */}
-            {(!biometricEnabled || !biometricAvailable) && (
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>ou</Text>
-                <View style={styles.dividerLine} />
-              </View>
-            )}
-
-            {/* Register Link */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Register')}
-              style={styles.registerLink}>
-              <Text style={styles.registerLinkText}>
-                Não tem uma conta?{' '}
-                <Text style={styles.registerLinkTextBold}>Cadastre-se</Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+    <AuthLayout
+      title="Que bom ver você!"
+      subtitle="Entre para ver sua carteirinha, seus pets e os descontos perto de você."
+      footer={
+        <View style={{alignItems: 'center', gap: 6}}>
+          <Text style={[{color: '#6B6880', fontSize: 14}, F.regular]}>Ainda não tem conta?</Text>
+          <SecondaryButton title="Criar minha conta" icon="person-add-outline" onPress={() => navigation.navigate('Register')} testID="criar-conta" style={{alignSelf: 'stretch'}} />
+        </View>
+      }>
+      {biometricAvailable && biometricEnabled ? (
+        <>
+          <PrimaryButton title={`Entrar com ${biometryType}`} icon="finger-print" onPress={handleBiometricLogin} loading={loading} testID="entrar-biometria" />
+          <Divider text="ou use e-mail e senha" />
+        </>
+      ) : null}
+      <Field
+        label="E-mail"
+        icon="mail-outline"
+        value={email}
+        onChangeText={t => {
+          setEmail(t);
+          if (errors.email) setErrors(x => ({...x, email: null}));
+        }}
+        placeholder="voce@email.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        error={errors.email}
+        testID="email"
+      />
+      <Field
+        label="Senha"
+        icon="lock-closed-outline"
+        value={password}
+        onChangeText={t => {
+          setPassword(t);
+          if (errors.password) setErrors(x => ({...x, password: null}));
+        }}
+        placeholder="Sua senha"
+        secure
+        autoCapitalize="none"
+        error={errors.password}
+        returnKeyType="go"
+        onSubmitEditing={handleLogin}
+        testID="senha"
+      />
+      <View style={{alignItems: 'flex-end', marginTop: -4, marginBottom: 16}}>
+        <LinkText onPress={() => navigation.navigate('ForgotPassword')} testID="esqueci">
+          Esqueci minha senha
+        </LinkText>
+      </View>
+      <PrimaryButton title="Entrar" onPress={handleLogin} loading={loading && !(biometricAvailable && biometricEnabled)} testID="entrar" />
+      <Text style={[{color: '#6B6880', fontSize: 12, textAlign: 'center', marginTop: 14}, F.regular]}>
+        Primeira vez aqui com um cadastro feito pela Liga?{' '}
+        <Text style={[{color: A.primary}, F.bold]} onPress={() => navigation.navigate('ForgotPassword', {firstAccess: true})}>
+          Criar minha senha
+        </Text>
+      </Text>
+    </AuthLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  logoIcon: {
-    fontSize: 40,
-  },
-  logoText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  logoSubtext: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
-  logoImage: {
-    width: 200,
-    height: 80,
-    marginBottom: 16,
-  },
-  iconImage: {
-    width: 40,
-    height: 40,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 10},
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 32,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    height: 50,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  eyeIcon: {
-    padding: 4,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
-  },
-  forgotPasswordText: {
-    color: '#8B5CF6',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  loginButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonGradient: {
-    height: 54,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  biometricButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  biometricButtonDisabled: {
-    opacity: 0.7,
-  },
-  biometricButtonGradient: {
-    height: 54,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  biometricButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  registerLink: {
-    alignItems: 'center',
-  },
-  registerLinkText: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  registerLinkTextBold: {
-    color: '#8B5CF6',
-    fontWeight: '600',
-  },
-});

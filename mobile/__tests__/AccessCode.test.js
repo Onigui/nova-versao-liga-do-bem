@@ -78,7 +78,7 @@ describe('Esqueci a senha / Primeiro acesso', () => {
       tree = renderer.create(<ForgotPasswordScreen navigation={{navigate: jest.fn(), goBack: jest.fn()}} route={{}} />);
     });
     await pressID(tree.root, 'ja-tenho-codigo');
-    expect(Alert.alert).toHaveBeenCalledWith('Atenção', 'Digite primeiro o seu e-mail.');
+    expect(allText(tree.root)).toContain('Digite primeiro o seu e-mail');
   });
 });
 

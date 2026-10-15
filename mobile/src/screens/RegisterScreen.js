@@ -1,478 +1,115 @@
+/**
+ * Criar conta: CPF obrigatório e conferido (dígitos verificadores) — uma conta por pessoa.
+ */
 import React, {useState} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import {Alert, Pressable, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
+import {F} from '../theme/home';
+import {cpfHint, formatCpf, formatPhoneBR, isValidCpf, onlyDigits} from '../utils/cpf';
+import {A, AuthLayout, Field, LinkText, Note, PrimaryButton} from '../components/auth/AuthUI';
+
+export function validateRegister(f) {
+  const e = {};
+  if (String(f.name || '').trim().split(/\s+/).filter(Boolean).length < 2) e.name = 'Digite nome e sobrenome';
+  const cpf = onlyDigits(f.cpf);
+  if (!cpf) e.cpf = 'O CPF é obrigatório';
+  else if (!isValidCpf(cpf)) e.cpf = 'CPF inválido. Confira os números.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(f.email || '').trim())) e.email = 'Digite um e-mail válido';
+  const phone = onlyDigits(f.phone);
+  if (phone.length < 10 || phone.length > 11) e.phone = 'Celular com DDD';
+  if (String(f.password || '').length < 6) e.password = 'Mínimo de 6 caracteres';
+  if (f.confirm !== f.password) e.confirm = 'As senhas não são iguais';
+  if (!f.terms) e.terms = 'Aceite os termos para continuar';
+  return e;
+}
 
 export default function RegisterScreen({navigation}) {
   const {register} = useAuth();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    cpf: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [f, setF] = useState({name: '', cpf: '', email: '', phone: '', password: '', confirm: '', terms: false});
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-
-  const formatCPF = (value) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 11) {
-      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-    }
-    return value;
+  const set = (k, v) => {
+    setF(x => ({...x, [k]: v}));
+    if (errors[k]) setErrors(x => ({...x, [k]: null}));
   };
+  const hint = cpfHint(f.cpf);
 
-  const handleRegister = async () => {
-    // Validações
-    if (
-      !formData.name ||
-      !formData.email ||
-      !formData.phone ||
-      !formData.cpf ||
-      !formData.password
-    ) {
-      Alert.alert('Atenção', 'Preencha todos os campos obrigatórios');
-      return;
-    }
-
-    // Validar CPF (11 dígitos)
-    const cpfNumbers = formData.cpf.replace(/\D/g, '');
-    if (cpfNumbers.length !== 11) {
-      Alert.alert('Atenção', 'CPF inválido. Deve conter 11 dígitos');
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Atenção', 'As senhas não coincidem');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      Alert.alert('Atenção', 'A senha deve ter no mínimo 6 caracteres');
-      return;
-    }
-
-    if (!acceptedTerms) {
-      Alert.alert('Atenção', 'Você precisa aceitar os termos de uso');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      Alert.alert('Atenção', 'Digite um e-mail válido');
-      return;
-    }
-
+  const submit = async () => {
+    const e = validateRegister(f);
+    setErrors(e);
+    if (Object.keys(e).length) return;
     setLoading(true);
     try {
-      const result = await register({
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        cpf: cpfNumbers, // Enviar apenas números
-        password: formData.password,
+      const r = await register({
+        name: f.name.trim().replace(/\s+/g, ' '),
+        email: f.email.trim().toLowerCase(),
+        phone: onlyDigits(f.phone),
+        cpf: onlyDigits(f.cpf),
+        password: f.password,
       });
-
-      console.log('📝 Resultado do registro:', result);
-
-      if (result && result.success) {
-        Alert.alert(
-          'Sucesso!',
-          'Conta criada com sucesso! Faça login para continuar.',
-          [{text: 'OK', onPress: () => navigation.navigate('Login')}],
-        );
+      if (r?.success) {
+        Alert.alert('Conta criada!', 'Agora é só entrar com o seu e-mail e senha.', [{text: 'Entrar', onPress: () => navigation.navigate('Login')}]);
       } else {
-        const errorMessage = result?.error || 'Não foi possível criar sua conta. Tente novamente.';
-        Alert.alert('Erro', errorMessage);
+        const msg = r?.error || 'Não foi possível criar a conta. Tente de novo.';
+        // Erro do servidor no campo certo (CPF já cadastrado, e-mail em uso…)
+        if (/cpf/i.test(msg)) setErrors({cpf: msg});
+        else if (/e-?mail/i.test(msg)) setErrors({email: msg});
+        else Alert.alert('Não foi possível criar a conta', msg);
       }
-    } catch (error) {
-      console.error('❌ Erro no registro:', error);
-      Alert.alert('Erro', error.message || 'Este e-mail já está em uso ou ocorreu um erro.');
+    } catch (err) {
+      Alert.alert('Sem conexão', err?.message || 'Verifique a internet e tente de novo.');
     } finally {
       setLoading(false);
     }
   };
 
-  const updateFormData = (field, value) => {
-    setFormData({...formData, [field]: value});
-  };
-
   return (
-    <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Criar Conta</Text>
-            <View style={{width: 40}} />
-          </View>
+    <AuthLayout
+      title="Criar conta"
+      subtitle="Leva 1 minuto. Com a conta você tem a carteira de vacinação dos pets, achados e perdidos e muito mais."
+      onBack={() => navigation.goBack()}
+      compactHero
+      footer={
+        <View style={{flexDirection: 'row', justifyContent: 'center', gap: 6}}>
+          <Text style={[{color: '#6B6880', fontSize: 14}, F.regular]}>Já tem conta?</Text>
+          <LinkText onPress={() => navigation.navigate('Login')} testID="ja-tenho-conta">
+            Entrar
+          </LinkText>
+        </View>
+      }>
+      <Field label="Nome completo" icon="person-outline" value={f.name} onChangeText={v => set('name', v)} placeholder="Como está no documento" autoCapitalize="words" error={errors.name} testID="nome" />
+      <Field
+        label="CPF"
+        icon="card-outline"
+        value={f.cpf}
+        onChangeText={v => set('cpf', formatCpf(v))}
+        placeholder="000.000.000-00"
+        keyboardType="number-pad"
+        maxLength={14}
+        ok={hint === 'ok'}
+        error={errors.cpf || (hint && hint !== 'ok' ? hint : null)}
+        hint="Usado para garantir uma conta por pessoa e na sua carteirinha."
+        testID="cpf"
+      />
+      <Field label="E-mail" icon="mail-outline" value={f.email} onChangeText={v => set('email', v)} placeholder="voce@email.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" error={errors.email} testID="email" />
+      <Field label="Celular (WhatsApp)" icon="call-outline" value={f.phone} onChangeText={v => set('phone', formatPhoneBR(v))} placeholder="(14) 99999-9999" keyboardType="phone-pad" error={errors.phone} testID="celular" />
+      <Field label="Senha" icon="lock-closed-outline" value={f.password} onChangeText={v => set('password', v)} placeholder="Mínimo de 6 caracteres" secure autoCapitalize="none" error={errors.password} testID="senha" />
+      <Field label="Confirme a senha" icon="lock-closed-outline" value={f.confirm} onChangeText={v => set('confirm', v)} placeholder="Repita a senha" secure autoCapitalize="none" error={errors.confirm} testID="confirmar-senha" />
 
-          {/* Form Card */}
-          <View style={styles.card}>
-            <Text style={styles.title}>Junte-se à Liga do Bem!</Text>
-            <Text style={styles.subtitle}>
-              Preencha seus dados para criar sua conta
-            </Text>
+      <Pressable style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6}} onPress={() => set('terms', !f.terms)} accessibilityRole="checkbox" accessibilityState={{checked: f.terms}} testID="aceito-termos">
+        <Ionicons name={f.terms ? 'checkbox' : 'square-outline'} size={24} color={f.terms ? A.primary : '#9CA3AF'} />
+        <Text style={[{flex: 1, color: '#1E1B2E', fontSize: 14}, F.regular]}>
+          Li e aceito os{' '}
+          <Text style={[{color: A.primary}, F.bold]} onPress={() => navigation.navigate('Legal', {section: 'terms'})}>
+            termos de uso e a política de privacidade
+          </Text>
+        </Text>
+      </Pressable>
+      {errors.terms ? <Text style={[{color: '#B91C1C', fontSize: 12, marginBottom: 6}, F.semibold]}>{errors.terms}</Text> : null}
 
-            {/* Name Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="person-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Nome completo"
-                placeholderTextColor="#9CA3AF"
-                value={formData.name}
-                onChangeText={text => updateFormData('name', text)}
-                autoCapitalize="words"
-              />
-            </View>
-
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="E-mail"
-                placeholderTextColor="#9CA3AF"
-                value={formData.email}
-                onChangeText={text => updateFormData('email', text)}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            </View>
-
-            {/* Phone Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="call-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Telefone (opcional)"
-                placeholderTextColor="#9CA3AF"
-                value={formData.phone}
-                onChangeText={text => updateFormData('phone', text)}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            {/* CPF Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="card-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="CPF *"
-                placeholderTextColor="#9CA3AF"
-                value={formData.cpf}
-                onChangeText={text => {
-                  const formatted = formatCPF(text);
-                  updateFormData('cpf', formatted);
-                }}
-                keyboardType="numeric"
-                maxLength={14}
-              />
-            </View>
-
-            {/* Password Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Senha (mínimo 6 caracteres)"
-                placeholderTextColor="#9CA3AF"
-                value={formData.password}
-                onChangeText={text => updateFormData('password', text)}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}>
-                <Ionicons
-                  name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                  size={20}
-                  color="#6B7280"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Confirm Password Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                color="#6B7280"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirmar senha"
-                placeholderTextColor="#9CA3AF"
-                value={formData.confirmPassword}
-                onChangeText={text => updateFormData('confirmPassword', text)}
-                secureTextEntry={!showConfirmPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={styles.eyeIcon}>
-                <Ionicons
-                  name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
-                  size={20}
-                  color="#6B7280"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Terms Checkbox */}
-            <TouchableOpacity
-              style={styles.checkboxContainer}
-              onPress={() => setAcceptedTerms(!acceptedTerms)}>
-              <View
-                style={[
-                  styles.checkbox,
-                  acceptedTerms && styles.checkboxChecked,
-                ]}>
-                {acceptedTerms && (
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                )}
-              </View>
-              <Text style={styles.checkboxText}>
-                Aceito os{' '}
-                <Text
-                  style={styles.checkboxLink}
-                  onPress={() =>
-                    navigation.navigate('Legal', {section: 'terms'})
-                  }>
-                  termos de uso
-                </Text>{' '}
-                e a{' '}
-                <Text
-                  style={styles.checkboxLink}
-                  onPress={() =>
-                    navigation.navigate('Legal', {section: 'privacy'})
-                  }>
-                  política de privacidade
-                </Text>
-              </Text>
-            </TouchableOpacity>
-
-            {/* Register Button */}
-            <TouchableOpacity
-              style={[
-                styles.registerButton,
-                loading && styles.registerButtonDisabled,
-              ]}
-              onPress={handleRegister}
-              disabled={loading}>
-              <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
-                style={styles.registerButtonGradient}
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 0}}>
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.registerButtonText}>Criar Conta</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* Login Link */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Login')}
-              style={styles.loginLink}>
-              <Text style={styles.loginLinkText}>
-                Já tem uma conta?{' '}
-                <Text style={styles.loginLinkTextBold}>Fazer login</Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+      <Note>Seus dados ficam protegidos. O CPF não aparece para parceiros nem para outros membros.</Note>
+      <PrimaryButton title="Criar minha conta" onPress={submit} loading={loading} testID="criar" />
+    </AuthLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 24,
-    paddingTop: 60,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 32,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 10},
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 24,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    height: 50,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  eyeIcon: {
-    padding: 4,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
-  },
-  checkboxText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#6B7280',
-    lineHeight: 18,
-  },
-  checkboxLink: {
-    color: '#8B5CF6',
-    fontWeight: '600',
-  },
-  registerButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  registerButtonDisabled: {
-    opacity: 0.7,
-  },
-  registerButtonGradient: {
-    height: 54,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  registerButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  loginLink: {
-    alignItems: 'center',
-  },
-  loginLinkText: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  loginLinkTextBold: {
-    color: '#8B5CF6',
-    fontWeight: '600',
-  },
-});

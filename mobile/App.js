@@ -13,6 +13,8 @@ import { PartnerAuthStack, PartnerAppStack } from './src/partner/PartnerNavigato
 import { IS_PARTNER_APP } from './src/config/appVariant';
 import { AuthProvider, useAuth } from './src/services/AuthService';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import CompleteCpfScreen from './src/screens/CompleteCpfScreen';
+import { isValidCpf } from './src/utils/cpf';
 
 const Stack = createStackNavigator();
 
@@ -26,11 +28,15 @@ const styles = StyleSheet.create({
 });
 
 function RootNavigator() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  // App dos membros: conta sem CPF válido completa o cadastro antes de entrar (uma conta por pessoa)
+  const needsCpf = isAuthenticated && !IS_PARTNER_APP && !!user && !isValidCpf(user.cpf);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
+      {needsCpf ? (
+        <Stack.Screen name="CompleteCpf" component={CompleteCpfScreen} />
+      ) : isAuthenticated ? (
         <Stack.Screen name="App" component={IS_PARTNER_APP ? PartnerAppStack : AppStack} />
       ) : (
         <Stack.Screen name="Auth" component={IS_PARTNER_APP ? PartnerAuthStack : AuthStack} />

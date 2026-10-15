@@ -1,3 +1,4 @@
+import navigateTo from '../navigation/navigateTo';
 import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
@@ -136,26 +137,26 @@ export default function NotificationsScreen({navigation}) {
     const screen = notification.data?.screen;
     switch (notification.type) {
       case 'EVENT_REMINDER':
-        navigation.navigate(screen || 'EventsCalendar');
+        navigateTo(navigation, screen || 'EventsCalendar');
         break;
       case 'PAYMENT_REMINDER':
-        navigation.navigate(screen || 'Cartão');
+        navigateTo(navigation, screen || 'Cartão');
         break;
       case 'DONATION_CONFIRMATION':
-        navigation.navigate(screen || 'Donation');
+        navigateTo(navigation, screen || 'Donation');
         break;
       case 'ADOPTION_UPDATE':
-        navigation.navigate(screen || 'MyAdoptions');
+        navigateTo(navigation, screen || 'MyAdoptions');
         break;
       case 'VOLUNTEER_OPPORTUNITY':
-        navigation.navigate(screen || 'Volunteer');
+        navigateTo(navigation, screen || 'Volunteer');
         break;
       case 'GENERAL':
         if (screen === 'MembershipCard') {
-          navigation.navigate('Cartão');
+          navigateTo(navigation, 'Cartão');
         } else if (screen) {
           // Leva junto os dados (ex.: petId para abrir a carteira de vacinação certa)
-          navigation.navigate(screen, notification.data || undefined);
+          navigateTo(navigation, screen, notification.data || undefined);
         }
         break;
       default:

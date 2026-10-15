@@ -3,6 +3,7 @@
  * Se o app estava fechado, guarda o destino e abre assim que a navegação e o login estiverem prontos.
  */
 import {createNavigationContainerRef} from '@react-navigation/native';
+import {tabTarget} from '../navigation/navigateTo';
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -13,7 +14,7 @@ export function targetFromMessage(remoteMessage) {
   const data = remoteMessage?.data || {};
   if (!data.screen) return null;
   const {screen, ...params} = data;
-  return {name: ALIASES[screen] || screen, params};
+  return tabTarget(ALIASES[screen] || screen, params);
 }
 
 function loggedIn() {

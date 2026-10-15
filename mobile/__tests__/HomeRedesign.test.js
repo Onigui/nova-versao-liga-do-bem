@@ -104,7 +104,7 @@ test('membro ativo: carteirinha, atalhos, para você, pets, promoções, evento 
   // contador de achados e perdidos perto no atalho
   expect(t).toContain('3');
   await press(tree.root, 'mostrar-qr');
-  expect(nav.navigate).toHaveBeenLastCalledWith('Cartão', undefined);
+  expect(nav.navigate).toHaveBeenLastCalledWith('MainTabs', {screen: 'Cartão', params: undefined});
   await press(tree.root, 'para-voce-REVIEW');
   expect(nav.navigate).toHaveBeenLastCalledWith('ReviewForm', {partnerId: 'p1', partnerName: 'Pet Shop Central'});
   await press(tree.root, 'atalho-achados');
@@ -168,7 +168,7 @@ test('todos os serviços: busca sem acento e navegação', async () => {
   expect(t).toContain('Orçamento');
   expect(t).not.toContain('Doar');
   await press(tree.root, 'servico-orcamento');
-  expect(nav.navigate).toHaveBeenCalledWith('QuotesList');
+  expect(nav.navigate).toHaveBeenCalledWith('QuotesList', undefined);
   await act(async () => input.props.onChangeText('zzz'));
   expect(allText(tree.root)).toContain('Nada encontrado');
 });
