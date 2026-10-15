@@ -30,7 +30,8 @@ const MUTED = '#6B6880';
 
 function appIcon() {
   try {
-    return require('../../assets/images/app-icon.png');
+    // Cada app mostra o próprio ícone (o mesmo da tela do celular)
+    return IS_PARTNER_APP ? require('../../assets/images/app-icon-partner.png') : require('../../assets/images/app-icon.png');
   } catch {
     return null;
   }
