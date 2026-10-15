@@ -6,6 +6,7 @@
  */
 import crypto from 'crypto';
 import { sendFcmToTokens } from './push';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -75,7 +76,11 @@ export async function ensureReviewSchema(db: any) {
        PRIMARY KEY ("userId", "partnerId")
      )`,
   ];
-  for (const sql of statements) await db.$executeRawUnsafe(sql);
+  const fp = schemaFingerprint(statements);
+  if (!(await schemaApplied(db, 'reviews', fp))) {
+    for (const sql of statements) await db.$executeRawUnsafe(sql);
+    await markSchemaApplied(db, 'reviews', fp);
+  }
   ensuredAt = Date.now();
 }
 

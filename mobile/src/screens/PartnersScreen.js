@@ -143,7 +143,21 @@ export default function PartnersScreen({navigation, route}) {
   }, []);
 
   useEffect(() => {
+    // Mostra na hora a última lista baixada (se houver) e atualiza em seguida pela internet
+    let alive = true;
+    AsyncStorage.getItem(CACHE_KEY)
+      .then(raw => {
+        const cached = JSON.parse(raw || 'null');
+        if (alive && Array.isArray(cached) && cached.length) {
+          setPartners(prev => (prev.length ? prev : cached));
+          setLoading(false);
+        }
+      })
+      .catch(() => {});
     loadPartners();
+    return () => {
+      alive = false;
+    };
   }, [loadPartners]);
 
   const categories = useMemo(() => availableCategories(partners), [partners]);

@@ -24,17 +24,35 @@ export default function PetsListScreen({navigation, route}) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const cacheKey = `pets_cache_v1:${user?.id || 'anon'}`;
+
   useEffect(() => {
     if (isAuthenticated) {
+      // Mostra na hora os pets da última visita; a lista da internet substitui em seguida
+      AsyncStorage.getItem(cacheKey)
+        .then(raw => {
+          const cached = JSON.parse(raw || 'null');
+          if (Array.isArray(cached)) {
+            setPets(prev => (prev.length ? prev : cached));
+            setLoading(false);
+          }
+        })
+        .catch(() => {});
       loadPets();
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recarrega ao voltar para a tela (ex.: pet cadastrado pelo Início)
+  // (o primeiro foco acontece junto com a abertura, que já carregou: não pede duas vezes)
+  const firstFocus = React.useRef(true);
   useEffect(() => {
     const unsub = navigation?.addListener?.('focus', () => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
       if (isAuthenticated) loadPets();
     });
     return unsub;
@@ -56,6 +74,7 @@ export default function PetsListScreen({navigation, route}) {
       if (response.ok) {
         const data = await response.json();
         setPets(data.pets || []);
+        AsyncStorage.setItem(cacheKey, JSON.stringify(data.pets || [])).catch(() => {});
       }
     } catch (error) {
       console.error('Erro ao carregar pets:', error);

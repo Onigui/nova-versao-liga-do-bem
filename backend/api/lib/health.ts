@@ -10,6 +10,7 @@
 import crypto from 'crypto';
 import { ensurePetHealthSchema, formatRecord, formatCrmv } from './petHealth';
 import { sendFcmToTokens } from './push';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -73,7 +74,11 @@ export async function ensureHealthSchema(db: any) {
        data BYTEA NOT NULL
      )`,
   ];
-  for (const sql of statements) await db.$executeRawUnsafe(sql);
+  const fp = schemaFingerprint(statements);
+  if (!(await schemaApplied(db, 'health', fp))) {
+    for (const sql of statements) await db.$executeRawUnsafe(sql);
+    await markSchemaApplied(db, 'health', fp);
+  }
   ensuredAt = Date.now();
 }
 

@@ -15,6 +15,7 @@ import { sendFcmToTokens } from './push';
 import { ensureCatalogSchema, itemLabel, CATALOG_CATEGORIES } from './catalog';
 import { isMembershipCurrentlyActive } from './membershipBilling';
 import { ensurePetHealthSchema } from './petHealth';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -120,7 +121,11 @@ export async function ensureQuoteSchema(db: any) {
      )`,
     `CREATE INDEX IF NOT EXISTS quote_reservations_partner_idx ON quote_reservations("partnerId", "createdAt")`,
   ];
-  for (const sql of statements) await db.$executeRawUnsafe(sql);
+  const fp = schemaFingerprint(statements);
+  if (!(await schemaApplied(db, 'quotes', fp))) {
+    for (const sql of statements) await db.$executeRawUnsafe(sql);
+    await markSchemaApplied(db, 'quotes', fp);
+  }
   ensuredAt = Date.now();
 }
 

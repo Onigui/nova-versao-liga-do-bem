@@ -8,6 +8,7 @@
  * aparecem só na página dele até a Liga incluir no catálogo padrão (promote).
  */
 import crypto from 'crypto';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -143,20 +144,24 @@ export async function ensureCatalogSchema(db: any) {
      )`,
     `CREATE INDEX IF NOT EXISTS partner_prices_item_idx ON partner_prices("itemId")`,
   ];
-  for (const sql of statements) await db.$executeRawUnsafe(sql);
-  // Semente idempotente (seedKey único): rodar de novo não duplica nem reativa item que a Liga desligou
-  for (const [category, name, species, variant] of SEED) {
-    const key = `${category}|${name}|${species}|${variant || ''}`;
-    await db.$executeRawUnsafe(
-      `INSERT INTO catalog_items (id, category, name, variant, species, "seedKey") VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT ("seedKey") DO NOTHING`,
-      crypto.createHash('sha1').update(key).digest('hex').slice(0, 20),
-      category,
-      name,
-      variant || null,
-      species,
-      key,
-    );
+  const fp = schemaFingerprint(statements, SEED);
+  if (!(await schemaApplied(db, 'catalog', fp))) {
+    for (const sql of statements) await db.$executeRawUnsafe(sql);
+    // Semente idempotente (seedKey único): rodar de novo não duplica nem reativa item que a Liga desligou
+    for (const [category, name, species, variant] of SEED) {
+      const key = `${category}|${name}|${species}|${variant || ''}`;
+      await db.$executeRawUnsafe(
+        `INSERT INTO catalog_items (id, category, name, variant, species, "seedKey") VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT ("seedKey") DO NOTHING`,
+        crypto.createHash('sha1').update(key).digest('hex').slice(0, 20),
+        category,
+        name,
+        variant || null,
+        species,
+        key,
+      );
+    }
+    await markSchemaApplied(db, 'catalog', fp);
   }
   ensuredAt = Date.now();
 }

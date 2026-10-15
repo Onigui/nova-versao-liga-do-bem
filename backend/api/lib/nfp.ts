@@ -11,6 +11,7 @@
  */
 import crypto from 'crypto';
 import { sendFcmToTokens } from './push';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -69,7 +70,11 @@ export async function ensureNfpSchema(db: any) {
        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
      )`,
   ];
-  for (const sql of statements) await db.$executeRawUnsafe(sql);
+  const fp = schemaFingerprint(statements);
+  if (!(await schemaApplied(db, 'nfp', fp))) {
+    for (const sql of statements) await db.$executeRawUnsafe(sql);
+    await markSchemaApplied(db, 'nfp', fp);
+  }
   ensuredAt = Date.now();
 }
 

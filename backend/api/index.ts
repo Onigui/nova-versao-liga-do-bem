@@ -43,6 +43,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleHome } from './lib/home';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
@@ -176,6 +177,11 @@ function isValidCpf(raw: string): boolean {
 let appVersionChannelsReady = false;
 async function ensureAppVersionChannels(db: any) {
   if (appVersionChannelsReady) return;
+  const fp = schemaFingerprint(ensureAppVersionChannels.toString());
+  if (await schemaApplied(db, 'appVersionChannels', fp)) {
+    appVersionChannelsReady = true;
+    return;
+  }
   for (const sql of [
     // Pode existir como constraint (UNIQUE na coluna) ou como índice, depende de como a tabela nasceu
     `ALTER TABLE app_versions DROP CONSTRAINT IF EXISTS "app_versions_version_key"`,
@@ -187,6 +193,7 @@ async function ensureAppVersionChannels(db: any) {
   ]) {
     await db.$executeRawUnsafe(sql);
   }
+  await markSchemaApplied(db, 'appVersionChannels', fp);
   appVersionChannelsReady = true;
 }
 
@@ -294,28 +301,14 @@ function decodeAuthUser(req: any): { userId: string; email?: string; role?: stri
   }
 }
 
+// Marca a partida a frio: a primeira requisição depois que a função acordou
+let handlerWarm = false;
+
 export default async function handler(req: any, res: any) {
   // CORS - Permitir todos os subdomínios Vercel
   // IMPORTANTE: Headers CORS devem ser definidos ANTES de qualquer processamento
   const origin = req.headers?.origin;
-  
-  // Log para debug - SEMPRE executar primeiro
-  try {
-    console.log('🔍 Request:', {
-      method: req.method,
-      path: req.url,
-      origin: origin,
-      'content-length': req.headers['content-length'],
-      headers: {
-        'content-type': req.headers['content-type'],
-        'x-admin-token': req.headers['x-admin-token'] ? 'present' : 'missing',
-        'authorization': req.headers['authorization'] ? 'present' : 'missing'
-      }
-    });
-  } catch (logError) {
-    console.error('❌ Erro ao fazer log:', logError);
-  }
-  
+
   // Sempre permitir subdomínios Vercel e localhost
   const allowedOrigins = [
     'https://nova-versao-liga-do-bem-admin.vercel.app',
@@ -346,7 +339,6 @@ export default async function handler(req: any, res: any) {
 
   // Tratar OPTIONS (preflight) imediatamente
   if (req.method === 'OPTIONS') {
-    console.log('✅ OPTIONS preflight request - retornando 200');
     return res.status(200).end();
   }
 
@@ -355,13 +347,6 @@ export default async function handler(req: any, res: any) {
   let path = req.url?.replace(/\?.*$/, '') || req.path || req.query?.path || '/';
   const method = req.method || 'GET';
 
-  // Log all available path information
-  console.log(`🔍 Path debug:`, {
-    'req.url': req.url,
-    'req.path': req.path,
-    'req.query': req.query,
-    'raw path': path
-  });
 
   // Normalize path - Vercel routes /api/(.*) to /api/index.ts
   // The path might come as /api/admin/companies/... or /admin/companies/...
@@ -378,18 +363,17 @@ export default async function handler(req: any, res: any) {
     }
   }
   
-  // DEBUG: Log após normalização
-  if (path.includes('update/check') || req.url?.includes('update/check')) {
-    console.log('🔍🔍🔍 DEBUG update/check APÓS normalização:', {
-      path,
-      method,
-      'path === /api/app/update/check': path === '/api/app/update/check',
-      'method === GET': method === 'GET',
-      'matches condition': path === '/api/app/update/check' && method === 'GET'
+
+  // Uma linha por requisição: rota, status, tempo e se a função tinha acabado de acordar (partida a frio).
+  // Serve para medir onde está a lentidão nos logs da Vercel (procure por "⏱").
+  const startedAt = Date.now();
+  const coldStart = !handlerWarm;
+  handlerWarm = true;
+  if (typeof res?.on === 'function') {
+    res.on('finish', () => {
+      console.log(`⏱ ${method} ${path} ${res.statusCode} ${Date.now() - startedAt}ms${coldStart ? ' cold' : ''}`);
     });
   }
-
-  console.log(`📥 ${method} ${path}`);
 
   // Falha fechada: sem JWT_SECRET forte a API não autentica ninguém.
   if (!JWT_SECRET_OK && path !== '/api/ping' && path !== '/ping') {
@@ -678,16 +662,6 @@ export default async function handler(req: any, res: any) {
 
     // GET /api/app/update/check - Verificar atualizações (public - for mobile app)
     // MOVENDO PARA O TOPO PARA GARANTIR QUE SEJA EXECUTADO
-    console.log('🔍🔍🔍 ANTES DO IF update/check:', {
-      path: JSON.stringify(path),
-      method: JSON.stringify(method),
-      pathLength: path?.length,
-      methodLength: method?.length,
-      'path === /api/app/update/check': path === '/api/app/update/check',
-      'method === GET': method === 'GET',
-      'path.includes(update/check)': path?.includes('update/check'),
-      'method.includes(GET)': method?.includes('GET')
-    });
     if (path === '/api/app/update/check' && method === 'GET') {
       console.log('✅✅✅ [update/check] Rota detectada NO TOPO! Path:', path, 'Method:', method);
       const db = getPrisma();
@@ -2118,12 +2092,11 @@ export default async function handler(req: any, res: any) {
       }
       try {
         await ensurePartnerPortalSchema(db);
-        // Se havia notificação agendada vencida (agendador atrasado), envia agora
-        try {
-          await dispatchDuePushCampaigns(db, 2);
-        } catch (e) {
+        // Se havia notificação agendada vencida (agendador atrasado), envia agora.
+        // Roda ao mesmo tempo que a busca dos parceiros (não depende dela); a resposta espera os dois.
+        const pushJob = dispatchDuePushCampaigns(db, 2).catch((e: any) => {
           console.warn('⚠️ Despacho de notificações agendadas falhou:', e);
-        }
+        });
         // Empresas sem coordenadas ganham localização aos poucos (distância no app do membro)
         try {
           await backfillPartnerCoords(db, 2);
@@ -2136,21 +2109,19 @@ export default async function handler(req: any, res: any) {
              FROM partners WHERE "isActive" = true ORDER BY name ASC`,
         );
 
-        // Promoções vigentes de cada parceiro (cadastradas pelo admin ou pelo próprio parceiro)
+        // Promoções vigentes e notas de cada parceiro: as duas buscas ao mesmo tempo
+        const ids = partners.map((p: any) => p.id);
+        const [discountsRes, ratingsRes] = await Promise.allSettled([listCurrentDiscounts(db, ids), partnerRatings(db, ids)]);
         let discountsByPartner: Record<string, any[]> = {};
-        try {
-          const all = await listCurrentDiscounts(db, partners.map((p: any) => p.id));
-          for (const d of all) (discountsByPartner[d.partnerId] ||= []).push(d);
-        } catch (e) {
-          console.warn('⚠️ Não foi possível carregar as promoções dos parceiros:', e);
+        if (discountsRes.status === 'fulfilled') {
+          for (const d of discountsRes.value) (discountsByPartner[d.partnerId] ||= []).push(d);
+        } else {
+          console.warn('⚠️ Não foi possível carregar as promoções dos parceiros:', discountsRes.reason);
         }
-
         let ratings: Record<string, { rating: number; count: number }> = {};
-        try {
-          ratings = await partnerRatings(db, partners.map((p: any) => p.id));
-        } catch (e) {
-          console.warn('⚠️ Não foi possível carregar as avaliações:', e);
-        }
+        if (ratingsRes.status === 'fulfilled') ratings = ratingsRes.value;
+        else console.warn('⚠️ Não foi possível carregar as avaliações:', ratingsRes.reason);
+        await pushJob;
 
         const coord = (v: any) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
         const formattedPartners = partners.map((p: any) => {
@@ -2182,7 +2153,6 @@ export default async function handler(req: any, res: any) {
           };
         });
 
-        console.log(`✅ Partners loaded: ${formattedPartners.length}`);
         return res.status(200).json({ partners: formattedPartners });
       } catch (error: any) {
         console.error('❌ Error loading partners:', error);

@@ -11,6 +11,7 @@
 import crypto from 'crypto';
 import { sendFcmToTokens } from './push';
 import { isMembershipCurrentlyActive } from './membershipBilling';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -148,7 +149,11 @@ export async function ensurePetHealthSchema(db: any) {
      )`,
     `CREATE INDEX IF NOT EXISTS pet_visits_account_idx ON pet_visits("accountId", "createdAt")`,
   ];
-  for (const sql of statements) await db.$executeRawUnsafe(sql);
+  const fp = schemaFingerprint(statements);
+  if (!(await schemaApplied(db, 'petHealth', fp))) {
+    for (const sql of statements) await db.$executeRawUnsafe(sql);
+    await markSchemaApplied(db, 'petHealth', fp);
+  }
   ensuredAt = Date.now();
 }
 

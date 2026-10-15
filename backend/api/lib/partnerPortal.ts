@@ -14,6 +14,7 @@ import { isMembershipCurrentlyActive } from './membershipBilling';
 import { sendEmail, isEmailDeliveryConfigured, escapeHtml } from './email';
 import { handlePartnerPushRoutes, handleAdminPushRoutes } from './partnerPush';
 import { issueManualAccessCode, accessCodeMessage } from './accessCode';
+import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 type Ctx = {
   req: any;
@@ -72,7 +73,11 @@ export async function ensurePartnerPortalSchema(db: any, force = false) {
     ...PROMO_SCHEMA_SQL,
     `ALTER TABLE partners ADD COLUMN IF NOT EXISTS "geocodeTriedAt" TIMESTAMP(3)`,
   ];
-  for (const sql of statements) await db.$executeRawUnsafe(sql);
+  const fp = schemaFingerprint(statements);
+  if (force || !(await schemaApplied(db, 'partnerPortal', fp))) {
+    for (const sql of statements) await db.$executeRawUnsafe(sql);
+    await markSchemaApplied(db, 'partnerPortal', fp);
+  }
   schemaEnsuredAt = Date.now();
 }
 
