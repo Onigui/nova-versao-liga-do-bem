@@ -6,7 +6,6 @@
  */
 
 let adminMod: any = null;
-let initAttempted = false;
 
 export const ALL_USERS_TOPIC = 'liga_do_bem_all';
 
@@ -21,22 +20,47 @@ function loadAdmin() {
   }
 }
 
+/** Aceita a chave colada de vários jeitos: com aspas, com \\n literal, com \r, com espaços sobrando. */
+function normalizePrivateKey(raw: string) {
+  let k = String(raw || '').trim();
+  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) k = k.slice(1, -1);
+  k = k.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r/g, '').trim();
+  return k ? k + (k.endsWith('\n') ? '' : '\n') : '';
+}
+
+function parseJsonAccount(raw: string) {
+  const txt = raw.trim();
+  const tries = [txt];
+  // também aceita o JSON em base64
+  if (!txt.startsWith('{')) {
+    try {
+      tries.push(Buffer.from(txt, 'base64').toString('utf8'));
+    } catch {
+      /* não é base64 */
+    }
+  }
+  for (const t of tries) {
+    try {
+      const j = JSON.parse(t);
+      if (j && j.private_key) return { ...j, private_key: normalizePrivateKey(j.private_key) };
+    } catch {
+      /* tenta o próximo */
+    }
+  }
+  return null;
+}
+
 function parseServiceAccount() {
   const raw = (process.env.FIREBASE_SERVICE_ACCOUNT || '').trim();
   if (raw) {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT não é um JSON válido');
-    }
+    const j = parseJsonAccount(raw);
+    if (j) return j;
+    console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT não é um JSON válido');
   }
 
   const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
   const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-  let privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').trim();
-  if (privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-  }
+  const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY || '');
   if (projectId && clientEmail && privateKey) {
     return { project_id: projectId, client_email: clientEmail, private_key: privateKey };
   }
@@ -47,15 +71,23 @@ export function isPushConfigured() {
   return Boolean(parseServiceAccount());
 }
 
+let initError: string | null = null;
+
 function getMessaging() {
   const admin = loadAdmin();
-  if (!admin) return null;
+  if (!admin) {
+    initError = 'Pacote firebase-admin não encontrado no servidor';
+    return null;
+  }
   const account = parseServiceAccount();
-  if (!account) return null;
+  if (!account) {
+    initError = 'Credenciais do Firebase ausentes na Vercel';
+    return null;
+  }
 
-  if (!initAttempted) {
-    initAttempted = true;
-    if (!admin.apps?.length) {
+  if (!admin.apps?.length) {
+    // Se falhou antes (chave inválida), tenta de novo e guarda o motivo real
+    try {
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId: account.project_id,
@@ -63,11 +95,20 @@ function getMessaging() {
           privateKey: account.private_key,
         }),
       });
+      initError = null;
+    } catch (e: any) {
+      initError = `Firebase não iniciou: ${e?.message || e}`;
+      console.warn('⚠️ ' + initError);
+      return null;
     }
   }
-
-  if (!admin.apps?.length) return null;
   return admin.messaging();
+}
+
+/** Motivo do push não funcionar (null = ok). */
+export function pushInitError() {
+  getMessaging();
+  return initError;
 }
 
 function buildMessage(payload: {
@@ -113,7 +154,7 @@ export async function sendFcmToTopic(
 ): Promise<{ attempted: number; success: number }> {
   const messaging = getMessaging();
   if (!messaging) {
-    console.warn('⚠️ Push não configurado (conta de serviço Firebase ausente)');
+    console.warn('⚠️ ' + (initError || 'Push não configurado'));
     return { attempted: 0, success: 0 };
   }
   try {
@@ -159,8 +200,9 @@ export async function sendFcmDetailed(
     return { attempted: unique.length, success: 0, results: [], error: msg };
   }
   if (!messaging) {
-    console.warn('⚠️ Push não configurado (conta de serviço Firebase ausente)');
-    return { attempted: unique.length, success: 0, results: [], error: 'Push não configurado (conta de serviço Firebase ausente)' };
+    const msg = initError || 'Push não configurado';
+    console.warn('⚠️ ' + msg);
+    return { attempted: unique.length, success: 0, results: [], error: msg };
   }
 
   const results: FcmTokenResult[] = [];
@@ -229,7 +271,9 @@ export function pushConfigInfo() {
     projectMatches: account?.project_id === EXPECTED_FIREBASE_PROJECT,
     clientEmail: account?.client_email || null,
     clientEmailProject: String(account?.client_email || '').split('@')[1]?.split('.')[0] || null,
-    privateKeyLooksValid: key.includes('-----BEGIN PRIVATE KEY-----') && key.includes('-----END PRIVATE KEY-----') && key.includes('\n'),
+    privateKeyLooksValid: /-----BEGIN PRIVATE KEY-----\n[A-Za-z0-9+/=\n]{1500,}-----END PRIVATE KEY-----/.test(key),
+    privateKeyLength: key.replace(/-----[^-]+-----|\s/g, '').length,
+    initError: pushInitError(),
   };
 }
 
