@@ -49,7 +49,7 @@ import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schem
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
-import { isPushConfigured, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
+import { isPushConfigured, onDeadTokens, pushConfigInfo, sendFcmDetailed, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
 
 // Cloudinary para upload de imagens
 let cloudinary: any = null;
@@ -311,6 +311,19 @@ export default function handler(req: any, res: any) {
   return dbStatsStore.run({ q: 0, ms: 0 }, () => handleRequest(req, res));
 }
 
+let deadTokenHandlerSet = false;
+/** Aparelho desinstalou o app / token inválido: o Firebase avisa e o token é desativado. */
+function registerDeadTokenHandler() {
+  if (deadTokenHandlerSet) return;
+  deadTokenHandlerSet = true;
+  onDeadTokens(async (tokens) => {
+    const db = getPrisma();
+    if (!db || !tokens.length) return;
+    await db.$executeRawUnsafe(`UPDATE device_tokens SET "isActive" = false, "updatedAt" = NOW() WHERE token = ANY($1::text[])`, tokens);
+    console.log(`🧹 ${tokens.length} token(s) de aparelho desativado(s) (app removido ou token inválido)`);
+  });
+}
+
 async function handleRequest(req: any, res: any) {
   // CORS - Permitir todos os subdomínios Vercel
   // IMPORTANTE: Headers CORS devem ser definidos ANTES de qualquer processamento
@@ -390,6 +403,8 @@ async function handleRequest(req: any, res: any) {
     return res.status(503).json({ error: 'Servidor sem configuração de segurança (JWT_SECRET).' });
   }
 
+  registerDeadTokenHandler();
+
   // Trava global de admin: toda rota administrativa exige JWT de ADMIN (exceto o próprio login).
   const isAdminRoute =
     (path.startsWith('/api/admin/') && path !== '/api/admin/login') ||
@@ -448,6 +463,48 @@ async function handleRequest(req: any, res: any) {
       const diag = await dbDiagnostics(db);
       console.log('🩺 Diagnóstico do banco:', JSON.stringify(diag));
       return res.status(200).json(diag);
+    }
+
+    // Admin: teste de push — manda um aviso para os aparelhos de um usuário e mostra a resposta do Firebase por aparelho
+    if (path === '/api/admin/diagnostics/push' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      const config = pushConfigInfo();
+      const email = String(body?.email || '').trim().toLowerCase();
+      let userId = '';
+      if (email) {
+        const u: any[] = await db.$queryRawUnsafe(`SELECT id FROM users WHERE lower(email) = $1 LIMIT 1`, email);
+        if (!u[0]) return res.status(404).json({ error: 'Nenhum usuário com esse e-mail', config });
+        userId = String(u[0].id);
+      } else {
+        try { userId = String(decodeAuthUser(req)?.userId || ''); } catch { userId = ''; }
+      }
+      const rows: any[] = userId
+        ? await db.$queryRawUnsafe(
+            `SELECT token, platform, "isActive", "updatedAt" FROM device_tokens WHERE "userId" = $1 ORDER BY "updatedAt" DESC`,
+            userId,
+          )
+        : [];
+      const active = rows.filter((r) => r.isActive);
+      const sent = await sendFcmDetailed(active.map((r) => r.token), {
+        title: '🔔 Teste de aviso da Liga do Bem',
+        body: 'Se este aviso apareceu com o app fechado, está tudo certo!',
+        data: { screen: 'Notifications' },
+      });
+      const devices = rows.map((r) => {
+        const out = sent.results.find((x) => x.token === r.token);
+        return {
+          app: r.platform === 'android-partner' ? 'Parceiros' : 'Membros',
+          token: `…${String(r.token).slice(-8)}`,
+          isActive: !!r.isActive,
+          updatedAt: r.updatedAt,
+          ok: out ? out.ok : null,
+          code: out?.code || null,
+          message: out?.message || null,
+        };
+      });
+      console.log('🩺 Teste de push:', JSON.stringify({ config: { ...config, clientEmail: undefined }, devices, error: sent.error }));
+      return res.status(200).json({ config, devices, success: sent.success, attempted: sent.attempted, error: sent.error || null });
     }
 
     // Admin: painel inicial (indicadores + "precisa da sua atenção") e acompanhamento de orçamentos

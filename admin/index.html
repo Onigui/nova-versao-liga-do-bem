@@ -1393,6 +1393,15 @@
                     <div id="dbDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
                 </div>
                 <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title">Teste de avisos (push)</h3>
+                    <p class="header-subtitle" style="margin:8px 0 16px;">Manda um aviso de teste para os celulares de uma pessoa (nos dois apps) e mostra a resposta do Firebase para cada aparelho. Feche o app no celular antes de testar.</p>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <input type="email" id="pushDiagEmail" class="form-input" placeholder="E-mail da conta que vai receber" style="flex:1; min-width:220px;">
+                        <button class="btn btn-secondary" onclick="runPushDiagnostics()" id="pushDiagBtn">Enviar teste</button>
+                    </div>
+                    <div id="pushDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
+                </div>
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">Doações por PIX</h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Chave mostrada no app quando a pessoa doa. CNPJ da Liga: 27.644.955/0001-38</p>
                             <div class="form-row">
@@ -4747,6 +4756,58 @@
                     <p class="muted">API em <strong>${escHtml(d.functionRegion || '—')}</strong> → banco via <strong>${escHtml(db.host || '—')}:${escHtml(db.port || '')}</strong>
                     ${db.poolerRegion ? `(região ${escHtml(db.poolerRegion)})` : ''}${db.connectionLimit ? ` · connection_limit=${escHtml(db.connectionLimit)}` : ''}${d.selectOne.looksSerialized ? ' · consultas em fila' : ''}</p>
                     <p><span class="chip ${verdict[0] === 'ok' ? 'DONE' : verdict[0] === 'warn' ? 'RESERVED' : 'CANCELLED'}">${verdict[1]}</span></p>`;
+            } catch (e) {
+                out.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ---------- Teste de push (em Configurações) ----------
+        const PUSH_CODES = {
+            'messaging/mismatched-credential': 'As credenciais do Firebase na Vercel são de OUTRO projeto Firebase (não o do app).',
+            'messaging/sender-id-mismatch': 'As credenciais do Firebase na Vercel são de OUTRO projeto Firebase (não o do app).',
+            'messaging/registration-token-not-registered': 'Aparelho não existe mais (app desinstalado ou dados apagados). Foi desativado.',
+            'messaging/invalid-registration-token': 'Token inválido. Foi desativado.',
+            'messaging/third-party-auth-error': 'Falha de autenticação do Firebase.',
+            'messaging/authentication-error': 'O Firebase recusou as credenciais da Vercel (chave privada errada ou revogada).',
+            'messaging/invalid-argument': 'O Firebase recusou a mensagem (argumento inválido).',
+            'messaging/server-unavailable': 'Firebase fora do ar no momento. Tente de novo.',
+            'messaging/internal-error': 'Erro interno do Firebase. Tente de novo.',
+        };
+        async function runPushDiagnostics() {
+            const out = document.getElementById('pushDiagResult');
+            const btn = document.getElementById('pushDiagBtn');
+            btn.disabled = true;
+            out.innerHTML = '<span class="muted">Enviando…</span>';
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/diagnostics/push`, {
+                    method: 'POST',
+                    headers: adminHeaders(),
+                    body: JSON.stringify({ email: document.getElementById('pushDiagEmail').value.trim() }),
+                });
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.error || 'Erro');
+                const c = d.config || {};
+                const cfg = !c.configured
+                    ? '<span class="chip CANCELLED">Firebase não configurado na Vercel</span>'
+                    : `<span class="chip ${c.projectMatches ? 'DONE' : 'CANCELLED'}">Projeto das credenciais: ${escHtml(c.projectId || '—')}${c.projectMatches ? ' ✓' : ` ✗ (o app usa ${escHtml(c.expectedProjectId)})`}</span>
+                       ${c.clientEmailProject && c.clientEmailProject !== c.expectedProjectId ? `<span class="chip CANCELLED">Conta de serviço de outro projeto: ${escHtml(c.clientEmailProject)}</span>` : ''}
+                       ${c.privateKeyLooksValid ? '' : '<span class="chip CANCELLED">Chave privada com formato estranho</span>'}`;
+                const rows = (d.devices || []).map(x => {
+                    const st = !x.isActive ? '<span class="muted">inativo</span>'
+                        : x.ok ? '<span class="chip DONE">Firebase aceitou</span>'
+                        : `<span class="chip CANCELLED">${escHtml(PUSH_CODES[x.code] || x.code || 'falhou')}</span><div class="muted" style="font-size:.8rem;">${escHtml(x.message || '')}</div>`;
+                    return `<tr><td>${escHtml(x.app)}</td><td><code>${escHtml(x.token)}</code></td><td>${x.updatedAt ? new Date(x.updatedAt).toLocaleString('pt-BR') : '—'}</td><td>${st}</td></tr>`;
+                }).join('');
+                const tip = d.success > 0
+                    ? '<p>O Firebase entregou ✅. Se não apareceu no celular: confira se as notificações do app estão permitidas e se a economia de bateria não está bloqueando o app.</p>'
+                    : '';
+                out.innerHTML = `<p>${cfg}</p>
+                    ${d.error ? `<p style="color:#B91C1C">${escHtml(d.error)}</p>` : ''}
+                    ${rows ? `<table class="data-table" style="margin-top:8px;"><thead><tr><th>App</th><th>Aparelho</th><th>Registrado</th><th>Resultado</th></tr></thead><tbody>${rows}</tbody></table>`
+                           : '<p class="muted">Essa conta não tem nenhum celular registrado. Abra o app atualizado logado nessa conta e tente de novo.</p>'}
+                    ${tip}`;
             } catch (e) {
                 out.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`;
             } finally {

@@ -128,20 +128,42 @@ export async function sendFcmToTopic(
   }
 }
 
-export async function sendFcmToTokens(
+export type FcmTokenResult = { token: string; ok: boolean; code?: string; message?: string; messageId?: string };
+
+/** Códigos do Firebase que significam "este aparelho não existe mais" → desativar o token. */
+const DEAD_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+]);
+
+let deadTokenHandler: ((tokens: string[]) => Promise<void> | void) | null = null;
+/** index.ts registra aqui como desativar tokens mortos no banco. */
+export function onDeadTokens(fn: (tokens: string[]) => Promise<void> | void) {
+  deadTokenHandler = fn;
+}
+
+/** Envia e devolve o resultado de CADA aparelho (o Firebase não lança erro quando um aparelho recusa). */
+export async function sendFcmDetailed(
   tokens: string[],
   payload: { title: string; body: string; data?: Record<string, string> },
-): Promise<{ attempted: number; success: number }> {
+): Promise<{ attempted: number; success: number; results: FcmTokenResult[]; error?: string }> {
   const unique = [...new Set((tokens || []).filter(Boolean))];
-  if (!unique.length) return { attempted: 0, success: 0 };
+  if (!unique.length) return { attempted: 0, success: 0, results: [] };
 
-  const messaging = getMessaging();
+  let messaging: any = null;
+  try {
+    messaging = getMessaging();
+  } catch (e: any) {
+    const msg = `Firebase não iniciou: ${e?.message || e}`;
+    console.warn('⚠️ ' + msg);
+    return { attempted: unique.length, success: 0, results: [], error: msg };
+  }
   if (!messaging) {
     console.warn('⚠️ Push não configurado (conta de serviço Firebase ausente)');
-    return { attempted: unique.length, success: 0 };
+    return { attempted: unique.length, success: 0, results: [], error: 'Push não configurado (conta de serviço Firebase ausente)' };
   }
 
-  let success = 0;
+  const results: FcmTokenResult[] = [];
   try {
     for (let i = 0; i < unique.length; i += 500) {
       const chunk = unique.slice(i, i + 500);
@@ -149,13 +171,66 @@ export async function sendFcmToTokens(
         tokens: chunk,
         ...buildMessage(payload),
       });
-      success += Number(result.successCount || 0);
+      (result.responses || []).forEach((r: any, idx: number) => {
+        results.push(
+          r.success
+            ? { token: chunk[idx], ok: true, messageId: r.messageId }
+            : { token: chunk[idx], ok: false, code: r.error?.code || r.error?.errorInfo?.code, message: r.error?.message },
+        );
+      });
     }
-    return { attempted: unique.length, success };
-  } catch (error) {
-    console.warn('⚠️ FCM send failed:', error);
-    return { attempted: unique.length, success };
+  } catch (error: any) {
+    const msg = `${error?.code || ''} ${error?.message || error}`.trim();
+    console.warn('⚠️ FCM send failed:', msg);
+    return { attempted: unique.length, success: results.filter((r) => r.ok).length, results, error: msg };
   }
+
+  const failed = results.filter((r) => !r.ok);
+  const success = results.length - failed.length;
+  if (failed.length) {
+    const byCode: Record<string, number> = {};
+    failed.forEach((f) => (byCode[f.code || 'desconhecido'] = (byCode[f.code || 'desconhecido'] || 0) + 1));
+    console.warn(`⚠️ FCM: ${failed.length}/${results.length} aparelho(s) recusaram`, JSON.stringify(byCode), failed[0]?.message || '');
+    const dead = failed.filter((f) => DEAD_CODES.has(String(f.code))).map((f) => f.token);
+    if (dead.length && deadTokenHandler) {
+      try {
+        await deadTokenHandler(dead);
+      } catch {
+        /* ignora */
+      }
+    }
+  } else {
+    console.log(`📲 FCM: enviado para ${success} aparelho(s)`);
+  }
+  return { attempted: unique.length, success, results };
+}
+
+export async function sendFcmToTokens(
+  tokens: string[],
+  payload: { title: string; body: string; data?: Record<string, string> },
+): Promise<{ attempted: number; success: number }> {
+  const r = await sendFcmDetailed(tokens, payload);
+  return { attempted: r.attempted, success: r.success };
+}
+
+/** Projeto Firebase do app (google-services.json). As credenciais da Vercel precisam ser deste projeto. */
+export const EXPECTED_FIREBASE_PROJECT = 'liga-do-bem-botucatu-4c696';
+
+/** Informações não secretas da configuração do push, para o diagnóstico no admin. */
+export function pushConfigInfo() {
+  const account: any = parseServiceAccount();
+  const source = (process.env.FIREBASE_SERVICE_ACCOUNT || '').trim() ? 'FIREBASE_SERVICE_ACCOUNT' : account ? 'FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY' : null;
+  const key = String(account?.private_key || '');
+  return {
+    configured: !!account,
+    source,
+    projectId: account?.project_id || null,
+    expectedProjectId: EXPECTED_FIREBASE_PROJECT,
+    projectMatches: account?.project_id === EXPECTED_FIREBASE_PROJECT,
+    clientEmail: account?.client_email || null,
+    clientEmailProject: String(account?.client_email || '').split('@')[1]?.split('.')[0] || null,
+    privateKeyLooksValid: key.includes('-----BEGIN PRIVATE KEY-----') && key.includes('-----END PRIVATE KEY-----') && key.includes('\n'),
+  };
 }
 
 /** @deprecated use isPushConfigured — mantido para compatibilidade */
