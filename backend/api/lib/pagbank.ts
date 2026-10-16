@@ -177,9 +177,17 @@ async function pagbankFetch(path: string, init: RequestInit = {}) {
       data?.message ||
       text ||
       `HTTP ${response.status}`;
-    const err: any = new Error(`PagBank: ${detail}`);
+    // Conta da Liga sem liberação do PagBank para criar cobranças pela API (produção).
+    // Não é erro do membro: a mensagem técnica fica no log e o app mostra um texto claro.
+    const accessDenied = (data?.error_messages || []).some((e: any) => e?.code === 'ACCESS_DENIED');
+    const err: any = new Error(
+      accessDenied
+        ? 'O pagamento pelo aplicativo está temporariamente indisponível. A Liga do Bem já foi avisada; tente novamente mais tarde ou fale com a Liga para ativar sua carteirinha.'
+        : `PagBank: ${detail}`,
+    );
     err.status = response.status;
     err.payload = data;
+    if (accessDenied) err.code = 'PAGBANK_ACCESS_DENIED';
     throw err;
   }
 

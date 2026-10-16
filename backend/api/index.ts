@@ -5373,7 +5373,7 @@ async function handleRequest(req: any, res: any) {
             `UPDATE donations SET status = 'REJECTED', "updatedAt" = NOW() WHERE id = $1`,
             donationId
           );
-          return res.status(502).json({ error: e?.message || 'Falha ao gerar o pagamento no PagBank' });
+          return res.status(502).json({ error: e?.message || 'Falha ao gerar o pagamento no PagBank', code: e?.code || null });
         }
 
         const immediatePaid = isPaidChargeStatus(order.chargeStatus);
@@ -7342,7 +7342,8 @@ async function handleRequest(req: any, res: any) {
           console.error('❌ PagBank checkout error:', e?.payload || e?.message);
           return res.status(502).json({
             error: e?.message || 'Falha ao criar pagamento no PagBank',
-            detail: e?.payload || null,
+            code: e?.code || null,
+            detail: e?.code ? null : e?.payload || null,
           });
         }
 
