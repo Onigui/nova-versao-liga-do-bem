@@ -4793,7 +4793,8 @@
                     ? '<span class="chip CANCELLED">Firebase não configurado na Vercel</span>'
                     : `<span class="chip ${c.projectMatches ? 'DONE' : 'CANCELLED'}">Projeto das credenciais: ${escHtml(c.projectId || '—')}${c.projectMatches ? ' ✓' : ` ✗ (o app usa ${escHtml(c.expectedProjectId)})`}</span>
                        ${c.clientEmailProject && c.clientEmailProject !== c.expectedProjectId ? `<span class="chip CANCELLED">Conta de serviço de outro projeto: ${escHtml(c.clientEmailProject)}</span>` : ''}
-                       ${c.privateKeyLooksValid ? '' : '<span class="chip CANCELLED">Chave privada com formato estranho</span>'}`;
+                       ${c.privateKeyLooksValid ? '<span class="chip DONE">Chave privada completa ✓</span>' : `<span class="chip CANCELLED">Chave privada incompleta ou corrompida (${Number(c.privateKeyLength || 0)} caracteres; o normal é ~1600)</span>`}
+                       ${c.initError ? `<div style="color:#B91C1C; margin-top:6px;">${escHtml(c.initError)}</div>` : ''}`;
                 const rows = (d.devices || []).map(x => {
                     const st = !x.isActive ? '<span class="muted">inativo</span>'
                         : x.ok ? '<span class="chip DONE">Firebase aceitou</span>'
