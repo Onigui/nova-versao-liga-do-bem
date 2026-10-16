@@ -4793,7 +4793,16 @@
                     ? '<span class="chip CANCELLED">Firebase não configurado na Vercel</span>'
                     : `<span class="chip ${c.projectMatches ? 'DONE' : 'CANCELLED'}">Projeto das credenciais: ${escHtml(c.projectId || '—')}${c.projectMatches ? ' ✓' : ` ✗ (o app usa ${escHtml(c.expectedProjectId)})`}</span>
                        ${c.clientEmailProject && c.clientEmailProject !== c.expectedProjectId ? `<span class="chip CANCELLED">Conta de serviço de outro projeto: ${escHtml(c.clientEmailProject)}</span>` : ''}
-                       ${c.privateKeyLooksValid ? '<span class="chip DONE">Chave privada completa ✓</span>' : `<span class="chip CANCELLED">Chave privada incompleta ou corrompida (${Number(c.privateKeyLength || 0)} caracteres; o normal é ~1600)</span>`}
+                       ${c.privateKeyLooksValid ? '<span class="chip DONE">Chave privada válida ✓</span>' : `<span class="chip CANCELLED">Chave privada inválida</span>`}
+                       ${!c.privateKeyLooksValid && c.keyCheck ? `<div class="muted" style="margin-top:6px;">${(() => {
+                           const k = c.keyCheck;
+                           const parts = [];
+                           if (k.markers > 1) parts.push(`a chave aparece ${k.markers} vezes (colou duas vezes?)`);
+                           if (k.expectedBytes && k.derBytes < k.expectedBytes) parts.push(`está FALTANDO um pedaço (${k.derBytes} de ${k.expectedBytes} bytes)`);
+                           if (k.expectedBytes && k.derBytes > k.expectedBytes) parts.push(`tem conteúdo A MAIS (${k.derBytes} bytes, o certo é ${k.expectedBytes})`);
+                           if (!parts.length && k.error) parts.push(escHtml(k.error));
+                           return 'A chave ' + parts.join('; ') + '. Gere uma chave nova no Firebase e cole o arquivo .json inteiro, sem editar.';
+                       })()}</div>` : ''}
                        ${c.initError ? `<div style="color:#B91C1C; margin-top:6px;">${escHtml(c.initError)}</div>` : ''}`;
                 const rows = (d.devices || []).map(x => {
                     const st = !x.isActive ? '<span class="muted">inativo</span>'

@@ -20,12 +20,39 @@ function loadAdmin() {
   }
 }
 
-/** Aceita a chave colada de vários jeitos: com aspas, com \\n literal, com \r, com espaços sobrando. */
+/**
+ * Aceita a chave colada de vários jeitos (aspas, \n literal, \r, espaços, quebras erradas):
+ * pega só os caracteres base64 entre BEGIN/END e remonta o PEM em linhas de 64.
+ */
 function normalizePrivateKey(raw: string) {
   let k = String(raw || '').trim();
   if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) k = k.slice(1, -1);
-  k = k.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r/g, '').trim();
-  return k ? k + (k.endsWith('\n') ? '' : '\n') : '';
+  k = k.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r/g, '');
+  const m = k.match(/-----BEGIN ((?:RSA |EC )?)PRIVATE KEY-----([\s\S]*?)-----END \1PRIVATE KEY-----/);
+  if (!m) return k.trim() ? k.trim() + '\n' : '';
+  const body = m[2].replace(/[^A-Za-z0-9+/=]/g, '');
+  const lines = body.match(/.{1,64}/g) || [];
+  return `-----BEGIN ${m[1]}PRIVATE KEY-----\n${lines.join('\n')}\n-----END ${m[1]}PRIVATE KEY-----\n`;
+}
+
+/** Confere a chave como o Node vai ler (sem expor nada): tamanho esperado x real e erro de leitura. */
+export function checkPrivateKey(pem: string) {
+  const out: { ok: boolean; derBytes: number; expectedBytes: number | null; error: string | null; markers: number } = {
+    ok: false, derBytes: 0, expectedBytes: null, error: null, markers: (String(pem).match(/-----BEGIN/g) || []).length,
+  };
+  try {
+    const body = String(pem).replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+    const der = Buffer.from(body, 'base64');
+    out.derBytes = der.length;
+    if (der[0] === 0x30 && der[1] === 0x82) out.expectedBytes = 4 + der.readUInt16BE(2);
+    else if (der[0] === 0x30 && der[1] === 0x81) out.expectedBytes = 3 + der[2];
+    const key = require('crypto').createPrivateKey({ key: pem, format: 'pem' });
+    out.ok = key.type === 'private' && key.asymmetricKeyType === 'rsa';
+    if (!out.ok) out.error = `Tipo de chave inesperado: ${key.type}/${key.asymmetricKeyType}`;
+  } catch (e: any) {
+    out.error = e?.message || String(e);
+  }
+  return out;
 }
 
 function parseJsonAccount(raw: string) {
@@ -271,8 +298,9 @@ export function pushConfigInfo() {
     projectMatches: account?.project_id === EXPECTED_FIREBASE_PROJECT,
     clientEmail: account?.client_email || null,
     clientEmailProject: String(account?.client_email || '').split('@')[1]?.split('.')[0] || null,
-    privateKeyLooksValid: /-----BEGIN PRIVATE KEY-----\n[A-Za-z0-9+/=\n]{1500,}-----END PRIVATE KEY-----/.test(key),
+    privateKeyLooksValid: checkPrivateKey(key).ok,
     privateKeyLength: key.replace(/-----[^-]+-----|\s/g, '').length,
+    keyCheck: account ? checkPrivateKey(key) : null,
     initError: pushInitError(),
   };
 }
