@@ -7,7 +7,6 @@ import {
   Alert,
   ScrollView,
   Image,
-  Share,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -189,24 +188,6 @@ export default function MembershipCardScreen({navigation}) {
     enabled: !!(isAuthenticated && isActiveMember && membership?.memberId),
   });
   const qrValue = cardCode.code;
-
-  const handleShareCard = async () => {
-    if (!membership) return;
-    try {
-      await Share.share({
-        message:
-          `Cartão de Membro — Liga do Bem Botucatu\n` +
-          `Nome: ${user?.name || 'Membro'}\n` +
-          `ID: ${membership.memberId}\n` +
-          `Status: ${statusLabel}\n` +
-          `Válido até: ${formatDate(membership.endDate)}`,
-      });
-    } catch (error) {
-      if (error?.message !== 'User did not share') {
-        Alert.alert('Erro', 'Não foi possível compartilhar o cartão');
-      }
-    }
-  };
 
   const handleRenewMembership = () => {
     navigation.navigate('MembershipCheckout', {
@@ -399,16 +380,10 @@ export default function MembershipCardScreen({navigation}) {
       </View>
 
       <View style={styles.actionsContainer}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleShareCard}>
-          <Ionicons name="share-outline" size={20} color="#6D28D9" />
-          <Text style={styles.actionButtonText}>Compartilhar Cartão</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.secondaryButton]}
-          onPress={handleRenewMembership}>
-          <Ionicons name="card-outline" size={20} color="#6B7280" />
-          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+        {/* Sem "Compartilhar": a carteirinha só vale validada pelo App Parceiros (QR ou código que muda) */}
+        <TouchableOpacity style={styles.actionButton} onPress={handleRenewMembership}>
+          <Ionicons name="card-outline" size={20} color="#6D28D9" />
+          <Text style={styles.actionButtonText}>
             {membership?.status === 'ACTIVE' && isActiveMember
               ? 'Renovar assinatura'
               : 'Assinar / Pagar'}

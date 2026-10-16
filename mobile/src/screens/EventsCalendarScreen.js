@@ -123,7 +123,7 @@ export default function EventsCalendarScreen({navigation}) {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
-        <Ionicons name="calendar" size={48} color="#FFFFFF" />
+        <Ionicons name="calendar" size={28} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Calendário de Eventos</Text>
         <Text style={styles.headerSubtitle}>Participe e faça a diferença!</Text>
       </LinearGradient>
@@ -270,18 +270,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6F5FB',
   },
   header: {
-    padding: 40,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     ...F.bold,
     color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 6,
+    marginBottom: 2,
   },
   headerSubtitle: {
     ...F.regular,

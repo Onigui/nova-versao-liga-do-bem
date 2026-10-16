@@ -12,7 +12,7 @@ export default function LegalScreen({route}) {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
-        <Ionicons name="shield-checkmark" size={40} color="#FFFFFF" />
+        <Ionicons name="shield-checkmark" size={28} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Termos e Privacidade</Text>
         <Text style={styles.headerSubtitle}>Liga do Bem Botucatu</Text>
       </LinearGradient>
@@ -69,7 +69,7 @@ export default function LegalScreen({route}) {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#F6F5FB'},
-  header: {padding: 32, alignItems: 'center',
+  header: {paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     ...F.bold,
     color: '#FFFFFF',
-    marginTop: 12,
+    marginTop: 6,
   },
   headerSubtitle: {
     ...F.regular,

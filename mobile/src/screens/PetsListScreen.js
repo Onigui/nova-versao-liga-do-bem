@@ -306,25 +306,25 @@ const styles = StyleSheet.create({
     color: '#6D28D9',
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 30,
+    paddingTop: 14,
+    paddingBottom: 18,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
   backButton: {
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 22,
     ...F.bold,
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   headerSubtitle: {
     ...F.regular,
-    fontSize: 16,
+    fontSize: 13,
     color: 'rgba(255, 255, 255, 0.9)',
   },
   content: {

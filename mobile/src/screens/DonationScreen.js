@@ -79,7 +79,7 @@ export default function DonationScreen({navigation}) {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
-        <Ionicons name="heart" size={48} color="#FFFFFF" />
+        <Ionicons name="heart" size={28} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Fazer Doação</Text>
         <Text style={styles.headerSubtitle}>
           Sua generosidade transforma vidas!
@@ -348,22 +348,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6F5FB',
   },
   header: {
-    padding: 40,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 22,
     ...F.bold,
     color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 6,
+    marginBottom: 2,
   },
   headerSubtitle: {
     ...F.regular,
-    fontSize: 16,
+    fontSize: 13,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
   },
