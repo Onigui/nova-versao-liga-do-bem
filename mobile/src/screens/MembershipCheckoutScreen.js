@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#F3F7FB'},
   center: {flex: 1, alignItems: 'center', justifyContent: 'center'},
   header: {
-    paddingTop: 52,
+    paddingTop: 14,
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: '#FFFFFF',

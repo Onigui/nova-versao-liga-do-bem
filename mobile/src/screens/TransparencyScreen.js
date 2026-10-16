@@ -95,7 +95,7 @@ export default function TransparencyScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
       <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
-        <Ionicons name="pie-chart" size={48} color="#FFFFFF" />
+        <Ionicons name="pie-chart" size={28} color="#FFFFFF" />
         <Text style={styles.headerTitle}>Transparência Financeira</Text>
         <Text style={styles.headerSubtitle}>
           Veja para onde vai cada centavo
@@ -287,17 +287,17 @@ export default function TransparencyScreen() {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#F6F5FB'},
-  header: {padding: 40, alignItems: 'center',
+  header: {paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     ...F.bold,
     color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 6,
+    marginBottom: 2,
   },
   headerSubtitle: {
     ...F.regular, fontSize: 14, color: 'rgba(255, 255, 255, 0.9)'},

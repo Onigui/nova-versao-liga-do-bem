@@ -353,18 +353,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6F5FB',
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 30,
+    paddingTop: 14,
+    paddingBottom: 18,
     paddingHorizontal: 24,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
   backButton: {
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 22,
     ...F.bold,
     color: '#FFFFFF',
   },

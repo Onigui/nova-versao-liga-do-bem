@@ -307,12 +307,12 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: 'white',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     ...F.bold,
     color: '#111827',
     marginBottom: 4,

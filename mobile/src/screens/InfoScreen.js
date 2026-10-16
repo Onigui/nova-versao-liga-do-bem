@@ -475,21 +475,21 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 28,
+    paddingTop: 14,
+    paddingBottom: 18,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
   backButton: {
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 22,
     ...F.bold,
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   headerSubtitle: {
     ...F.regular,
