@@ -43,6 +43,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleHome } from './lib/home';
+import { audienceFilter } from './lib/inbox';
 import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
@@ -6595,7 +6596,7 @@ async function handleRequest(req: any, res: any) {
         const rows: any[] = await db.$queryRawUnsafe(
           `SELECT id, "userId", title, message, type, data, "isRead", "sentAt", "readAt"
            FROM notifications
-           WHERE "userId" = $1
+           WHERE "userId" = $1 AND ${audienceFilter(req.query?.app)}
            ORDER BY "sentAt" DESC
            LIMIT 100`,
           userId
@@ -6656,7 +6657,7 @@ async function handleRequest(req: any, res: any) {
           await db.$executeRawUnsafe(
             `UPDATE notifications
              SET "isRead" = true, "readAt" = NOW()
-             WHERE "userId" = $1 AND "isRead" = false`,
+             WHERE "userId" = $1 AND "isRead" = false AND ${audienceFilter(body?.app || req.query?.app)}`,
             userId
           );
           return res.status(200).json({ message: 'Todas as notificações foram marcadas como lidas' });

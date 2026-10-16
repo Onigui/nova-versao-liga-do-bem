@@ -30,6 +30,8 @@ import ReservationsScreen from './screens/ReservationsScreen';
 import VetQuoteScreen from './screens/VetQuoteScreen';
 import ReviewsScreen from './screens/ReviewsScreen';
 import VetNoteScreen from './screens/VetNoteScreen';
+import PartnerNotificationsScreen from './screens/PartnerNotificationsScreen';
+import PartnerBell from './components/PartnerBell';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -62,6 +64,7 @@ function Tabs() {
     <Tab.Navigator
       screenOptions={({route}) => ({
         ...header,
+        headerRight: () => <PartnerBell />,
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: '#94A3B8',
         tabBarLabelStyle: {fontSize: 12, fontWeight: '600'},
@@ -247,6 +250,11 @@ export function PartnerAppStack() {
           name="Reviews"
           component={ReviewsScreen}
           options={{title: 'Avaliações'}}
+        />
+        <Stack.Screen
+          name="PartnerNotifications"
+          component={PartnerNotificationsScreen}
+          options={{title: 'Avisos'}}
         />
         <Stack.Screen
           name="VetNote"

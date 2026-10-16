@@ -16,6 +16,7 @@ import { ensureCatalogSchema, itemLabel, CATALOG_CATEGORIES } from './catalog';
 import { isMembershipCurrentlyActive } from './membershipBilling';
 import { ensurePetHealthSchema } from './petHealth';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
+import { partnerUserIds, saveInbox } from './inbox';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -175,6 +176,7 @@ async function notifyMember(db: any, userId: string, title: string, message: str
 
 async function notifyPartners(db: any, partnerIds: string[], title: string, body: string, data: Record<string, string>) {
   if (!partnerIds.length) return;
+  await saveInbox(db, await partnerUserIds(db, partnerIds), title, body, data, 'partner');
   await notifyTokens(
     db,
     `SELECT t.token FROM device_tokens t JOIN partner_accounts a ON a."userId" = t."userId"

@@ -150,7 +150,7 @@ export async function buildHome(db: any, userId: string | null, where: { lat: nu
           };
         }, { active: false })
       : null,
-    userId ? safe(async () => (await one(`SELECT COUNT(*)::int AS n FROM notifications WHERE "userId" = $1 AND "isRead" = false`, userId))?.n || 0, 0) : 0,
+    userId ? safe(async () => (await one(`SELECT COUNT(*)::int AS n FROM notifications WHERE "userId" = $1 AND "isRead" = false AND COALESCE(data->>'audience', 'member') <> 'partner'`, userId))?.n || 0, 0) : 0,
     userId
       ? safe(async () => {
           const rows: any[] = await db.$queryRawUnsafe(

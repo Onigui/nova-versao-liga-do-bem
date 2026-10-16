@@ -24,6 +24,7 @@ import { syncPaymentFromPagBank } from './membershipBilling';
 import { markPartnerPushPaid } from './partnerPushSettle';
 import { sendFcmToTokens } from './push';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
+import { partnerUserIds, saveInbox } from './inbox';
 
 export const PUSH_DEFAULTS = {
   priceCents: 2990,
@@ -216,6 +217,7 @@ async function paymentView(db: any, paymentId: string | null) {
 
 /** Avisa o parceiro no App Parceiros (só aparelhos android-partner). */
 async function notifyPartner(db: any, partnerId: string, title: string, body: string) {
+  await saveInbox(db, await partnerUserIds(db, [partnerId]), title, body, { screen: 'PushCampaigns' }, 'partner');
   try {
     const rows: any[] = await db.$queryRawUnsafe(
       `SELECT t.token FROM device_tokens t JOIN partner_accounts a ON a."userId" = t."userId"

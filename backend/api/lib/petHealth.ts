@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import { sendFcmToTokens } from './push';
 import { isMembershipCurrentlyActive } from './membershipBilling';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
+import { saveInbox } from './inbox';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -251,17 +252,7 @@ async function audit(db: any, a: { vaccinationId: string; petId?: string; action
 
 async function notifyUser(db: any, userId: string, title: string, message: string, data: Record<string, string>, partnerApp = false) {
   try {
-    if (!partnerApp) {
-      await db.$executeRawUnsafe(
-        `INSERT INTO notifications (id, "userId", title, message, type, data, "isRead", "sentAt")
-         VALUES ($1, $2, $3, $4, 'GENERAL'::"NotificationType", $5::jsonb, false, NOW())`,
-        crypto.randomUUID(),
-        userId,
-        title,
-        message,
-        JSON.stringify(data),
-      );
-    }
+    await saveInbox(db, [userId], title, message, data, partnerApp ? 'partner' : 'member');
     const tokens: any[] = await db.$queryRawUnsafe(
       `SELECT token FROM device_tokens WHERE "userId" = $1 AND "isActive" = true AND platform ${partnerApp ? "= 'android-partner'" : "<> 'android-partner'"}`,
       userId,

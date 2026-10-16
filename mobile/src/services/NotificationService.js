@@ -1,8 +1,14 @@
-import {Platform, PermissionsAndroid} from 'react-native';
+import {DeviceEventEmitter, Platform, PermissionsAndroid} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { APP_VARIANT } from '../config/appVariant';
+
+import {NOTIFICATION_EVENT} from './notificationEvents';
+
+export {NOTIFICATION_EVENT};
+const REG_KEY = 'push_registration_v2';
+const REG_EVERY_MS = 24 * 60 * 60 * 1000;
 
 export class NotificationService {
   static async requestPermissions() {
@@ -50,51 +56,94 @@ export class NotificationService {
     }
   }
 
+  /** Envia o token deste aparelho ao servidor (com ou sem permissão: se o usuário liberar depois, já chega). */
+  static async sendTokenToServer(userToken, messagingToken) {
+    const response = await fetch(`${API_BASE_PATH}/notifications/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userToken}`,
+      },
+      body: JSON.stringify({
+        token: messagingToken,
+        provider: 'fcm',
+        app: APP_VARIANT,
+        platform: Platform.OS,
+        deviceInfo: {
+          model: Platform.constants?.Model || Platform.OS,
+          osVersion: String(Platform.Version),
+        },
+      }),
+    });
+    if (!response.ok) {
+      console.error('Erro ao registrar token push no backend');
+      return false;
+    }
+    await AsyncStorage.setItem('push_notification_token', messagingToken);
+    await AsyncStorage.setItem(
+      REG_KEY,
+      JSON.stringify({token: messagingToken, auth: String(userToken).slice(-16), at: Date.now()}),
+    );
+    return true;
+  }
+
   static async registerForPushNotifications(userToken) {
     try {
-      // Solicitar permissões
+      // Pede a permissão (Android 13+), mas registra o aparelho mesmo se negada
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
-        return false;
+        console.log('Avisos sem permissão: o token é registrado mesmo assim');
       }
-
-      // Obter token do Firebase Cloud Messaging
       const messagingToken = await this.getDeviceToken();
       if (!messagingToken) {
         return false;
       }
-
-      // Registrar token no backend
-      const response = await fetch(`${API_BASE_PATH}/notifications/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${userToken}`,
-        },
-        body: JSON.stringify({
-          token: messagingToken,
-          provider: 'fcm',
-          app: APP_VARIANT,
-          platform: Platform.OS,
-          deviceInfo: {
-            model: Platform.constants?.Model || Platform.OS,
-            osVersion: String(Platform.Version),
-          },
-        }),
-      });
-
-      if (response.ok) {
-        // Salvar token localmente
-        await AsyncStorage.setItem('push_notification_token', messagingToken);
-        console.log('Token push registrado com sucesso');
-        return true;
-      } else {
-        console.error('Erro ao registrar token push no backend');
-        return false;
-      }
+      const ok = await this.sendTokenToServer(userToken, messagingToken);
+      if (ok) console.log('Token push registrado com sucesso');
+      return ok;
     } catch (error) {
       console.error('Erro ao registrar notificações push:', error);
       return false;
+    }
+  }
+
+  /**
+   * Chamado sempre que o app abre com alguém logado (inclusive sessão já salva).
+   * Registra de novo se o token mudou, se trocou de conta ou uma vez por dia.
+   */
+  static async ensureRegistered(userToken) {
+    if (!userToken) return false;
+    try {
+      const messagingToken = await this.getDeviceToken();
+      if (!messagingToken) return false;
+      let last = null;
+      try {
+        last = JSON.parse((await AsyncStorage.getItem(REG_KEY)) || 'null');
+      } catch {
+        last = null;
+      }
+      const fresh =
+        last &&
+        last.token === messagingToken &&
+        last.auth === String(userToken).slice(-16) &&
+        Date.now() - Number(last.at || 0) < REG_EVERY_MS;
+      if (fresh) return true;
+      return await this.registerForPushNotifications(userToken);
+    } catch (error) {
+      console.log('Registro de avisos adiado:', error?.message);
+      return false;
+    }
+  }
+
+  /** Token do Firebase trocou (reinstalação, limpeza de dados…): avisa o servidor. */
+  static listenTokenRefresh(userToken) {
+    if (!userToken) return () => {};
+    try {
+      return messaging().onTokenRefresh(newToken => {
+        this.sendTokenToServer(userToken, newToken).catch(() => {});
+      });
+    } catch {
+      return () => {};
     }
   }
 
@@ -106,6 +155,7 @@ export class NotificationService {
     const foregroundSubscription = messaging().onMessage(
       async remoteMessage => {
         console.log('Notificação recebida em primeiro plano:', remoteMessage);
+        DeviceEventEmitter.emit(NOTIFICATION_EVENT, remoteMessage);
         if (onMessage) {
           onMessage(remoteMessage);
         }

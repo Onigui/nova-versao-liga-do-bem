@@ -28,7 +28,13 @@ const styles = StyleSheet.create({
 });
 
 function RootNavigator() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, token } = useAuth();
+  // Registra o aparelho para avisos (pop-up com o app fechado) sempre que abre logado — não só no login
+  useEffect(() => {
+    if (!isAuthenticated || !token) return undefined;
+    NotificationService.ensureRegistered(token);
+    return NotificationService.listenTokenRefresh(token);
+  }, [isAuthenticated, token]);
   // App dos membros: conta sem CPF válido completa o cadastro antes de entrar (uma conta por pessoa)
   const needsCpf = isAuthenticated && !IS_PARTNER_APP && !!user && !isValidCpf(user.cpf);
 
