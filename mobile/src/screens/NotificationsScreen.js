@@ -24,9 +24,8 @@ export default function NotificationsScreen({navigation}) {
 
   const registerForPushNotifications = useCallback(async () => {
     try {
-      const granted = await NotificationService.requestPermissions();
-      if (!granted) return;
-      await NotificationService.getDeviceToken();
+      const token = await AsyncStorage.getItem('auth_token');
+      if (token) await NotificationService.ensureRegistered(token);
     } catch (error) {
       console.log('Push notifications indisponíveis neste build:', error?.message);
     }

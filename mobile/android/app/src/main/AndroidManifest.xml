@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Permissões para instalação de APK (atualizações OTA) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -35,7 +36,7 @@
       <!-- Override default notification channel id from react-native-firebase messaging module -->
       <meta-data
           android:name="com.google.firebase.messaging.default_notification_channel_id"
-          android:value="default"
+          android:value="liga-do-bem-default"
           tools:replace="android:value" />
 
       <!-- Override default notification color from react-native-firebase messaging module -->

@@ -4,7 +4,7 @@
  * Tudo vem de GET /api/home numa chamada só.
  */
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, DeviceEventEmitter, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
@@ -12,6 +12,7 @@ import useUserLocation from '../services/useUserLocation';
 import {memberApi} from '../utils/quotes';
 import {toMemberPartner} from '../utils/partnerView';
 import navigateTo from '../navigation/navigateTo';
+import {NOTIFICATION_EVENT} from '../services/notificationEvents';
 import {C, F, HOME_SHORTCUTS, MONTHS_ABBR, dateBR, findService, greeting, money, planName} from '../theme/home';
 
 function useAuthSafe() {
@@ -97,6 +98,12 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
       load();
     }, [load]),
   );
+
+  // Chegou aviso com o app aberto: atualiza o sininho
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(NOTIFICATION_EVENT, load);
+    return () => sub.remove();
+  }, [load]);
 
   const go = (screen, params) => navigateTo(navigation, screen, params);
   const firstName = data?.user?.firstName || String(user?.name || '').split(' ')[0] || 'tudo bem?';
