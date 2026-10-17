@@ -16,13 +16,14 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {F} from '../theme/home';
+import {calendarDate, daysUntil, formatBR} from '../utils/dates';
 
 const CATEGORY_LABEL = {VACCINE: 'Vacina', DEWORMER: 'Vermífugo', ANTIPARASITIC: 'Antipulgas/carrapatos'};
 
 /** Situação da próxima dose: atrasada, em breve ou em dia. */
 export function doseStatus(nextDoseDate, now = Date.now()) {
   if (!nextDoseDate) return null;
-  const days = Math.ceil((new Date(nextDoseDate).getTime() - now) / 864e5);
+  const days = daysUntil(nextDoseDate, now);
   if (days < 0) return {tone: 'late', label: `Atrasada há ${-days} dia${days === -1 ? '' : 's'}`};
   if (days === 0) return {tone: 'soon', label: 'É hoje'};
   if (days <= 30) return {tone: 'soon', label: `Faltam ${days} dia${days === 1 ? '' : 's'}`};
@@ -82,17 +83,12 @@ export default function VaccinationCardScreen({navigation, route}) {
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    return formatBR(dateString);
   };
 
   const calculateAge = (birthDate) => {
     if (!birthDate) return null;
-    const birth = new Date(birthDate);
+    const birth = calendarDate(birthDate);
     const today = new Date();
     const years = today.getFullYear() - birth.getFullYear();
     const months = today.getMonth() - birth.getMonth();
@@ -287,7 +283,7 @@ export default function VaccinationCardScreen({navigation, route}) {
                 {(() => {
                   const pending = latestByName(vaccinations)
                     .filter(v => v.nextDoseDate)
-                    .sort((a, b) => new Date(a.nextDoseDate) - new Date(b.nextDoseDate))[0];
+                    .sort((a, b) => calendarDate(a.nextDoseDate) - calendarDate(b.nextDoseDate))[0];
                   if (!pending) return null;
                   const st = doseStatus(pending.nextDoseDate);
                   return (

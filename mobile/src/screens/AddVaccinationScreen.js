@@ -9,66 +9,14 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  Modal,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { Calendar } from 'react-native-calendars';
+import DateField from '../components/DateField';
+import {calendarDate, toISODay} from '../utils/dates';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {F} from '../theme/home';
-
-// Função para formatar data para DD/MM/YYYY
-const formatDateToPT = (date) => {
-  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
-    return '';
-  }
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-};
-
-// Função para parsear data de DD/MM/YYYY
-const parseDateFromPT = (dateString) => {
-  if (!dateString || !dateString.trim()) {
-    return null;
-  }
-  
-  // Remove espaços e caracteres extras
-  const cleaned = dateString.trim().replace(/[^\d]/g, '');
-  
-  // Se tiver 8 dígitos (DDMMYYYY), parsear
-  if (cleaned.length === 8) {
-    const day = parseInt(cleaned.substring(0, 2), 10);
-    const month = parseInt(cleaned.substring(2, 4), 10) - 1; // Month é 0-indexed
-    const year = parseInt(cleaned.substring(4, 8), 10);
-    
-    const date = new Date(year, month, day);
-    
-    // Validar se a data é válida
-    if (
-      date.getDate() === day &&
-      date.getMonth() === month &&
-      date.getFullYear() === year &&
-      date.getTime() > 0
-    ) {
-      return date;
-    }
-  }
-  
-  // Tentar parsear formato ISO ou outro formato
-  try {
-    const parsed = new Date(dateString);
-    if (!isNaN(parsed.getTime()) && parsed.getTime() > 0) {
-      return parsed;
-    }
-  } catch (e) {
-    // Ignorar
-  }
-  
-  return null;
-};
 
 export default function AddVaccinationScreen({navigation, route}) {
   const {petId, vaccination, onSave} = route.params || {};
@@ -79,8 +27,8 @@ export default function AddVaccinationScreen({navigation, route}) {
   const [applicationDate, setApplicationDate] = useState(() => {
     try {
       if (vaccination?.applicationDate) {
-        const date = new Date(vaccination.applicationDate);
-        if (!isNaN(date.getTime())) {
+        const date = calendarDate(vaccination.applicationDate);
+        if (date) {
           return date;
         }
       }
@@ -89,14 +37,12 @@ export default function AddVaccinationScreen({navigation, route}) {
       return new Date();
     }
   });
-  const [showApplicationDateModal, setShowApplicationDateModal] = useState(false);
-  const [applicationDateInput, setApplicationDateInput] = useState('');
   
   const [nextDoseDate, setNextDoseDate] = useState(() => {
     try {
       if (vaccination?.nextDoseDate) {
-        const date = new Date(vaccination.nextDoseDate);
-        if (!isNaN(date.getTime())) {
+        const date = calendarDate(vaccination.nextDoseDate);
+        if (date) {
           return date;
         }
       }
@@ -105,8 +51,6 @@ export default function AddVaccinationScreen({navigation, route}) {
       return null;
     }
   });
-  const [showNextDoseDateModal, setShowNextDoseDateModal] = useState(false);
-  const [nextDoseDateInput, setNextDoseDateInput] = useState('');
   
   const [batchNumber, setBatchNumber] = useState(vaccination?.batchNumber || '');
   const [veterinarian, setVeterinarian] = useState(vaccination?.veterinarian || '');
@@ -114,98 +58,6 @@ export default function AddVaccinationScreen({navigation, route}) {
   const [clinicName, setClinicName] = useState(vaccination?.clinicName || '');
   const [notes, setNotes] = useState(vaccination?.notes || '');
   const [saving, setSaving] = useState(false);
-
-  // Inicializar inputs de data quando modal abrir
-  useEffect(() => {
-    if (showApplicationDateModal) {
-      setApplicationDateInput(formatDateToPT(applicationDate));
-    }
-  }, [showApplicationDateModal]);
-
-  useEffect(() => {
-    if (showNextDoseDateModal) {
-      setNextDoseDateInput(nextDoseDate ? formatDateToPT(nextDoseDate) : '');
-    }
-  }, [showNextDoseDateModal]);
-
-  // Converter Date para formato YYYY-MM-DD usado pelo calendário
-  const formatDateForCalendar = (date) => {
-    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
-      return '';
-    }
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // Converter formato YYYY-MM-DD para Date (corrigindo problema de timezone)
-  const parseDateFromCalendar = (dateString) => {
-    if (!dateString) return null;
-    try {
-      // Dividir a string YYYY-MM-DD em partes
-      const parts = dateString.split('-');
-      if (parts.length === 3) {
-        const year = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1; // Mês é 0-indexed
-        const day = parseInt(parts[2], 10);
-        // Criar data no timezone local para evitar problema de um dia a menos
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-          return date;
-        }
-      }
-    } catch (e) {
-      // Ignorar
-    }
-    return null;
-  };
-
-  const handleApplicationDateSelect = (day) => {
-    if (day && day.dateString) {
-      const selectedDate = parseDateFromCalendar(day.dateString);
-      if (selectedDate) {
-        setApplicationDate(selectedDate);
-        setShowApplicationDateModal(false);
-      }
-    }
-  };
-
-  const handleApplicationDateConfirm = () => {
-    const parsed = parseDateFromPT(applicationDateInput);
-    if (parsed) {
-      setApplicationDate(parsed);
-      setShowApplicationDateModal(false);
-    } else {
-      Alert.alert('Data inválida', 'Por favor, insira uma data válida no formato DD/MM/AAAA');
-    }
-  };
-
-  const handleNextDoseDateSelect = (day) => {
-    if (day && day.dateString) {
-      const selectedDate = parseDateFromCalendar(day.dateString);
-      if (selectedDate) {
-        setNextDoseDate(selectedDate);
-        setShowNextDoseDateModal(false);
-      }
-    }
-  };
-
-  const handleNextDoseDateConfirm = () => {
-    if (!nextDoseDateInput.trim()) {
-      setNextDoseDate(null);
-      setShowNextDoseDateModal(false);
-      return;
-    }
-    
-    const parsed = parseDateFromPT(nextDoseDateInput);
-    if (parsed) {
-      setNextDoseDate(parsed);
-      setShowNextDoseDateModal(false);
-    } else {
-      Alert.alert('Data inválida', 'Por favor, insira uma data válida no formato DD/MM/AAAA');
-    }
-  };
 
   const handleSave = async () => {
     if (!vaccineName.trim() || !applicationDate) {
@@ -221,8 +73,8 @@ export default function AddVaccinationScreen({navigation, route}) {
       const vaccinationData = {
         vaccineName: vaccineName.trim(),
         vaccineType: vaccineType.trim() || null,
-        applicationDate: applicationDate.toISOString().split('T')[0],
-        nextDoseDate: nextDoseDate ? nextDoseDate.toISOString().split('T')[0] : null,
+        applicationDate: toISODay(applicationDate),
+        nextDoseDate: nextDoseDate ? toISODay(nextDoseDate) : null,
         batchNumber: batchNumber.trim() || null,
         veterinarian: veterinarian.trim() || null,
         veterinarianCRMV: veterinarianCRMV.trim() || null,
@@ -307,27 +159,29 @@ export default function AddVaccinationScreen({navigation, route}) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Data de Aplicação *</Text>
-            <TouchableOpacity
-              style={styles.input}
-              onPress={() => setShowApplicationDateModal(true)}>
-              <Text style={styles.inputText}>
-                {formatDateToPT(applicationDate)}
-              </Text>
-              <Ionicons name="calendar-outline" size={20} color="#6D28D9" />
-            </TouchableOpacity>
+            <DateField
+              label="Data de Aplicação *"
+              labelStyle={styles.label}
+              value={applicationDate}
+              onChange={d => d && setApplicationDate(d)}
+              minDate={new Date(2000, 0, 1)}
+              maxDate={new Date()}
+              testID="aplicacao"
+            />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Próxima Dose</Text>
-            <TouchableOpacity
-              style={styles.input}
-              onPress={() => setShowNextDoseDateModal(true)}>
-              <Text style={nextDoseDate ? styles.inputText : styles.inputPlaceholder}>
-                {nextDoseDate ? formatDateToPT(nextDoseDate) : 'Toque para selecionar a data'}
-              </Text>
-              <Ionicons name="calendar-outline" size={20} color="#6D28D9" />
-            </TouchableOpacity>
+            <DateField
+              label="Próxima Dose"
+              labelStyle={styles.label}
+              value={nextDoseDate}
+              onChange={setNextDoseDate}
+              minDate={applicationDate}
+              maxDate={new Date(new Date().getFullYear() + 5, 11, 31)}
+              optional
+              placeholder="Toque para escolher (opcional)"
+              testID="proxima-dose"
+            />
           </View>
 
           <View style={styles.inputGroup}>
@@ -410,173 +264,6 @@ export default function AddVaccinationScreen({navigation, route}) {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Modal para Data de Aplicação */}
-      <Modal
-        visible={showApplicationDateModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowApplicationDateModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Data de Aplicação</Text>
-            <Text style={styles.modalSubtitle}>Selecione a data no calendário</Text>
-            
-            <Calendar
-              onDayPress={handleApplicationDateSelect}
-              markedDates={{
-                [formatDateForCalendar(applicationDate)]: {
-                  selected: true,
-                  selectedColor: '#6D28D9',
-                  selectedTextColor: '#FFFFFF',
-                },
-              }}
-              current={formatDateForCalendar(applicationDate)}
-              minDate={formatDateForCalendar(new Date(1900, 0, 1))}
-              maxDate={formatDateForCalendar(new Date(2100, 11, 31))}
-              monthFormat={'MMMM yyyy'}
-              hideArrows={false}
-              firstDay={1}
-              enableSwipeMonths={true}
-              theme={{
-                calendarBackground: '#FFFFFF',
-                textSectionTitleColor: '#6D28D9',
-                selectedDayBackgroundColor: '#6D28D9',
-                selectedDayTextColor: '#FFFFFF',
-                todayTextColor: '#6D28D9',
-                dayTextColor: '#111827',
-                textDisabledColor: '#D1D5DB',
-                dotColor: '#6D28D9',
-                selectedDotColor: '#FFFFFF',
-                arrowColor: '#6D28D9',
-                monthTextColor: '#111827',
-                textDayFontWeight: '500',
-                textMonthFontWeight: 'bold',
-                textDayHeaderFontWeight: '600',
-                textDayFontSize: 16,
-                textMonthFontSize: 18,
-                textDayHeaderFontSize: 14,
-              }}
-              style={styles.calendar}
-            />
-
-            <View style={styles.modalInputContainer}>
-              <Text style={styles.modalInputLabel}>Ou digite manualmente:</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={applicationDateInput}
-                onChangeText={setApplicationDateInput}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowApplicationDateModal(false)}>
-                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleApplicationDateConfirm}>
-                <Text style={styles.modalButtonConfirmText}>Usar Data Digitada</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal para Próxima Dose */}
-      <Modal
-        visible={showNextDoseDateModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowNextDoseDateModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Próxima Dose</Text>
-            <Text style={styles.modalSubtitle}>Selecione a data no calendário (opcional)</Text>
-            
-            <Calendar
-              onDayPress={handleNextDoseDateSelect}
-              markedDates={
-                nextDoseDate
-                  ? {
-                      [formatDateForCalendar(nextDoseDate)]: {
-                        selected: true,
-                        selectedColor: '#6D28D9',
-                        selectedTextColor: '#FFFFFF',
-                      },
-                    }
-                  : {}
-              }
-              current={nextDoseDate ? formatDateForCalendar(nextDoseDate) : formatDateForCalendar(new Date())}
-              minDate={formatDateForCalendar(applicationDate)}
-              maxDate={formatDateForCalendar(new Date(2100, 11, 31))}
-              monthFormat={'MMMM yyyy'}
-              hideArrows={false}
-              firstDay={1}
-              enableSwipeMonths={true}
-              theme={{
-                calendarBackground: '#FFFFFF',
-                textSectionTitleColor: '#6D28D9',
-                selectedDayBackgroundColor: '#6D28D9',
-                selectedDayTextColor: '#FFFFFF',
-                todayTextColor: '#6D28D9',
-                dayTextColor: '#111827',
-                textDisabledColor: '#D1D5DB',
-                dotColor: '#6D28D9',
-                selectedDotColor: '#FFFFFF',
-                arrowColor: '#6D28D9',
-                monthTextColor: '#111827',
-                textDayFontWeight: '500',
-                textMonthFontWeight: 'bold',
-                textDayHeaderFontWeight: '600',
-                textDayFontSize: 16,
-                textMonthFontSize: 18,
-                textDayHeaderFontSize: 14,
-              }}
-              style={styles.calendar}
-            />
-
-            <View style={styles.modalInputContainer}>
-              <Text style={styles.modalInputLabel}>Ou digite manualmente (deixe vazio para remover):</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={nextDoseDateInput}
-                onChangeText={setNextDoseDateInput}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowNextDoseDateModal(false)}>
-                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSecondary]}
-                onPress={() => {
-                  setNextDoseDate(null);
-                  setShowNextDoseDateModal(false);
-                }}>
-                <Text style={styles.modalButtonSecondaryText}>Remover</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleNextDoseDateConfirm}>
-                <Text style={styles.modalButtonConfirmText}>Usar Data Digitada</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

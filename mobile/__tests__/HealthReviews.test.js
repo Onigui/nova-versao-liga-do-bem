@@ -53,6 +53,14 @@ const type = async (root, id, text) => {
   const n = root.findAll(x => x.props.testID === id && x.props.onChangeText)[0];
   await act(async () => n.props.onChangeText(text));
 };
+/** Escolhe a data no seletor (rodinhas Dia / Mês / Ano) e confirma. */
+const pickDate = async (root, id, text) => {
+  const [d, m, y] = text.split('/').map(Number);
+  for (const tid of [id, `${id}-ano-${y}`, `${id}-mes-${m}`, `${id}-dia-${d}`, `${id}-confirmar`]) {
+    const n = root.findAll(x => x.props.testID === tid && x.props.onPress)[0];
+    await act(async () => n.props.onPress());
+  }
+};
 const json = (body, ok = true, status = 200) => ({ok, status, json: async () => body});
 
 const HISTORY = {
@@ -147,7 +155,7 @@ describe('app dos membros', () => {
       tree = renderer.create(<HealthEntryFormScreen navigation={nav} route={{params: {petId: 'pet1'}}} fetchImpl={fetchImpl} />);
     });
     await press(tree.root, 'tipo-MEDICACAO');
-    await type(tree.root, 'campo-date', '10/10/2026');
+    await pickDate(tree.root, 'campo-date', '10/10/2026');
     await type(tree.root, 'campo-title', 'Apoquel 5,4 mg');
     await type(tree.root, 'campo-guidance', '1 comprimido por dia');
     await press(tree.root, 'salvar-registro');
@@ -256,7 +264,7 @@ describe('App Parceiros', () => {
     await type(tree.root, 'campo-title', 'Coceira');
     await type(tree.root, 'campo-details', 'Dermatite');
     await type(tree.root, 'campo-weight', '3,8');
-    await type(tree.root, 'campo-returnDate', '29/10/2026');
+    await pickDate(tree.root, 'campo-returnDate', '29/10/2026');
     await press(tree.root, 'salvar-registro');
     const [m, path, body] = mockCtx.api.mock.calls[0];
     expect([m, path]).toEqual(['POST', '/partner/pets/visits/v1/history']);

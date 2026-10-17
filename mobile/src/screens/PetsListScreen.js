@@ -16,6 +16,7 @@ import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {F} from '../theme/home';
+import {calendarDate} from '../utils/dates';
 
 export default function PetsListScreen({navigation, route}) {
   // Na barra inferior (aba Pets) não há para onde voltar
@@ -128,7 +129,7 @@ export default function PetsListScreen({navigation, route}) {
 
   const calculateAge = (birthDate) => {
     if (!birthDate) return null;
-    const birth = new Date(birthDate);
+    const birth = calendarDate(birthDate);
     const today = new Date();
     const years = today.getFullYear() - birth.getFullYear();
     const months = today.getMonth() - birth.getMonth();

@@ -7,6 +7,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {HEALTH_KINDS, dayLabel, parseDateInput, todayInput} from '../utils/health';
 import {F} from '../theme/home';
 import {getPicker} from '../utils/photoPicker';
+import DateField from './DateField';
+import {formatBR, parseBR} from '../utils/dates';
 
 
 const TITLE_HINT = {
@@ -105,7 +107,17 @@ export default function HealthEntryForm({mode = 'TUTOR', initial, color = '#7C3A
         ))}
       </View>
 
-      {field('date', 'Data', {placeholder: 'DD/MM/AAAA', keyboardType: 'numbers-and-punctuation', maxLength: 10})}
+      <DateField
+        label="Data"
+        labelStyle={styles.label}
+        style={{marginTop: 12}}
+        value={parseBR(form.date)}
+        onChange={d => set({date: d ? formatBR(d) : ''})}
+        minDate={new Date(2000, 0, 1)}
+        maxDate={new Date()}
+        accent={color}
+        testID="campo-date"
+      />
       {form.kind !== 'PESO' ? field('title', isVet && form.kind === 'CONSULTA' ? 'Motivo do atendimento' : 'Título', {placeholder: TITLE_HINT[form.kind], maxLength: 100}) : null}
       {field('weight', form.kind === 'PESO' ? 'Peso (kg)' : 'Peso (kg, opcional)', {placeholder: 'Ex.: 12,5', keyboardType: 'decimal-pad', maxLength: 6})}
       {form.kind !== 'PESO'
@@ -118,7 +130,21 @@ export default function HealthEntryForm({mode = 'TUTOR', initial, color = '#7C3A
       {form.kind !== 'PESO' && (isVet || form.kind === 'CONSULTA' || form.kind === 'MEDICACAO')
         ? field('guidance', 'Orientações / tratamento', {placeholder: 'Ex.: 1 comprimido a cada 12 h por 7 dias', multiline: true, maxLength: 2000})
         : null}
-      {form.kind !== 'PESO' ? field('returnDate', 'Retorno (opcional)', {placeholder: 'DD/MM/AAAA', keyboardType: 'numbers-and-punctuation', maxLength: 10}) : null}
+      {form.kind !== 'PESO' ? (
+        <DateField
+          label="Retorno (opcional)"
+          labelStyle={styles.label}
+          style={{marginTop: 12}}
+          value={parseBR(form.returnDate)}
+          onChange={d => set({returnDate: d ? formatBR(d) : ''})}
+          minDate={parseBR(form.date) || new Date()}
+          maxDate={new Date(new Date().getFullYear() + 3, 11, 31)}
+          optional
+          placeholder="Toque para escolher (opcional)"
+          accent={color}
+          testID="campo-returnDate"
+        />
+      ) : null}
       {!isVet && form.kind !== 'PESO' ? field('clinicName', 'Clínica ou laboratório (opcional)', {maxLength: 100}) : null}
 
       {form.kind !== 'PESO' ? (

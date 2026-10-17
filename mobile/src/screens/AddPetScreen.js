@@ -9,60 +9,15 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Modal,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {launchImageLibrary} from 'react-native-image-picker';
-import {Calendar} from 'react-native-calendars';
+import DateField from '../components/DateField';
+import {calendarDate} from '../utils/dates';
 import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {F} from '../theme/home';
-
-const formatDateToPT = (date) => {
-  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
-    return '';
-  }
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-};
-
-const parseDateFromPT = (dateString) => {
-  if (!dateString || !dateString.trim()) {
-    return null;
-  }
-
-  const cleaned = dateString.trim().replace(/[^\d]/g, '');
-
-  if (cleaned.length === 8) {
-    const day = parseInt(cleaned.substring(0, 2), 10);
-    const month = parseInt(cleaned.substring(2, 4), 10) - 1;
-    const year = parseInt(cleaned.substring(4, 8), 10);
-    const date = new Date(year, month, day);
-
-    if (
-      date.getDate() === day &&
-      date.getMonth() === month &&
-      date.getFullYear() === year &&
-      date.getTime() > 0
-    ) {
-      return date;
-    }
-  }
-
-  try {
-    const parsed = new Date(dateString);
-    if (!isNaN(parsed.getTime()) && parsed.getTime() > 0) {
-      return parsed;
-    }
-  } catch (e) {
-    // ignorar
-  }
-
-  return null;
-};
 
 const formatDateForCalendar = (date) => {
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
@@ -74,61 +29,18 @@ const formatDateForCalendar = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const parseDateFromCalendar = (dateString) => {
-  if (!dateString) return null;
-  try {
-    const parts = dateString.split('-');
-    if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const date = new Date(year, month, day);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-  } catch (e) {
-    // ignorar
-  }
-  return null;
-};
-
-const calendarTheme = {
-  calendarBackground: '#FFFFFF',
-  textSectionTitleColor: '#6D28D9',
-  selectedDayBackgroundColor: '#6D28D9',
-  selectedDayTextColor: '#FFFFFF',
-  todayTextColor: '#6D28D9',
-  dayTextColor: '#111827',
-  textDisabledColor: '#D1D5DB',
-  dotColor: '#6D28D9',
-  selectedDotColor: '#FFFFFF',
-  arrowColor: '#6D28D9',
-  monthTextColor: '#111827',
-  textDayFontWeight: '500',
-  textMonthFontWeight: 'bold',
-  textDayHeaderFontWeight: '600',
-  textDayFontSize: 16,
-  textMonthFontSize: 18,
-  textDayHeaderFontSize: 14,
-};
-
 export default function AddPetScreen({navigation, route}) {
   const {pet, onSave} = route.params || {};
   const isEditing = !!pet;
 
   const parsedInitialBirthDate = (() => {
-    if (!pet?.birthDate) return null;
-    const d = new Date(pet.birthDate);
-    return isNaN(d.getTime()) ? null : d;
+    return pet?.birthDate ? calendarDate(pet.birthDate) : null;
   })();
 
   const [name, setName] = useState(pet?.name || '');
   const [species, setSpecies] = useState(pet?.species || '');
   const [breed, setBreed] = useState(pet?.breed || '');
   const [birthDate, setBirthDate] = useState(parsedInitialBirthDate);
-  const [showBirthDateModal, setShowBirthDateModal] = useState(false);
-  const [birthDateInput, setBirthDateInput] = useState('');
   const [gender, setGender] = useState(pet?.gender || '');
   const [color, setColor] = useState(pet?.color || '');
   const [weight, setWeight] = useState(pet?.weight ? String(pet.weight) : '');
@@ -136,44 +48,6 @@ export default function AddPetScreen({navigation, route}) {
   const [notes, setNotes] = useState(pet?.notes || '');
   const [photo, setPhoto] = useState(pet?.photo || null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (showBirthDateModal) {
-      setBirthDateInput(birthDate ? formatDateToPT(birthDate) : '');
-    }
-  }, [showBirthDateModal, birthDate]);
-
-  const handleBirthDateSelect = (day) => {
-    if (day?.dateString) {
-      const selectedDate = parseDateFromCalendar(day.dateString);
-      if (selectedDate) {
-        setBirthDate(selectedDate);
-        setShowBirthDateModal(false);
-      }
-    }
-  };
-
-  const handleBirthDateConfirm = () => {
-    if (!birthDateInput.trim()) {
-      setBirthDate(null);
-      setShowBirthDateModal(false);
-      return;
-    }
-
-    const parsed = parseDateFromPT(birthDateInput);
-    if (parsed) {
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
-      if (parsed > today) {
-        Alert.alert('Data inválida', 'A data de nascimento não pode ser no futuro');
-        return;
-      }
-      setBirthDate(parsed);
-      setShowBirthDateModal(false);
-    } else {
-      Alert.alert('Data inválida', 'Por favor, insira uma data válida no formato DD/MM/AAAA');
-    }
-  };
 
   const handleImagePicker = () => {
     launchImageLibrary(
@@ -351,17 +225,17 @@ export default function AddPetScreen({navigation, route}) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Data de Nascimento</Text>
-            <TouchableOpacity
-              style={styles.input}
-              onPress={() => setShowBirthDateModal(true)}>
-              <Text style={birthDate ? styles.inputText : styles.inputPlaceholder}>
-                {birthDate
-                  ? formatDateToPT(birthDate)
-                  : 'Toque para selecionar a data'}
-              </Text>
-              <Ionicons name="calendar-outline" size={20} color="#6D28D9" />
-            </TouchableOpacity>
+            <DateField
+              label="Data de Nascimento"
+              labelStyle={styles.label}
+              value={birthDate}
+              onChange={setBirthDate}
+              minDate={new Date(1990, 0, 1)}
+              maxDate={new Date()}
+              optional
+              placeholder="Toque para escolher (opcional)"
+              testID="nascimento"
+            />
           </View>
 
           <View style={styles.inputGroup}>
@@ -462,72 +336,6 @@ export default function AddPetScreen({navigation, route}) {
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal
-        visible={showBirthDateModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowBirthDateModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Data de Nascimento</Text>
-            <Text style={styles.modalSubtitle}>Selecione a data no calendário</Text>
-
-            <Calendar
-              onDayPress={handleBirthDateSelect}
-              markedDates={
-                birthDate
-                  ? {
-                      [formatDateForCalendar(birthDate)]: {
-                        selected: true,
-                        selectedColor: '#6D28D9',
-                        selectedTextColor: '#FFFFFF',
-                      },
-                    }
-                  : {}
-              }
-              current={
-                birthDate
-                  ? formatDateForCalendar(birthDate)
-                  : formatDateForCalendar(new Date())
-              }
-              minDate={formatDateForCalendar(new Date(1900, 0, 1))}
-              maxDate={formatDateForCalendar(new Date())}
-              monthFormat="MMMM yyyy"
-              hideArrows={false}
-              firstDay={1}
-              enableSwipeMonths
-              theme={calendarTheme}
-              style={styles.calendar}
-            />
-
-            <View style={styles.modalInputContainer}>
-              <Text style={styles.modalInputLabel}>Ou digite manualmente:</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={birthDateInput}
-                onChangeText={setBirthDateInput}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowBirthDateModal(false)}>
-                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleBirthDateConfirm}>
-                <Text style={styles.modalButtonConfirmText}>Usar Data Digitada</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
