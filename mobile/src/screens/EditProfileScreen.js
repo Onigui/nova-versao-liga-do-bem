@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { logInfo, logError, logDebug } from '../services/RemoteLogger';
 import {F} from '../theme/home';
+import {ensureCameraPermission} from '../utils/photoPicker';
 // Importar image picker - usar require para evitar erro se não estiver instalado
 let launchImageLibrary;
 let launchCamera;
@@ -398,7 +399,8 @@ function EditProfileScreenContent({navigation}) {
     );
   };
 
-  const openCamera = () => {
+  const openCamera = async () => {
+    if (!(await ensureCameraPermission())) return;
     if (!launchCamera) {
       Alert.alert('Erro', 'Biblioteca de seleção de imagem não está instalada. Por favor, instale react-native-image-picker.');
       return;

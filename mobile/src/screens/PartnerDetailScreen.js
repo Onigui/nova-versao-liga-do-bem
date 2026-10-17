@@ -17,7 +17,6 @@ import {partnerBadge} from '../utils/promo';
 import {formatDistance} from '../utils/geo';
 import {brl} from '../utils/priceCompare';
 import {API_BASE_PATH} from '../config/apiConfig';
-import {RatingSummary, ReviewCard} from '../components/Reviews';
 import {memberApi} from '../utils/quotes';
 import {F} from '../theme/home';
 
@@ -27,6 +26,8 @@ const {width} = Dimensions.get('window');
  * Página da empresa no app dos membros. Com `preview` (App Parceiros → "Como os membros veem")
  * os botões de telefone, WhatsApp e mapa ficam inativos.
  */
+const ratingText = n => String(Number(n || 0).toFixed(1)).replace('.', ',');
+
 export default function PartnerDetailScreen({route, navigation, partner: partnerProp, preview: previewProp}) {
   const partner = partnerProp || route?.params?.partner;
   const preview = previewProp || route?.params?.preview;
@@ -37,7 +38,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
   useEffect(() => {
     if (preview || !partnerId || String(partnerId).startsWith('fallback')) return;
     let alive = true;
-    memberApi()('GET', `/partners/${partnerId}/reviews?limit=2`)
+    memberApi()('GET', `/partners/${partnerId}/reviews?limit=1`)
       .then(d => alive && setReviews(d))
       .catch(() => {});
     return () => {
@@ -130,6 +131,29 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
             <Ionicons name="storefront" size={14} color="#6D28D9" />
             <Text style={styles.categoryText}>{partnerData.category}</Text>
           </View>
+          {/* Avaliações: só a média aqui; detalhes numa página separada */}
+          {reviews ? (
+            <TouchableOpacity
+              style={styles.ratingPill}
+              onPress={() => navigation.navigate('PartnerReviews', {partnerId, partnerName: partnerData.name})}
+              testID="avaliacoes"
+              accessibilityLabel={
+                reviews.summary?.count
+                  ? `Nota ${ratingText(reviews.summary.rating)} de 5, ${reviews.summary.count} avaliações. Ver avaliações`
+                  : 'Ver avaliações'
+              }>
+              <Ionicons name={reviews.summary?.count ? 'star' : 'star-outline'} size={14} color="#F59E0B" />
+              {reviews.summary?.count ? (
+                <Text style={styles.ratingText}>
+                  <Text style={styles.ratingValue}>{ratingText(reviews.summary.rating)}</Text>
+                  {` · ${reviews.summary.count} ${reviews.summary.count === 1 ? 'avaliação' : 'avaliações'}`}
+                </Text>
+              ) : (
+                <Text style={styles.ratingText}>{reviews.me?.canReview ? 'Seja o primeiro a avaliar' : 'Sem avaliações ainda'}</Text>
+              )}
+              <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+            </TouchableOpacity>
+          ) : null}
 
           {/* Description */}
           <View style={styles.section}>
@@ -176,34 +200,6 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
                 </TouchableOpacity>
               ) : null}
               <Text style={styles.promoHint}>Preço de membro em destaque. Mostre a carteirinha no caixa.</Text>
-            </View>
-          ) : null}
-
-          {/* Avaliações (só de quem foi atendido) */}
-          {reviews ? (
-            <View style={styles.section} testID="avaliacoes">
-              <Text style={styles.sectionTitle}>Avaliações</Text>
-              <RatingSummary summary={reviews.summary} />
-              {reviews.reviews.map(r => (
-                <ReviewCard
-                  key={r.id}
-                  review={r}
-                  partnerName={partnerData.name}
-                  tagLabels={Object.fromEntries((reviews.tags || []).map(t => [t.id, t.label]))}
-                />
-              ))}
-              <View style={{flexDirection: 'row', gap: 16, marginTop: 10}}>
-                {reviews.summary.count > reviews.reviews.length ? (
-                  <TouchableOpacity onPress={() => navigation.navigate('PartnerReviews', {partnerId, partnerName: partnerData.name})} testID="ver-avaliacoes">
-                    <Text style={styles.priceMore}>Ver todas ({reviews.summary.count})</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {reviews.me?.canReview ? (
-                  <TouchableOpacity onPress={() => navigation.navigate('ReviewForm', {partnerId, partnerName: partnerData.name})} testID="avaliar-empresa">
-                    <Text style={styles.priceMore}>{reviews.me.review ? 'Editar minha avaliação' : '★ Avaliar'}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
             </View>
           ) : null}
 
@@ -445,8 +441,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginBottom: 24,
+    marginBottom: 12,
   },
+  ratingPill: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginBottom: 20,
+  },
+  ratingText: {fontSize: 13, color: '#4B5563', ...F.semibold},
+  ratingValue: {color: '#1F2937', ...F.heavy},
   categoryText: {
     fontSize: 14,
     color: '#6D28D9',
