@@ -6,15 +6,8 @@ import {Alert, Image, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, 
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {HEALTH_KINDS, dayLabel, parseDateInput, todayInput} from '../utils/health';
 import {F} from '../theme/home';
+import {getPicker} from '../utils/photoPicker';
 
-function getPicker(kind) {
-  try {
-    const m = require('react-native-image-picker');
-    return kind === 'camera' ? m.launchCamera : m.launchImageLibrary;
-  } catch {
-    return null;
-  }
-}
 
 const TITLE_HINT = {
   CONSULTA: 'Motivo da consulta (ex.: coceira, check-up)',

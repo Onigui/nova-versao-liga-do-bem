@@ -9,7 +9,7 @@ import {RatingSummary, ReviewCard} from '../components/Reviews';
 import {memberApi} from '../utils/quotes';
 import {F} from '../theme/home';
 
-const PURPLE = '#7C3AED';
+const PURPLE = '#6D28D9';
 
 export default function PartnerReviewsScreen({navigation, route, fetchImpl = fetch}) {
   const api = useMemo(() => memberApi(fetchImpl), [fetchImpl]);
@@ -32,7 +32,7 @@ export default function PartnerReviewsScreen({navigation, route, fetchImpl = fet
 
   return (
     <FlatList
-      style={{flex: 1, backgroundColor: '#F9FAFB'}}
+      style={{flex: 1, backgroundColor: '#F6F5FB'}}
       contentContainerStyle={{padding: 16, paddingBottom: 40}}
       data={data.reviews}
       keyExtractor={r => r.id}

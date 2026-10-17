@@ -11,15 +11,8 @@ import {useAuth} from '../services/AuthService';
 import {memberApi} from '../utils/quotes';
 import {LF_SEX, LF_SIZES, LF_SPECIES, LF_TYPES, LF_WITH, buildReportBody, formatPhone, nowInput} from '../utils/lostfound';
 import {F} from '../theme/home';
+import {getPicker} from '../utils/photoPicker';
 
-function getPicker(kind) {
-  try {
-    const m = require('react-native-image-picker');
-    return kind === 'camera' ? m.launchCamera : m.launchImageLibrary;
-  } catch {
-    return null;
-  }
-}
 
 function useAuthSafe() {
   try {

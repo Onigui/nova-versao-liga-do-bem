@@ -8,18 +8,11 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import QuoteListBuilder from '../components/QuoteListBuilder';
 import {QUOTE_DEADLINES, buildItems, memberApi} from '../utils/quotes';
 import {F} from '../theme/home';
+import {getPicker} from '../utils/photoPicker';
 
 const PURPLE = '#6D28D9';
 const SPECIES_ID = s => (/gat/i.test(s || '') ? 'CAT' : /c[aã]o|cachorr/i.test(s || '') ? 'DOG' : null);
 
-function getPicker(kind) {
-  try {
-    const m = require('react-native-image-picker');
-    return kind === 'camera' ? m.launchCamera : m.launchImageLibrary;
-  } catch {
-    return null;
-  }
-}
 
 export default function QuoteNewScreen({navigation, route, fetchImpl = fetch}) {
   const api = useMemo(() => memberApi(fetchImpl), [fetchImpl]);

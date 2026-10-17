@@ -3,13 +3,14 @@
  * Às cegas: você não vê as propostas das outras lojas, e elas não veem a sua.
  * Depois de enviada, a proposta não pode ser alterada (só retirada, se o membro ainda não reservou).
  */
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {API_BASE_PATH} from '../../config/apiConfig';
 import {COLORS, usePartner} from '../PartnerContext';
 import {Badge, Button, Card, Field, styles as ui} from '../ui';
 import {brl} from '../../utils/priceCompare';
+import ZoomImageModal from '../../components/ZoomImageModal';
 import {RESPONSE_VALID_HOURS, buildResponseBody, moneyInput, responseTotal, timeLeft, validLabel} from '../../utils/quotes';
 
 function Chip({label, active, onPress, testID}) {
@@ -42,6 +43,8 @@ export default function QuoteRespondScreen({route, navigation}) {
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [showRx, setShowRx] = useState(false);
+  const [zoomRx, setZoomRx] = useState(false);
+  const rxHeaders = useMemo(() => ({Authorization: `Bearer ${token}`}), [token]);
 
   const load = useCallback(async () => {
     try {
@@ -147,12 +150,24 @@ export default function QuoteRespondScreen({route, navigation}) {
           <View style={{marginTop: 10}}>
             <Button title={showRx ? 'Esconder receita' : 'Ver receita'} variant="secondary" onPress={() => setShowRx(v => !v)} testID="ver-receita" />
             {showRx ? (
-              <Image
-                source={{uri: `${API_BASE_PATH}/partner/quotes/${requestId}/prescription`, headers: {Authorization: `Bearer ${token}`}}}
-                style={{width: '100%', height: 360, marginTop: 10, borderRadius: 10, backgroundColor: '#F1F5F9'}}
-                resizeMode="contain"
-              />
+              <Pressable onPress={() => setZoomRx(true)} testID="receita-ampliar" accessibilityLabel="Ampliar receita">
+                <Image
+                  source={{uri: `${API_BASE_PATH}/partner/quotes/${requestId}/prescription`, headers: {Authorization: `Bearer ${token}`}}}
+                  style={{width: '100%', height: 360, marginTop: 10, borderRadius: 10, backgroundColor: '#F1F5F9'}}
+                  resizeMode="contain"
+                />
+                <View style={{position: 'absolute', right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(15,23,42,0.75)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6}}>
+                  <Icon name="expand" size={14} color="#FFFFFF" />
+                  <Text style={{color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginLeft: 6}}>Toque para ampliar</Text>
+                </View>
+              </Pressable>
             ) : null}
+            <ZoomImageModal
+              visible={zoomRx}
+              onClose={() => setZoomRx(false)}
+              uri={`${API_BASE_PATH}/partner/quotes/${requestId}/prescription`}
+              headers={rxHeaders}
+            />
           </View>
         ) : null}
       </Card>
