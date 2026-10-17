@@ -103,6 +103,9 @@ async function sharedBlocks(db: any) {
   return data;
 }
 
+/** Balão do atalho "Achados e perdidos" no Início: avisos ativos a até 1 km de onde o celular está. */
+export const LOST_BADGE_KM = 1;
+
 export async function buildHome(db: any, userId: string | null, where: { lat: number; lng: number } | null, now = Date.now()) {
   const out: any = { user: null, membership: null, counters: {}, forYou: [], pets: [], promos: [], nextEvent: null, adoption: null, plan: null };
   const S = await sharedBlocks(db);
@@ -209,15 +212,15 @@ export async function buildHome(db: any, userId: string | null, where: { lat: nu
       : null,
     where && has('lf_reports')
       ? safe(async () => {
-          // caixa de ~5 km no próprio banco; o círculo exato é conferido aqui
-          const d = 5 / 111;
+          // caixa de ~1 km no próprio banco; o círculo exato é conferido aqui
+          const d = LOST_BADGE_KM / 111;
           const r: any[] = await db.$queryRawUnsafe(
             `SELECT "publicLat" AS lat, "publicLng" AS lng FROM lf_reports
               WHERE status = 'ACTIVE' AND hidden = false AND "expiresAt" > NOW() AND "createdAt" > NOW() - INTERVAL '30 days'
                 AND "publicLat" BETWEEN $1 AND $2 AND "publicLng" BETWEEN $3 AND $4`,
             where.lat - d, where.lat + d, where.lng - d * 1.2, where.lng + d * 1.2,
           );
-          return r.filter((x) => km(where.lat, where.lng, Number(x.lat), Number(x.lng)) <= 5).length;
+          return r.filter((x) => km(where.lat, where.lng, Number(x.lat), Number(x.lng)) <= LOST_BADGE_KM).length;
         }, 0)
       : undefined,
   ]);
