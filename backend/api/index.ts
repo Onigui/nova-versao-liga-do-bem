@@ -311,6 +311,21 @@ export default function handler(req: any, res: any) {
   return dbStatsStore.run({ q: 0, ms: 0 }, () => handleRequest(req, res));
 }
 
+/** Texto do pedido de adoção para o admin: contato informado, data/período sugeridos e mensagem. */
+export function adoptionNotes(f: { name?: any; email?: any; phone?: any; message?: any; visitDate?: any; period?: any }) {
+  const digits = String(f.phone || '').replace(/\D/g, '');
+  const phone = digits.length === 11 ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+    : digits.length === 10 ? `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}` : digits;
+  const lines = ['Quer conhecer o animal para adotar.'];
+  const contact = [f.name, phone, f.email].map((x) => String(x || '').trim()).filter(Boolean).join(' · ');
+  if (contact) lines.push(`Contato: ${contact}`);
+  const when = [f.visitDate ? `dia ${String(f.visitDate).trim()}` : '', f.period ? `período da ${String(f.period).trim().toLowerCase()}` : '']
+    .filter(Boolean).join(', ');
+  if (when) lines.push(`Visita sugerida: ${when}`);
+  if (f.message && String(f.message).trim()) lines.push(`Mensagem: ${String(f.message).trim().slice(0, 1000)}`);
+  return lines.join('\n');
+}
+
 let deadTokenHandlerSet = false;
 /** Aparelho desinstalou o app / token inválido: o Firebase avisa e o token é desativado. */
 function registerDeadTokenHandler() {
@@ -3131,13 +3146,23 @@ async function handleRequest(req: any, res: any) {
         return res.status(503).json({ error: 'Database not configured' });
       }
       try {
-        const { animalId, userId, name, email, phone, message, visitDate } = body;
-        if (!animalId || (!userId && (!name || !email))) {
+        const { animalId, name, email, phone, message, visitDate, period } = body || {};
+        // Logado: o pedido é sempre da conta do token (não confia em userId vindo do app)
+        let authUserId: string | null = null;
+        try { authUserId = decodeAuthUser(req)?.userId || null; } catch { authUserId = null; }
+        if (!animalId || (!authUserId && (!name || !email))) {
           return res.status(400).json({ error: 'ID do animal e dados de contato são obrigatórios' });
         }
-        // Se userId não foi fornecido, criar ou buscar usuário pelo email
-        let finalUserId = userId;
-        if (!userId && email) {
+        let finalUserId: string | null = authUserId;
+        if (authUserId && phone) {
+          // Conta sem telefone: guarda o que o membro informou agora
+          await db.$executeRawUnsafe(
+            `UPDATE users SET phone = $2, "updatedAt" = NOW() WHERE id = $1 AND (phone IS NULL OR phone = '')`,
+            authUserId,
+            String(phone).replace(/\D/g, '').slice(0, 11),
+          ).catch(() => {});
+        }
+        if (!finalUserId && email) {
           let user = await db.user.findUnique({ 
             where: { email },
             select: {
@@ -3172,7 +3197,7 @@ async function handleRequest(req: any, res: any) {
             animalId,
             userId: finalUserId,
             status: 'PENDING',
-            notes: message || `Interesse em visitar. ${visitDate ? `Data sugerida: ${visitDate}` : ''}`
+            notes: adoptionNotes({ name, email, phone, message, visitDate, period })
           }
         });
         return res.status(201).json({ 

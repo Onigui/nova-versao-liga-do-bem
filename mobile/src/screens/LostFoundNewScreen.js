@@ -9,7 +9,8 @@ import {MapFullscreen, MapPreview} from '../components/MapSheet';
 import useUserLocation from '../services/useUserLocation';
 import {useAuth} from '../services/AuthService';
 import {memberApi} from '../utils/quotes';
-import {LF_SEX, LF_SIZES, LF_SPECIES, LF_TYPES, LF_WITH, buildReportBody, formatPhone, nowInput} from '../utils/lostfound';
+import {LF_SEX, LF_SIZES, LF_SPECIES, LF_TYPES, LF_WITH, buildReportBody, formatPhone, nowInput, parseDateTime} from '../utils/lostfound';
+import DateField from '../components/DateField';
 import {F} from '../theme/home';
 import {getPicker} from '../utils/photoPicker';
 
@@ -276,7 +277,18 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
       />
       {field('locationNote', 'Ponto de referência', {maxLength: 120, placeholder: 'Ex.: em frente à padaria, esquina com a Rua X'})}
       {field('district', 'Bairro', {maxLength: 60})}
-      {field('when', type === 'LOST' ? 'Quando sumiu' : 'Quando você viu', {placeholder: 'DD/MM/AAAA HH:MM', keyboardType: 'numbers-and-punctuation', maxLength: 16})}
+      <DateField
+        label={type === 'LOST' ? 'Quando sumiu' : 'Quando você viu'}
+        labelStyle={styles.label}
+        style={{marginTop: 12}}
+        mode="datetime"
+        value={parseDateTime(form.when)}
+        onChange={d => d && set({when: nowInput(d)})}
+        minDate={new Date(Date.now() - 365 * 864e5)}
+        maxDate={new Date()}
+        accent={t.color}
+        testID="campo-when"
+      />
 
       <Text style={styles.section}>Contato</Text>
       <View style={styles.switchRow}>

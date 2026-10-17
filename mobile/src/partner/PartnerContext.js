@@ -117,6 +117,9 @@ export function usePartner() {
 /** dd/mm/aaaa ⇄ Date */
 export function formatDateBR(value) {
   if (!value) return '';
+  // Data só de calendário (nascimento, vacina): o dia que está escrito, sem converter fuso
+  const day = String(value).match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00(?::00(?:\.0+)?)?Z?)?$/);
+  if (day) return `${day[3]}/${day[2]}/${day[1]}`;
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('pt-BR', {timeZone: 'America/Sao_Paulo'});

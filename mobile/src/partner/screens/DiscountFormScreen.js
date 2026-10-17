@@ -8,12 +8,13 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {
   COLORS,
   formatDateBR,
-  maskDate,
   parseDateBR,
   usePartner,
 } from '../PartnerContext';
 import {Button, Card, Field, styles as ui} from '../ui';
 import PromoCard from '../../components/PromoCard';
+import DateField from '../../components/DateField';
+import {formatBR, parseBR} from '../../utils/dates';
 import PartnerListCard from '../../components/PartnerListCard';
 import {BENEFIT_TEXT_MAX, PROMO_KINDS, describePromo, promoKind} from '../../utils/promo';
 
@@ -281,21 +282,35 @@ export default function DiscountFormScreen({route, navigation}) {
           maxLength={1000}
         />
         <View style={{flexDirection: 'row', gap: 10}}>
-          <Field
-            style={{flex: 1}}
+          <DateField
+            style={[ui.field, {flex: 1}]}
+            labelStyle={ui.label}
+            fieldStyle={{borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 10, minHeight: 46}}
+            textStyle={{fontSize: 15}}
             label="Início"
-            placeholder="hoje"
-            keyboardType="number-pad"
-            value={form.validFrom}
-            onChangeText={v => set({validFrom: maskDate(v)})}
+            placeholder="Hoje"
+            value={parseBR(form.validFrom)}
+            onChange={d => set({validFrom: d ? formatBR(d) : ''})}
+            minDate={new Date(new Date().getFullYear() - 1, 0, 1)}
+            maxDate={new Date(new Date().getFullYear() + 2, 11, 31)}
+            optional
+            accent={COLORS.primary}
+            testID="promo-inicio"
           />
-          <Field
-            style={{flex: 1}}
+          <DateField
+            style={[ui.field, {flex: 1}]}
+            labelStyle={ui.label}
+            fieldStyle={{borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 10, minHeight: 46}}
+            textStyle={{fontSize: 15}}
             label="Fim (opcional)"
-            placeholder="dd/mm/aaaa"
-            keyboardType="number-pad"
-            value={form.validUntil}
-            onChangeText={v => set({validUntil: maskDate(v)})}
+            placeholder="Sem fim"
+            value={parseBR(form.validUntil)}
+            onChange={d => set({validUntil: d ? formatBR(d) : ''})}
+            minDate={parseBR(form.validFrom) || new Date()}
+            maxDate={new Date(new Date().getFullYear() + 2, 11, 31)}
+            optional
+            accent={COLORS.primary}
+            testID="promo-fim"
           />
         </View>
         <View style={[ui.row, {justifyContent: 'space-between', marginBottom: 4}]}>

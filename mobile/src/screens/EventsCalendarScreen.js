@@ -12,6 +12,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import {F} from '../theme/home';
+import {eventDate} from '../utils/dates';
 
 export default function EventsCalendarScreen({navigation}) {
   const {isAuthenticated} = useAuth();
@@ -166,8 +167,8 @@ export default function EventsCalendarScreen({navigation}) {
 
         {events
           .filter(event => {
-            const eventDate = new Date(event.date);
-            const eventMonth = eventDate.getMonth();
+            const day = eventDate(event.date);
+            const eventMonth = day ? day.getMonth() : -1;
             return eventMonth === selectedMonth;
           })
           .map(event => {
@@ -181,10 +182,10 @@ export default function EventsCalendarScreen({navigation}) {
               onPress={() => navigation.navigate('EventDetail', {event})}>
               <View style={styles.eventDate}>
                 <Text style={styles.eventDay}>
-                  {event.day || new Date(event.date).getDate()}
+                  {event.day || eventDate(event.date).getDate()}
                 </Text>
                 <Text style={styles.eventMonth}>
-                  {event.monthAbbr || months[new Date(event.date).getMonth()].substring(0, 3).toUpperCase()}
+                  {event.monthAbbr || months[eventDate(event.date).getMonth()].substring(0, 3).toUpperCase()}
                 </Text>
               </View>
 

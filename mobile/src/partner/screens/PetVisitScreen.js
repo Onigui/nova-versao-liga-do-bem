@@ -11,10 +11,11 @@ import {categoryLabel} from '../../utils/vaccineCatalog';
 import {useFocusEffect} from '@react-navigation/native';
 import HealthTimeline from '../../components/HealthTimeline';
 import {kg} from '../../utils/health';
+import {calendarDate} from '../../utils/dates';
 
 export function petAge(birthDate, now = Date.now()) {
   if (!birthDate) return null;
-  const m = Math.floor((now - new Date(birthDate).getTime()) / (30.44 * 864e5));
+  const m = Math.floor((now - calendarDate(birthDate).getTime()) / (30.44 * 864e5));
   if (m < 0) return null;
   if (m < 12) return `${m} ${m === 1 ? 'mês' : 'meses'}`;
   const y = Math.floor(m / 12);

@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAuth} from '../services/AuthService';
 import {API_BASE_PATH} from '../config/apiConfig';
 import {F} from '../theme/home';
+import {eventDate, formatBR} from '../utils/dates';
 
 const ROLES = [
   'Cuidador de animais',
@@ -347,7 +348,7 @@ export default function VolunteerScreen({navigation}) {
                       color="#6B7280"
                     />
                     <Text style={styles.eventMetaText}>
-                      {new Date(event.date).toLocaleDateString('pt-BR')}
+                      {formatBR(eventDate(event.date))}
                     </Text>
                     <Ionicons name="time-outline" size={14} color="#6B7280" />
                     <Text style={styles.eventMetaText}>{event.hours}h</Text>

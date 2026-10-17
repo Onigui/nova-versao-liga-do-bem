@@ -15,9 +15,45 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_PATH } from '../config/apiConfig';
+import {useAuth} from '../services/AuthService';
+import DateField from '../components/DateField';
 import {F} from '../theme/home';
+import {formatBR} from '../utils/dates';
+import {formatPhone} from '../utils/lostfound';
 
 const {width} = Dimensions.get('window');
+
+const EMPTY_FORM = {name: '', email: '', phone: '', message: '', visitDate: null, period: ''};
+export const VISIT_PERIODS = ['Manhã', 'Tarde', 'Noite'];
+
+function useAuthSafe() {
+  try {
+    return useAuth() || {};
+  } catch {
+    return {};
+  }
+}
+
+/** Monta o pedido de adoção (dados da conta + o que o membro completou). */
+export function buildAdoptionRequest(form, animalId) {
+  const name = String(form.name || '').trim();
+  const email = String(form.email || '').trim().toLowerCase();
+  const phone = String(form.phone || '').replace(/\D/g, '');
+  if (name.length < 3) return {error: 'Informe seu nome completo.'};
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return {error: 'Informe um e-mail válido.'};
+  if (phone.length < 10) return {error: 'Informe um telefone com DDD para o voluntário falar com você.'};
+  return {
+    body: {
+      animalId,
+      name,
+      email,
+      phone,
+      visitDate: form.visitDate ? formatBR(form.visitDate) : null,
+      period: form.period || null,
+      message: String(form.message || '').trim() || null,
+    },
+  };
+}
 
 export default function AnimalDetailScreen({route, navigation}) {
   const initialAnimal = route.params?.animal || null;
@@ -25,6 +61,11 @@ export default function AnimalDetailScreen({route, navigation}) {
   const [animal, setAnimal] = useState(initialAnimal);
   const [isFavorite, setIsFavorite] = useState(false);
   const [loadingAnimal, setLoadingAnimal] = useState(!initialAnimal && !!animalId);
+  const {user} = useAuthSafe();
+  const [showVisitModal, setShowVisitModal] = useState(false);
+  const [editContact, setEditContact] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [visitForm, setVisitForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
     const loadAnimal = async () => {
@@ -59,71 +100,51 @@ export default function AnimalDetailScreen({route, navigation}) {
     return null;
   }
 
-  const [showVisitModal, setShowVisitModal] = useState(false);
-  const [visitForm, setVisitForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    message: '',
-    visitDate: '',
-  });
-
   const handleAdopt = () => {
+    // Já vem com os dados da conta; o membro só confere e completa
+    setVisitForm(f => ({
+      ...f,
+      name: f.name || user?.name || '',
+      email: f.email || user?.email || '',
+      phone: f.phone || formatPhone(user?.phone || ''),
+    }));
+    setEditContact(!(user?.name && user?.email && user?.phone));
     setShowVisitModal(true);
   };
 
   const handleSubmitVisit = async () => {
+    const built = buildAdoptionRequest(visitForm, animalData.id);
+    if (built.error) {
+      setEditContact(true);
+      Alert.alert('Confira seus dados', built.error);
+      return;
+    }
+    setSending(true);
     try {
-      if (!visitForm.name || !visitForm.email) {
-        Alert.alert('Erro', 'Nome e email são obrigatórios');
-        return;
-      }
-
-      // Buscar token e dados do usuário logado (se houver)
       const token = await AsyncStorage.getItem('auth_token');
-      const userData = await AsyncStorage.getItem('user_data');
-      const user = userData ? JSON.parse(userData) : null;
-      const userId = user?.id || null;
-
       const response = await fetch(`${API_BASE_PATH}/adoptions/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` }),
+          ...(token && {Authorization: `Bearer ${token}`}),
         },
-        body: JSON.stringify({
-          animalId: animalData.id,
-          userId: userId,
-          name: visitForm.name,
-          email: visitForm.email,
-          phone: visitForm.phone || null,
-          message: visitForm.message || null,
-          visitDate: visitForm.visitDate || null,
-        }),
+        body: JSON.stringify(built.body),
       });
-
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
+        setShowVisitModal(false);
+        setVisitForm(f => ({...EMPTY_FORM, name: f.name, email: f.email, phone: f.phone}));
         Alert.alert(
-          'Sucesso!',
-          data.message || 'Solicitação de visita registrada com sucesso! Um voluntário entrará em contato em breve.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setShowVisitModal(false);
-                setVisitForm({ name: '', email: '', phone: '', message: '', visitDate: '' });
-              },
-            },
-          ],
+          'Pedido enviado! 🐾',
+          data.message || 'Um voluntário da Liga vai entrar em contato para combinar a visita.',
         );
       } else {
         Alert.alert('Erro', data.error || 'Erro ao registrar solicitação');
       }
     } catch (error) {
-      console.error('Erro ao registrar visita:', error);
-      Alert.alert('Erro', 'Erro ao registrar solicitação. Tente novamente.');
+      Alert.alert('Erro', 'Sem conexão. Tente novamente.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -273,7 +294,7 @@ export default function AnimalDetailScreen({route, navigation}) {
               <Ionicons name="information-circle" size={20} color="#6D28D9" />
               <Text style={styles.rescueInfoText}>
                 Resgatado em{' '}
-                {new Date(animalData.rescueDate).toLocaleDateString('pt-BR')}
+                {formatBR(animalData.rescueDate)}
               </Text>
             </View>
           )}
@@ -308,62 +329,115 @@ export default function AnimalDetailScreen({route, navigation}) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Agendar Visita</Text>
+              <Text style={styles.modalTitle}>Quero adotar {animalData.name}</Text>
               <TouchableOpacity onPress={() => setShowVisitModal(false)}>
                 <Ionicons name="close" size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
               <Text style={styles.modalSubtitle}>
-                Preencha os dados abaixo para agendar uma visita e conhecer {animalData.name}!
+                Já preenchemos com os dados da sua conta. Confira e complete o que falta para conhecer {animalData.name}!
               </Text>
+
+              <View style={styles.contactCard} testID="adocao-meus-dados">
+                <View style={styles.contactHead}>
+                  <Text style={styles.contactTitle}>Seus dados</Text>
+                  {!editContact ? (
+                    <TouchableOpacity onPress={() => setEditContact(true)} testID="adocao-editar-dados">
+                      <Text style={styles.contactEdit}>Editar</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                {editContact ? (
+                  <>
+                    <View style={styles.formGroup}>
+                      <Text style={styles.formLabel}>Nome completo *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="Seu nome"
+                        value={visitForm.name}
+                        onChangeText={text => setVisitForm({...visitForm, name: text})}
+                        testID="adocao-nome"
+                      />
+                    </View>
+                    <View style={styles.formGroup}>
+                      <Text style={styles.formLabel}>E-mail *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="seu@email.com"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={visitForm.email}
+                        onChangeText={text => setVisitForm({...visitForm, email: text})}
+                        testID="adocao-email"
+                      />
+                    </View>
+                    <View style={[styles.formGroup, {marginBottom: 0}]}>
+                      <Text style={styles.formLabel}>Telefone / WhatsApp *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="(14) 99999-9999"
+                        keyboardType="phone-pad"
+                        value={visitForm.phone}
+                        onChangeText={text => setVisitForm({...visitForm, phone: formatPhone(text)})}
+                        testID="adocao-telefone"
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.contactLine}>
+                      <Ionicons name="person-outline" size={14} color="#6B7280" /> {visitForm.name}
+                    </Text>
+                    <Text style={styles.contactLine}>
+                      <Ionicons name="mail-outline" size={14} color="#6B7280" /> {visitForm.email}
+                    </Text>
+                    <Text style={styles.contactLine}>
+                      <Ionicons name="call-outline" size={14} color="#6B7280" /> {visitForm.phone}
+                    </Text>
+                  </>
+                )}
+              </View>
+
+              <Text style={styles.stepTitle}>Falta só isso</Text>
+              <DateField
+                label="Melhor dia para a visita"
+                labelStyle={styles.formLabel}
+                style={styles.formGroup}
+                value={visitForm.visitDate}
+                onChange={d => setVisitForm({...visitForm, visitDate: d})}
+                minDate={new Date()}
+                maxDate={new Date(Date.now() + 90 * 864e5)}
+                optional
+                placeholder="Toque para escolher (opcional)"
+                testID="adocao-data"
+              />
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nome Completo *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Seu nome"
-                  value={visitForm.name}
-                  onChangeText={(text) => setVisitForm({...visitForm, name: text})}
-                />
+                <Text style={styles.formLabel}>Melhor período</Text>
+                <View style={{flexDirection: 'row', gap: 8}}>
+                  {VISIT_PERIODS.map(p => {
+                    const on = visitForm.period === p;
+                    return (
+                      <TouchableOpacity
+                        key={p}
+                        onPress={() => setVisitForm({...visitForm, period: on ? '' : p})}
+                        style={[styles.periodChip, on && styles.periodChipOn]}
+                        testID={`adocao-periodo-${p}`}>
+                        <Text style={[styles.periodText, on && {color: '#FFFFFF'}]}>{p}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Email *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="seu@email.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={visitForm.email}
-                  onChangeText={(text) => setVisitForm({...visitForm, email: text})}
-                />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Telefone</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="(14) 99999-9999"
-                  keyboardType="phone-pad"
-                  value={visitForm.phone}
-                  onChangeText={(text) => setVisitForm({...visitForm, phone: text})}
-                />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Data Sugerida para Visita</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="DD/MM/AAAA"
-                  value={visitForm.visitDate}
-                  onChangeText={(text) => setVisitForm({...visitForm, visitDate: text})}
-                />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Mensagem (opcional)</Text>
+                <Text style={styles.formLabel}>Conte um pouco sobre você (opcional)</Text>
                 <TextInput
                   style={[styles.formInput, {height: 100, textAlignVertical: 'top'}]}
-                  placeholder="Conte-nos um pouco sobre você e sua família..."
+                  placeholder="Ex.: moro em casa com quintal, já tenho um gato, trabalho de casa…"
                   multiline
                   value={visitForm.message}
-                  onChangeText={(text) => setVisitForm({...visitForm, message: text})}
+                  onChangeText={text => setVisitForm({...visitForm, message: text})}
+                  testID="adocao-mensagem"
                 />
               </View>
             </ScrollView>
@@ -374,9 +448,11 @@ export default function AnimalDetailScreen({route, navigation}) {
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalSubmitButton}
-                onPress={handleSubmitVisit}>
-                <Text style={styles.modalSubmitText}>Enviar Solicitação</Text>
+                style={[styles.modalSubmitButton, sending && {opacity: 0.6}]}
+                disabled={sending}
+                onPress={handleSubmitVisit}
+                testID="adocao-enviar">
+                <Text style={styles.modalSubmitText}>{sending ? 'Enviando…' : 'Confirmar pedido'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -581,7 +657,7 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
-    maxHeight: 400,
+    maxHeight: 520,
   },
   modalSubtitle: {
     ...F.regular,
@@ -593,6 +669,15 @@ const styles = StyleSheet.create({
   formGroup: {
     marginBottom: 16,
   },
+  contactCard: {backgroundColor: '#F5F3FF', borderRadius: 14, padding: 14, marginBottom: 18},
+  contactHead: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6},
+  contactTitle: {fontSize: 13, ...F.heavy, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: 0.4},
+  contactEdit: {fontSize: 14, ...F.bold, color: '#6D28D9'},
+  contactLine: {fontSize: 15, ...F.regular, color: '#1F2937', marginTop: 4},
+  stepTitle: {fontSize: 16, ...F.bold, color: '#1F2937', marginBottom: 10},
+  periodChip: {flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF'},
+  periodChipOn: {backgroundColor: '#6D28D9', borderColor: '#6D28D9'},
+  periodText: {fontSize: 14, ...F.semibold, color: '#374151'},
   formLabel: {
     fontSize: 14,
     ...F.semibold,

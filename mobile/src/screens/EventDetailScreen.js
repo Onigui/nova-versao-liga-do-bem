@@ -16,6 +16,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_PATH } from '../config/apiConfig';
 import {F} from '../theme/home';
+import {eventDate, formatLong} from '../utils/dates';
 
 const {width} = Dimensions.get('window');
 
@@ -224,11 +225,7 @@ export default function EventDetailScreen({route, navigation}) {
               <View style={styles.infoText}>
                 <Text style={styles.infoLabel}>Data</Text>
                 <Text style={styles.infoValue}>
-                  {new Date(eventData.date).toLocaleDateString('pt-BR', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })}
+                  {formatLong(eventDate(eventData.date))}
                 </Text>
               </View>
             </View>
