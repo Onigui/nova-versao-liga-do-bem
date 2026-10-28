@@ -11,6 +11,7 @@ import React, {
 } from 'react';
 import {API_BASE_PATH} from '../config/apiConfig';
 import {useAuth} from '../services/AuthService';
+import {refreshSession} from '../services/session';
 
 const PartnerContext = createContext(null);
 
@@ -78,8 +79,9 @@ export function PartnerProvider({children}) {
       return data;
     } catch (e) {
       if (e.status === 401) {
-        // Sessão expirada: volta para o login
-        logout();
+        // Token vencido: tenta renovar (o balcão fica logado por semanas); se não der, volta ao login
+        const r = await refreshSession();
+        if (!r.ok) logout();
         return null;
       }
       setState(s => ({...s, loading: false, error: e}));

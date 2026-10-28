@@ -19,6 +19,7 @@ import {API_BASE_PATH} from '../config/apiConfig';
 import useCardCode from '../services/useCardCode';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 import {F} from '../theme/home';
+import {reportUnauthorized} from '../services/session';
 
 const STATUS_LABELS = {
   ACTIVE: 'ATIVO',
@@ -114,6 +115,11 @@ export default function MembershipCardScreen({navigation}) {
 
       const data = await response.json().catch(() => ({}));
 
+      if (response.status === 401) {
+        // Sessão vencida: renova em segundo plano (ou leva ao login) e mantém o cartão salvo na tela
+        reportUnauthorized();
+        return;
+      }
       if (!response.ok) {
         const message =
           data.error || 'Não foi possível carregar o cartão de membro';
@@ -301,10 +307,20 @@ export default function MembershipCardScreen({navigation}) {
                 />
               ) : isActiveMember && cardCode.source === 'loading' ? (
                 <ActivityIndicator size="large" color="#6D28D9" />
-              ) : isActiveMember && cardCode.source === 'offline' ? (
+              ) : isActiveMember && cardCode.source === 'session' ? (
+                <View style={styles.qrBlocked} testID="qr-sessao">
+                  <ActivityIndicator size="small" color="#6D28D9" />
+                  <Text style={styles.qrPlaceholder}>Atualizando seu acesso…</Text>
+                </View>
+              ) : isActiveMember && cardCode.source === 'none' ? (
                 <View style={styles.qrBlocked}>
+                  <Ionicons name="alert-circle-outline" size={36} color="#9CA3AF" />
+                  <Text style={styles.qrPlaceholder}>Carteirinha não encontrada nesta conta. Fale com a Liga do Bem.</Text>
+                </View>
+              ) : isActiveMember && cardCode.source === 'offline' ? (
+                <View style={styles.qrBlocked} testID="qr-offline">
                   <Ionicons name="cloud-offline-outline" size={36} color="#9CA3AF" />
-                  <Text style={styles.qrPlaceholder}>Conecte-se à internet para gerar o QR</Text>
+                  <Text style={styles.qrPlaceholder}>Não deu para gerar o QR agora. Confira a internet — tentamos de novo sozinhos.</Text>
                 </View>
               ) : (
                 <View style={styles.qrBlocked}>

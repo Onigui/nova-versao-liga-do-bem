@@ -30,6 +30,14 @@ export function memberApi(fetchImpl = fetch) {
       throw err;
     }
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && token) {
+      // Sessão vencida: renova (ou leva ao login) — require tardio para não puxar módulos nativos
+      try {
+        require('../services/session').reportUnauthorized();
+      } catch {
+        /* sem sessão */
+      }
+    }
     if (!res.ok) {
       const err = new Error(data.error || `Erro ${res.status}`);
       err.status = res.status;
