@@ -13,6 +13,7 @@ import {memberApi} from '../utils/quotes';
 import {toMemberPartner} from '../utils/partnerView';
 import navigateTo from '../navigation/navigateTo';
 import {NOTIFICATION_EVENT} from '../services/notificationEvents';
+import {SESSION_EVENT, reportUnauthorized} from '../services/session';
 import {C, F, HOME_SHORTCUTS, MONTHS_ABBR, dateBR, findService, greeting, money, planName} from '../theme/home';
 
 function useAuthSafe() {
@@ -81,6 +82,13 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
     try {
       const qs = here ? `?lat=${here.lat.toFixed(4)}&lng=${here.lng.toFixed(4)}` : '';
       const fresh = await api('GET', `/home${qs}`);
+      if (user && !fresh?.user) {
+        // Logado no app, mas o servidor não reconheceu a sessão (token vencido): renova e,
+        // enquanto isso, mantém a última tela boa — nada de mostrar "Quero ser membro" a quem já é.
+        reportUnauthorized(fetchImpl);
+        setData(d => (d?.user ? d : {...fresh, membership: null}));
+        return;
+      }
       setData(fresh);
       try {
         const AsyncStorage = require('@react-native-async-storage/async-storage').default;
@@ -99,16 +107,22 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
     }, [load]),
   );
 
-  // Chegou aviso com o app aberto: atualiza o sininho
+  // Chegou aviso com o app aberto: atualiza o sininho. Sessão renovada: recarrega.
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener(NOTIFICATION_EVENT, load);
-    return () => sub.remove();
+    const ses = DeviceEventEmitter.addListener(SESSION_EVENT, ev => ev?.type === 'refreshed' && load());
+    return () => {
+      sub.remove();
+      ses.remove();
+    };
   }, [load]);
 
   const go = (screen, params) => navigateTo(navigation, screen, params);
   const firstName = data?.user?.firstName || String(user?.name || '').split(' ')[0] || 'tudo bem?';
   const m = data?.membership;
   const active = !!m?.active;
+  // Logado mas ainda sem a situação da carteirinha (sem internet ou sessão sendo renovada)
+  const checking = !!user && !m;
   const expired = m && !m.active && m.status && m.status !== 'PENDING_PAYMENT';
   const unread = data?.counters?.unreadNotifications || 0;
   const shortcuts = [...HOME_SHORTCUTS.map(findService).filter(Boolean), {id: 'tudo', label: 'Ver tudo', icon: 'grid', bg: '#F1F0F6', fg: C.ink, screen: 'Services'}];
@@ -189,6 +203,20 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
               ? `Você usou a carteirinha ${m.usesThisYear} ${m.usesThisYear === 1 ? 'vez' : 'vezes'} em ${new Date().getFullYear()}`
               : 'Mostre a carteirinha nos parceiros e aproveite os descontos'}
           </Text>
+        </View>
+      ) : checking ? (
+        <View style={[styles.cardDeep, {alignItems: 'flex-start'}]} testID="carteirinha-carregando">
+          <Text style={[styles.cardLabel, F.semibold]}>CARTEIRINHA LIGA DO BEM</Text>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10}}>
+            <ActivityIndicator color="#FFFFFF" />
+            <Text style={[styles.cardMeta, F.regular, {marginTop: 0}]}>
+              {data?.offline ? 'Sem conexão. Tentando de novo…' : 'Atualizando sua carteirinha…'}
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.qrBtn, {marginTop: 14}]} onPress={() => go('Cartão')} testID="ver-carteirinha">
+            <Ionicons name="card" size={20} color={C.deep} />
+            <Text style={[styles.qrBtnText, F.heavy]}>Ver carteirinha</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.invite} testID="convite-membro">

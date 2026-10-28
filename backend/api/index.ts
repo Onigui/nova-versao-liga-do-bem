@@ -261,6 +261,9 @@ function getPrisma() {
   return prisma;
 }
 
+/** Até quanto tempo depois de vencer um token ainda pode ser renovado (app fechado por semanas). */
+const REFRESH_GRACE_MS = 60 * 24 * 60 * 60 * 1000;
+
 function generateToken(payload: any) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
@@ -1698,6 +1701,39 @@ async function handleRequest(req: any, res: any) {
     }
 
     // Auth - Login
+    // Renova a sessão do app: aceita o token atual (mesmo vencido há até 60 dias, se a assinatura
+    // for nossa e a conta continuar ativa) e devolve um novo, com os dados atualizados da conta.
+    if (path === '/api/auth/refresh' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      const raw = extractBearerToken(req);
+      if (!raw) return res.status(401).json({ error: 'Token de autenticação necessário', code: 'NO_TOKEN' });
+      let decoded: any;
+      try {
+        decoded = jwt.verify(raw, JWT_SECRET, { ignoreExpiration: true });
+      } catch {
+        return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.', code: 'INVALID_TOKEN' });
+      }
+      const userId = decoded?.userId || decoded?.id;
+      const expMs = Number(decoded?.exp || 0) * 1000;
+      if (!userId || !expMs || Date.now() - expMs > REFRESH_GRACE_MS) {
+        return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.', code: 'SESSION_EXPIRED' });
+      }
+      const rows: any[] = await db.$queryRawUnsafe(
+        `SELECT id, email, name, phone, role, cpf, "isActive" FROM users WHERE id = $1 LIMIT 1`,
+        userId,
+      );
+      const u = rows[0];
+      if (!u || u.isActive === false) {
+        return res.status(401).json({ error: 'Conta inativa. Fale com a Liga do Bem.', code: 'USER_INACTIVE' });
+      }
+      const cpf = u.cpf && String(u.cpf).trim() !== '' && u.cpf !== '00000000000' ? u.cpf : null;
+      return res.status(200).json({
+        token: generateToken({ userId: u.id, email: u.email, role: u.role }),
+        user: { id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role, cpf },
+      });
+    }
+
     if (path === '/api/auth/login' && method === 'POST') {
       const db = getPrisma();
       if (!db) {

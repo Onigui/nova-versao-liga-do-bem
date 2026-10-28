@@ -8,6 +8,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {AppState} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_PATH} from '../config/apiConfig';
+import {reportUnauthorized} from './session';
 
 const CACHE_KEY = 'card_code_v2';
 const RENEW_BEFORE_MS = 90 * 1000;
@@ -42,6 +43,17 @@ export default function useCardCode({token, enabled, fetchImpl = fetch}) {
         headers: {Authorization: `Bearer ${token}`},
         cache: 'no-store',
       });
+      if (res.status === 401) {
+        // Token vencido: renova; o hook roda de novo com o token novo
+        reportUnauthorized(fetchImpl);
+        if (alive.current) setState({code: null, expiresAt: null, shortCode: null, source: 'session'});
+        schedule(RETRY_MS);
+        return;
+      }
+      if (res.status === 404) {
+        if (alive.current) setState({code: null, expiresAt: null, shortCode: null, source: 'none'});
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data?.code) throw new Error('sem código');

@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AppState } from 'react-native';
+import { Alert, AppState, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationService from './NotificationService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { IS_PARTNER_APP } from '../config/appVariant';
+import { SESSION_EVENT, clearSessionMarks, ensureFreshSession } from './session';
 
 const AuthContext = createContext({});
 
@@ -19,6 +20,35 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
+
+  // Sessão renovada em segundo plano (token novo) ou recusada pelo servidor (volta ao login)
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(SESSION_EVENT, ev => {
+      if (ev?.type === 'refreshed' && ev.token) {
+        setToken(ev.token);
+        if (ev.user) {
+          const u = { ...ev.user };
+          if (u.cpf && (String(u.cpf).trim() === '' || u.cpf === '00000000000')) u.cpf = null;
+          setUser(prev => ({ ...(prev || {}), ...u }));
+        }
+      } else if (ev?.type === 'expired') {
+        logout();
+        Alert.alert('Entre de novo', `${ev.message || 'Sua sessão expirou.'} Entre de novo para ver sua carteirinha.`);
+      }
+    });
+    // Ao voltar para o app, renova o token se já faz tempo
+    const appSub = AppState.addEventListener('change', st => {
+      if (st === 'active') {
+        AsyncStorage.getItem('auth_token')
+          .then(t => (t ? ensureFreshSession() : null))
+          .catch(() => {});
+      }
+    });
+    return () => {
+      sub.remove();
+      appSub?.remove?.();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (IS_PARTNER_APP) {
@@ -188,6 +218,8 @@ export const AuthProvider = ({ children }) => {
           userData.cpf = null;
         }
         setUser(userData);
+        // O token vale 7 dias: renova ao abrir (o servidor aceita até 60 dias depois de vencer)
+        ensureFreshSession().catch(() => {});
       }
     } catch (error) {
       console.error('Erro ao carregar dados de autenticação:', error);
@@ -242,6 +274,7 @@ export const AuthProvider = ({ children }) => {
         
         await AsyncStorage.setItem('auth_token', authToken);
         await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+        await AsyncStorage.setItem('auth_refreshed_at', String(Date.now()));
         
         setToken(authToken);
         setUser(userData);
@@ -303,6 +336,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('user_data');
       await AsyncStorage.removeItem('guest_mode'); // Limpar caso exista de versões antigas
       await AsyncStorage.removeItem('app_last_active'); // Limpar timestamp
+      await clearSessionMarks();
       setToken(null);
       setUser(null);
     } catch (error) {
