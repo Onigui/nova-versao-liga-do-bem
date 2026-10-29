@@ -51,6 +51,7 @@ import HealthEntryFormScreen from '../screens/HealthEntryFormScreen';
 import ReviewFormScreen from '../screens/ReviewFormScreen';
 import PartnerReviewsScreen from '../screens/PartnerReviewsScreen';
 import NotaFiscalScreen from '../screens/NotaFiscalScreen';
+import DeleteAccountScreen from '../screens/DeleteAccountScreen';
 import ServicesScreen from '../screens/ServicesScreen';
 import LostFoundScreen from '../screens/LostFoundScreen';
 import LostFoundNewScreen from '../screens/LostFoundNewScreen';
@@ -254,6 +255,14 @@ export function AppStack() {
         options={{
           headerShown: true, ...HEADER,
           title: 'Termos e Privacidade',
+        }}
+      />
+      <Stack.Screen
+        name="DeleteAccount"
+        component={DeleteAccountScreen}
+        options={{
+          headerShown: true, ...HEADER,
+          title: 'Excluir minha conta',
         }}
       />
       <Stack.Screen 

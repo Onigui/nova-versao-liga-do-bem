@@ -1,5 +1,6 @@
 import React from 'react';
-import {View, Text, StyleSheet, ScrollView} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, Linking} from 'react-native';
+import {API_BASE_PATH} from '../config/apiConfig';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {F} from '../theme/home';
@@ -44,8 +45,9 @@ export default function LegalScreen({route}) {
             <Text style={styles.sectionTitle}>Política de Privacidade</Text>
             <Text style={styles.paragraph}>
               Coletamos dados necessários para o funcionamento do app, como
-              nome, e-mail, telefone, CPF (quando informado) e informações de
-              pets/vacinas que você cadastrar.
+              nome, e-mail, telefone, CPF (obrigatório, uma conta por pessoa),
+              localização (com a sua permissão), fotos que você envia e
+              informações de pets/vacinas que você cadastrar.
             </Text>
             <Text style={styles.paragraph}>
               Esses dados são usados para autenticação, comunicação sobre
@@ -54,11 +56,15 @@ export default function LegalScreen({route}) {
             </Text>
             <Text style={styles.paragraph}>
               Doações via PIX são registradas no sistema para transparência e
-              histórico do usuário. Você pode solicitar correção ou exclusão de
-              dados entrando em contato com a Liga do Bem.
+              histórico do usuário. Você pode corrigir seus dados no Perfil e
+              excluir sua conta a qualquer momento em Perfil → Excluir minha
+              conta.
             </Text>
             <Text style={styles.paragraph}>
               CNPJ: 27.644.955/0001-38 — Botucatu/SP.
+            </Text>
+            <Text style={styles.link} onPress={() => Linking.openURL(`${API_BASE_PATH}/privacidade`)} testID="politica-completa">
+              Ler a política de privacidade completa
             </Text>
           </View>
         ) : null}
@@ -99,6 +105,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 12,
   },
+  link: {...F.bold, fontSize: 14, color: '#5B21B6', textDecorationLine: 'underline'},
   paragraph: {
     ...F.regular,
     fontSize: 14,

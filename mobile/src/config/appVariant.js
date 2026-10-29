@@ -8,3 +8,6 @@ export const APP_VARIANT =
   NativeModules?.ApkInstaller?.APP_VARIANT === 'partner' ? 'partner' : 'member';
 
 export const IS_PARTNER_APP = APP_VARIANT === 'partner';
+
+/** Instalado pela Play Store: as atualizações vêm da loja (sem baixar APK dentro do app). */
+export const IS_PLAY_STORE = NativeModules?.ApkInstaller?.PLAY_STORE === true;

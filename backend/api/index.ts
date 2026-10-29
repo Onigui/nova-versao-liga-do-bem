@@ -42,6 +42,7 @@ import { handleHealth, isHealthPath } from './lib/health';
 import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
+import { handleAccount, isAccountPath } from './lib/account';
 import { handleHome } from './lib/home';
 import { audienceFilter } from './lib/inbox';
 import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
@@ -534,6 +535,12 @@ async function handleRequest(req: any, res: any) {
     // Tela inicial em uma chamada (carteirinha, para você, pets, promoções perto)
     if (path === '/api/home') {
       const handled = await handleHome({ req, res, path, method, db: getPrisma(), authUser: () => decodeAuthUser(req) });
+      if (handled) return;
+    }
+
+    // Exclusão de conta (app e página web) e política de privacidade pública
+    if (isAccountPath(path)) {
+      const handled = await handleAccount({ req, res, path, method, body, db: getPrisma(), authUser: () => decodeAuthUser(req) });
       if (handled) return;
     }
 
@@ -1746,7 +1753,7 @@ async function handleRequest(req: any, res: any) {
           return res.status(400).json({ error: 'Email e senha são obrigatórios' });
         }
 
-        console.log('🔐 Login attempt:', email);
+        console.log('🔐 Login attempt');
 
         // Find user (tentar buscar cpf se coluna existir)
         let user: any;
@@ -1799,11 +1806,11 @@ async function handleRequest(req: any, res: any) {
         }
 
         if (!user) {
-          console.log('❌ User not found:', email);
+          console.log('❌ User not found');
           return res.status(401).json({ error: 'Credenciais inválidas' });
         }
 
-        console.log('👤 User found:', { id: user.id, email: user.email, isActive: user.isActive });
+        console.log('👤 User found:', { id: user.id, isActive: user.isActive });
         console.log('🔑 Password hash starts with:', user.password.substring(0, 10));
 
         // Check if password is hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
@@ -1835,7 +1842,7 @@ async function handleRequest(req: any, res: any) {
         }
 
         if (!isPasswordValid) {
-          console.log('❌ Invalid password for:', email);
+          console.log('❌ Invalid password');
           return res.status(401).json({ error: 'Credenciais inválidas' });
         }
 
@@ -1912,12 +1919,12 @@ async function handleRequest(req: any, res: any) {
           return res.status(400).json({ error: 'Já existe uma conta com este e-mail. Entre ou recupere a senha.', field: 'email', code: 'EMAIL_TAKEN' });
         }
 
-        console.log('📝 Register attempt:', email, 'CPF:', cpfClean);
+        console.log('📝 Register attempt');
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        console.log('🔄 Criando usuário com dados:', { email, name, hasCpf: !!cpfClean });
+        
 
         // Gerar ID único (usando cuid ou uuid)
         const userId = require('crypto').randomUUID();
@@ -2115,7 +2122,7 @@ async function handleRequest(req: any, res: any) {
         }
         await issued.supersedeOthers();
 
-        console.log(`📧 Código de recuperação enviado por e-mail para ${email}`);
+        console.log('📧 Código de recuperação enviado por e-mail');
 
         return res.status(200).json({
           message: genericMessage,
@@ -3183,13 +3190,17 @@ async function handleRequest(req: any, res: any) {
       }
       try {
         const { animalId, name, email, phone, message, visitDate, period } = body || {};
-        // Logado: o pedido é sempre da conta do token (não confia em userId vindo do app)
+        // Só com conta: o pedido é sempre da conta do token (não confia em userId vindo do app).
+        // Não existe mais visitante — nada de criar usuário a partir de e-mail.
         let authUserId: string | null = null;
         try { authUserId = decodeAuthUser(req)?.userId || null; } catch { authUserId = null; }
-        if (!animalId || (!authUserId && (!name || !email))) {
-          return res.status(400).json({ error: 'ID do animal e dados de contato são obrigatórios' });
+        if (!authUserId) {
+          return res.status(401).json({ error: 'Entre na sua conta para pedir uma visita.' });
         }
-        let finalUserId: string | null = authUserId;
+        if (!animalId) {
+          return res.status(400).json({ error: 'ID do animal é obrigatório' });
+        }
+        const finalUserId: string = authUserId;
         if (authUserId && phone) {
           // Conta sem telefone: guarda o que o membro informou agora
           await db.$executeRawUnsafe(
@@ -3197,35 +3208,6 @@ async function handleRequest(req: any, res: any) {
             authUserId,
             String(phone).replace(/\D/g, '').slice(0, 11),
           ).catch(() => {});
-        }
-        if (!finalUserId && email) {
-          let user = await db.user.findUnique({ 
-            where: { email },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              role: true,
-            }
-          });
-          if (!user) {
-            // Criar usuário temporário (sem senha, apenas para registro de interesse)
-            user = await db.user.create({
-              data: {
-                email,
-                name: name || 'Visitante',
-                phone: phone || null,
-                password: 'temp-' + Date.now(), // Senha temporária
-                role: 'MEMBER',
-                isActive: true
-              }
-            });
-          }
-          finalUserId = user.id;
-        }
-        if (!finalUserId) {
-          return res.status(400).json({ error: 'Não foi possível identificar o usuário' });
         }
         // Criar registro de adoção
         const adoption = await db.adoption.create({
@@ -5032,22 +5014,9 @@ async function handleRequest(req: any, res: any) {
             }
           }
           
-          console.log('🔍 GET /api/user/profile: Usuário encontrado COM select:', {
-            id: user?.id,
-            email: user?.email,
-            name: user?.name,
-            cpf: user?.cpf,
-            cpfType: typeof user?.cpf,
-            cpfRaw: JSON.stringify(user?.cpf),
-            cpfIsNull: user?.cpf === null,
-            cpfIsUndefined: user?.cpf === undefined,
-            cpfEqualsZero: user?.cpf === '0' || user?.cpf === 0,
-            hasCpfProperty: 'cpf' in (user || {}),
-          });
           
           // VERIFICAÇÃO CRÍTICA: Se CPF vier null ou "0", fazer query SQL direta para verificar
           if (!user || user.cpf === null || user.cpf === undefined || user.cpf === '0' || user.cpf === 0) {
-            console.log('⚠️ GET /api/user/profile: CPF é null/undefined/"0" no Prisma, fazendo query SQL direta para verificar...');
             try {
               const sqlResult: any[] = await db.$queryRaw`
                 SELECT id, email, name, cpf
@@ -5058,22 +5027,10 @@ async function handleRequest(req: any, res: any) {
               
               if (sqlResult && sqlResult.length > 0) {
                 const sqlUser = sqlResult[0];
-                console.log('🔍 GET /api/user/profile: Resultado da query SQL direta:', {
-                  id: sqlUser.id,
-                  email: sqlUser.email,
-                  name: sqlUser.name,
-                  cpf: sqlUser.cpf,
-                  cpfType: typeof sqlUser.cpf,
-                  cpfRaw: JSON.stringify(sqlUser.cpf),
-                  cpfIsNull: sqlUser.cpf === null,
-                  cpfIsUndefined: sqlUser.cpf === undefined,
-                  cpfEqualsZero: sqlUser.cpf === '0' || sqlUser.cpf === 0,
-                });
                 
                 // Se SQL retornou CPF válido, usar esse valor
                 if (sqlUser.cpf && sqlUser.cpf !== null && sqlUser.cpf !== undefined && 
                     sqlUser.cpf !== '0' && sqlUser.cpf !== 0 && String(sqlUser.cpf).trim() !== '0') {
-                  console.log('✅ GET /api/user/profile: CPF encontrado via SQL direta, usando esse valor:', sqlUser.cpf);
                   if (user) {
                     user.cpf = sqlUser.cpf;
                   } else {
@@ -5086,7 +5043,6 @@ async function handleRequest(req: any, res: any) {
                     };
                   }
                 } else {
-                  console.log('⚠️ GET /api/user/profile: CPF também é null/"0" na query SQL direta');
                 }
               }
             } catch (sqlError: any) {
@@ -5139,19 +5095,9 @@ async function handleRequest(req: any, res: any) {
         // Processar CPF - SIMPLIFICADO: apenas limpar formatação e retornar números
         let cpfValue = user.cpf;
         
-        console.log('🔍 GET /api/user/profile: CPF do banco (ANTES de processar):', {
-          cpfOriginal: cpfValue,
-          cpfType: typeof cpfValue,
-          cpfIsNull: cpfValue === null,
-          cpfIsUndefined: cpfValue === undefined,
-          cpfRaw: JSON.stringify(cpfValue),
-          cpfEqualsZero: cpfValue === '0' || cpfValue === 0,
-          cpfEqualsZeroString: String(cpfValue) === '0',
-        });
         
         // IMPORTANTE: Tratar explicitamente "0" como inválido ANTES de qualquer processamento
         if (cpfValue === '0' || cpfValue === 0 || String(cpfValue).trim() === '0') {
-          console.log('⚠️ GET /api/user/profile: CPF é "0" (inválido), convertendo para null imediatamente');
           cpfValue = null;
         }
         // Se CPF existe e não é "0", limpar formatação e retornar apenas números
@@ -5159,36 +5105,21 @@ async function handleRequest(req: any, res: any) {
           const cpfStr = String(cpfValue).trim();
           const cpfNumbers = cpfStr.replace(/\D/g, ''); // Remove tudo que não é dígito
           
-          console.log('🔍 GET /api/user/profile: CPF processado:', {
-            original: cpfStr,
-            apenasNumeros: cpfNumbers,
-            length: cpfNumbers.length,
-            isZero: cpfNumbers === '0',
-            isAllZeros: cpfNumbers === '00000000000',
-          });
           
           // Se após limpar formatação ficou vazio, só zeros, ou apenas "0", retornar null
           if (cpfNumbers === '' || cpfNumbers === '0' || cpfNumbers === '00000000000') {
             cpfValue = null;
-            console.log('⚠️ GET /api/user/profile: CPF inválido (vazio ou só zeros), retornando null');
           } else {
             // Retornar apenas números (mesmo que não tenha 11 dígitos)
             cpfValue = cpfNumbers;
-            console.log('✅ GET /api/user/profile: CPF válido, retornando:', cpfValue);
           }
         } else {
-          console.log('🔍 GET /api/user/profile: CPF é null/undefined/vazio, retornando null');
           cpfValue = null;
         }
         
-        console.log('🔍 GET /api/user/profile: CPF FINAL que será retornado:', {
-          cpfValue,
-          cpfType: typeof cpfValue,
-        });
         
         // GARANTIR que cpfValue nunca seja "0" na resposta final
         if (cpfValue === '0' || cpfValue === 0 || String(cpfValue).trim() === '0') {
-          console.log('⚠️ GET /api/user/profile: CPF ainda é "0" na resposta final, forçando null');
           cpfValue = null;
         }
         
@@ -7939,7 +7870,7 @@ async function handleRequest(req: any, res: any) {
           });
         }
         
-        console.log('✅ Usuário encontrado:', userExists.email);
+        console.log('✅ Usuário encontrado');
         
         // Atualizar avatar do usuário no banco
         try {
