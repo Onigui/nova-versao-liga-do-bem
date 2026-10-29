@@ -48,6 +48,8 @@ export const ATTENTION_DEFS = [
   { key: 'crmvPending', label: 'CRMV de veterinário para conferir', section: 'moderation', sub: 'crmv', tone: 'warn' },
   { key: 'reviewReports', label: 'Avaliações denunciadas por parceiros', section: 'moderation', sub: 'avaliacoes', tone: 'danger' },
   { key: 'lostFoundHidden', label: 'Avisos de achados e perdidos escondidos por denúncia', section: 'moderation', sub: 'achados', tone: 'danger' },
+  { key: 'lostFoundComments', label: 'Comentários de achados e perdidos escondidos por denúncia', section: 'moderation', sub: 'achados', tone: 'danger' },
+  { key: 'lostFoundMerges', label: 'Achados e perdidos: casos que podem ser o mesmo animal', section: 'moderation', sub: 'achados', tone: 'info' },
   { key: 'catalogSuggested', label: 'Itens sugeridos por parceiros para o catálogo', section: 'discounts', sub: 'catalogo', tone: 'info' },
   { key: 'nfpDeclared', label: 'Apoiadores da Nota Fiscal Paulista para conferir', section: 'nfp', sub: null, tone: 'info' },
   { key: 'adoptionsPending', label: 'Pedidos de adoção esperando resposta', section: 'animals', sub: null, tone: 'warn' },
@@ -55,6 +57,10 @@ export const ATTENTION_DEFS = [
 ] as const;
 
 export async function buildOverview(db: any, now = new Date()) {
+  const [lfComments, lfMerges] = await Promise.all([
+    one(db, `SELECT COUNT(*)::int AS n FROM lf_comments WHERE hidden AND "hiddenBy" = 'FLAGS'`),
+    one(db, `SELECT COUNT(*)::int AS n FROM lf_merges WHERE status = 'PENDING'`),
+  ]);
   const [members, revenue, donations, uses, partners, lf, nfp, quotes, reviews, adoption] = await Promise.all([
     one(
       db,
@@ -147,6 +153,8 @@ export async function buildOverview(db: any, now = new Date()) {
     crmvPending: num(crmv.n),
     reviewReports: num(reviews.reports),
     lostFoundHidden: num(lf.hidden),
+    lostFoundComments: num(lfComments.n),
+    lostFoundMerges: num(lfMerges.n),
     catalogSuggested: num(catalog.n),
     nfpDeclared: num(nfp.declared),
     adoptionsPending: num(adoption.pending),
