@@ -20,6 +20,8 @@ import useCardCode from '../services/useCardCode';
 import {logInfo, logError, logDebug} from '../services/RemoteLogger';
 import {F} from '../theme/home';
 import {reportUnauthorized} from '../services/session';
+import {useTour} from '../components/Tour';
+import {TOURS} from '../tours';
 
 const STATUS_LABELS = {
   ACTIVE: 'ATIVO',
@@ -193,6 +195,7 @@ export default function MembershipCardScreen({navigation}) {
     token,
     enabled: !!(isAuthenticated && isActiveMember && membership?.memberId),
   });
+  const tour = useTour(TOURS.card.id, TOURS.card.steps, {ready: cardCode.source === 'live'});
   const qrValue = cardCode.code;
 
   const handleRenewMembership = () => {
@@ -297,7 +300,7 @@ export default function MembershipCardScreen({navigation}) {
           </View>
 
           <View style={styles.qrContainer}>
-            <View style={[styles.qrBackground, !isActiveMember && styles.qrInactive]}>
+            <View style={[styles.qrBackground, !isActiveMember && styles.qrInactive]} ref={tour.ref('qr')} collapsable={false}>
               {isActiveMember && qrValue ? (
                 <QRCode
                   value={String(qrValue)}
@@ -332,7 +335,7 @@ export default function MembershipCardScreen({navigation}) {
               )}
             </View>
             {isActiveMember && qrValue && cardCode.shortCode ? (
-              <View style={styles.shortCodeBox} testID="codigo-6">
+              <View style={styles.shortCodeBox} ref={tour.ref('codigo')} collapsable={false} testID="codigo-6">
                 <Text style={styles.shortCodeLabel}>Código para digitar</Text>
                 <Text style={styles.shortCode} selectable>
                   {`${cardCode.shortCode.slice(0, 3)} ${cardCode.shortCode.slice(3)}`}

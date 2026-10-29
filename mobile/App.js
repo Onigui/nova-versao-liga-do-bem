@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { TourProvider } from './src/components/Tour';
 import NotificationService from './src/services/NotificationService';
 import { navigationRef, openFromNotification, flushPendingNavigation } from './src/services/pushNavigation';
 import UpdateChecker from './src/components/UpdateChecker';
@@ -151,9 +152,11 @@ export default function App() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <PaperProvider>
           <AuthProvider>
-            <NavigationContainer ref={navigationRef} onReady={flushPendingNavigation} onStateChange={flushPendingNavigation}>
-              <AppNavigation />
-            </NavigationContainer>
+            <TourProvider>
+              <NavigationContainer ref={navigationRef} onReady={flushPendingNavigation} onStateChange={flushPendingNavigation}>
+                <AppNavigation />
+              </NavigationContainer>
+            </TourProvider>
             <UpdateChecker />
           </AuthProvider>
         </PaperProvider>

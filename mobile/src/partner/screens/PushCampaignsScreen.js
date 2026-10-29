@@ -13,6 +13,8 @@ import {
 } from '../PartnerContext';
 import {Badge, Button, Card, Field, styles as ui} from '../ui';
 import SlotPicker, {formatSlot} from '../components/SlotPicker';
+import {useTour} from '../../components/Tour';
+import {TOURS} from '../../tours';
 
 export const PUSH_STATUS = {
   AWAITING_PAYMENT: {text: 'Aguardando pagamento', tone: 'warn'},
@@ -47,6 +49,7 @@ export default function PushCampaignsScreen({navigation}) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const tour = useTour(TOURS.partnerPush.id, TOURS.partnerPush.steps, {ready: !!data});
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [formError, setFormError] = useState('');
@@ -251,14 +254,16 @@ export default function PushCampaignsScreen({navigation}) {
             }}>
             Nova notificação
           </Text>
-          <Field
-            label={`Título (${title.trim().length}/${limits.titleMax})`}
-            value={title}
-            onChangeText={setTitle}
-            maxLength={limits.titleMax}
-            placeholder="Ex.: Banho e tosa com 20% OFF"
-            testID="push-titulo"
-          />
+          <View ref={tour.ref('titulo')} collapsable={false}>
+            <Field
+              label={`Título (${title.trim().length}/${limits.titleMax})`}
+              value={title}
+              onChangeText={setTitle}
+              maxLength={limits.titleMax}
+              placeholder="Ex.: Banho e tosa com 20% OFF"
+              testID="push-titulo"
+            />
+          </View>
           <Field
             label={`Mensagem (${body.trim().length}/${limits.bodyMax})`}
             value={body}

@@ -11,6 +11,8 @@ import useUserLocation from '../services/useUserLocation';
 import {memberApi} from '../utils/quotes';
 import {LF_TYPES, distanceLabel, photoUrl, speciesLabel, timeAgo, toMarkers} from '../utils/lostfound';
 import {F} from '../theme/home';
+import {useTour} from '../components/Tour';
+import {TOURS} from '../tours';
 
 const PURPLE = '#7C3AED';
 const FILTERS = [
@@ -58,6 +60,7 @@ export default function LostFoundScreen({navigation, fetchImpl = fetch}) {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
   const [choose, setChoose] = useState(false);
+  const tour = useTour(TOURS.lostfound.id, TOURS.lostfound.steps, {ready: !!data});
 
   const here = location.coords ? {lat: location.coords.latitude, lng: location.coords.longitude} : null;
 
@@ -96,10 +99,10 @@ export default function LostFoundScreen({navigation, fetchImpl = fetch}) {
             </TouchableOpacity>
           ))}
           <View style={{flex: 1}} />
-          <TouchableOpacity onPress={() => navigation.navigate('LostFoundMine')} style={styles.iconBtn} accessibilityLabel="Meus avisos" testID="meus-avisos">
+          <TouchableOpacity onPress={() => navigation.navigate('LostFoundMine')} style={styles.iconBtn} accessibilityLabel="Meus avisos" ref={tour.ref('meus')} testID="meus-avisos">
             <Ionicons name="person-circle-outline" size={24} color={PURPLE} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('LostFoundAlerts')} style={styles.iconBtn} accessibilityLabel="Alertas por perto" testID="alertas">
+          <TouchableOpacity onPress={() => navigation.navigate('LostFoundAlerts')} style={styles.iconBtn} accessibilityLabel="Alertas por perto" ref={tour.ref('alertas')} testID="alertas">
             <Ionicons name="notifications-outline" size={23} color={PURPLE} />
           </TouchableOpacity>
         </View>
@@ -168,7 +171,7 @@ export default function LostFoundScreen({navigation, fetchImpl = fetch}) {
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={() => setChoose(true)} testID="publicar">
+      <TouchableOpacity style={styles.fab} onPress={() => setChoose(true)} ref={tour.ref('publicar')} testID="publicar">
         <Ionicons name="add" size={22} color="#FFFFFF" />
         <Text style={styles.fabText}>Publicar aviso</Text>
       </TouchableOpacity>
