@@ -1,10 +1,12 @@
 /**
  * Dicas de primeira vez ("balões"): destacam um elemento da tela (o resto escurece de leve) e
  * explicam em uma frase o que ele faz. Regras para não poluir:
- *  - cada tela tem no máximo 3 dicas e aparece UMA vez (fica salvo no aparelho);
+ *  - cada tela tem no máximo 3 dicas (o Início, que tem muita coisa, pode ter mais) e aparece
+ *    UMA vez (fica salvo no aparelho);
  *  - só começa quando a tela terminou de carregar, e nunca duas ao mesmo tempo;
  *  - "Pular" sempre visível; tocar fora ou no botão voltar também fecha;
- *  - elemento que não está na tela (fora da rolagem, ainda não existe) é ignorado.
+ *  - elemento que ainda não existe é ignorado; se estiver mais abaixo e a tela informar a
+ *    rolagem (tour.scrollProps no ScrollView), a tela desce sozinha até ele e volta ao topo no fim.
  * Em Perfil > "Rever as dicas do app" dá para ver tudo de novo.
  *
  * Uso numa tela:
@@ -18,6 +20,9 @@ const STORE_KEY = 'tours_seen_v1';
 const START_DELAY_MS = 700;
 const PAD = 6;
 const MAX_STEPS = 3;
+const SCROLL_SETTLE_MS = 380;
+const TOP_MARGIN = 90;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function storage() {
   try {
@@ -91,84 +96,150 @@ export function bubblePlacement(hole, screen, bubbleH = 170) {
 }
 
 export function TourProvider({children}) {
-  const [active, setActive] = useState(null); // {id, steps: [{title, text, rect}], index}
+  // {id, steps: [{id, title, text, absY}], index, rect, scroller}
+  const [active, setActive] = useState(null);
   const rootRef = useRef(null);
   const fade = useRef(new Animated.Value(0)).current;
   const busy = useRef(false);
+  const run = useRef(null); // dados da dica atual fora do estado (nós, rolagem)
 
   const finish = useCallback(async () => {
-    const id = active?.id;
+    const cur = run.current;
+    run.current = null;
     setActive(null);
     busy.current = false;
-    if (id) await markTourSeen(id);
-  }, [active?.id]);
-
-  const next = useCallback(() => {
-    setActive(a => {
-      if (!a) return a;
-      if (a.index + 1 >= a.steps.length) return {...a, done: true};
-      return {...a, index: a.index + 1};
-    });
+    if (cur?.scrolled && cur.scroller?.ref?.current?.scrollTo) {
+      try {
+        cur.scroller.ref.current.scrollTo({y: 0, animated: true});
+      } catch {
+        /* ignora */
+      }
+    }
+    if (cur?.id) await markTourSeen(cur.id);
   }, []);
 
+  /** Mostra a dica i: rola até o elemento se precisar e mede onde ele ficou. */
+  const show = useCallback(
+    async i => {
+      const cur = run.current;
+      if (!cur) return;
+      if (i >= cur.steps.length) {
+        finish();
+        return;
+      }
+      const step = cur.steps[i];
+      const screen = Dimensions.get('window');
+      const node = cur.nodes[step.id];
+      let rect = await measureRel(node, cur.origin);
+      const offscreen = r => !r || r.y < TOP_MARGIN / 2 || r.y + Math.min(r.h, 120) > screen.height - 200;
+      if (offscreen(rect) && cur.scroller?.ref?.current?.scrollTo) {
+        const y0 = cur.scroller.offset();
+        const target = rect ? y0 + rect.y - TOP_MARGIN : step.absY - TOP_MARGIN;
+        setActive(a => (a ? {...a, index: i, rect: null} : a)); // esconde o balão enquanto rola
+        try {
+          cur.scroller.ref.current.scrollTo({y: Math.max(0, target), animated: true});
+          cur.scrolled = true;
+        } catch {
+          /* ignora */
+        }
+        await sleep(SCROLL_SETTLE_MS);
+        if (run.current !== cur) return;
+        rect = await measureRel(node, cur.origin);
+      }
+      if (run.current !== cur) return;
+      if (!rect || rect.y + Math.min(rect.h, 60) > screen.height || rect.y + rect.h < 0) {
+        // não deu para mostrar este: tira da lista e vai para o próximo
+        cur.steps.splice(i, 1);
+        setActive(a => (a ? {...a, steps: [...cur.steps]} : a));
+        show(i);
+        return;
+      }
+      setActive(a => (a ? {...a, steps: [...cur.steps], index: i, rect} : a));
+    },
+    [finish],
+  );
+
+  const next = useCallback(() => {
+    const cur = run.current;
+    if (!cur) return;
+    cur.index += 1;
+    show(cur.index);
+  }, [show]);
+
   useEffect(() => {
-    if (active?.done) finish();
-  }, [active?.done, finish]);
+    if (!active?.rect) return undefined;
+    fade.setValue(0);
+    Animated.timing(fade, {toValue: 1, duration: 180, useNativeDriver: true}).start();
+    return undefined;
+  }, [active?.index, active?.rect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!active) return undefined;
-    fade.setValue(0);
-    Animated.timing(fade, {toValue: 1, duration: 180, useNativeDriver: true}).start();
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       finish();
       return true;
     });
     return () => sub.remove();
-  }, [active?.id, active?.index]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [!!active]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const start = useCallback(async (id, steps, nodes, stillHere = () => true) => {
-    if (busy.current) return false;
-    busy.current = true;
-    if (await isTourSeen(id)) {
-      busy.current = false;
-      return false;
-    }
-    const origin = (await measure(rootRef.current)) || {x: 0, y: 0};
-    const screen = Dimensions.get('window');
-    const ready = [];
-    for (const s of steps) {
-      const r = await measure(nodes[s.id]);
-      if (!r) continue;
-      const rect = {x: r.x - origin.x, y: r.y - origin.y, w: r.w, h: r.h};
-      // fora da tela (ex.: lá embaixo na rolagem): pula esta dica
-      if (rect.y < 0 || rect.y + Math.min(rect.h, 60) > screen.height) continue;
-      ready.push({...s, rect});
-      if (ready.length >= MAX_STEPS) break;
-    }
-    if (!ready.length || !stillHere()) {
-      busy.current = false;
-      return false;
-    }
-    setActive({id, steps: ready, index: 0});
-    return true;
-  }, []);
+  const start = useCallback(
+    async (id, steps, nodes, stillHere = () => true, opts = {}) => {
+      if (busy.current) return false;
+      busy.current = true;
+      if (await isTourSeen(id)) {
+        busy.current = false;
+        return false;
+      }
+      const origin = (await measure(rootRef.current)) || {x: 0, y: 0};
+      const screen = Dimensions.get('window');
+      const max = opts.maxSteps || MAX_STEPS;
+      const scroller = opts.scroller || null;
+      const y0 = scroller ? scroller.offset() : 0;
+      const list = [];
+      for (const st of steps) {
+        if (!nodes[st.id]) continue;
+        const r = await measureRel(nodes[st.id], origin);
+        if (!r) continue;
+        const visible = r.y >= 0 && r.y + Math.min(r.h, 60) <= screen.height;
+        // sem rolagem informada, só o que já está na tela
+        if (!visible && !scroller) continue;
+        list.push({...st, absY: y0 + r.y});
+        if (list.length >= max) break;
+      }
+      if (!list.length || !stillHere()) {
+        busy.current = false;
+        return false;
+      }
+      run.current = {id, steps: list, nodes, origin, scroller, index: 0, scrolled: false};
+      setActive({id, steps: list, index: 0, rect: null});
+      await show(0);
+      return true;
+    },
+    [show],
+  );
 
   const value = useMemo(() => ({start, activeId: active?.id || null}), [start, active?.id]);
-  const step = active && !active.done ? active.steps[active.index] : null;
+  const step = active?.rect ? active.steps[active.index] : null;
   const screen = Dimensions.get('window');
 
   return (
     <TourContext.Provider value={value}>
       <View ref={rootRef} style={{flex: 1}} collapsable={false}>
         {children}
+        {active && !step ? <View style={StyleSheet.absoluteFill} testID="dica-rolando" /> : null}
         {step ? (
           <Animated.View style={[StyleSheet.absoluteFill, {opacity: fade, zIndex: 9999, elevation: 9999}]} testID="dica">
-            <TourOverlay step={step} index={active.index} total={active.steps.length} screen={screen} onNext={next} onSkip={finish} />
+            <TourOverlay step={{...step, rect: active.rect}} index={active.index} total={active.steps.length} screen={screen} onNext={next} onSkip={finish} />
           </Animated.View>
         ) : null}
       </View>
     </TourContext.Provider>
   );
+}
+
+async function measureRel(node, origin) {
+  const r = await measure(node);
+  return r ? {x: r.x - origin.x, y: r.y - origin.y, w: r.w, h: r.h} : null;
 }
 
 function TourOverlay({step, index, total, screen, onNext, onSkip}) {
@@ -232,7 +303,7 @@ function useFocusedSafe() {
   }
 }
 
-export function useTour(tourId, steps, {ready = true, delay = START_DELAY_MS} = {}) {
+export function useTour(tourId, steps, {ready = true, delay = START_DELAY_MS, maxSteps = MAX_STEPS} = {}) {
   const ctx = useContext(TourContext);
   const focused = useFocusedSafe();
   const focusedRef = useRef(focused);
@@ -240,6 +311,11 @@ export function useTour(tourId, steps, {ready = true, delay = START_DELAY_MS} = 
   const nodes = useRef({});
   const refs = useRef({});
   const started = useRef(false);
+  const scrollRef = useRef(null);
+  const scrollY = useRef(0);
+  const onScroll = useCallback(e => {
+    scrollY.current = e?.nativeEvent?.contentOffset?.y || 0;
+  }, []);
 
   const ref = useCallback(id => {
     if (!refs.current[id]) {
@@ -255,13 +331,24 @@ export function useTour(tourId, steps, {ready = true, delay = START_DELAY_MS} = 
     const t = setTimeout(async () => {
       // saiu da tela antes de começar: tenta de novo quando voltar
       if (!focusedRef.current) return;
-      const ok = await ctx.start(tourId, steps.slice(0, MAX_STEPS + 2), nodes.current, () => focusedRef.current);
+      const ok = await ctx.start(tourId, steps, nodes.current, () => focusedRef.current, {
+        maxSteps,
+        scroller: hasScroll.current ? {ref: scrollRef, offset: () => scrollY.current} : null,
+      });
       if (ok) started.current = true;
     }, delay);
     return () => clearTimeout(t);
   }, [ctx, ready, focused, tourId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return {ref};
+  // Para telas com rolagem: <ScrollView {...tour.scrollProps}> deixa a dica descer até o elemento
+  const hasScroll = useRef(false);
+  const setScrollRef = useCallback(node => {
+    scrollRef.current = node;
+    hasScroll.current = !!node;
+  }, []);
+  const scrollProps = useMemo(() => ({ref: setScrollRef, onScroll, scrollEventThrottle: 32}), [setScrollRef, onScroll]);
+
+  return {ref, scrollProps};
 }
 
 const styles = StyleSheet.create({

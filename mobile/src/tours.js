@@ -4,12 +4,21 @@
  */
 export const TOURS = {
   home: {
-    id: 'home@1',
+    // Início tem muita coisa: passeio completo, a tela desce sozinha até cada parte
+    id: 'home@2',
+    maxSteps: 10,
     steps: [
+      {id: 'perfil', title: 'Seu perfil', text: 'Seus dados, doações, adoções e o botão para rever estas dicas.'},
+      {id: 'busca', title: 'Buscar', text: 'Ache qualquer serviço do app pelo nome: vacina, orçamento, doação…'},
+      {id: 'avisos', title: 'Seus avisos', text: 'Respostas de orçamento, lembretes de vacina e novidades chegam aqui.'},
       {id: 'carteirinha', title: 'Sua carteirinha', text: 'Toque em "Mostrar QR" no caixa do parceiro para ganhar o desconto.'},
       {id: 'convite', title: 'Seja membro', text: 'Veja os planos e comece a economizar nos parceiros da Liga.'},
       {id: 'atalhos', title: 'Atalhos', text: 'Os serviços que você mais usa. Em "Ver tudo" estão todos os outros.'},
-      {id: 'avisos', title: 'Seus avisos', text: 'Respostas de orçamento, lembretes de vacina e novidades chegam aqui.'},
+      {id: 'paraVoce', title: 'Para você', text: 'Só o que pede atenção agora: vacina chegando, orçamento respondido, aviso perto.'},
+      {id: 'pets', title: 'Seus pets', text: 'A próxima vacina de cada pet. Toque para abrir a carteira de vacinação.'},
+      {id: 'promos', title: 'Promoções', text: 'Descontos dos parceiros, começando pelos mais perto de você.'},
+      {id: 'eventoAdocao', title: 'Eventos e adoção', text: 'A próxima feira ou evento da Liga e os animais esperando um lar.'},
+      {id: 'transparencia', title: 'Transparência', text: 'Veja como cada real doado é usado pela Liga.'},
     ],
   },
   card: {

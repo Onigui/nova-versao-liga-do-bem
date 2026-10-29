@@ -127,6 +127,85 @@ test('sem TourProvider (ex.: outras telas nos testes) não faz nada', async () =
   expect(tree.root.findAll(x => x.props.testID === 'dica').length).toBe(0);
 });
 
+// Tela com rolagem: o elemento "c" está lá embaixo; a dica rola até ele e volta ao topo no fim
+let scrolled = 0;
+const scrollCalls = [];
+class FakeScroll extends React.Component {
+  scrollTo({y}) {
+    scrolled = y;
+    scrollCalls.push(y);
+  }
+  render() {
+    return <View>{this.props.children}</View>;
+  }
+}
+class ScrollBox extends React.Component {
+  measureInWindow(cb) {
+    const [x, y, w, h] = RECTS[this.props.k];
+    cb(x, y - scrolled, w, h);
+  }
+  render() {
+    return <View />;
+  }
+}
+const LONG = [
+  {id: 'a', title: 'Um', text: 'A'},
+  {id: 'b', title: 'Dois', text: 'B'},
+  {id: 'c', title: 'Três (lá embaixo)', text: 'C'},
+  {id: 'd', title: 'Quatro', text: 'D'},
+];
+function LongScreen() {
+  const tour = useTour('longo@1', LONG, {delay: 0, maxSteps: 10});
+  const {ref: scrollRef, onScroll} = tour.scrollProps;
+  return (
+    <FakeScroll ref={scrollRef} onScroll={onScroll}>
+      <ScrollBox k="a" ref={tour.ref('a')} />
+      <ScrollBox k="b" ref={tour.ref('b')} />
+      <ScrollBox k="c" ref={tour.ref('c')} />
+      <ScrollBox k="d" ref={tour.ref('d')} />
+    </FakeScroll>
+  );
+}
+
+test('Início: mais de 3 dicas e a tela desce sozinha até o que está lá embaixo', async () => {
+  scrolled = 0;
+  scrollCalls.length = 0;
+  RECTS.d = [20, 2600, 200, 80];
+  const tree = await mount(<LongScreen />);
+  expect(texts(tree.root)).toEqual(expect.arrayContaining(['1 de 4', 'Um']));
+  await press(tree.root, 'dica-proximo');
+  expect(texts(tree.root)).toContain('Dois');
+  await act(async () => tree.root.findAll(x => x.props.testID === 'dica-proximo' && x.props.onPress)[0].props.onPress());
+  await act(() => new Promise(r => setTimeout(r, 450)));
+  await flush();
+  expect(scrollCalls.at(-1)).toBeGreaterThan(1500); // desceu até o "c"
+  expect(texts(tree.root)).toEqual(expect.arrayContaining(['3 de 4', 'Três (lá embaixo)']));
+  await act(async () => tree.root.findAll(x => x.props.testID === 'dica-proximo' && x.props.onPress)[0].props.onPress());
+  await act(() => new Promise(r => setTimeout(r, 450)));
+  await flush();
+  expect(texts(tree.root)).toEqual(expect.arrayContaining(['4 de 4', 'Quatro', 'Entendi']));
+  await press(tree.root, 'dica-proximo');
+  expect(tree.root.findAll(x => x.props.testID === 'dica').length).toBe(0);
+  expect(scrollCalls.at(-1)).toBe(0); // voltou ao topo
+  delete RECTS.d;
+});
+
+test('telas comuns continuam com no máximo 3 dicas', async () => {
+  scrolled = 0;
+  function Many() {
+    const tour = useTour('muitas@1', LONG, {delay: 0});
+    return (
+      <View>
+        {['a', 'b', 'c', 'd'].map(k => (
+          <Box key={k} k={k === 'c' || k === 'd' ? 'b' : k} ref={tour.ref(k)} />
+        ))}
+      </View>
+    );
+  }
+  const tree = await mount(<Many />);
+  expect(texts(tree.root)).toContain('1 de 3');
+});
+
 test('balão vai embaixo do destaque, ou em cima quando não cabe', () => {
   const screen = {width: 400, height: 800};
   expect(bubblePlacement({x: 20, y: 100, w: 200, h: 60}, screen).below).toBe(true);
@@ -136,10 +215,12 @@ test('balão vai embaixo do destaque, ou em cima quando não cabe', () => {
   expect(bubblePlacement({x: 0, y: 0, w: 10, h: 10}, {width: 320, height: 600}).width).toBe(288);
 });
 
-test('textos: curtos e no máximo 4 opções por tela', () => {
-  for (const t of Object.values(TOURS)) {
+test('textos: curtos; só o Início passa de 4', () => {
+  expect(TOURS.home.steps.length).toBeGreaterThanOrEqual(8);
+  expect(TOURS.home.maxSteps).toBeGreaterThanOrEqual(8);
+  for (const [k, t] of Object.entries(TOURS)) {
     expect(t.id).toMatch(/@\d+$/);
-    expect(t.steps.length).toBeLessThanOrEqual(4);
+    if (k !== 'home') expect(t.steps.length).toBeLessThanOrEqual(4);
     for (const s of t.steps) expect(s.text.length).toBeLessThanOrEqual(120);
   }
 });

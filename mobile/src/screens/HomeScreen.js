@@ -61,7 +61,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
   const here = location.coords ? {lat: location.coords.latitude, lng: location.coords.longitude} : null;
   const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const tour = useTour(TOURS.home.id, TOURS.home.steps, {ready: !!data && !!data.user});
+  const tour = useTour(TOURS.home.id, TOURS.home.steps, {ready: !!data && !!data.user, maxSteps: TOURS.home.maxSteps});
 
   // Mostra na hora a última tela salva no aparelho e atualiza por trás
   const cacheKey = `home_cache_v1:${user?.id || 'anon'}`;
@@ -140,6 +140,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
 
   return (
     <ScrollView
+      {...tour.scrollProps}
       style={styles.container}
       contentContainerStyle={{paddingBottom: 32}}
       refreshControl={
@@ -154,7 +155,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
       }>
       {/* Cabeçalho */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.avatar} onPress={() => go('Perfil')} accessibilityLabel="Meu perfil">
+        <TouchableOpacity style={styles.avatar} onPress={() => go('Perfil')} accessibilityLabel="Meu perfil" ref={tour.ref('perfil')}>
           <Text style={[styles.avatarText, F.heavy]}>{(firstName[0] || 'L').toUpperCase()}</Text>
         </TouchableOpacity>
         <View style={{flex: 1}}>
@@ -163,7 +164,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
             {firstName}
           </Text>
         </View>
-        <TouchableOpacity style={styles.headBtn} onPress={() => go('Services', {focusSearch: true})} accessibilityLabel="Buscar" testID="buscar">
+        <TouchableOpacity style={styles.headBtn} onPress={() => go('Services', {focusSearch: true})} accessibilityLabel="Buscar" ref={tour.ref('busca')} testID="buscar">
           <Ionicons name="search" size={21} color={C.ink} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -272,7 +273,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
 
       {/* Para você */}
       {data.forYou?.length ? (
-        <>
+        <View ref={tour.ref('paraVoce')} collapsable={false}>
           <Section title="Para você" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 12, paddingHorizontal: 20}}>
             {data.forYou.map((f, i) => {
@@ -301,62 +302,64 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
               );
             })}
           </ScrollView>
-        </>
+        </View>
       ) : null}
 
       {/* Meus pets */}
-      <Section title="Meus pets" action={data.pets?.length ? 'Ver todos' : null} onAction={() => go('Pets')} testID="ver-pets" />
-      {data.pets?.length ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 12, paddingHorizontal: 20}}>
-          {data.pets.map(p => {
-            const st = PET_STATUS[p.vaccine?.status] || PET_STATUS.NONE;
-            return (
-              <TouchableOpacity key={p.id} style={styles.pet} onPress={() => go('VaccinationCard', {petId: p.id})} testID={`pet-${p.id}`}>
-                <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-                  {p.photo ? (
-                    <Image source={{uri: p.photo}} style={styles.petAvatar} />
-                  ) : (
-                    <View style={[styles.petAvatar, {backgroundColor: C.primarySoft}]}>
-                      <Text style={[{color: C.primary, fontSize: 17}, F.heavy]}>{(p.name || '?')[0]}</Text>
+      <View ref={tour.ref('pets')} collapsable={false}>
+        <Section title="Meus pets" action={data.pets?.length ? 'Ver todos' : null} onAction={() => go('Pets')} testID="ver-pets" />
+        {data.pets?.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 12, paddingHorizontal: 20}}>
+            {data.pets.map(p => {
+              const st = PET_STATUS[p.vaccine?.status] || PET_STATUS.NONE;
+              return (
+                <TouchableOpacity key={p.id} style={styles.pet} onPress={() => go('VaccinationCard', {petId: p.id})} testID={`pet-${p.id}`}>
+                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+                    {p.photo ? (
+                      <Image source={{uri: p.photo}} style={styles.petAvatar} />
+                    ) : (
+                      <View style={[styles.petAvatar, {backgroundColor: C.primarySoft}]}>
+                        <Text style={[{color: C.primary, fontSize: 17}, F.heavy]}>{(p.name || '?')[0]}</Text>
+                      </View>
+                    )}
+                    <View style={{flex: 1}}>
+                      <Text style={[styles.petName, F.heavy]} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                      <Text style={[styles.muted, F.regular]} numberOfLines={1}>
+                        {[p.species, p.breed].filter(Boolean).join(' · ')}
+                      </Text>
                     </View>
-                  )}
-                  <View style={{flex: 1}}>
-                    <Text style={[styles.petName, F.heavy]} numberOfLines={1}>
-                      {p.name}
-                    </Text>
-                    <Text style={[styles.muted, F.regular]} numberOfLines={1}>
-                      {[p.species, p.breed].filter(Boolean).join(' · ')}
+                  </View>
+                  <View style={[styles.petStatus, {backgroundColor: st.bg}]}>
+                    <Text style={[{color: st.fg, fontSize: 12}, F.bold]} numberOfLines={1}>
+                      {p.vaccine?.label}
                     </Text>
                   </View>
-                </View>
-                <View style={[styles.petStatus, {backgroundColor: st.bg}]}>
-                  <Text style={[{color: st.fg, fontSize: 12}, F.bold]} numberOfLines={1}>
-                    {p.vaccine?.label}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-          <TouchableOpacity style={styles.addPet} onPress={() => go('AddPet')} accessibilityLabel="Adicionar pet" testID="adicionar-pet">
-            <Ionicons name="add" size={26} color={C.primary} />
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity style={styles.addPet} onPress={() => go('AddPet')} accessibilityLabel="Adicionar pet" testID="adicionar-pet">
+              <Ionicons name="add" size={26} color={C.primary} />
+            </TouchableOpacity>
+          </ScrollView>
+        ) : (
+          <TouchableOpacity style={[styles.row, {marginHorizontal: 20}]} onPress={() => go('AddPet')} testID="cadastrar-pet">
+            <View style={[styles.rowIcon, {backgroundColor: '#CCFBF1'}]}>
+              <Ionicons name="medkit" size={22} color="#0F766E" />
+            </View>
+            <View style={{flex: 1}}>
+              <Text style={[styles.rowTitle, F.heavy]}>Carteira de vacinação digital</Text>
+              <Text style={[styles.muted, F.regular]}>Grátis para todos, carimbada pelo veterinário</Text>
+            </View>
+            <Text style={[styles.link, F.bold]}>Criar</Text>
           </TouchableOpacity>
-        </ScrollView>
-      ) : (
-        <TouchableOpacity style={[styles.row, {marginHorizontal: 20}]} onPress={() => go('AddPet')} testID="cadastrar-pet">
-          <View style={[styles.rowIcon, {backgroundColor: '#CCFBF1'}]}>
-            <Ionicons name="medkit" size={22} color="#0F766E" />
-          </View>
-          <View style={{flex: 1}}>
-            <Text style={[styles.rowTitle, F.heavy]}>Carteira de vacinação digital</Text>
-            <Text style={[styles.muted, F.regular]}>Grátis para todos, carimbada pelo veterinário</Text>
-          </View>
-          <Text style={[styles.link, F.bold]}>Criar</Text>
-        </TouchableOpacity>
-      )}
+        )}
+      </View>
 
       {/* Promoções perto */}
       {data.promos?.length ? (
-        <>
+        <View ref={tour.ref('promos')} collapsable={false}>
           <Section title={here ? 'Promoções perto de você' : 'Promoções para membros'} action="Ver todas" onAction={() => go('Parceiros')} testID="ver-promocoes" />
           <View style={{gap: 10, paddingHorizontal: 20}}>
             {data.promos.map(p => (
@@ -384,11 +387,11 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
               </TouchableOpacity>
             ))}
           </View>
-        </>
+        </View>
       ) : null}
 
       {/* Evento e adoção */}
-      <View style={styles.grid2}>
+      <View style={styles.grid2} ref={tour.ref('eventoAdocao')} collapsable={false}>
         <TouchableOpacity style={styles.tile} onPress={() => go('EventsCalendar')} testID="proximo-evento">
           {data.nextEvent ? (
             <>
@@ -425,7 +428,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={[styles.row, {marginHorizontal: 20, marginTop: 12}]} onPress={() => go('Transparency')} testID="transparencia">
+      <TouchableOpacity style={[styles.row, {marginHorizontal: 20, marginTop: 12}]} onPress={() => go('Transparency')} ref={tour.ref('transparencia')} testID="transparencia">
         <View style={[styles.rowIcon, {backgroundColor: '#E0F2FE'}]}>
           <Ionicons name="stats-chart" size={20} color="#0369A1" />
         </View>
