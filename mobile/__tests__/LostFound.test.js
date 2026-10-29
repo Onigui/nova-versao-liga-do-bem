@@ -141,6 +141,7 @@ describe('app', () => {
   test('publicar "perdi": escolhe o pet, local do GPS, WhatsApp do cadastro', async () => {
     const fetchImpl = jest.fn(async (url, init = {}) => {
       if (url.endsWith('/user/pets')) return json({pets: [{id: 'p1', name: 'Thor', species: 'Cão', breed: 'SRD', color: 'caramelo'}]});
+      if (url.endsWith('/lostfound/similar')) return json({similar: []});
       if (init.method === 'POST') return json({report: {id: 'new1'}, alerts: {nearby: 4, matched: 1}}, true, 201);
       return json({});
     });
@@ -172,7 +173,8 @@ describe('app', () => {
     await press(tree.root, 'confirmar-local');
     expect(tree.root.findAll(x => x.props.pick && x.props.onPick && x.props.zoomControl).length).toBe(0);
     await press(tree.root, 'publicar-aviso');
-    const post = fetchImpl.mock.calls.find(c => c[1]?.method === 'POST');
+    expect(fetchImpl.mock.calls.some(c => c[0].endsWith('/lostfound/similar'))).toBe(true);
+    const post = fetchImpl.mock.calls.find(c => c[1]?.method === 'POST' && c[0].endsWith('/api/lostfound'));
     const body = JSON.parse(post[1].body);
     expect(body).toMatchObject({type: 'LOST', species: 'DOG', petId: 'p1', petName: 'Thor', size: 'MEDIO', colors: 'caramelo', lat: -22.9, lng: -48.45, whatsapp: '14998123456', photos: ['data:image/jpeg;base64,AAAA']});
     expect(Alert.alert.mock.calls[Alert.alert.mock.calls.length - 1][1]).toBe('Avisamos 5 pessoas por perto.');

@@ -3,13 +3,13 @@
  * Vai para o mapa na hora e avisa quem está perto.
  */
 import React, {useEffect, useMemo, useState} from 'react';
-import {Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {MapFullscreen, MapPreview} from '../components/MapSheet';
 import useUserLocation from '../services/useUserLocation';
 import {useAuth} from '../services/AuthService';
 import {memberApi} from '../utils/quotes';
-import {LF_SEX, LF_SIZES, LF_SPECIES, LF_TYPES, LF_WITH, buildReportBody, formatPhone, nowInput, parseDateTime} from '../utils/lostfound';
+import {LF_SEX, LF_SIZES, LF_SPECIES, LF_TYPES, LF_WITH, buildReportBody, caseSituation, distanceLabel, formatPhone, nowInput, parseDateTime, photoUrl, sightingFromReportForm, speciesLabel, timeAgo} from '../utils/lostfound';
 import DateField from '../components/DateField';
 import {F} from '../theme/home';
 import {getPicker} from '../utils/photoPicker';
@@ -123,12 +123,65 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
     setMapOpen(false);
   };
 
+  // "Pode ser um destes?": antes de criar um aviso novo, mostra os casos parecidos por perto
+  const [similar, setSimilar] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [adding, setAdding] = useState(null);
+
   const submit = async () => {
     const {error, body} = buildReportBody(form);
     if (error) {
       Alert.alert('Falta pouco', error);
       return;
     }
+    setChecking(true);
+    try {
+      const d = await api('POST', '/lostfound/similar', {
+        type: body.type,
+        species: body.species,
+        lat: body.lat,
+        lng: body.lng,
+        colors: body.colors,
+        size: body.size,
+        sex: body.sex,
+        breed: body.breed,
+        happenedAt: body.happenedAt,
+      });
+      if (d.similar?.length) {
+        setSimilar(d.similar);
+        return;
+      }
+    } catch {
+      // sem a checagem, publica normalmente
+    } finally {
+      setChecking(false);
+    }
+    publish(body);
+  };
+
+  const addToCase = c =>
+    Alert.alert('É este animal?', 'Sua foto, o local e a hora entram na linha do tempo deste caso, e quem acompanha é avisado.', [
+      {text: 'Voltar', style: 'cancel'},
+      {
+        text: 'Sim, é este',
+        onPress: async () => {
+          setAdding(c.id);
+          try {
+            await api('POST', `/lostfound/${c.id}/sightings`, sightingFromReportForm(form));
+            setSimilar(null);
+            Alert.alert('Obrigado! 🐾', 'O avistamento entrou no caso. Assim fica tudo num lugar só.');
+            navigation.replace('LostFoundDetail', {id: c.id});
+          } catch (e) {
+            Alert.alert('Não foi possível', e.message);
+          } finally {
+            setAdding(null);
+          }
+        },
+      },
+    ]);
+
+  const publish = async body => {
+    setSimilar(null);
     setSaving(true);
     try {
       const d = await api('POST', '/lostfound', body);
@@ -301,9 +354,55 @@ export default function LostFoundNewScreen({navigation, route, fetchImpl = fetch
         <Text style={styles.warnText}>Nunca peça nem faça PIX para "devolver" um animal. A Liga remove avisos com golpe.</Text>
       </View>
 
-      <TouchableOpacity style={[styles.save, {backgroundColor: t.color}, saving && {opacity: 0.6}]} onPress={submit} disabled={saving} testID="publicar-aviso">
-        <Text style={styles.saveText}>{saving ? 'Publicando…' : 'Publicar no mapa'}</Text>
+      <TouchableOpacity style={[styles.save, {backgroundColor: t.color}, (saving || checking) && {opacity: 0.6}]} onPress={submit} disabled={saving || checking} testID="publicar-aviso">
+        <Text style={styles.saveText}>{checking ? 'Conferindo parecidos…' : saving ? 'Publicando…' : 'Publicar no mapa'}</Text>
       </TouchableOpacity>
+      <Modal visible={!!similar} transparent animationType="slide" onRequestClose={() => setSimilar(null)}>
+        <Pressable style={styles.sheetBg} onPress={() => setSimilar(null)} />
+        <View style={styles.sheet} testID="parecidos">
+          <Text style={styles.sheetTitle}>{type === 'LOST' ? 'Já encontraram? Veja se é o seu' : 'Pode ser um destes?'}</Text>
+          <Text style={styles.hint}>
+            {type === 'LOST'
+              ? 'Estes animais parecidos foram vistos perto. Confira as fotos antes de publicar.'
+              : 'Se for o mesmo animal, adicione como avistamento: assim o caso fica num lugar só, com o trajeto.'}
+          </Text>
+          <ScrollView style={{maxHeight: 380, marginTop: 10}}>
+            {(similar || []).map(c => {
+              const ct = LF_TYPES[c.type];
+              const sit = caseSituation(c);
+              return (
+                <View key={c.id} style={styles.simCard} testID={`parecido-${c.id}`}>
+                  <Pressable onPress={() => navigation.navigate('LostFoundDetail', {id: c.id})} style={{flexDirection: 'row', gap: 10}}>
+                    {c.photos?.[0] ? <Image source={{uri: photoUrl(c.photos[0])}} style={styles.simImg} /> : <View style={[styles.simImg, {backgroundColor: '#E5E7EB'}]} />}
+                    <View style={{flex: 1}}>
+                      <Text style={[styles.simTag, {color: ct.color}]}>{ct.label.toUpperCase()}</Text>
+                      <Text style={styles.simTitle} numberOfLines={2}>
+                        {c.petName ? `${c.petName} · ` : ''}
+                        {speciesLabel(c.species)} {c.colors}
+                      </Text>
+                      <Text style={styles.hint} numberOfLines={1}>
+                        {[distanceLabel(c.distanceKm), sit?.text || timeAgo(c.happenedAt)].filter(Boolean).join(' · ')}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  {type === 'LOST' ? (
+                    <TouchableOpacity style={[styles.simBtn, {borderColor: ct.color}]} onPress={() => navigation.navigate('LostFoundDetail', {id: c.id})} testID={`ver-${c.id}`}>
+                      <Text style={[styles.simBtnText, {color: ct.color}]}>Ver fotos e falar com quem achou</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={[styles.simBtn, {backgroundColor: t.color, borderColor: t.color}]} onPress={() => addToCase(c)} disabled={!!adding} testID={`e-este-${c.id}`}>
+                      {adding === c.id ? <ActivityIndicator color="#FFFFFF" /> : <Text style={[styles.simBtnText, {color: '#FFFFFF'}]}>É este! Adicionar avistamento</Text>}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+          <TouchableOpacity style={styles.simNew} onPress={() => publish(buildReportBody(form).body)} testID="nenhum-publicar">
+            <Text style={styles.simNewText}>{type === 'LOST' ? 'Não é o meu, publicar meu aviso' : 'Não é nenhum, publicar aviso novo'}</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -334,4 +433,15 @@ const styles = StyleSheet.create({
     ...F.regular, flex: 1, fontSize: 12, color: '#92400E'},
   save: {height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20},
   saveText: {color: '#FFFFFF', ...F.heavy, fontSize: 16},
+  sheetBg: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)'},
+  sheet: {backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, paddingBottom: 24},
+  sheetTitle: {fontSize: 18, ...F.heavy, color: '#1F2937', marginBottom: 4},
+  simCard: {borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 14, padding: 10, marginBottom: 10},
+  simImg: {width: 76, height: 76, borderRadius: 10},
+  simTag: {fontSize: 11, ...F.heavy},
+  simTitle: {fontSize: 14, ...F.bold, color: '#1F2937', marginTop: 2},
+  simBtn: {height: 42, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 10},
+  simBtnText: {fontSize: 14, ...F.heavy},
+  simNew: {height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6', marginTop: 4},
+  simNewText: {fontSize: 14, ...F.bold, color: '#374151'},
 });

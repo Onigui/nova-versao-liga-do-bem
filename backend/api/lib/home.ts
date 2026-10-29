@@ -215,9 +215,9 @@ export async function buildHome(db: any, userId: string | null, where: { lat: nu
           // caixa de ~1 km no próprio banco; o círculo exato é conferido aqui
           const d = LOST_BADGE_KM / 111;
           const r: any[] = await db.$queryRawUnsafe(
-            `SELECT "publicLat" AS lat, "publicLng" AS lng FROM lf_reports
+            `SELECT COALESCE("lastLat", "publicLat") AS lat, COALESCE("lastLng", "publicLng") AS lng FROM lf_reports
               WHERE status = 'ACTIVE' AND hidden = false AND "expiresAt" > NOW() AND "createdAt" > NOW() - INTERVAL '30 days'
-                AND "publicLat" BETWEEN $1 AND $2 AND "publicLng" BETWEEN $3 AND $4`,
+                AND COALESCE("lastLat", "publicLat") BETWEEN $1 AND $2 AND COALESCE("lastLng", "publicLng") BETWEEN $3 AND $4`,
             where.lat - d, where.lat + d, where.lng - d * 1.2, where.lng + d * 1.2,
           );
           return r.filter((x) => km(where.lat, where.lng, Number(x.lat), Number(x.lng)) <= LOST_BADGE_KM).length;

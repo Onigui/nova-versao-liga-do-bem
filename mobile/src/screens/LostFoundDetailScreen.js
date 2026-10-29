@@ -1,6 +1,8 @@
 /**
- * Aviso de achados e perdidos: fotos, como é o animal, mapa do local, WhatsApp de quem publicou,
- * como chegar e compartilhar. Para quem publicou: possíveis encontros, encerrar, renovar, apagar.
+ * Caso de achados e perdidos: fotos, como é o animal, situação atual ("visto há 2 h"), trajeto no
+ * mapa, linha do tempo dos avistamentos, WhatsApp de quem publicou, como chegar e compartilhar.
+ * Qualquer pessoa pode registrar "Vi este animal" (com foto). Para quem publicou: possíveis
+ * encontros, tirar avistamento errado, encerrar, renovar, apagar.
  */
 import React, {useCallback, useMemo, useState} from 'react';
 import {ActivityIndicator, Alert, Dimensions, Image, Linking, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
@@ -8,11 +10,38 @@ import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {MapFullscreen, MapPreview} from '../components/MapSheet';
 import {memberApi} from '../utils/quotes';
-import {LF_TYPES, directionsUrl, photoUrl, shareUrl, sizeLabel, speciesLabel, timeAgo, toMarkers, whatsappUrl, whenLabel, withLabel} from '../utils/lostfound';
+import {LF_TYPES, SIGHTING_KINDS, caseSituation, caseTrack, directionsUrl, photoUrl, shareUrl, sizeLabel, speciesLabel, timeAgo, whatsappUrl, whenLabel, withLabel} from '../utils/lostfound';
 import {ReportRow} from './LostFoundScreen';
 import {F} from '../theme/home';
 
 const W = Dimensions.get('window').width;
+
+function TimelineItem({color, icon, title, when, place, note, photo, number, first, last, onRemove, testID}) {
+  return (
+    <View style={styles.tlRow} testID={testID}>
+      <View style={styles.tlRail}>
+        <View style={[styles.tlDot, {backgroundColor: color}]}>
+          {number ? <Text style={styles.tlNum}>{number}</Text> : <Ionicons name={icon} size={12} color="#FFFFFF" />}
+        </View>
+        {!last ? <View style={styles.tlLine} /> : null}
+      </View>
+      <View style={[styles.tlBody, !last && {paddingBottom: 16}]}>
+        <Text style={styles.tlTitle}>{title}</Text>
+        <Text style={styles.meta}>
+          {whenLabel(when)} · {timeAgo(when)}
+          {place ? ` · ${place}` : ''}
+        </Text>
+        {note ? <Text style={styles.tlNote}>{note}</Text> : null}
+        {photo && !first ? <Image source={{uri: photoUrl(photo)}} style={styles.tlPhoto} /> : null}
+        {onRemove ? (
+          <TouchableOpacity onPress={onRemove} style={{marginTop: 6}} testID={`${testID}-tirar`}>
+            <Text style={[styles.meta, {color: '#B91C1C'}]}>Não é este animal / tirar</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
 
 export default function LostFoundDetailScreen({navigation, route, fetchImpl = fetch, openUrl = url => Linking.openURL(url), share = opts => Share.share(opts)}) {
   const api = useMemo(() => memberApi(fetchImpl), [fetchImpl]);
@@ -50,20 +79,25 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
     try {
       const r = await api(method, `/lostfound/${id}${path}`, body);
       if (msg !== false) Alert.alert('Pronto', r.message || msg || 'Feito');
-      if (method === 'DELETE') navigation.goBack();
+      if (method === 'DELETE' && !path) navigation.goBack();
       else load();
     } catch (e) {
       Alert.alert('Não foi possível', e.message);
     }
   };
 
-  const mapMarkers = useMemo(() => (data ? toMarkers([data.report]) : null), [data]);
+  // Trajeto: 1 = onde o caso começou, depois cada avistamento em ordem
+  const trail = useMemo(() => (data ? caseTrack(data.report, data.timeline) : {markers: null, track: null}), [data]);
+  const mapMarkers = trail.markers;
 
   if (!data) return error ? <Text style={styles.error}>{error}</Text> : <ActivityIndicator style={{marginTop: 40}} color="#7C3AED" />;
   const r = data.report;
   const t = LF_TYPES[r.type];
   const closed = r.status !== 'ACTIVE';
   const wa = whatsappUrl(r);
+  const timeline = data.timeline || [];
+  const situation = caseSituation(r);
+  const lastPoint = r.lastSeen || {lat: r.lat, lng: r.lng};
 
   const facts = [
     ['Espécie', speciesLabel(r.species)],
@@ -109,6 +143,14 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
           {r.distanceKm != null ? ` · a ${r.distanceKm} km` : ''}
         </Text>
 
+        {situation && r.status === 'ACTIVE' ? (
+          <View style={[styles.situation, {borderColor: situation.color}]} testID="situacao">
+            <Ionicons name={situation.icon || 'eye'} size={16} color={situation.color} />
+            <Text style={[styles.situationText, {color: situation.color}]}>{situation.text}</Text>
+            {r.sightings ? <Text style={styles.meta}>· {r.sightings} {r.sightings === 1 ? 'avistamento' : 'avistamentos'}</Text> : null}
+          </View>
+        ) : null}
+
         <View style={styles.facts}>
           {facts.map(([k, v]) => (
             <View key={k} style={styles.fact}>
@@ -119,30 +161,31 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
         </View>
         {r.description ? <Text style={styles.desc}>{r.description}</Text> : null}
 
-        <Text style={styles.section}>Onde</Text>
+        <Text style={styles.section}>{timeline.length ? 'Por onde passou' : 'Onde'}</Text>
         <Text style={styles.place}>
           {[r.locationNote, r.district, r.city].filter(Boolean).join(' · ') || 'Veja no mapa'}
           {r.approximate ? ' (região aproximada)' : ''}
         </Text>
-        <MapPreview style={styles.map} center={{lat: r.lat, lng: r.lng}} zoom={16} markers={mapMarkers} onPress={() => setMapOpen(true)} testID="mapa-aviso" />
+        <MapPreview style={styles.map} center={lastPoint} zoom={16} markers={mapMarkers} track={trail.track} onPress={() => setMapOpen(true)} testID="mapa-aviso" />
         <MapFullscreen
           visible={mapOpen}
           onClose={() => setMapOpen(false)}
           title={`${t.label}: ${speciesLabel(r.species)}${r.petName ? ` ${r.petName}` : ''}`}
           subtitle={[r.locationNote, r.district, r.city].filter(Boolean).join(' · ') + (r.approximate ? ' (região aproximada)' : '')}
-          center={{lat: r.lat, lng: r.lng}}
+          center={lastPoint}
           zoom={16}
           markers={mapMarkers}
+          track={trail.track}
           testID="mapa-aviso-tela-cheia"
           footer={
-            <TouchableOpacity style={styles.mapGo} onPress={() => openUrl(directionsUrl(r))} testID="como-chegar-mapa">
+            <TouchableOpacity style={styles.mapGo} onPress={() => openUrl(directionsUrl(lastPoint))} testID="como-chegar-mapa">
               <Ionicons name="navigate" size={18} color="#FFFFFF" />
               <Text style={styles.mapGoText}>Como chegar</Text>
             </TouchableOpacity>
           }
         />
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.action} onPress={() => openUrl(directionsUrl(r))} testID="como-chegar">
+          <TouchableOpacity style={styles.action} onPress={() => openUrl(directionsUrl(lastPoint))} testID="como-chegar">
             <Ionicons name="navigate" size={18} color="#7C3AED" />
             <Text style={styles.actionText}>Como chegar</Text>
           </TouchableOpacity>
@@ -158,6 +201,61 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
             <Text style={styles.actionText}>Compartilhar</Text>
           </TouchableOpacity>
         </View>
+
+        {!closed && !r.hidden ? (
+          <TouchableOpacity
+            style={[styles.big, {backgroundColor: '#D97706'}]}
+            onPress={() => navigation.navigate('LostFoundSighting', {report: r})}
+            testID="vi-este-animal">
+            <Text style={styles.bigText}>👀 Vi este animal</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <Text style={styles.section}>Linha do tempo</Text>
+        <View style={styles.tl} testID="linha-do-tempo">
+          <TimelineItem
+            first
+            color={t.color}
+            icon={t.icon}
+            title={r.type === 'LOST' ? `Perdido${r.author ? ` · ${r.author}` : ''}` : r.type === 'FOUND' ? `Encontrado por ${r.author || 'alguém'}` : `Visto solto por ${r.author || 'alguém'}`}
+            when={r.happenedAt}
+            place={[r.locationNote, r.district].filter(Boolean).join(' · ')}
+            photo={r.photos[0]}
+            last={!timeline.length}
+          />
+          {timeline.map((s, i) => {
+            const k = SIGHTING_KINDS[s.kind] || SIGHTING_KINDS.SEEN;
+            return (
+              <TimelineItem
+                key={s.id}
+                color={k.color}
+                icon={k.icon}
+                title={`${k.label} · ${s.author || 'alguém'}`}
+                when={s.happenedAt}
+                place={[s.locationNote, s.district].filter(Boolean).join(' · ') + (s.approximate ? ' (região aproximada)' : '')}
+                note={s.note}
+                photo={s.photo}
+                number={i + 2}
+                last={i === timeline.length - 1}
+                onRemove={
+                  s.canRemove
+                    ? () =>
+                        Alert.alert(
+                          s.mine ? 'Tirar seu avistamento?' : 'Não é este animal?',
+                          'O avistamento sai da linha do tempo e do mapa.',
+                          [
+                            {text: 'Voltar', style: 'cancel'},
+                            {text: 'Tirar', style: 'destructive', onPress: () => act(`/sightings/${s.id}`, 'DELETE', undefined, false)},
+                          ],
+                        )
+                    : null
+                }
+                testID={`avistamento-${s.id}`}
+              />
+            );
+          })}
+        </View>
+        {!timeline.length && !closed ? <Text style={styles.meta}>Viu este animal? Toque em "Vi este animal" para ajudar a montar o trajeto.</Text> : null}
 
         {!r.mine && !closed ? (
           wa ? (
@@ -247,6 +345,18 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
 
 const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
+  situation: {flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8, backgroundColor: '#FFFFFF'},
+  situationText: {fontSize: 13, ...F.bold},
+  tl: {backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12},
+  tlRow: {flexDirection: 'row', gap: 10},
+  tlRail: {alignItems: 'center', width: 24},
+  tlDot: {width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
+  tlNum: {color: '#FFFFFF', fontSize: 12, ...F.heavy},
+  tlLine: {flex: 1, width: 2, backgroundColor: '#E5E7EB', marginTop: 2},
+  tlBody: {flex: 1},
+  tlTitle: {fontSize: 14, ...F.bold, color: '#1F2937'},
+  tlNote: {fontSize: 14, ...F.regular, color: '#374151', marginTop: 4},
+  tlPhoto: {width: '100%', height: 160, borderRadius: 10, marginTop: 8, backgroundColor: '#E5E7EB'},
   tag: {borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3},
   tagText: {color: '#FFFFFF', ...F.heavy, fontSize: 12},
   meta: {

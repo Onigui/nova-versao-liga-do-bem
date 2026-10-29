@@ -34,7 +34,14 @@ export function ReportRow({r, onPress}) {
           {r.petName ? ` · ${r.petName}` : ''} · {r.colors}
         </Text>
         <Text style={styles.meta} numberOfLines={1}>
-          {[distanceLabel(r.distanceKm), r.district || r.locationNote, timeAgo(r.happenedAt)].filter(Boolean).join(' · ')}
+          {[
+            distanceLabel(r.distanceKm),
+            r.district || r.locationNote,
+            r.lastSeen ? `visto ${timeAgo(r.lastSeen.at)}` : timeAgo(r.happenedAt),
+            r.sightings ? `${r.sightings} ${r.sightings === 1 ? 'avistamento' : 'avistamentos'}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
