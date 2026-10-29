@@ -5,12 +5,12 @@
  * encontros, tirar avistamento errado, encerrar, renovar, apagar.
  */
 import React, {useCallback, useMemo, useState} from 'react';
-import {ActivityIndicator, Alert, Dimensions, Image, Linking, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Alert, Dimensions, Image, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {MapFullscreen, MapPreview} from '../components/MapSheet';
 import {memberApi} from '../utils/quotes';
-import {LF_TYPES, SIGHTING_KINDS, caseSituation, caseTrack, directionsUrl, photoUrl, shareUrl, sizeLabel, speciesLabel, timeAgo, whatsappUrl, whenLabel, withLabel} from '../utils/lostfound';
+import {LF_TYPES, SIGHTING_KINDS, caseSituation, caseTrack, directionsUrl, distanceLabel, photoUrl, shareUrl, sizeLabel, speciesLabel, timeAgo, whatsappUrl, whenLabel, withLabel} from '../utils/lostfound';
 import {ReportRow} from './LostFoundScreen';
 import {F} from '../theme/home';
 
@@ -53,10 +53,26 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
   const [mapOpen, setMapOpen] = useState(false);
   const [reason, setReason] = useState('');
 
+  const [merges, setMerges] = useState([]);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeCands, setMergeCands] = useState(null);
+
   const load = useCallback(async () => {
     try {
       const d = await api('GET', `/lostfound/${id}`);
+      if (d.redirectTo) {
+        // Caso unificado: abre o caso que ficou
+        navigation.replace('LostFoundDetail', {id: d.redirectTo, mergedFrom: id});
+        return;
+      }
       setData(d);
+      if (d.pendingMerges) {
+        api('GET', `/lostfound/${id}/merges`)
+          .then(m => setMerges(m.merges || []))
+          .catch(() => {});
+      } else {
+        setMerges([]);
+      }
       setError('');
       navigation?.setOptions?.({title: LF_TYPES[d.report.type]?.label || 'Aviso'});
       if (d.report.mine && d.report.status === 'ACTIVE') {
@@ -85,6 +101,68 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
       Alert.alert('Não foi possível', e.message);
     }
   };
+
+  const decideMerge = (m, ok) =>
+    Alert.alert(
+      ok ? 'É o mesmo animal?' : 'Não é o mesmo animal?',
+      ok ? 'Os dois avisos viram um caso só: fotos, trajeto, conversa e quem acompanha vão juntos.' : 'Os avisos continuam separados.',
+      [
+        {text: 'Voltar', style: 'cancel'},
+        {
+          text: ok ? 'Sim, é o mesmo' : 'Não é',
+          onPress: async () => {
+            try {
+              const r2 = await api('POST', `/lostfound/merges/${m.id}/${ok ? 'confirm' : 'reject'}`, {});
+              Alert.alert('Pronto', r2.message);
+              if (r2.targetId && r2.targetId !== id) navigation.replace('LostFoundDetail', {id: r2.targetId});
+              else load();
+            } catch (e) {
+              Alert.alert('Não foi possível', e.message);
+            }
+          },
+        },
+      ],
+    );
+
+  const openMergePicker = async () => {
+    setMergeOpen(true);
+    setMergeCands(null);
+    try {
+      const r0 = data.report;
+      const d = await api('POST', '/lostfound/similar', {
+        species: r0.species,
+        lat: r0.lastSeen?.lat ?? r0.lat,
+        lng: r0.lastSeen?.lng ?? r0.lng,
+        colors: r0.colors,
+        size: r0.size,
+        sex: r0.sex,
+        breed: r0.breed,
+        happenedAt: r0.lastSeen?.at || r0.happenedAt,
+      });
+      setMergeCands((d.similar || []).filter(c => c.id !== id));
+    } catch {
+      setMergeCands([]);
+    }
+  };
+
+  const suggestMerge = other =>
+    Alert.alert('Sugerir que é o mesmo animal?', 'Quem conhece o animal (o tutor ou quem publicou) confere as fotos e confirma.', [
+      {text: 'Voltar', style: 'cancel'},
+      {
+        text: 'Sugerir',
+        onPress: async () => {
+          try {
+            const r2 = await api('POST', `/lostfound/${id}/merge`, {otherId: other.id});
+            setMergeOpen(false);
+            Alert.alert('Obrigado!', r2.message);
+            if (r2.targetId && r2.targetId !== id) navigation.replace('LostFoundDetail', {id: r2.targetId});
+            else load();
+          } catch (e) {
+            Alert.alert('Não foi possível', e.message);
+          }
+        },
+      },
+    ]);
 
   // Trajeto: 1 = onde o caso começou, depois cada avistamento em ordem
   const trail = useMemo(() => (data ? caseTrack(data.report, data.timeline) : {markers: null, track: null}), [data]);
@@ -134,6 +212,43 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
         {r.hidden ? (
           <Text style={[styles.meta, {color: '#B91C1C', marginTop: 6}]}>Este aviso está escondido para revisão da Liga.</Text>
         ) : null}
+        {route?.params?.mergedFrom ? (
+          <View style={styles.mergedNote} testID="unificado">
+            <Ionicons name="git-merge" size={16} color="#6D28D9" />
+            <Text style={styles.mergedNoteText}>O aviso que você abriu foi unificado com este caso. Está tudo aqui.</Text>
+          </View>
+        ) : null}
+        {merges.map(m => {
+          const other = m.source.id === id ? m.target : m.source;
+          return (
+            <View key={m.id} style={styles.mergeCard} testID={`sugestao-${m.id}`}>
+              <Text style={styles.mergeTitle}>🔗 Pode ser o mesmo animal?</Text>
+              <Text style={styles.meta}>{m.auto ? 'Achamos outro aviso muito parecido.' : 'Alguém achou outro aviso muito parecido.'}{m.note ? ` "${m.note}"` : ''}</Text>
+              <View style={{flexDirection: 'row', gap: 8, marginTop: 8}}>
+                {[r, other].map((x, i) => (
+                  <Pressable key={x.id} style={{flex: 1}} onPress={() => (i ? navigation.push('LostFoundDetail', {id: x.id}) : null)} testID={i ? `ver-outro-${m.id}` : undefined}>
+                    {x.photos?.[0] ? <Image source={{uri: photoUrl(x.photos[0])}} style={styles.mergeImg} /> : <View style={[styles.mergeImg, {backgroundColor: '#E5E7EB'}]} />}
+                    <Text style={styles.mergeCap} numberOfLines={2}>
+                      {i ? 'Outro aviso' : 'Este caso'} · {LF_TYPES[x.type]?.label} · {x.colors}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {m.canConfirm ? (
+                <View style={{flexDirection: 'row', gap: 8, marginTop: 10}}>
+                  <TouchableOpacity style={[styles.mergeBtn, {backgroundColor: '#F3F4F6'}]} onPress={() => decideMerge(m, false)} testID={`nao-e-${m.id}`}>
+                    <Text style={[styles.mergeBtnText, {color: '#374151'}]}>Não é</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.mergeBtn, {backgroundColor: '#6D28D9'}]} onPress={() => decideMerge(m, true)} testID={`sim-e-${m.id}`}>
+                    <Text style={styles.mergeBtnText}>Sim, é o mesmo</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={[styles.meta, {marginTop: 8}]}>Aguardando a confirmação de {m.waitingFor} (ou da Liga).</Text>
+              )}
+            </View>
+          );
+        })}
         <Text style={styles.title}>
           {r.petName ? `${r.petName} · ` : ''}
           {speciesLabel(r.species)} {r.colors}
@@ -298,6 +413,46 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
           <Text style={styles.warnText}>Nunca faça PIX ou pagamento para "liberar" ou "devolver" um animal. Na dúvida, combine em local público.</Text>
         </View>
 
+        {!closed && !r.hidden ? (
+          <TouchableOpacity style={styles.link} onPress={openMergePicker} testID="mesmo-animal">
+            <Text style={styles.linkText}>🔗 Acho que é o mesmo animal de outro aviso</Text>
+          </TouchableOpacity>
+        ) : null}
+        <Modal visible={mergeOpen} transparent animationType="slide" onRequestClose={() => setMergeOpen(false)}>
+          <Pressable style={styles.sheetBg} onPress={() => setMergeOpen(false)} />
+          <View style={styles.sheet} testID="escolher-outro-aviso">
+            <Text style={styles.mergeTitle}>Qual é o outro aviso?</Text>
+            <Text style={styles.meta}>Avisos parecidos por perto. Compare as fotos: quem conhece o animal confirma antes de juntar.</Text>
+            {!mergeCands ? (
+              <ActivityIndicator style={{marginVertical: 24}} color="#6D28D9" />
+            ) : !mergeCands.length ? (
+              <Text style={[styles.meta, {marginVertical: 20}]}>Não achamos avisos parecidos por perto.</Text>
+            ) : (
+              <ScrollView style={{maxHeight: 360, marginTop: 10}}>
+                {mergeCands.map(c => (
+                  <View key={c.id} style={styles.candRow}>
+                    {c.photos?.[0] ? <Image source={{uri: photoUrl(c.photos[0])}} style={styles.candImg} /> : <View style={[styles.candImg, {backgroundColor: '#E5E7EB'}]} />}
+                    <View style={{flex: 1}}>
+                      <Text style={[styles.meta, {color: LF_TYPES[c.type]?.color, fontWeight: '800'}]}>{LF_TYPES[c.type]?.label.toUpperCase()}</Text>
+                      <Text style={styles.candTitle} numberOfLines={2}>
+                        {c.petName ? `${c.petName} · ` : ''}
+                        {c.colors}
+                      </Text>
+                      <Text style={styles.meta}>{[distanceLabel(c.distanceKm), timeAgo(c.happenedAt)].filter(Boolean).join(' · ')}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.candBtn} onPress={() => suggestMerge(c)} testID={`e-o-mesmo-${c.id}`}>
+                      <Text style={styles.candBtnText}>É este</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            <TouchableOpacity style={[styles.big, {backgroundColor: '#F3F4F6'}]} onPress={() => setMergeOpen(false)}>
+              <Text style={[styles.bigText, {color: '#374151'}]}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
         {r.mine ? (
           <View style={{marginTop: 16}}>
             {matches?.length ? (
@@ -371,6 +526,21 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
 
 const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
+  mergedNote: {flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: '#F5F3FF', borderRadius: 10, padding: 10, marginTop: 10},
+  mergedNoteText: {flex: 1, fontSize: 13, ...F.semibold, color: '#5B21B6'},
+  mergeCard: {backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1.5, borderColor: '#C4B5FD', padding: 12, marginTop: 12},
+  mergeTitle: {fontSize: 16, ...F.heavy, color: '#1F2937', marginBottom: 2},
+  mergeImg: {width: '100%', height: 120, borderRadius: 10},
+  mergeCap: {fontSize: 12, ...F.semibold, color: '#374151', marginTop: 4},
+  mergeBtn: {flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
+  mergeBtnText: {color: '#FFFFFF', ...F.heavy, fontSize: 14},
+  sheetBg: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)'},
+  sheet: {backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, paddingBottom: 24},
+  candRow: {flexDirection: 'row', gap: 10, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 8, marginBottom: 8},
+  candImg: {width: 64, height: 64, borderRadius: 10},
+  candTitle: {fontSize: 14, ...F.bold, color: '#1F2937'},
+  candBtn: {backgroundColor: '#6D28D9', borderRadius: 10, paddingHorizontal: 12, height: 38, alignItems: 'center', justifyContent: 'center'},
+  candBtnText: {color: '#FFFFFF', ...F.heavy, fontSize: 13},
   socialRow: {flexDirection: 'row', gap: 10, marginTop: 12},
   social: {flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: '#6D28D9', backgroundColor: '#FFFFFF'},
   socialOn: {backgroundColor: '#6D28D9'},

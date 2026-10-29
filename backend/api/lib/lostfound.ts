@@ -17,6 +17,12 @@
  * denúncia (3 escondem até a Liga revisar) e o autor do caso pode ocultar. Quem acompanha o caso
  * (autor, quem comentou, quem registrou avistamento ou tocou em "Acompanhar") é avisado.
  *
+ * Unificação: se o mesmo animal ganhou dois casos, qualquer pessoa sugere "é o mesmo animal" (ou o
+ * sistema sugere sozinho quando a semelhança é muito alta). Junta quando confirma o tutor do caso
+ * "perdido", ou os dois autores (quando não há perdido), ou a Liga. O caso que fica é o "perdido"
+ * (ou o mais antigo); o outro vira um registro na linha do tempo e leva avistamentos, conversa e
+ * quem acompanha. O link antigo leva ao caso unificado.
+ *
  * Alertas: quem ativa recebe push de avisos novos num raio escolhido; quem perdeu um pet
  * recebe aviso automático de "encontrei"/"vi" da mesma espécie perto de onde perdeu.
  * Segurança: denúncia (3 denúncias escondem o aviso até a Liga revisar), limite de avisos,
@@ -66,6 +72,8 @@ const COMMENTS_PER_DAY = 40;
 const COMMENT_GAP_MS = 8 * 1000;
 const COMMENT_FLAGS_TO_HIDE = 3;
 const PUSH_QUIET_MS = 10 * 60 * 1000;
+const MERGE_AUTO_SCORE = 70;
+const MERGES_PER_DAY = 10;
 
 let ensuredAt = 0;
 export async function ensureLostFoundSchema(db: any) {
@@ -189,6 +197,26 @@ export async function ensureLostFoundSchema(db: any) {
        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
        PRIMARY KEY ("reportId", "userId")
      )`,
+    `ALTER TABLE lf_reports ADD COLUMN IF NOT EXISTS "mergedInto" TEXT`,
+    `ALTER TABLE lf_reports DROP CONSTRAINT IF EXISTS lf_reports_status_check`,
+    `ALTER TABLE lf_reports ADD CONSTRAINT lf_reports_status_check CHECK (status IN ('ACTIVE','RESOLVED','EXPIRED','REMOVED','MERGED'))`,
+    `CREATE TABLE IF NOT EXISTS lf_merges (
+       id TEXT PRIMARY KEY,
+       "sourceId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
+       "targetId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
+       "suggestedBy" TEXT,
+       auto BOOLEAN NOT NULL DEFAULT false,
+       note TEXT,
+       needs TEXT NOT NULL CHECK (needs IN ('TUTOR','BOTH')),
+       "sourceOk" BOOLEAN NOT NULL DEFAULT false,
+       "targetOk" BOOLEAN NOT NULL DEFAULT false,
+       status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','CONFIRMED','REJECTED','CANCELLED')),
+       "decidedBy" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+       "decidedAt" TIMESTAMP(3)
+     )`,
+    `CREATE INDEX IF NOT EXISTS lf_merges_source_idx ON lf_merges("sourceId", status)`,
+    `CREATE INDEX IF NOT EXISTS lf_merges_target_idx ON lf_merges("targetId", status)`,
     `CREATE TABLE IF NOT EXISTS lf_flags (
        "reportId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
        "userId" TEXT NOT NULL,
@@ -429,6 +457,159 @@ function commentView(c: any, viewerId: string | null, caseOwnerId: string) {
   };
 }
 
+// ---------------------------------------------------------------- unificação
+
+/** Qual caso fica: o "perdido" (é do tutor) ou, sem perdido, o mais antigo. */
+export function pickSurvivor(a: any, b: any) {
+  if (a.type === 'LOST' && b.type !== 'LOST') return { target: a, source: b };
+  if (b.type === 'LOST' && a.type !== 'LOST') return { target: b, source: a };
+  return new Date(a.createdAt).getTime() <= new Date(b.createdAt).getTime() ? { target: a, source: b } : { target: b, source: a };
+}
+
+/** Quem precisa confirmar: só o tutor (quando um dos casos é "perdido") ou os dois autores. */
+export function mergeRule(source: any, target: any) {
+  const lost = [source, target].filter((x) => x.type === 'LOST');
+  if (lost.length === 1) return { needs: 'TUTOR' as const, tutorId: lost[0].userId as string };
+  return { needs: 'BOTH' as const, tutorId: null as string | null };
+}
+
+function mergeReady(m: any, source: any, target: any) {
+  if (m.needs === 'TUTOR') return target.type === 'LOST' ? m.targetOk : m.sourceOk;
+  if (source.userId === target.userId) return m.sourceOk || m.targetOk;
+  return m.sourceOk && m.targetOk;
+}
+
+/** Marca a confirmação de quem é autor de um dos casos (o tutor, na regra TUTOR). */
+function applyConfirm(m: any, source: any, target: any, userId: string) {
+  const out = { sourceOk: !!m.sourceOk, targetOk: !!m.targetOk, counted: false };
+  if (m.needs === 'TUTOR') {
+    const lost = target.type === 'LOST' ? target : source;
+    if (lost.userId !== userId) return out;
+    if (lost === target) out.targetOk = true;
+    else out.sourceOk = true;
+    out.counted = true;
+    return out;
+  }
+  if (source.userId === userId) {
+    out.sourceOk = true;
+    out.counted = true;
+  }
+  if (target.userId === userId) {
+    out.targetOk = true;
+    out.counted = true;
+  }
+  return out;
+}
+
+/** Junta o caso source no target: vira registro na linha do tempo e leva tudo junto. */
+async function doMerge(db: any, mergeId: string, source: any, target: any, decidedBy: string) {
+  const ph: any[] = await db.$queryRawUnsafe(`SELECT mime, data FROM lf_photos WHERE "reportId" = $1 ORDER BY position LIMIT 1`, source.id);
+  if (ph[0]) {
+    const kind = source.type === 'FOUND' ? (source.currentlyWith === 'CLINICA' ? 'CLINIC' : source.currentlyWith === 'SOLTO' ? 'SEEN' : 'WITH_ME') : 'SEEN';
+    await db.$executeRawUnsafe(
+      `INSERT INTO lf_sightings (id, "reportId", "userId", kind, lat, lng, "publicLat", "publicLng", "approximate", "locationNote", district, note, "happenedAt", mime, photo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      crypto.randomUUID(), target.id, source.userId, kind, source.lat, source.lng, source.publicLat, source.publicLng, !!source.approximate,
+      source.locationNote, source.district, String(source.description || '').slice(0, 300) || null, source.happenedAt, ph[0].mime, ph[0].data,
+    );
+  }
+  await db.$executeRawUnsafe(`UPDATE lf_sightings SET "reportId" = $2 WHERE "reportId" = $1`, source.id, target.id);
+  await db.$executeRawUnsafe(`UPDATE lf_comments SET "reportId" = $2 WHERE "reportId" = $1`, source.id, target.id);
+  await db.$executeRawUnsafe(
+    `INSERT INTO lf_follows ("reportId", "userId", active)
+     SELECT $2, "userId", active FROM lf_follows WHERE "reportId" = $1 ON CONFLICT DO NOTHING`,
+    source.id, target.id,
+  );
+  await autoFollow(db, target.id, source.userId);
+  await db.$executeRawUnsafe(
+    `UPDATE lf_reports SET status = 'MERGED', "mergedInto" = $2, "updatedAt" = NOW() WHERE id = $1`,
+    source.id, target.id,
+  );
+  // Links e sugestões antigas que apontavam para o caso que saiu passam a apontar para o que ficou
+  await db.$executeRawUnsafe(`UPDATE lf_reports SET "mergedInto" = $2 WHERE "mergedInto" = $1`, source.id, target.id);
+  await db.$executeRawUnsafe(
+    `UPDATE lf_merges SET status = 'CANCELLED', "decidedAt" = NOW() WHERE status = 'PENDING' AND id <> $1 AND ("sourceId" = $2 OR "targetId" = $2)`,
+    mergeId, source.id,
+  );
+  await db.$executeRawUnsafe(
+    `UPDATE lf_merges SET status = 'CONFIRMED', "decidedBy" = $2, "decidedAt" = NOW(), "sourceOk" = true, "targetOk" = true WHERE id = $1`,
+    mergeId, decidedBy,
+  );
+  await refreshCaseLast(db, target.id);
+  await db.$executeRawUnsafe(
+    `UPDATE lf_reports SET "expiresAt" = GREATEST("expiresAt", NOW() + INTERVAL '${ACTIVE_DAYS} days') WHERE id = $1`,
+    target.id,
+  );
+  const name = target.type === 'LOST' && target.petName ? target.petName : `o ${SPECIES_LABEL[target.species].toLowerCase()} ${target.colors}`;
+  const to = [...(await caseFollowers(db, target))].filter((u) => u !== decidedBy);
+  await push(db, to, `🔗 Casos unificados`, `Tudo sobre ${name} agora está num lugar só: fotos, trajeto e conversa.`, {
+    screen: 'LostFoundDetail', id: String(target.id), caseId: String(target.id),
+  });
+}
+
+async function loadCase(db: any, id: string) {
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE r.id = $1`, id);
+  return rows[0] || null;
+}
+
+/** Cria a sugestão (ou devolve a que já existe) e avisa quem precisa confirmar. */
+export async function suggestMerge(db: any, a: any, b: any, opts: { suggestedBy: string | null; auto?: boolean; note?: string | null }) {
+  const { target, source } = pickSurvivor(a, b);
+  const rule = mergeRule(source, target);
+  const dup: any[] = await db.$queryRawUnsafe(
+    `SELECT * FROM lf_merges WHERE status IN ('PENDING','REJECTED') AND (("sourceId" = $1 AND "targetId" = $2) OR ("sourceId" = $2 AND "targetId" = $1))
+      ORDER BY "createdAt" DESC LIMIT 1`,
+    source.id, target.id,
+  );
+  if (dup[0]) return { merge: dup[0], source, target, existed: true };
+  const id = crypto.randomUUID();
+  await db.$executeRawUnsafe(
+    `INSERT INTO lf_merges (id, "sourceId", "targetId", "suggestedBy", auto, note, needs) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    id, source.id, target.id, opts.suggestedBy, !!opts.auto, opts.note || null, rule.needs,
+  );
+  const m: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_merges WHERE id = $1`, id);
+  const confirmers = rule.needs === 'TUTOR' ? [rule.tutorId!] : [...new Set([source.userId, target.userId])];
+  let to = confirmers.filter((u) => u && u !== opts.suggestedBy);
+  if (opts.auto) {
+    // Quem já recebeu "Pode ser o seu pet?" deste aviso não recebe outro push: o pedido aparece no caso
+    const got: any[] = await db.$queryRawUnsafe(
+      `SELECT DISTINCT "userId" FROM lf_alerts_sent WHERE "reportId" = ANY($1::text[]) AND reason = 'MATCH'`,
+      [source.id, target.id],
+    );
+    const already = new Set(got.map((g) => String(g.userId)));
+    to = to.filter((u) => !already.has(u));
+  }
+  const name = target.type === 'LOST' && target.petName ? target.petName : `${SPECIES_LABEL[target.species].toLowerCase()} ${target.colors}`;
+  await push(db, to, '🔗 Pode ser o mesmo animal?', `${opts.auto ? 'Achamos' : 'Alguém achou'} outro aviso muito parecido com o de ${name}. Confira as fotos e confirme.`, {
+    screen: 'LostFoundDetail', id: String(target.id),
+  });
+  return { merge: m[0], source, target, existed: false };
+}
+
+function mergeView(m: any, source: any, target: any, viewerId: string | null, isAdmin = false) {
+  const can = isAdmin || (!!viewerId && applyConfirm(m, source, target, viewerId).counted);
+  const waitingFor =
+    m.needs === 'TUTOR'
+      ? 'o tutor do animal perdido'
+      : source.userId === target.userId
+      ? 'quem publicou'
+      : !m.sourceOk && !m.targetOk
+      ? 'os dois autores'
+      : 'o outro autor';
+  return {
+    id: m.id,
+    status: m.status,
+    auto: m.auto,
+    note: m.note,
+    needs: m.needs,
+    createdAt: m.createdAt,
+    canConfirm: can && m.status === 'PENDING',
+    waitingFor,
+    source: publicView(source, { viewerId }),
+    target: publicView(target, { viewerId }),
+  };
+}
+
 /** Recalcula "visto por último" e o total de avistamentos visíveis do caso. */
 async function refreshCaseLast(db: any, reportId: string) {
   await db.$executeRawUnsafe(
@@ -645,7 +826,10 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
     // ---------- página pública para compartilhar (Facebook/WhatsApp)
     const sm = path.match(/^\/api\/public\/lostfound\/([^/]+)$/);
     if (sm && method === 'GET') {
-      const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_reports WHERE id = $1 AND hidden = false AND status <> 'REMOVED'`, sm[1]);
+      let rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_reports WHERE id = $1 AND hidden = false AND status <> 'REMOVED'`, sm[1]);
+      if (rows[0]?.status === 'MERGED' && rows[0].mergedInto) {
+        rows = await db.$queryRawUnsafe(`SELECT * FROM lf_reports WHERE id = $1 AND hidden = false AND status <> 'REMOVED'`, rows[0].mergedInto);
+      }
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=120');
       if (!rows[0]) {
@@ -799,6 +983,41 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
         res.status(200).json({ message: hide ? 'Comentário escondido' : 'Comentário visível de novo' });
         return true;
       }
+      if (path === '/api/admin/lostfound/merges' && method === 'GET') {
+        const ms: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_merges WHERE status = 'PENDING' ORDER BY "createdAt" DESC LIMIT 100`);
+        const out = [];
+        for (const m of ms) {
+          const source = await loadCase(db, m.sourceId);
+          const target = await loadCase(db, m.targetId);
+          if (source && target) out.push({ ...mergeView(m, source, target, null, true), sourceAuthor: source.userName, targetAuthor: target.userName });
+        }
+        res.status(200).json({ merges: out });
+        return true;
+      }
+      const amm = path.match(/^\/api\/admin\/lostfound\/merges\/([^/]+)\/(confirm|reject)$/);
+      if (amm && method === 'POST') {
+        const ms: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_merges WHERE id = $1`, amm[1]);
+        const m = ms[0];
+        if (!m || m.status !== 'PENDING') throw new HttpError(404, 'Sugestão não encontrada ou já decidida');
+        const source = await loadCase(db, m.sourceId);
+        const target = await loadCase(db, m.targetId);
+        if (!source || !target) throw new HttpError(404, 'Caso não encontrado');
+        let adminId = 'admin';
+        try {
+          adminId = ctx.authUser().userId;
+        } catch {
+          /* token do admin sem userId */
+        }
+        if (amm[2] === 'reject') {
+          await db.$executeRawUnsafe(`UPDATE lf_merges SET status = 'REJECTED', "decidedBy" = $2, "decidedAt" = NOW() WHERE id = $1`, m.id, adminId);
+          res.status(200).json({ message: 'Sugestão recusada' });
+          return true;
+        }
+        if (source.status !== 'ACTIVE' || target.status !== 'ACTIVE') throw new HttpError(409, 'Um dos casos não está mais ativo');
+        await doMerge(db, m.id, source, target, adminId);
+        res.status(200).json({ message: 'Casos unificados', targetId: target.id });
+        return true;
+      }
       const am = path.match(/^\/api\/admin\/lostfound\/([^/]+)\/(hide|show)$/);
       if (am && method === 'POST') {
         const hide = am[2] === 'hide';
@@ -821,6 +1040,12 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       const rows: any[] = await db.$queryRawUnsafe(`SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE r.id = $1`, dm[1]);
       const r = rows[0];
       if (!r || ((r.hidden || r.status === 'REMOVED') && r.userId !== viewer)) throw new HttpError(404, 'Aviso não encontrado');
+      if (r.status === 'MERGED' && r.mergedInto) {
+        // Caso unificado: o app abre o caso que ficou
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(200).json({ redirectTo: r.mergedInto, merged: true });
+        return true;
+      }
       if (viewer !== r.userId) await db.$executeRawUnsafe(`UPDATE lf_reports SET views = views + 1 WHERE id = $1`, r.id);
       const lat = Number(q.lat);
       const lng = Number(q.lng);
@@ -842,6 +1067,12 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
           ((await db.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM lf_comments WHERE "reportId" = $1 AND hidden = false`, r.id)) as any[])[0]?.n || 0,
         ),
         following: viewer ? (await caseFollowers(db, r)).has(viewer) : false,
+        pendingMerges: Number(
+          ((await db.$queryRawUnsafe(
+            `SELECT COUNT(*)::int AS n FROM lf_merges WHERE status = 'PENDING' AND ("sourceId" = $1 OR "targetId" = $1)`,
+            r.id,
+          )) as any[])[0]?.n || 0,
+        ),
         needsLoginForContact: !viewer && !!r.whatsapp,
       });
       return true;
@@ -892,6 +1123,98 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       return true;
     }
 
+    // ---------- unificação: sugerir, ver sugestões, confirmar ou recusar
+    const mr = path.match(/^\/api\/lostfound\/merges\/([^/]+)\/(confirm|reject)$/);
+    if (mr && method === 'POST') {
+      const ms: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_merges WHERE id = $1`, mr[1]);
+      const m = ms[0];
+      if (!m) throw new HttpError(404, 'Sugestão não encontrada');
+      if (m.status !== 'PENDING') throw new HttpError(409, 'Esta sugestão já foi decidida', 'DECIDED');
+      const source = await loadCase(db, m.sourceId);
+      const target = await loadCase(db, m.targetId);
+      if (!source || !target) throw new HttpError(404, 'Caso não encontrado');
+      const conf = applyConfirm(m, source, target, userId);
+      if (!conf.counted && !ctx.isAdmin) {
+        throw new HttpError(403, m.needs === 'TUTOR' ? 'Quem confirma é o tutor do animal perdido (ou a Liga)' : 'Quem confirma são os autores dos dois avisos (ou a Liga)');
+      }
+      if (mr[2] === 'reject') {
+        await db.$executeRawUnsafe(`UPDATE lf_merges SET status = 'REJECTED', "decidedBy" = $2, "decidedAt" = NOW() WHERE id = $1`, m.id, userId);
+        res.status(200).json({ message: 'Certo, os casos continuam separados.', status: 'REJECTED' });
+        return true;
+      }
+      if (source.status !== 'ACTIVE' || target.status !== 'ACTIVE') throw new HttpError(409, 'Um dos casos não está mais ativo', 'CLOSED');
+      const next = { ...m, sourceOk: conf.sourceOk, targetOk: conf.targetOk };
+      if (ctx.isAdmin || mergeReady(next, source, target)) {
+        await doMerge(db, m.id, source, target, userId);
+        res.status(200).json({ message: 'Pronto! Os casos foram unificados.', status: 'CONFIRMED', targetId: target.id });
+        return true;
+      }
+      await db.$executeRawUnsafe(`UPDATE lf_merges SET "sourceOk" = $2, "targetOk" = $3 WHERE id = $1`, m.id, conf.sourceOk, conf.targetOk);
+      const other = conf.sourceOk ? target.userId : source.userId;
+      await push(db, [other], '🔗 Falta você confirmar', 'O outro autor confirmou que é o mesmo animal. Confira as fotos.', { screen: 'LostFoundDetail', id: String(target.id) });
+      res.status(200).json({ message: 'Confirmado! Falta o outro autor confirmar.', status: 'PENDING' });
+      return true;
+    }
+
+    const mg = path.match(/^\/api\/lostfound\/([^/]+)\/(merge|merges)$/);
+    if (mg) {
+      const r = await loadCase(db, mg[1]);
+      if (!r || r.status === 'REMOVED' || r.hidden) throw new HttpError(404, 'Aviso não encontrado');
+
+      if (mg[2] === 'merges' && method === 'GET') {
+        const ms: any[] = await db.$queryRawUnsafe(
+          `SELECT * FROM lf_merges WHERE status = 'PENDING' AND ("sourceId" = $1 OR "targetId" = $1) ORDER BY "createdAt" DESC LIMIT 10`,
+          r.id,
+        );
+        const out = [];
+        for (const m of ms) {
+          const source = m.sourceId === r.id ? r : await loadCase(db, m.sourceId);
+          const target = m.targetId === r.id ? r : await loadCase(db, m.targetId);
+          if (source && target) out.push(mergeView(m, source, target, userId, ctx.isAdmin));
+        }
+        res.status(200).json({ merges: out });
+        return true;
+      }
+
+      if (mg[2] === 'merge' && method === 'POST') {
+        const other = await loadCase(db, String(body.otherId || ''));
+        if (!other || other.status === 'REMOVED' || other.hidden || other.id === r.id) throw new HttpError(404, 'Escolha o outro aviso');
+        if (r.status !== 'ACTIVE' || other.status !== 'ACTIVE') throw new HttpError(409, 'Os dois avisos precisam estar ativos', 'CLOSED');
+        if (r.species !== other.species) throw new HttpError(400, 'Os avisos são de espécies diferentes');
+        const lim: any[] = await db.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS n FROM lf_merges WHERE "suggestedBy" = $1 AND "createdAt" > NOW() - INTERVAL '1 day'`,
+          userId,
+        );
+        if ((lim[0]?.n || 0) >= MERGES_PER_DAY) throw new HttpError(429, 'Limite de sugestões por dia atingido.', 'TOO_MANY');
+        const out = await suggestMerge(db, r, other, { suggestedBy: userId, note: String(body.note || '').trim().slice(0, 200) || null });
+        if (out.existed && out.merge.status === 'REJECTED') {
+          throw new HttpError(409, 'Quem conhece o animal já disse que não é o mesmo.', 'ALREADY_REJECTED');
+        }
+        // Quem sugeriu é o tutor (ou autor): já conta como confirmação
+        const conf = applyConfirm(out.merge, out.source, out.target, userId);
+        if (conf.counted && out.merge.status === 'PENDING') {
+          const next = { ...out.merge, sourceOk: conf.sourceOk, targetOk: conf.targetOk };
+          if (mergeReady(next, out.source, out.target)) {
+            await doMerge(db, out.merge.id, out.source, out.target, userId);
+            res.status(200).json({ message: 'Pronto! Os casos foram unificados.', status: 'CONFIRMED', targetId: out.target.id });
+            return true;
+          }
+          await db.$executeRawUnsafe(`UPDATE lf_merges SET "sourceOk" = $2, "targetOk" = $3 WHERE id = $1`, out.merge.id, conf.sourceOk, conf.targetOk);
+        }
+        res.status(out.existed ? 200 : 201).json({
+          message: out.existed
+            ? 'Essa sugestão já foi feita e está esperando confirmação.'
+            : out.merge.needs === 'TUTOR'
+            ? 'Obrigado! Vamos pedir para o tutor do animal confirmar.'
+            : 'Obrigado! Vamos pedir para quem publicou os avisos confirmar.',
+          status: 'PENDING',
+          mergeId: out.merge.id,
+        });
+        return true;
+      }
+      throw new HttpError(404, 'Rota não encontrada');
+    }
+
     // ---------- acompanhar um caso / mural de conversa
     const cm = path.match(/^\/api\/lostfound\/([^/]+)\/(follow|comments)(?:\/([^/]+))?(\/flag)?$/);
     if (cm) {
@@ -930,6 +1253,7 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       }
 
       if (cm[2] === 'comments' && !cm[3] && method === 'POST') {
+        if (r.status === 'MERGED') throw new HttpError(409, 'Este caso foi unificado com outro. Abra o caso atualizado.', 'MERGED');
         const chk = cleanComment(body.body);
         if (chk.error) throw new HttpError(400, chk.error, chk.code);
         let parentId: string | null = null;
@@ -1057,6 +1381,7 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       if (!r || r.status === 'REMOVED' || r.hidden) throw new HttpError(404, 'Aviso não encontrado');
 
       if (!sg[2] && method === 'POST') {
+        if (r.status === 'MERGED') throw new HttpError(409, 'Este caso foi unificado com outro. Abra o caso atualizado.', 'MERGED');
         if (r.status !== 'ACTIVE') throw new HttpError(409, 'Este caso já foi encerrado', 'CLOSED');
         const kind = String(body.kind || 'SEEN').toUpperCase();
         if (!(SIGHTING_KINDS as readonly string[]).includes(kind)) throw new HttpError(400, 'Escolha: vi de novo, está comigo ou levei para a clínica');
@@ -1172,6 +1497,26 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       const rows: any[] = await db.$queryRawUnsafe(`SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE r.id = $1`, id);
       await autoFollow(db, id, userId);
       const alerts = await sendNearbyAlerts(db, rows[0]);
+      // Muito parecido com um caso de outra pessoa: sugere unificar (quem conhece o animal confirma)
+      try {
+        const me = rows[0];
+        const near: any[] = await db.$queryRawUnsafe(
+          `SELECT c.*, u.name AS "userName" FROM lf_reports c JOIN users u ON u.id = c."userId"
+            WHERE c.id <> $1 AND c."userId" <> $2 AND c.status = 'ACTIVE' AND c.hidden = false AND c."expiresAt" > NOW() AND c.species = $3
+              AND (${distSql('c."publicLat"', 'c."publicLng"', '$4', '$5')} <= ${MATCH_RADIUS_KM}
+                OR (c."lastLat" IS NOT NULL AND ${distSql('c."lastLat"', 'c."lastLng"', '$4', '$5')} <= ${MATCH_RADIUS_KM}))
+            ORDER BY c."createdAt" DESC LIMIT 100`,
+          id, userId, me.species, me.publicLat, me.publicLng,
+        );
+        const best = near
+          .map((c) => ({ c, score: caseScore(c, { ...me, lat: me.publicLat, lng: me.publicLng }) }))
+          .filter((x) => x.score >= MERGE_AUTO_SCORE)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 2);
+        for (const b of best) await suggestMerge(db, me, b.c, { suggestedBy: null, auto: true });
+      } catch (e: any) {
+        console.warn('⚠️ Sugestão automática de unificação falhou:', e?.message);
+      }
       res.status(201).json({ report: publicView(rows[0], { viewerId: userId, withContact: true }), alerts });
       return true;
     }
