@@ -1,6 +1,6 @@
 {
   "name": "liga-do-bem-botucatu",
-  "version": "1.2.62",
+  "version": "1.2.63",
   "private": true,
   "scripts": {
     "android": "react-native run-android",

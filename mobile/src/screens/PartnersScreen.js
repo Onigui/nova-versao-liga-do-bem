@@ -24,6 +24,8 @@ import {applyPartnerFilters, availableCategories, categoryFromRoute} from '../ut
 import useUserLocation from '../services/useUserLocation';
 import {useAuth} from '../services/AuthService';
 import {F} from '../theme/home';
+import {useTour} from '../components/Tour';
+import {TOURS} from '../tours';
 
 const CACHE_KEY = 'partners_cache_v2';
 
@@ -77,9 +79,10 @@ export function LocationBanner({status, onRequest, onSettings}) {
   );
 }
 
-function Chip({label, icon, active, onPress, testID}) {
+function Chip({label, icon, active, onPress, testID, tourRef}) {
   return (
     <TouchableOpacity
+      ref={tourRef}
       testID={testID}
       style={[styles.filterButton, active && styles.filterButtonActive]}
       onPress={onPress}>
@@ -102,6 +105,7 @@ export default function PartnersScreen({navigation, route}) {
   const [openNow, setOpenNow] = useState(false);
   const [nearMe, setNearMe] = useState(true);
   const [now, setNow] = useState(() => new Date());
+  const tour = useTour(TOURS.partners.id, TOURS.partners.steps, {ready: !loading});
 
   // Se o membro desligou "Localização" no perfil, só pede quando ele tocar em "Perto de mim"
   const location = useUserLocation({autoStart: user?.locationEnabled !== false});
@@ -236,7 +240,7 @@ export default function PartnersScreen({navigation, route}) {
                 placeholderTextColor="#9CA3AF"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                testID="busca"
+                ref={tour.ref('busca')} testID="busca"
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
@@ -246,7 +250,7 @@ export default function PartnersScreen({navigation, route}) {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.compareBtn} onPress={() => navigation.navigate('ComparePrices')} testID="comparar-precos">
+          <TouchableOpacity style={styles.compareBtn} onPress={() => navigation.navigate('ComparePrices')} ref={tour.ref('comparar')} testID="comparar-precos">
             <Ionicons name="pricetags" size={18} color="#6D28D9" />
             <Text style={styles.compareText} numberOfLines={1} maxFontSizeMultiplier={1.15}>
               Comparar preços entre os parceiros
@@ -262,6 +266,7 @@ export default function PartnersScreen({navigation, route}) {
               icon="navigate"
               active={nearMe && hasLocation}
               onPress={toggleNearMe}
+              tourRef={tour.ref('perto')}
               testID="filtro-perto"
             />
             <Chip

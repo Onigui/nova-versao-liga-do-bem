@@ -15,6 +15,8 @@ import navigateTo from '../navigation/navigateTo';
 import {NOTIFICATION_EVENT} from '../services/notificationEvents';
 import {SESSION_EVENT, reportUnauthorized} from '../services/session';
 import {C, F, HOME_SHORTCUTS, MONTHS_ABBR, dateBR, findService, greeting, money, planName} from '../theme/home';
+import {useTour} from '../components/Tour';
+import {TOURS} from '../tours';
 
 function useAuthSafe() {
   try {
@@ -59,6 +61,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
   const here = location.coords ? {lat: location.coords.latitude, lng: location.coords.longitude} : null;
   const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const tour = useTour(TOURS.home.id, TOURS.home.steps, {ready: !!data && !!data.user});
 
   // Mostra na hora a última tela salva no aparelho e atualiza por trás
   const cacheKey = `home_cache_v1:${user?.id || 'anon'}`;
@@ -167,7 +170,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
           style={styles.headBtn}
           onPress={() => go('Notifications')}
           accessibilityLabel={unread ? `Notificações, ${unread} novas` : 'Notificações'}
-          testID="notificacoes">
+          ref={tour.ref('avisos')} testID="notificacoes">
           <Ionicons name="notifications-outline" size={21} color={C.ink} />
           {unread ? <View style={styles.dot} /> : null}
         </TouchableOpacity>
@@ -175,7 +178,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
 
       {/* Carteirinha (o "saldo") ou convite */}
       {active ? (
-        <View style={styles.cardDeep} testID="carteirinha">
+        <View style={styles.cardDeep} ref={tour.ref('carteirinha')} collapsable={false} testID="carteirinha">
           <View style={styles.circle1} />
           <View style={styles.circle2} />
           <View style={styles.rowBetween}>
@@ -219,7 +222,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.invite} testID="convite-membro">
+        <View style={styles.invite} ref={tour.ref('convite')} collapsable={false} testID="convite-membro">
           <Text style={[styles.inviteLabel, F.bold]}>{expired ? 'SUA CARTEIRINHA VENCEU' : 'SEJA MEMBRO DA LIGA DO BEM'}</Text>
           <Text style={[styles.inviteTitle, F.heavy]}>
             {expired ? 'Renove e volte a economizar nos parceiros' : 'Ajude os animais e economize no seu pet'}
@@ -246,7 +249,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
       )}
 
       {/* Atalhos */}
-      <View style={styles.shortcuts}>
+      <View style={styles.shortcuts} ref={tour.ref('atalhos')} collapsable={false}>
         {shortcuts.map(s => {
           const badge = s.id === 'achados' ? data.counters?.lostFoundNearby : null;
           return (

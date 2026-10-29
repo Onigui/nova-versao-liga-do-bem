@@ -17,6 +17,8 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {F} from '../theme/home';
 import {calendarDate} from '../utils/dates';
+import {useTour} from '../components/Tour';
+import {TOURS} from '../tours';
 
 export default function PetsListScreen({navigation, route}) {
   // Na barra inferior (aba Pets) não há para onde voltar
@@ -24,6 +26,7 @@ export default function PetsListScreen({navigation, route}) {
   const {user, isAuthenticated} = useAuth();
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const tour = useTour(TOURS.pets.id, TOURS.pets.steps, {ready: !loading});
   const [refreshing, setRefreshing] = useState(false);
 
   const cacheKey = `pets_cache_v1:${user?.id || 'anon'}`;
@@ -197,6 +200,7 @@ export default function PetsListScreen({navigation, route}) {
             </Text>
             <TouchableOpacity
               style={styles.addButton}
+              ref={tour.ref('adicionar')}
               onPress={() => navigation.navigate('AddPet', {onSave: loadPets})}>
               <LinearGradient
                 colors={['#6D28D9', '#5B21B6']}
@@ -210,6 +214,7 @@ export default function PetsListScreen({navigation, route}) {
           <>
             <TouchableOpacity
               style={styles.addPetCard}
+              ref={tour.ref('adicionar')}
               onPress={() => navigation.navigate('AddPet', {onSave: loadPets})}>
               <LinearGradient
                 colors={['#6D28D9', '#5B21B6']}
@@ -219,9 +224,10 @@ export default function PetsListScreen({navigation, route}) {
               </LinearGradient>
             </TouchableOpacity>
 
-            {pets.map((pet) => (
+            {pets.map((pet, i) => (
               <TouchableOpacity
                 key={pet.id}
+                ref={i === 0 ? tour.ref('carteira') : undefined}
                 style={styles.petCard}
                 onPress={() => navigation.navigate('VaccinationCard', {petId: pet.id})}
                 onLongPress={() => handleDeletePet(pet)}>

@@ -9,6 +9,8 @@ import QuoteListBuilder from '../components/QuoteListBuilder';
 import {QUOTE_DEADLINES, buildItems, memberApi} from '../utils/quotes';
 import {F} from '../theme/home';
 import {getPicker} from '../utils/photoPicker';
+import {useTour} from '../components/Tour';
+import {TOURS} from '../tours';
 
 const PURPLE = '#6D28D9';
 const SPECIES_ID = s => (/gat/i.test(s || '') ? 'CAT' : /c[aã]o|cachorr/i.test(s || '') ? 'DOG' : null);
@@ -26,6 +28,7 @@ export default function QuoteNewScreen({navigation, route, fetchImpl = fetch}) {
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState(null);
   const [sending, setSending] = useState(false);
+  const tour = useTour(TOURS.quote.id, TOURS.quote.steps);
 
   useEffect(() => {
     api('GET', '/user/pets')
@@ -80,7 +83,9 @@ export default function QuoteNewScreen({navigation, route, fetchImpl = fetch}) {
       </View>
 
       <Text style={styles.section}>1. O que você precisa?</Text>
-      <QuoteListBuilder value={list} onChange={setList} color={PURPLE} species={SPECIES_ID(pet?.species)} fetchImpl={fetchImpl} />
+      <View ref={tour.ref('lista')} collapsable={false}>
+        <QuoteListBuilder value={list} onChange={setList} color={PURPLE} species={SPECIES_ID(pet?.species)} fetchImpl={fetchImpl} />
+      </View>
 
       <Text style={styles.section}>2. Para qual pet? (opcional)</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8}}>
@@ -124,7 +129,7 @@ export default function QuoteNewScreen({navigation, route, fetchImpl = fetch}) {
         </View>
       ) : (
         <View style={{flexDirection: 'row', gap: 8}}>
-          <TouchableOpacity style={[styles.chip, {flex: 1, justifyContent: 'center'}]} onPress={() => pickPhoto('camera')} testID="receita-camera">
+          <TouchableOpacity style={[styles.chip, {flex: 1, justifyContent: 'center'}]} onPress={() => pickPhoto('camera')} ref={tour.ref('receita')} testID="receita-camera">
             <Ionicons name="camera" size={16} color="#6B7280" />
             <Text style={styles.chipText}>Fotografar receita</Text>
           </TouchableOpacity>

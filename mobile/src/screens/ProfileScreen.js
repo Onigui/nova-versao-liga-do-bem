@@ -11,6 +11,7 @@ import {API_BASE_PATH} from '../config/apiConfig';
 import {C, F, planName} from '../theme/home';
 import navigateTo from '../navigation/navigateTo';
 import {appVersionLabel} from '../utils/appVersion';
+import {resetTours} from '../components/Tour';
 
 const fmtDate = d => {
   try {
@@ -306,6 +307,16 @@ export default function ProfileScreen({navigation}) {
 
           <Group title="Ajuda e informações">
             <Row icon="help-circle-outline" title="Ajuda e suporte" subtitle="Tire suas dúvidas" onPress={() => go('Info')} testID="ajuda" />
+            <Row
+              icon="bulb-outline"
+              title="Rever as dicas do app"
+              subtitle="Os balões que explicam cada tela"
+              onPress={async () => {
+                await resetTours();
+                Alert.alert('Pronto!', 'As dicas vão aparecer de novo quando você abrir cada tela.');
+              }}
+              testID="rever-dicas"
+            />
             <Row icon="shield-checkmark-outline" title="Privacidade e termos" onPress={() => go('Legal', {section: 'both'})} testID="privacidade" />
             {isAdmin ? <Row icon="bug-outline" title="Debug e logs" subtitle="Somente administradores" onPress={() => go('Debug')} testID="debug" /> : null}
           </Group>

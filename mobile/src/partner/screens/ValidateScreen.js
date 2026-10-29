@@ -4,6 +4,8 @@ import {ScrollView, Text, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {COLORS, usePartner} from '../PartnerContext';
 import {Button, Card, Field, styles as ui} from '../ui';
+import {useTour} from '../../components/Tour';
+import {TOURS} from '../../tours';
 
 export default function ValidateScreen({navigation}) {
   const {partner, stats, api} = usePartner();
@@ -25,6 +27,7 @@ export default function ValidateScreen({navigation}) {
   );
   const [typed, setTyped] = useState('');
   const [shortCode, setShortCode] = useState('');
+  const tour = useTour(TOURS.partnerValidate.id, TOURS.partnerValidate.steps);
   const memberOk = /^MEM\d{4,20}$/.test(typed.trim());
   const codeOk = /^\d{6}$/.test(shortCode);
 
@@ -60,13 +63,15 @@ export default function ValidateScreen({navigation}) {
           O QR muda sozinho a cada poucos minutos. Print ou foto antiga não
           vale.
         </Text>
-        <Button
-          title="Escanear carteirinha"
-          icon={<Icon name="scan" size={22} color="#FFFFFF" />}
-          onPress={() => navigation.navigate('Scanner')}
-          style={{alignSelf: 'stretch'}}
-          testID="escanear"
-        />
+        <View ref={tour.ref('escanear')} collapsable={false}>
+          <Button
+            title="Escanear carteirinha"
+            icon={<Icon name="scan" size={22} color="#FFFFFF" />}
+            onPress={() => navigation.navigate('Scanner')}
+            style={{alignSelf: 'stretch'}}
+            testID="escanear"
+          />
+        </View>
       </Card>
 
       <Card style={quotes?.pending ? {borderColor: '#FCD34D', backgroundColor: '#FFFBEB'} : null}>
@@ -81,13 +86,15 @@ export default function ValidateScreen({navigation}) {
             <Text style={ui.muted}>Mande sua proposta às cegas: ninguém vê o preço do outro.</Text>
           </View>
         </View>
-        <Button
-          title={quotes?.pending ? 'Responder agora' : 'Ver orçamentos e reservas'}
-          variant={quotes?.pending ? 'primary' : 'secondary'}
-          icon={<Icon name="document-text" size={20} color={quotes?.pending ? '#FFFFFF' : COLORS.primary} />}
-          onPress={() => navigation.navigate('QuotesInbox')}
-          testID="abrir-orcamentos"
-        />
+        <View ref={tour.ref('orcamentos')} collapsable={false}>
+          <Button
+            title={quotes?.pending ? 'Responder agora' : 'Ver orçamentos e reservas'}
+            variant={quotes?.pending ? 'primary' : 'secondary'}
+            icon={<Icon name="document-text" size={20} color={quotes?.pending ? '#FFFFFF' : COLORS.primary} />}
+            onPress={() => navigation.navigate('QuotesInbox')}
+            testID="abrir-orcamentos"
+          />
+        </View>
       </Card>
 
       {canStamp ? (
@@ -126,16 +133,18 @@ export default function ValidateScreen({navigation}) {
           maxLength={23}
           testID="numero"
         />
-        <Field
-          label="Código de 6 números"
-          placeholder="000 000"
-          value={shortCode}
-          onChangeText={t => setShortCode(t.replace(/\D/g, '').slice(0, 6))}
-          keyboardType="number-pad"
-          maxLength={6}
-          hint="Confira também o nome com um documento com foto."
-          testID="codigo"
-        />
+        <View ref={tour.ref('codigo')} collapsable={false}>
+          <Field
+            label="Código de 6 números"
+            placeholder="000 000"
+            value={shortCode}
+            onChangeText={t => setShortCode(t.replace(/\D/g, '').slice(0, 6))}
+            keyboardType="number-pad"
+            maxLength={6}
+            hint="Confira também o nome com um documento com foto."
+            testID="codigo"
+          />
+        </View>
         <Button
           title="Consultar"
           variant="secondary"

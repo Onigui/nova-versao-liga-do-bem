@@ -4,6 +4,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import DeviceInfo from 'react-native-device-info';
 import {COLORS, usePartner} from '../PartnerContext';
 import {Badge, Button, Card, styles as ui} from '../ui';
+import {resetTours} from '../../components/Tour';
 
 function Line({icon, text}) {
   if (!text) return null;
@@ -143,6 +144,16 @@ export default function CompanyScreen({navigation}) {
         />
       </Card>
 
+      <Button
+        title="Rever as dicas do app"
+        variant="secondary"
+        onPress={async () => {
+          await resetTours();
+          Alert.alert('Pronto!', 'As dicas vão aparecer de novo quando você abrir cada tela.');
+        }}
+        style={{marginTop: 4}}
+        testID="rever-dicas"
+      />
       <Button
         title="Sair da conta"
         variant="danger"
