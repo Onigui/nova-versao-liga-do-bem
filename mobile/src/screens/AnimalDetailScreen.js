@@ -20,6 +20,7 @@ import DateField from '../components/DateField';
 import {F} from '../theme/home';
 import {formatBR} from '../utils/dates';
 import {formatPhone} from '../utils/lostfound';
+import {reportUnauthorized} from '../services/session';
 
 const {width} = Dimensions.get('window');
 
@@ -138,6 +139,9 @@ export default function AnimalDetailScreen({route, navigation}) {
           'Pedido enviado! 🐾',
           data.message || 'Um voluntário da Liga vai entrar em contato para combinar a visita.',
         );
+      } else if (response.status === 401) {
+        reportUnauthorized();
+        Alert.alert('Sessão expirada', 'Renovamos seu acesso. Tente enviar de novo.');
       } else {
         Alert.alert('Erro', data.error || 'Erro ao registrar solicitação');
       }

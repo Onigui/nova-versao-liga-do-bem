@@ -3,12 +3,18 @@ import {AppState} from 'react-native';
 import {useAuth} from '../services/AuthService';
 import UpdateService from '../services/UpdateService';
 import UpdateModal from './UpdateModal';
+import {IS_PLAY_STORE} from '../config/appVariant';
 
 /**
  * Verifica atualizações ao abrir o app (e ao voltar do background)
  * e mostra o modal para baixar/instalar o APK.
  */
 export default function UpdateChecker() {
+  // Versão da Play Store: a loja cuida das atualizações (regra da Play)
+  return IS_PLAY_STORE ? null : <SideloadUpdateChecker />;
+}
+
+function SideloadUpdateChecker() {
   const {isAuthenticated} = useAuth();
   const [updateInfo, setUpdateInfo] = useState(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);

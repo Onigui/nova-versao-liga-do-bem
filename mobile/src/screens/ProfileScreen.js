@@ -326,6 +326,11 @@ export default function ProfileScreen({navigation}) {
               <Row icon="log-out-outline" title="Sair da conta" danger onPress={handleLogout} right={null} testID="sair" />
             </View>
           ) : null}
+          {user && !isAdmin ? (
+            <Pressable onPress={() => go('DeleteAccount')} style={styles.deleteLink} testID="excluir-conta">
+              <Text style={[styles.deleteLinkText, F.semibold]}>Excluir minha conta</Text>
+            </Pressable>
+          ) : null}
 
           <View style={styles.footer}>
             <Ionicons name="paw" size={16} color="#B8B5C6" />
@@ -343,6 +348,8 @@ export default function ProfileScreen({navigation}) {
 }
 
 const styles = StyleSheet.create({
+  deleteLink: {alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 16, marginTop: 6},
+  deleteLinkText: {fontSize: 13, color: '#9CA3AF', textDecorationLine: 'underline'},
   hero: {
     backgroundColor: C.deep,
     paddingTop: 54,

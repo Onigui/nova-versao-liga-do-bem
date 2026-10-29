@@ -150,7 +150,21 @@ jobs:
 
       - name: 🏗️ Build APK
         working-directory: ./mobile
+        env:
+          # Chave própria de assinatura (obrigatória para a Play Store). Sem estes secrets,
+          # continua como antes (assinatura estável de sideload).
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
+          REAL_KEY=""
+          if [ -n "$KS_PASS" ]; then
+            export ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_PASSWORD="$KS_PASS"
+            export ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_PASSWORD="${KEY_PASS:-$KS_PASS}"
+            export ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS="${KEY_ALIAS:-upload}"
+            REAL_KEY=1
+            echo "🔐 Assinando com a chave própria da Liga (Play Store)"
+          fi
           VERSION="${{ steps.app_version.outputs.version }}"
           PVERSION="${{ steps.partner_app.outputs.version }}"
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
@@ -159,6 +173,13 @@ jobs:
           # Dois apps no mesmo código (product flavors): member = Liga do Bem, partner = Liga do Bem Parceiros
           TASKS="assembleMember${T}"
           if [ "${{ steps.partner_app.outputs.enabled }}" = "true" ]; then TASKS="$TASKS assemblePartner${T}"; fi
+          # Pacote para a Play Store (.aab): só em release com a chave própria, num passo à parte
+          # (-PplayStore tira a permissão de instalar APK e o atualizador próprio)
+          BUNDLE_TASKS=""
+          if [ "$T" = "Release" ] && [ -n "$REAL_KEY" ]; then
+            BUNDLE_TASKS="bundleMemberRelease"
+            if [ "${{ steps.partner_app.outputs.enabled }}" = "true" ]; then BUNDLE_TASKS="$BUNDLE_TASKS bundlePartnerRelease"; fi
+          fi
 
           cd android
           chmod +x gradlew
@@ -176,8 +197,26 @@ jobs:
             cp "$PARTNER_APK" "../../liga-do-bem-parceiros-v${PVERSION}${SUFFIX}.apk"
           fi
 
-          echo "📦 APKs gerados:"
-          ls -lh ../../liga-do-bem-*.apk
+          if [ -n "$BUNDLE_TASKS" ]; then
+            echo "🏪 ./gradlew $BUNDLE_TASKS -PplayStore"
+            ./gradlew $BUNDLE_TASKS -PplayStore --no-daemon --stacktrace
+            cp app/build/outputs/bundle/memberRelease/app-member-release.aab "../../liga-do-bem-botucatu-v${VERSION}.aab"
+            if [ "${{ steps.partner_app.outputs.enabled }}" = "true" ]; then
+              cp app/build/outputs/bundle/partnerRelease/app-partner-release.aab "../../liga-do-bem-parceiros-v${PVERSION}.aab"
+            fi
+          fi
+
+          echo "📦 Gerados:"
+          ls -lh ../../liga-do-bem-*.apk ../../liga-do-bem-*.aab 2>/dev/null || true
+
+      - name: 🏪 Conferir manifesto da Play Store (sem instalar APK)
+        working-directory: ./mobile/android
+        run: |
+          ./gradlew processMemberDebugManifest -PplayStore --no-daemon -q
+          M=$(find app/build/intermediates -path "*memberDebug*" -name AndroidManifest.xml | grep -i merged | head -1)
+          echo "Manifesto: $M"
+          if grep -q "REQUEST_INSTALL_PACKAGES" "$M"; then echo "❌ Build da Play ainda pede REQUEST_INSTALL_PACKAGES"; exit 1; fi
+          grep -q 'targetSdkVersion="35"' "$M" && echo "✅ SDK 35 e sem REQUEST_INSTALL_PACKAGES"
 
       - name: 📦 Upload APK as artifact
         uses: actions/upload-artifact@v4
@@ -185,6 +224,7 @@ jobs:
           name: liga-do-bem-apk-v${{ steps.app_version.outputs.version }}-build-${{ github.run_number }}
           path: |
             liga-do-bem-*.apk
+            liga-do-bem-*.aab
           retention-days: 30
           if-no-files-found: error
 

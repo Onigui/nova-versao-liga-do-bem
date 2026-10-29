@@ -84,13 +84,24 @@ android {
         applicationId "com.ligadobem.botucatu"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 66
-        versionName "1.2.64"
+        versionCode 67
+        versionName "1.2.65"
         multiDexEnabled true
     }
     
     buildFeatures {
         buildConfig = true
+    }
+
+    // Build para a Play Store (-PplayStore): sem REQUEST_INSTALL_PACKAGES e sem o atualizador
+    // próprio — quem atualiza é a Play. O APK de instalação direta continua igual.
+    def playStore = project.hasProperty('playStore')
+    defaultConfig.buildConfigField "boolean", "PLAY_STORE", playStore ? "true" : "false"
+    if (playStore) {
+        sourceSets {
+            member { manifest.srcFile 'src/play/AndroidManifest.xml' }
+            partner { manifest.srcFile 'src/play/AndroidManifest.xml' }
+        }
     }
 
     // App do membro e App Parceiros saem do mesmo código. O JS escolhe as telas por
