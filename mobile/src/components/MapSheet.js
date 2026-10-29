@@ -10,11 +10,11 @@ import {Modal, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View} f
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LeafletMap from './LeafletMap';
 
-export function MapPreview({center, markers, zoom = 15, hint = 'Toque para ampliar', onPress, style, testID}) {
+export function MapPreview({center, markers, track, zoom = 15, hint = 'Toque para ampliar', onPress, style, testID}) {
   return (
     <Pressable onPress={onPress} style={({pressed}) => [styles.preview, style, pressed && {opacity: 0.9}]} accessibilityRole="button" accessibilityLabel={hint} testID={testID}>
       {/* o mapa só é montado de novo quando o centro chega (ex.: GPS demorou); depois o marcador recentraliza */}
-      <LeafletMap key={center ? 'com-centro' : 'sem-centro'} style={StyleSheet.absoluteFill} center={center} zoom={zoom} markers={markers} interactive={false} />
+      <LeafletMap key={center ? 'com-centro' : 'sem-centro'} style={StyleSheet.absoluteFill} center={center} zoom={zoom} markers={markers} track={track} interactive={false} />
       <View style={styles.badge} pointerEvents="none">
         <Ionicons name="expand" size={14} color="#FFFFFF" />
         <Text style={styles.badgeText}>{hint}</Text>

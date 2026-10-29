@@ -8,6 +8,10 @@
  * Foto obrigatória (até 3), data/hora, espécie, cor, porte, coleira, ponto de referência.
  * Contato só por WhatsApp de quem publicou (sem chat), visível para quem está logado.
  *
+ * Casos: cada aviso é o "caso" de um animal. Quem vê o mesmo animal de novo não cria outro aviso:
+ * adiciona um AVISTAMENTO (foto obrigatória, local, hora) ao caso. Isso forma a linha do tempo e o
+ * trajeto no mapa. Antes de publicar, o app pergunta "Pode ser um destes?" (POST /api/lostfound/similar).
+ *
  * Alertas: quem ativa recebe push de avisos novos num raio escolhido; quem perdeu um pet
  * recebe aviso automático de "encontrei"/"vi" da mesma espécie perto de onde perdeu.
  * Segurança: denúncia (3 denúncias escondem o aviso até a Liga revisar), limite de avisos,
@@ -48,6 +52,10 @@ const MATCH_RADIUS_KM = 5;
 const LOST_FUZZ_M = 250;
 const ALERT_RADII = [1, 3, 5, 10];
 const MAX_ALERT_PUSH = 500;
+export const SIGHTING_KINDS = ['SEEN', 'WITH_ME', 'CLINIC'] as const;
+const SIGHTINGS_PER_DAY = 20;
+const SIGHTINGS_PER_CASE_DAY = 5;
+const SIMILAR_MIN_SCORE = 40;
 
 let ensuredAt = 0;
 export async function ensureLostFoundSchema(db: any) {
@@ -116,6 +124,33 @@ export async function ensureLostFoundSchema(db: any) {
        "sentAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
        PRIMARY KEY ("reportId", "userId")
      )`,
+    `ALTER TABLE lf_reports ADD COLUMN IF NOT EXISTS "lastLat" DOUBLE PRECISION`,
+    `ALTER TABLE lf_reports ADD COLUMN IF NOT EXISTS "lastLng" DOUBLE PRECISION`,
+    `ALTER TABLE lf_reports ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP(3)`,
+    `ALTER TABLE lf_reports ADD COLUMN IF NOT EXISTS "lastKind" TEXT`,
+    `ALTER TABLE lf_reports ADD COLUMN IF NOT EXISTS sightings INTEGER NOT NULL DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS lf_sightings (
+       id TEXT PRIMARY KEY,
+       "reportId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
+       "userId" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       kind TEXT NOT NULL CHECK (kind IN ('SEEN','WITH_ME','CLINIC')),
+       lat DOUBLE PRECISION NOT NULL,
+       lng DOUBLE PRECISION NOT NULL,
+       "publicLat" DOUBLE PRECISION NOT NULL,
+       "publicLng" DOUBLE PRECISION NOT NULL,
+       "approximate" BOOLEAN NOT NULL DEFAULT false,
+       "locationNote" TEXT,
+       district TEXT,
+       note TEXT,
+       "happenedAt" TIMESTAMP(3) NOT NULL,
+       mime TEXT NOT NULL,
+       photo BYTEA NOT NULL,
+       hidden BOOLEAN NOT NULL DEFAULT false,
+       "hiddenBy" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS lf_sightings_report_idx ON lf_sightings("reportId", "happenedAt")`,
+    `CREATE INDEX IF NOT EXISTS lf_sightings_user_idx ON lf_sightings("userId", "createdAt" DESC)`,
     `CREATE TABLE IF NOT EXISTS lf_flags (
        "reportId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
        "userId" TEXT NOT NULL,
@@ -202,6 +237,14 @@ export function matchScore(a: any, b: any) {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+/** Semelhança considerando onde o caso começou e onde o animal foi visto por último. */
+export function caseScore(c: any, probe: any) {
+  const a = matchScore({ ...c, lat: c.publicLat, lng: c.publicLng }, probe);
+  if (c.lastLat == null || c.lastLng == null) return a;
+  const b = matchScore({ ...c, lat: c.lastLat, lng: c.lastLng, happenedAt: c.lastSeenAt || c.happenedAt }, probe);
+  return Math.max(a, b);
+}
+
 function photoUrls(r: any) {
   return Array.from({ length: r.photos || 0 }, (_, i) => `/api/lostfound/${r.id}/photos/${i}`);
 }
@@ -234,13 +277,56 @@ function publicView(r: any, opts: { viewerId?: string | null; from?: { lat: numb
     expiresAt: r.expiresAt,
     resolvedAt: r.resolvedAt,
     photos: photoUrls(r),
-    distanceKm: opts.from ? Math.round(haversineKm(opts.from.lat, opts.from.lng, r.publicLat, r.publicLng) * 10) / 10 : undefined,
+    distanceKm: opts.from
+      ? Math.round(haversineKm(opts.from.lat, opts.from.lng, r.lastLat ?? r.publicLat, r.lastLng ?? r.publicLng) * 10) / 10
+      : undefined,
     author: r.userName ? String(r.userName).split(' ')[0] : undefined,
     whatsapp: opts.withContact && r.whatsapp ? r.whatsapp : undefined,
     hasWhatsapp: !!r.whatsapp,
     mine,
     views: mine ? r.views : undefined,
+    sightings: Number(r.sightings || 0),
+    lastSeen:
+      r.lastLat != null && r.lastLng != null
+        ? { lat: r.lastLat, lng: r.lastLng, at: r.lastSeenAt, kind: r.lastKind || 'SEEN' }
+        : null,
   };
+}
+
+function sightingView(s: any, viewerId: string | null, caseOwnerId: string) {
+  return {
+    id: s.id,
+    kind: s.kind,
+    author: s.userName ? String(s.userName).split(' ')[0] : undefined,
+    happenedAt: s.happenedAt,
+    createdAt: s.createdAt,
+    lat: s.userId === viewerId ? s.lat : s.publicLat,
+    lng: s.userId === viewerId ? s.lng : s.publicLng,
+    approximate: s.userId === viewerId ? false : s.approximate,
+    locationNote: s.locationNote,
+    district: s.district,
+    note: s.note,
+    photo: `/api/lostfound/${s.reportId}/sightings/${s.id}/photo`,
+    mine: !!viewerId && s.userId === viewerId,
+    canRemove: !!viewerId && (s.userId === viewerId || caseOwnerId === viewerId),
+  };
+}
+
+/** Recalcula "visto por último" e o total de avistamentos visíveis do caso. */
+async function refreshCaseLast(db: any, reportId: string) {
+  await db.$executeRawUnsafe(
+    `UPDATE lf_reports r SET
+        sightings = (SELECT COUNT(*)::int FROM lf_sightings s WHERE s."reportId" = r.id AND s.hidden = false),
+        "lastLat" = l."publicLat", "lastLng" = l."publicLng", "lastSeenAt" = l."happenedAt", "lastKind" = l.kind,
+        "updatedAt" = NOW()
+       FROM (SELECT $1::text AS rid) x
+       LEFT JOIN LATERAL (
+         SELECT "publicLat", "publicLng", "happenedAt", kind FROM lf_sightings
+          WHERE "reportId" = x.rid AND hidden = false ORDER BY "happenedAt" DESC, "createdAt" DESC LIMIT 1
+       ) l ON true
+      WHERE r.id = x.rid`,
+    reportId,
+  );
 }
 
 function parseFields(body: any, partial = false) {
@@ -471,6 +557,22 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       return true;
     }
 
+    // ---------- foto de um avistamento (pública, como as do aviso)
+    const sp = path.match(/^\/api\/lostfound\/([^/]+)\/sightings\/([^/]+)\/photo$/);
+    if (sp && method === 'GET') {
+      const rows: any[] = await db.$queryRawUnsafe(
+        `SELECT s.mime, s.photo FROM lf_sightings s JOIN lf_reports r ON r.id = s."reportId"
+          WHERE s.id = $2 AND s."reportId" = $1 AND s.hidden = false AND r.hidden = false AND r.status <> 'REMOVED'`,
+        sp[1],
+        sp[2],
+      );
+      if (!rows[0]) throw new HttpError(404, 'Foto não encontrada');
+      res.setHeader('Content-Type', rows[0].mime);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.status(200).end(Buffer.from(rows[0].photo));
+      return true;
+    }
+
     // ---------- lista / mapa (público; contato só logado)
     if (path === '/api/lostfound' && method === 'GET') {
       const viewer = optionalUser(ctx);
@@ -493,7 +595,11 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       }
       if (from) {
         params.push(from.lat, from.lng);
-        where.push(`${distSql('r."publicLat"', 'r."publicLng"', `$${params.length - 1}`, `$${params.length}`)} <= ${radius}`);
+        const pa = `$${params.length - 1}`;
+        const pb = `$${params.length}`;
+        where.push(
+          `(${distSql('r."publicLat"', 'r."publicLng"', pa, pb)} <= ${radius} OR (r."lastLat" IS NOT NULL AND ${distSql('r."lastLat"', 'r."lastLng"', pa, pb)} <= ${radius}))`,
+        );
       }
       const rows: any[] = await db.$queryRawUnsafe(
         `SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE ${where.join(' AND ')}
@@ -557,12 +663,20 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       if (viewer !== r.userId) await db.$executeRawUnsafe(`UPDATE lf_reports SET views = views + 1 WHERE id = $1`, r.id);
       const lat = Number(q.lat);
       const lng = Number(q.lng);
+      const sights: any[] = await db.$queryRawUnsafe(
+        `SELECT s.id, s."reportId", s."userId", s.kind, s.lat, s.lng, s."publicLat", s."publicLng", s."approximate", s."locationNote",
+                s.district, s.note, s."happenedAt", s."createdAt", u.name AS "userName"
+           FROM lf_sightings s JOIN users u ON u.id = s."userId"
+          WHERE s."reportId" = $1 AND s.hidden = false ORDER BY s."happenedAt" ASC, s."createdAt" ASC LIMIT 200`,
+        r.id,
+      );
       res.setHeader('Cache-Control', 'no-store');
       res.status(200).json({
         report: {
           ...publicView(r, { viewerId: viewer, withContact: !!viewer, from: Number.isFinite(lat) && Number.isFinite(lng) && lat ? { lat, lng } : null }),
           hidden: r.userId === viewer ? r.hidden : undefined,
         },
+        timeline: sights.map((x) => sightingView(x, viewer, r.userId)),
         needsLoginForContact: !viewer && !!r.whatsapp,
       });
       return true;
@@ -611,6 +725,123 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       );
       res.status(200).json({ reports: rows.map((r) => ({ ...publicView(r, { viewerId: userId, withContact: true }), hidden: r.hidden })) });
       return true;
+    }
+
+    // ---------- antes de publicar: "Pode ser um destes?"
+    if (path === '/api/lostfound/similar' && method === 'POST') {
+      const sp = String(body.species || '').toUpperCase();
+      const lat = Number(body.lat);
+      const lng = Number(body.lng);
+      if (!(LF_SPECIES as readonly string[]).includes(sp) || !Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+        res.status(200).json({ similar: [] });
+        return true;
+      }
+      const probe = {
+        species: sp,
+        lat,
+        lng,
+        happenedAt: body.happenedAt ? new Date(body.happenedAt) : new Date(),
+        size: SIZES.includes(String(body.size || '').toUpperCase()) ? String(body.size).toUpperCase() : null,
+        sex: String(body.sex || '').toUpperCase() || null,
+        colors: String(body.colors || ''),
+        breed: String(body.breed || ''),
+      };
+      const cands: any[] = await db.$queryRawUnsafe(
+        `SELECT c.*, u.name AS "userName" FROM lf_reports c JOIN users u ON u.id = c."userId"
+          WHERE c.status = 'ACTIVE' AND c.hidden = false AND c."expiresAt" > NOW() AND c.species = $1
+            AND (${distSql('c."publicLat"', 'c."publicLng"', '$2', '$3')} <= ${MATCH_RADIUS_KM}
+              OR (c."lastLat" IS NOT NULL AND ${distSql('c."lastLat"', 'c."lastLng"', '$2', '$3')} <= ${MATCH_RADIUS_KM}))
+          ORDER BY c."createdAt" DESC LIMIT 200`,
+        sp, lat, lng,
+      );
+      const list = cands
+        .map((c) => ({ c, score: caseScore(c, probe) }))
+        .filter((x) => x.score >= SIMILAR_MIN_SCORE)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6)
+        .map((x) => ({ ...publicView(x.c, { viewerId: userId, from: { lat, lng } }), score: x.score }));
+      res.status(200).json({ similar: list });
+      return true;
+    }
+
+    // ---------- avistamentos de um caso
+    const sg = path.match(/^\/api\/lostfound\/([^/]+)\/sightings(?:\/([^/]+))?$/);
+    if (sg) {
+      const rows: any[] = await db.$queryRawUnsafe(`SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE r.id = $1`, sg[1]);
+      const r = rows[0];
+      if (!r || r.status === 'REMOVED' || r.hidden) throw new HttpError(404, 'Aviso não encontrado');
+
+      if (!sg[2] && method === 'POST') {
+        if (r.status !== 'ACTIVE') throw new HttpError(409, 'Este caso já foi encerrado', 'CLOSED');
+        const kind = String(body.kind || 'SEEN').toUpperCase();
+        if (!(SIGHTING_KINDS as readonly string[]).includes(kind)) throw new HttpError(400, 'Escolha: vi de novo, está comigo ou levei para a clínica');
+        if (!body.photo) throw new HttpError(400, 'A foto é obrigatória: é ela que confirma que é o mesmo animal', 'PHOTO_REQUIRED');
+        const photo = decodePhoto(body.photo);
+        const lat = Number(body.lat);
+        const lng = Number(body.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) {
+          throw new HttpError(400, 'Marque no mapa onde você viu o animal', 'LOCATION_REQUIRED');
+        }
+        const when = body.happenedAt ? new Date(body.happenedAt) : new Date();
+        if (Number.isNaN(when.getTime())) throw new HttpError(400, 'Data inválida');
+        if (when.getTime() > Date.now() + 10 * 60e3) throw new HttpError(400, 'A data não pode ser no futuro');
+        if (when.getTime() < Date.now() - 30 * 864e5) throw new HttpError(400, 'Avistamentos de até 30 dias atrás');
+        const lim: any[] = await db.$queryRawUnsafe(
+          `SELECT COUNT(*) FILTER (WHERE "createdAt" > NOW() - INTERVAL '1 day')::int AS today,
+                  COUNT(*) FILTER (WHERE "createdAt" > NOW() - INTERVAL '1 day' AND "reportId" = $2)::int AS here
+             FROM lf_sightings WHERE "userId" = $1`,
+          userId, r.id,
+        );
+        if ((lim[0]?.today || 0) >= SIGHTINGS_PER_DAY) throw new HttpError(429, 'Limite de avistamentos por dia atingido. Tente amanhã.', 'TOO_MANY');
+        if ((lim[0]?.here || 0) >= SIGHTINGS_PER_CASE_DAY) throw new HttpError(429, 'Você já registrou vários avistamentos deste animal hoje.', 'TOO_MANY');
+        const id = crypto.randomUUID();
+        const la = Math.round(lat * 1e6) / 1e6;
+        const ln = Math.round(lng * 1e6) / 1e6;
+        // "Está comigo" é a casa de quem acolheu: no mapa vai só a região aproximada
+        const approximate = kind === 'WITH_ME';
+        const pub = approximate ? fuzzPoint(id, la, ln) : { lat: la, lng: ln };
+        const txt = (v: any, max: number) => String(v || '').trim().slice(0, max) || null;
+        await db.$executeRawUnsafe(
+          `INSERT INTO lf_sightings (id, "reportId", "userId", kind, lat, lng, "publicLat", "publicLng", "approximate", "locationNote", district, note, "happenedAt", mime, photo)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+          id, r.id, userId, kind, la, ln, pub.lat, pub.lng, approximate, txt(body.locationNote, 120), txt(body.district, 60), txt(body.note, 300), when,
+          photo.mime, photo.data,
+        );
+        await refreshCaseLast(db, r.id);
+        // Caso com movimento continua no mapa
+        await db.$executeRawUnsafe(
+          `UPDATE lf_reports SET "expiresAt" = GREATEST("expiresAt", NOW() + INTERVAL '${ACTIVE_DAYS} days') WHERE id = $1`,
+          r.id,
+        );
+        // Avisa quem publicou o caso e quem já ajudou com avistamentos
+        const helpers: any[] = await db.$queryRawUnsafe(
+          `SELECT DISTINCT "userId" FROM lf_sightings WHERE "reportId" = $1 AND hidden = false AND "userId" <> $2 LIMIT 50`,
+          r.id, userId,
+        );
+        const to = [...new Set([r.userId, ...helpers.map((h) => h.userId)])].filter((u) => u !== userId);
+        const name = r.type === 'LOST' && r.petName ? r.petName : `o ${SPECIES_LABEL[r.species].toLowerCase()} ${r.colors}`;
+        const place = txt(body.locationNote, 60) || txt(body.district, 40) || 'veja no mapa';
+        const title =
+          kind === 'WITH_ME' ? `🏠 Alguém está com ${name}` : kind === 'CLINIC' ? `🏥 ${name} foi levado para uma clínica` : `📍 ${name} foi visto de novo`;
+        await push(db, to, title, `${place} · toque para ver a foto e o trajeto.`, { screen: 'LostFoundDetail', id: String(r.id) });
+        const out: any[] = await db.$queryRawUnsafe(
+          `SELECT s.*, u.name AS "userName" FROM lf_sightings s JOIN users u ON u.id = s."userId" WHERE s.id = $1`,
+          id,
+        );
+        res.status(201).json({ sighting: sightingView(out[0], userId, r.userId), notified: to.length, message: 'Obrigado! O avistamento entrou na linha do tempo.' });
+        return true;
+      }
+
+      if (sg[2] && method === 'DELETE') {
+        const ss: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_sightings WHERE id = $1 AND "reportId" = $2 AND hidden = false`, sg[2], r.id);
+        if (!ss[0]) throw new HttpError(404, 'Avistamento não encontrado');
+        if (ss[0].userId !== userId && r.userId !== userId) throw new HttpError(403, 'Só quem registrou ou o autor do caso pode tirar');
+        await db.$executeRawUnsafe(`UPDATE lf_sightings SET hidden = true, "hiddenBy" = $2 WHERE id = $1`, sg[2], userId);
+        await refreshCaseLast(db, r.id);
+        res.status(200).json({ message: 'Avistamento retirado da linha do tempo' });
+        return true;
+      }
+      throw new HttpError(404, 'Rota não encontrada');
     }
 
     if (path === '/api/lostfound' && method === 'POST') {

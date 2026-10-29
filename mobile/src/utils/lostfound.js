@@ -139,12 +139,99 @@ export function buildReportBody(form, now = Date.now()) {
 
 /** Marcadores do mapa a partir dos avisos. */
 export function toMarkers(reports) {
+  // No mapa geral o caso aparece onde o animal foi visto por último
   return (reports || []).map(r => ({
     id: r.id,
-    lat: r.lat,
-    lng: r.lng,
+    lat: r.lastSeen?.lat ?? r.lat,
+    lng: r.lastSeen?.lng ?? r.lng,
     color: LF_TYPES[r.type]?.color || '#6B7280',
     label: LF_TYPES[r.type]?.letter || '',
     approximate: !!r.approximate,
   }));
+}
+
+// ---------------------------------------------------------------- casos e avistamentos
+
+export const SIGHTING_KINDS = {
+  SEEN: {label: 'Vi de novo', long: 'Vi este animal', icon: 'eye', color: '#D97706', soft: '#FEF3C7'},
+  WITH_ME: {label: 'Está comigo', long: 'Recolhi, está comigo', icon: 'home', color: '#059669', soft: '#D1FAE5'},
+  CLINIC: {label: 'Levei para clínica', long: 'Levei para uma clínica', icon: 'medkit', color: '#2563EB', soft: '#DBEAFE'},
+};
+
+/** Situação atual do caso para o topo da página: "Visto há 2 h", "Está com alguém"… */
+export function caseSituation(r, now = Date.now()) {
+  if (!r) return null;
+  if (r.status === 'RESOLVED') return {text: 'Voltou para casa', color: '#166534'};
+  const last = r.lastSeen;
+  if (!last) return null;
+  const k = SIGHTING_KINDS[last.kind] || SIGHTING_KINDS.SEEN;
+  const verb = last.kind === 'WITH_ME' ? 'Está com alguém desde' : last.kind === 'CLINIC' ? 'Levado para clínica' : 'Visto por último';
+  return {text: `${verb} ${timeAgo(last.at, now)}`, color: k.color, icon: k.icon};
+}
+
+/**
+ * Pontos do trajeto: onde o caso começou + cada avistamento, em ordem de data.
+ * Marcadores numerados (1 = início) e a linha que os liga.
+ */
+export function caseTrack(report, timeline = []) {
+  if (!report) return {markers: [], track: []};
+  const t = LF_TYPES[report.type];
+  const start = {id: 'inicio', lat: report.lat, lng: report.lng, color: t?.color || '#6B7280', label: '1', approximate: !!report.approximate, at: report.happenedAt};
+  const rest = (timeline || [])
+    .slice()
+    .sort((a, b) => new Date(a.happenedAt) - new Date(b.happenedAt))
+    .map((s, i) => ({
+      id: s.id,
+      lat: s.lat,
+      lng: s.lng,
+      color: (SIGHTING_KINDS[s.kind] || SIGHTING_KINDS.SEEN).color,
+      label: String(i + 2),
+      approximate: !!s.approximate,
+      at: s.happenedAt,
+    }));
+  const markers = [start, ...rest];
+  return {markers, track: markers.map(m => ({lat: m.lat, lng: m.lng}))};
+}
+
+/** Formulário de "publicar" → avistamento no caso escolhido em "Pode ser um destes?". */
+export function sightingFromReportForm(form) {
+  const when = parseDateTime(form.when);
+  const kind =
+    form.type === 'FOUND'
+      ? form.currentlyWith === 'CLINICA'
+        ? 'CLINIC'
+        : form.currentlyWith === 'SOLTO'
+        ? 'SEEN'
+        : 'WITH_ME'
+      : 'SEEN';
+  return {
+    kind,
+    photo: form.photos?.[0]?.data,
+    lat: form.location?.lat,
+    lng: form.location?.lng,
+    happenedAt: when ? when.toISOString() : undefined,
+    locationNote: String(form.locationNote || '').trim() || undefined,
+    district: String(form.district || '').trim() || undefined,
+    note: String(form.description || '').trim().slice(0, 300) || undefined,
+  };
+}
+
+/** Validação do avistamento (foto obrigatória). */
+export function buildSightingBody(f) {
+  if (!f.photo) return {error: 'A foto é obrigatória: é ela que confirma que é o mesmo animal.'};
+  if (!f.location) return {error: 'Marque no mapa onde você viu o animal.'};
+  const when = parseDateTime(f.when);
+  if (!when) return {error: 'Data e hora inválidas.'};
+  if (when.getTime() > Date.now() + 10 * 60e3) return {error: 'A data não pode ser no futuro.'};
+  return {
+    body: {
+      kind: f.kind || 'SEEN',
+      photo: f.photo.data,
+      lat: f.location.lat,
+      lng: f.location.lng,
+      happenedAt: when.toISOString(),
+      locationNote: String(f.locationNote || '').trim() || undefined,
+      note: String(f.note || '').trim() || undefined,
+    },
+  };
 }

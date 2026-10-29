@@ -4,6 +4,7 @@
  * Modos:
  *  - marcadores: `markers` [{id, lat, lng, color, approximate, label}] → onMarkerPress(id)
  *  - escolher local: `pick` + `onPick({lat, lng})` → pino arrastável / toque no mapa
+ *  - trajeto: `track` [{lat, lng}] → linha tracejada ligando os pontos (por onde o animal passou)
  *  - miniatura: `interactive={false}` → o mapa não pega o toque (não briga com a rolagem da tela);
  *    use junto com MapPreview/MapFullscreen para abrir o mapa em tela cheia.
  * `userLocation` mostra o ponto azul de onde a pessoa está.
@@ -36,7 +37,7 @@ export function buildMapHtml({center, zoom = 14, pick = false, interactive = tru
 var send=function(o){window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify(o))};
 var map=L.map('map',{zoomControl:${zoomControl && interactive ? 'true' : 'false'},attributionControl:true${lock}}).setView([${center.lat},${center.lng}],${zoom});
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
-var layer=L.layerGroup().addTo(map), me=null, picker=null;
+var trackLayer=L.layerGroup().addTo(map), layer=L.layerGroup().addTo(map), me=null, picker=null;
 function icon(color,label){return L.divIcon({className:'',iconSize:[30,30],iconAnchor:[15,30],html:'<div class="pin" style="background:'+color+'"><span>'+(label||'')+'</span></div>'})}
 window.setMarkers=function(list,fit){layer.clearLayers();var b=[];
  (list||[]).forEach(function(m){
@@ -44,6 +45,7 @@ window.setMarkers=function(list,fit){layer.clearLayers();var b=[];
   var mk=L.marker([m.lat,m.lng],{icon:icon(m.color,m.label)}).addTo(layer);
   mk.on('click',function(){send({type:'marker',id:m.id})});b.push([m.lat,m.lng]);});
  if(fit&&b.length>1){map.fitBounds(b,{padding:[40,40],maxZoom:16})}else if(fit&&b.length===1){map.setView(b[0],map.getZoom()>=15?map.getZoom():15)}};
+window.setTrack=function(pts){trackLayer.clearLayers();if(pts&&pts.length>1){L.polyline(pts.map(function(p){return[p.lat,p.lng]}),{color:'#7C3AED',weight:3,opacity:.75,dashArray:'6 8'}).addTo(trackLayer)}};
 window.setMe=function(p,c){if(!p)return;if(c&&!window._centered){window._centered=true;map.setView([p.lat,p.lng],14)}if(me){me.setLatLng([p.lat,p.lng])}else{me=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',iconSize:[16,16],html:'<div class="me"></div>'}),interactive:false}).addTo(map)}};
 window.center=function(p,z){map.setView([p.lat,p.lng],z||map.getZoom())};
 ${
@@ -59,7 +61,7 @@ send({type:'ready'});
 </script></body></html>`;
 }
 
-export default function LeafletMap({center, zoom, markers, onMarkerPress, pick, onPick, onMove, userLocation, pickTo, centerOnUser = false, fit = true, interactive = true, zoomControl = false, style, testID}) {
+export default function LeafletMap({center, zoom, markers, track, onMarkerPress, pick, onPick, onMove, userLocation, pickTo, centerOnUser = false, fit = true, interactive = true, zoomControl = false, style, testID}) {
   const WebView = getWebView();
   const ref = useRef(null);
   const ready = useRef(false);
@@ -71,6 +73,9 @@ export default function LeafletMap({center, zoom, markers, onMarkerPress, pick, 
   useEffect(() => {
     if (markers) run(`setMarkers(${JSON.stringify(markers)}, ${fit ? 'true' : 'false'})`);
   }, [markers, fit]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (track) run(`setTrack(${JSON.stringify(track)})`);
+  }, [track]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (userLocation) run(`setMe(${JSON.stringify(userLocation)}, ${centerOnUser ? 'true' : 'false'})`);
   }, [userLocation?.lat, userLocation?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -89,6 +94,7 @@ export default function LeafletMap({center, zoom, markers, onMarkerPress, pick, 
     }
     if (msg.type === 'ready') {
       ready.current = true;
+      if (track) run(`setTrack(${JSON.stringify(track)})`);
       if (markers) run(`setMarkers(${JSON.stringify(markers)}, ${fit ? 'true' : 'false'})`);
       if (userLocation) run(`setMe(${JSON.stringify(userLocation)}, ${centerOnUser ? 'true' : 'false'})`);
     } else if (msg.type === 'marker') onMarkerPress?.(msg.id);

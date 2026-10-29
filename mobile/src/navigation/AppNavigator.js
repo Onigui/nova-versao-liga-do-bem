@@ -57,6 +57,7 @@ import LostFoundNewScreen from '../screens/LostFoundNewScreen';
 import LostFoundDetailScreen from '../screens/LostFoundDetailScreen';
 import LostFoundAlertsScreen from '../screens/LostFoundAlertsScreen';
 import LostFoundMineScreen from '../screens/LostFoundMineScreen';
+import LostFoundSightingScreen from '../screens/LostFoundSightingScreen';
 
 // Topo das telas com cabeçalho do navegador: roxo profundo do Início, título branco em Plus Jakarta Sans
 const HEADER = {
@@ -417,6 +418,11 @@ export function AppStack() {
         name="LostFoundDetail"
         component={LostFoundDetailScreen}
         options={{headerShown: true, ...HEADER, title: 'Aviso'}}
+      />
+      <Stack.Screen
+        name="LostFoundSighting"
+        component={LostFoundSightingScreen}
+        options={{headerShown: true, ...HEADER, title: 'Vi este animal'}}
       />
       <Stack.Screen
         name="LostFoundAlerts"
