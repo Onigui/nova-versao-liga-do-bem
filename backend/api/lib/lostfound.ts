@@ -12,6 +12,11 @@
  * adiciona um AVISTAMENTO (foto obrigatória, local, hora) ao caso. Isso forma a linha do tempo e o
  * trajeto no mapa. Antes de publicar, o app pergunta "Pode ser um destes?" (POST /api/lostfound/similar).
  *
+ * Mural: cada caso tem uma conversa pública (só para quem tem conta): comentários com foto opcional
+ * e respostas. Filtro anti-golpe (PIX, links), telefone/e-mail escondidos, limite por pessoa,
+ * denúncia (3 escondem até a Liga revisar) e o autor do caso pode ocultar. Quem acompanha o caso
+ * (autor, quem comentou, quem registrou avistamento ou tocou em "Acompanhar") é avisado.
+ *
  * Alertas: quem ativa recebe push de avisos novos num raio escolhido; quem perdeu um pet
  * recebe aviso automático de "encontrei"/"vi" da mesma espécie perto de onde perdeu.
  * Segurança: denúncia (3 denúncias escondem o aviso até a Liga revisar), limite de avisos,
@@ -56,6 +61,11 @@ export const SIGHTING_KINDS = ['SEEN', 'WITH_ME', 'CLINIC'] as const;
 const SIGHTINGS_PER_DAY = 20;
 const SIGHTINGS_PER_CASE_DAY = 5;
 const SIMILAR_MIN_SCORE = 40;
+const COMMENT_MAX = 1000;
+const COMMENTS_PER_DAY = 40;
+const COMMENT_GAP_MS = 8 * 1000;
+const COMMENT_FLAGS_TO_HIDE = 3;
+const PUSH_QUIET_MS = 10 * 60 * 1000;
 
 let ensuredAt = 0;
 export async function ensureLostFoundSchema(db: any) {
@@ -151,6 +161,34 @@ export async function ensureLostFoundSchema(db: any) {
      )`,
     `CREATE INDEX IF NOT EXISTS lf_sightings_report_idx ON lf_sightings("reportId", "happenedAt")`,
     `CREATE INDEX IF NOT EXISTS lf_sightings_user_idx ON lf_sightings("userId", "createdAt" DESC)`,
+    `CREATE TABLE IF NOT EXISTS lf_comments (
+       id TEXT PRIMARY KEY,
+       "reportId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
+       "userId" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       "parentId" TEXT,
+       body TEXT NOT NULL,
+       mime TEXT,
+       photo BYTEA,
+       hidden BOOLEAN NOT NULL DEFAULT false,
+       "hiddenBy" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS lf_comments_report_idx ON lf_comments("reportId", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS lf_comments_user_idx ON lf_comments("userId", "createdAt" DESC)`,
+    `CREATE TABLE IF NOT EXISTS lf_comment_flags (
+       "commentId" TEXT NOT NULL REFERENCES lf_comments(id) ON DELETE CASCADE,
+       "userId" TEXT NOT NULL,
+       reason TEXT NOT NULL,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+       PRIMARY KEY ("commentId", "userId")
+     )`,
+    `CREATE TABLE IF NOT EXISTS lf_follows (
+       "reportId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
+       "userId" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       active BOOLEAN NOT NULL DEFAULT true,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+       PRIMARY KEY ("reportId", "userId")
+     )`,
     `CREATE TABLE IF NOT EXISTS lf_flags (
        "reportId" TEXT NOT NULL REFERENCES lf_reports(id) ON DELETE CASCADE,
        "userId" TEXT NOT NULL,
@@ -309,6 +347,85 @@ function sightingView(s: any, viewerId: string | null, caseOwnerId: string) {
     photo: `/api/lostfound/${s.reportId}/sightings/${s.id}/photo`,
     mine: !!viewerId && s.userId === viewerId,
     canRemove: !!viewerId && (s.userId === viewerId || caseOwnerId === viewerId),
+  };
+}
+
+/** Quem acompanha o caso: autor (a menos que tenha deixado de acompanhar) + quem segue. */
+export async function caseFollowers(db: any, r: { id: string; userId: string }) {
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT "userId", active FROM lf_follows WHERE "reportId" = $1`, r.id);
+  const out = new Set<string>(rows.filter((x) => x.active).map((x) => String(x.userId)));
+  if (!rows.some((x) => x.userId === r.userId && !x.active)) out.add(r.userId);
+  return out;
+}
+
+/** Comentou ou registrou avistamento: passa a acompanhar (se não tinha saído antes). */
+async function autoFollow(db: any, reportId: string, userId: string) {
+  await db.$executeRawUnsafe(
+    `INSERT INTO lf_follows ("reportId", "userId", active) VALUES ($1, $2, true) ON CONFLICT DO NOTHING`,
+    reportId,
+    userId,
+  );
+}
+
+/** Push para quem acompanha, sem repetir para a mesma pessoa no mesmo caso em menos de 10 min. */
+async function pushFollowers(db: any, reportId: string, userIds: string[], title: string, message: string, data: Record<string, string>) {
+  if (!userIds.length) return 0;
+  const recent: any[] = await db.$queryRawUnsafe(
+    `SELECT DISTINCT "userId" FROM notifications
+      WHERE "userId" = ANY($1::text[]) AND data->>'caseId' = $2 AND "sentAt" > NOW() - ($3 || ' milliseconds')::interval`,
+    userIds,
+    reportId,
+    String(PUSH_QUIET_MS),
+  );
+  const quiet = new Set(recent.map((x) => String(x.userId)));
+  const to = userIds.filter((u) => !quiet.has(u));
+  await push(db, to, title, message, { ...data, caseId: reportId });
+  return to.length;
+}
+
+const SCAM_RE =
+  /\b(pix|chave\s*pix|transfer[eê]ncia|transferir|dep[oó]sito|depositar|boleto|pagar\s+(?:a|uma)\s+taxa|taxa\s+de\s+(?:resgate|entrega|devolu[cç][aã]o)|recompensa\s+adiantad|adiantad[oa]\s+(?:o|a)\s+recompensa|cart[aã]o\s+de\s+cr[eé]dito)\b/i;
+const LINK_RE = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|br|io|me|ly|app|xyz|site|link)(?:\/|\b))/i;
+
+/** Confere o texto do comentário: bloqueia golpe/links e esconde telefone e e-mail. */
+export function cleanComment(raw: any): { text?: string; error?: string; code?: string; masked?: boolean } {
+  const text = String(raw || '').replace(/\s+\n/g, '\n').trim();
+  if (text.length < 2) return { error: 'Escreva o comentário' };
+  if (text.length > COMMENT_MAX) return { error: `Máximo de ${COMMENT_MAX} caracteres` };
+  if (SCAM_RE.test(text)) {
+    return {
+      error: 'Por segurança, não é permitido falar de PIX, depósito, taxa ou recompensa adiantada. Nunca pague para "liberar" um animal.',
+      code: 'SCAM_BLOCKED',
+    };
+  }
+  let masked = false;
+  const noEmail = text.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, () => {
+    masked = true;
+    return '[e-mail escondido]';
+  });
+  if (LINK_RE.test(noEmail)) return { error: 'Links não são permitidos no mural.', code: 'LINK_BLOCKED' };
+  const out = noEmail
+    .replace(/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9\s*)?\d{4}[\s.-]?\d{4}/g, (m) => {
+      if (m.replace(/\D/g, '').length < 8) return m;
+      masked = true;
+      return '[telefone escondido]';
+    });
+  return { text: out, masked };
+}
+
+function commentView(c: any, viewerId: string | null, caseOwnerId: string) {
+  const mine = !!viewerId && c.userId === viewerId;
+  return {
+    id: c.id,
+    parentId: c.parentId || null,
+    author: c.userName ? String(c.userName).split(' ')[0] : 'Alguém',
+    isCaseAuthor: c.userId === caseOwnerId,
+    body: c.body,
+    photo: c.mime ? `/api/lostfound/${c.reportId}/comments/${c.id}/photo` : null,
+    createdAt: c.createdAt,
+    mine,
+    canHide: !mine && !!viewerId && viewerId === caseOwnerId,
+    canDelete: mine,
   };
 }
 
@@ -573,6 +690,22 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       return true;
     }
 
+    // ---------- foto de um comentário
+    const cp = path.match(/^\/api\/lostfound\/([^/]+)\/comments\/([^/]+)\/photo$/);
+    if (cp && method === 'GET') {
+      const rows: any[] = await db.$queryRawUnsafe(
+        `SELECT c.mime, c.photo FROM lf_comments c JOIN lf_reports r ON r.id = c."reportId"
+          WHERE c.id = $2 AND c."reportId" = $1 AND c.hidden = false AND c.photo IS NOT NULL AND r.hidden = false AND r.status <> 'REMOVED'`,
+        cp[1],
+        cp[2],
+      );
+      if (!rows[0]) throw new HttpError(404, 'Foto não encontrada');
+      res.setHeader('Content-Type', rows[0].mime);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.status(200).end(Buffer.from(rows[0].photo));
+      return true;
+    }
+
     // ---------- lista / mapa (público; contato só logado)
     if (path === '/api/lostfound' && method === 'GET') {
       const viewer = optionalUser(ctx);
@@ -638,6 +771,34 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
         });
         return true;
       }
+      if (path === '/api/admin/lostfound/comments' && method === 'GET') {
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT c.id, c."reportId", c."userId", c."parentId", c.body, c.mime, c.hidden, c."hiddenBy", c."createdAt",
+                  u.name AS "userName", u.email AS "userEmail", r."petName", r.species, r.colors, r.type,
+                  (SELECT COUNT(*)::int FROM lf_comment_flags f WHERE f."commentId" = c.id) AS flags,
+                  (SELECT string_agg(f.reason, ' | ') FROM lf_comment_flags f WHERE f."commentId" = c.id) AS "flagReasons"
+             FROM lf_comments c JOIN users u ON u.id = c."userId" JOIN lf_reports r ON r.id = c."reportId"
+            WHERE EXISTS (SELECT 1 FROM lf_comment_flags f WHERE f."commentId" = c.id) OR c."hiddenBy" = 'FLAGS'
+            ORDER BY c.hidden DESC, c."createdAt" DESC LIMIT 200`,
+        );
+        res.status(200).json({
+          comments: rows.map((c) => ({
+            id: c.id, reportId: c.reportId, body: c.body, hasPhoto: !!c.mime, hidden: c.hidden, hiddenBy: c.hiddenBy, createdAt: c.createdAt,
+            author: c.userName, userEmail: c.userEmail, flags: c.flags, flagReasons: c.flagReasons,
+            caseTitle: `${SPECIES_LABEL[c.species] || 'Animal'}${c.petName ? ` ${c.petName}` : ''} · ${c.colors}`, caseType: c.type,
+          })),
+        });
+        return true;
+      }
+      const acm = path.match(/^\/api\/admin\/lostfound\/comments\/([^/]+)\/(hide|show)$/);
+      if (acm && method === 'POST') {
+        const hide = acm[2] === 'hide';
+        const n = await db.$executeRawUnsafe(`UPDATE lf_comments SET hidden = $2, "hiddenBy" = $3 WHERE id = $1`, acm[1], hide, hide ? 'ADMIN' : null);
+        if (!n) throw new HttpError(404, 'Comentário não encontrado');
+        if (!hide) await db.$executeRawUnsafe(`DELETE FROM lf_comment_flags WHERE "commentId" = $1`, acm[1]);
+        res.status(200).json({ message: hide ? 'Comentário escondido' : 'Comentário visível de novo' });
+        return true;
+      }
       const am = path.match(/^\/api\/admin\/lostfound\/([^/]+)\/(hide|show)$/);
       if (am && method === 'POST') {
         const hide = am[2] === 'hide';
@@ -677,6 +838,10 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
           hidden: r.userId === viewer ? r.hidden : undefined,
         },
         timeline: sights.map((x) => sightingView(x, viewer, r.userId)),
+        commentsCount: Number(
+          ((await db.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM lf_comments WHERE "reportId" = $1 AND hidden = false`, r.id)) as any[])[0]?.n || 0,
+        ),
+        following: viewer ? (await caseFollowers(db, r)).has(viewer) : false,
         needsLoginForContact: !viewer && !!r.whatsapp,
       });
       return true;
@@ -725,6 +890,126 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       );
       res.status(200).json({ reports: rows.map((r) => ({ ...publicView(r, { viewerId: userId, withContact: true }), hidden: r.hidden })) });
       return true;
+    }
+
+    // ---------- acompanhar um caso / mural de conversa
+    const cm = path.match(/^\/api\/lostfound\/([^/]+)\/(follow|comments)(?:\/([^/]+))?(\/flag)?$/);
+    if (cm) {
+      const rows: any[] = await db.$queryRawUnsafe(`SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE r.id = $1`, cm[1]);
+      const r = rows[0];
+      if (!r || r.status === 'REMOVED' || (r.hidden && r.userId !== userId)) throw new HttpError(404, 'Aviso não encontrado');
+
+      if (cm[2] === 'follow' && !cm[3]) {
+        if (method === 'POST' || method === 'DELETE') {
+          const on = method === 'POST';
+          await db.$executeRawUnsafe(
+            `INSERT INTO lf_follows ("reportId", "userId", active) VALUES ($1, $2, $3)
+             ON CONFLICT ("reportId", "userId") DO UPDATE SET active = EXCLUDED.active`,
+            r.id, userId, on,
+          );
+          res.status(200).json({ following: on, message: on ? 'Você vai receber as novidades deste caso.' : 'Você não vai mais receber avisos deste caso.' });
+          return true;
+        }
+      }
+
+      if (cm[2] === 'comments' && !cm[3] && method === 'GET') {
+        const list: any[] = await db.$queryRawUnsafe(
+          `SELECT c.id, c."reportId", c."userId", c."parentId", c.body, c.mime, c."createdAt", u.name AS "userName"
+             FROM lf_comments c JOIN users u ON u.id = c."userId"
+            WHERE c."reportId" = $1 AND c.hidden = false ORDER BY c."createdAt" ASC LIMIT 500`,
+          r.id,
+        );
+        const views = list.map((c) => commentView(c, userId, r.userId));
+        const tops = views.filter((c) => !c.parentId || !views.some((p) => p.id === c.parentId && !p.parentId));
+        // Mais recentes no topo; respostas em ordem, embaixo de cada comentário
+        const threads = tops
+          .map((t) => ({ ...t, parentId: null, replies: views.filter((x) => x.parentId === t.id) }))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        res.status(200).json({ comments: threads, total: views.length, following: (await caseFollowers(db, r)).has(userId), closed: r.status !== 'ACTIVE' });
+        return true;
+      }
+
+      if (cm[2] === 'comments' && !cm[3] && method === 'POST') {
+        const chk = cleanComment(body.body);
+        if (chk.error) throw new HttpError(400, chk.error, chk.code);
+        let parentId: string | null = null;
+        let parentAuthor: string | null = null;
+        if (body.parentId) {
+          const ps: any[] = await db.$queryRawUnsafe(
+            `SELECT id, "parentId", "userId" FROM lf_comments WHERE id = $1 AND "reportId" = $2 AND hidden = false`,
+            String(body.parentId), r.id,
+          );
+          if (!ps[0]) throw new HttpError(404, 'Comentário não encontrado');
+          // Respostas ficam num nível só (responder a uma resposta vai para o mesmo comentário)
+          parentId = ps[0].parentId || ps[0].id;
+          parentAuthor = ps[0].userId;
+        }
+        const photo = body.photo ? decodePhoto(body.photo) : null;
+        const lim: any[] = await db.$queryRawUnsafe(
+          `SELECT COUNT(*) FILTER (WHERE "createdAt" > NOW() - INTERVAL '1 day')::int AS today, MAX("createdAt") AS last
+             FROM lf_comments WHERE "userId" = $1`,
+          userId,
+        );
+        if ((lim[0]?.today || 0) >= COMMENTS_PER_DAY) throw new HttpError(429, 'Limite de comentários por dia atingido. Tente amanhã.', 'TOO_MANY');
+        if (lim[0]?.last && Date.now() - new Date(lim[0].last).getTime() < COMMENT_GAP_MS) {
+          throw new HttpError(429, 'Calma! Espere alguns segundos para comentar de novo.', 'TOO_FAST');
+        }
+        const id = crypto.randomUUID();
+        await db.$executeRawUnsafe(
+          `INSERT INTO lf_comments (id, "reportId", "userId", "parentId", body, mime, photo) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          id, r.id, userId, parentId, chk.text, photo?.mime || null, photo?.data || null,
+        );
+        await autoFollow(db, r.id, userId);
+        const me: any[] = await db.$queryRawUnsafe(`SELECT name FROM users WHERE id = $1`, userId);
+        const who = String(me[0]?.name || 'Alguém').split(' ')[0];
+        const name = r.type === 'LOST' && r.petName ? r.petName : `${SPECIES_LABEL[r.species].toLowerCase()} ${r.colors}`;
+        const preview = chk.text!.length > 90 ? `${chk.text!.slice(0, 87)}…` : chk.text!;
+        const data = { screen: 'LostFoundComments', id: String(r.id) };
+        let notified = 0;
+        if (parentAuthor && parentAuthor !== userId) {
+          notified += await pushFollowers(db, r.id, [parentAuthor], `↩️ ${who} respondeu você no caso de ${name}`, preview, data);
+        }
+        const followers = [...(await caseFollowers(db, r))].filter((u) => u !== userId && u !== parentAuthor);
+        notified += await pushFollowers(db, r.id, followers, `💬 ${who} comentou no caso de ${name}`, preview, data);
+        const out: any[] = await db.$queryRawUnsafe(
+          `SELECT c.id, c."reportId", c."userId", c."parentId", c.body, c.mime, c."createdAt", u.name AS "userName"
+             FROM lf_comments c JOIN users u ON u.id = c."userId" WHERE c.id = $1`,
+          id,
+        );
+        res.status(201).json({
+          comment: commentView(out[0], userId, r.userId),
+          notified,
+          masked: !!chk.masked,
+          message: chk.masked ? 'Publicado. Telefone/e-mail foram escondidos: para contato, use o WhatsApp do aviso.' : undefined,
+        });
+        return true;
+      }
+
+      if (cm[2] === 'comments' && cm[3]) {
+        const cs: any[] = await db.$queryRawUnsafe(`SELECT * FROM lf_comments WHERE id = $1 AND "reportId" = $2 AND hidden = false`, cm[3], r.id);
+        const c = cs[0];
+        if (!c) throw new HttpError(404, 'Comentário não encontrado');
+        if (cm[4] === '/flag' && method === 'POST') {
+          if (c.userId === userId) throw new HttpError(400, 'Este comentário é seu');
+          const reason = String(body.reason || '').trim().slice(0, 200);
+          if (reason.length < 5) throw new HttpError(400, 'Conte o motivo da denúncia');
+          await db.$executeRawUnsafe(`INSERT INTO lf_comment_flags ("commentId", "userId", reason) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, c.id, userId, reason);
+          const n: any[] = await db.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM lf_comment_flags WHERE "commentId" = $1`, c.id);
+          if ((n[0]?.n || 0) >= COMMENT_FLAGS_TO_HIDE) {
+            await db.$executeRawUnsafe(`UPDATE lf_comments SET hidden = true, "hiddenBy" = 'FLAGS' WHERE id = $1`, c.id);
+          }
+          res.status(201).json({ message: 'Obrigado! A Liga vai revisar este comentário.' });
+          return true;
+        }
+        if (!cm[4] && method === 'DELETE') {
+          const mine = c.userId === userId;
+          if (!mine && r.userId !== userId) throw new HttpError(403, 'Só quem escreveu ou o autor do caso pode tirar');
+          await db.$executeRawUnsafe(`UPDATE lf_comments SET hidden = true, "hiddenBy" = $2 WHERE id = $1 OR "parentId" = $1`, c.id, mine ? 'DELETED' : 'AUTHOR');
+          res.status(200).json({ message: mine ? 'Comentário apagado' : 'Comentário ocultado' });
+          return true;
+        }
+      }
+      throw new HttpError(404, 'Rota não encontrada');
     }
 
     // ---------- antes de publicar: "Pode ser um destes?"
@@ -813,17 +1098,19 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
           `UPDATE lf_reports SET "expiresAt" = GREATEST("expiresAt", NOW() + INTERVAL '${ACTIVE_DAYS} days') WHERE id = $1`,
           r.id,
         );
-        // Avisa quem publicou o caso e quem já ajudou com avistamentos
+        // Avisa quem acompanha o caso (autor, quem já ajudou, quem tocou em "Acompanhar")
         const helpers: any[] = await db.$queryRawUnsafe(
           `SELECT DISTINCT "userId" FROM lf_sightings WHERE "reportId" = $1 AND hidden = false AND "userId" <> $2 LIMIT 50`,
           r.id, userId,
         );
-        const to = [...new Set([r.userId, ...helpers.map((h) => h.userId)])].filter((u) => u !== userId);
+        for (const h of helpers) await autoFollow(db, r.id, h.userId);
+        await autoFollow(db, r.id, userId);
+        const to = [...(await caseFollowers(db, r))].filter((u) => u !== userId);
         const name = r.type === 'LOST' && r.petName ? r.petName : `o ${SPECIES_LABEL[r.species].toLowerCase()} ${r.colors}`;
         const place = txt(body.locationNote, 60) || txt(body.district, 40) || 'veja no mapa';
         const title =
           kind === 'WITH_ME' ? `🏠 Alguém está com ${name}` : kind === 'CLINIC' ? `🏥 ${name} foi levado para uma clínica` : `📍 ${name} foi visto de novo`;
-        await push(db, to, title, `${place} · toque para ver a foto e o trajeto.`, { screen: 'LostFoundDetail', id: String(r.id) });
+        await push(db, to, title, `${place} · toque para ver a foto e o trajeto.`, { screen: 'LostFoundDetail', id: String(r.id), caseId: String(r.id) });
         const out: any[] = await db.$queryRawUnsafe(
           `SELECT s.*, u.name AS "userName" FROM lf_sightings s JOIN users u ON u.id = s."userId" WHERE s.id = $1`,
           id,
@@ -883,6 +1170,7 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
         await db.$executeRawUnsafe(`INSERT INTO lf_photos ("reportId", position, mime, data) VALUES ($1, $2, $3, $4)`, id, i, photos[i].mime, photos[i].data);
       }
       const rows: any[] = await db.$queryRawUnsafe(`SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE r.id = $1`, id);
+      await autoFollow(db, id, userId);
       const alerts = await sendNearbyAlerts(db, rows[0]);
       res.status(201).json({ report: publicView(rows[0], { viewerId: userId, withContact: true }), alerts });
       return true;

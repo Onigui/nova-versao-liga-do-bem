@@ -211,6 +211,32 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
           </TouchableOpacity>
         ) : null}
 
+        <View style={styles.socialRow}>
+          <TouchableOpacity
+            style={[styles.social, data.following && styles.socialOn]}
+            onPress={async () => {
+              const on = !data.following;
+              setData(d => ({...d, following: on}));
+              try {
+                await api(on ? 'POST' : 'DELETE', `/lostfound/${id}/follow`);
+              } catch (e) {
+                setData(d => ({...d, following: !on}));
+                Alert.alert('Não foi possível', e.message);
+              }
+            }}
+            testID="acompanhar">
+            <Ionicons name={data.following ? 'notifications' : 'notifications-outline'} size={18} color={data.following ? '#FFFFFF' : '#6D28D9'} />
+            <Text style={[styles.socialText, data.following && {color: '#FFFFFF'}]}>{data.following ? 'Acompanhando' : 'Acompanhar'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.social}
+            onPress={() => navigation.navigate('LostFoundComments', {id: r.id, title: r.petName || speciesLabel(r.species)})}
+            testID="abrir-conversa">
+            <Ionicons name="chatbubbles-outline" size={18} color="#6D28D9" />
+            <Text style={styles.socialText}>Conversa{data.commentsCount ? ` (${data.commentsCount})` : ''}</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.section}>Linha do tempo</Text>
         <View style={styles.tl} testID="linha-do-tempo">
           <TimelineItem
@@ -345,6 +371,10 @@ export default function LostFoundDetailScreen({navigation, route, fetchImpl = fe
 
 const styles = StyleSheet.create({
   error: {color: '#B91C1C', margin: 24},
+  socialRow: {flexDirection: 'row', gap: 10, marginTop: 12},
+  social: {flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: '#6D28D9', backgroundColor: '#FFFFFF'},
+  socialOn: {backgroundColor: '#6D28D9'},
+  socialText: {color: '#6D28D9', ...F.bold, fontSize: 14},
   situation: {flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8, backgroundColor: '#FFFFFF'},
   situationText: {fontSize: 13, ...F.bold},
   tl: {backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12},
