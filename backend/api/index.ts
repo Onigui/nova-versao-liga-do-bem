@@ -494,7 +494,8 @@ async function handleRequest(req: any, res: any) {
           return res.status(400).json({ error: 'Falta o token de sandbox: cadastre PAGBANK_SANDBOX_TOKEN na Vercel e faça o redeploy.', code: 'NO_SANDBOX_TOKEN' });
         }
         const apiBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/$/, '');
-        const report = await runHomologation(db, { token, notificationUrl: `${apiBase}/api/webhooks/pagbank` });
+        const retryDelaysMs = process.env.HOMOLOG_RETRY_MS ? String(process.env.HOMOLOG_RETRY_MS).split(',').map(Number) : undefined;
+        const report = await runHomologation(db, { token, notificationUrl: `${apiBase}/api/webhooks/pagbank`, retryDelaysMs });
         return res.status(200).json({ ...report, text: reportToText(report) });
       }
       if (method === 'GET') {

@@ -86,7 +86,7 @@ export async function captureHomologWebhook(db: any, body: any, headers: any, si
   return true;
 }
 
-export async function runHomologation(db: any, opts: { token: string; notificationUrl: string }) {
+export async function runHomologation(db: any, opts: { token: string; notificationUrl: string; retryDelaysMs?: number[] }) {
   const steps: Step[] = [];
   const stamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
   const ref = (s: string) => `${HOMOLOG_PREFIX}-${stamp}-${s}`;
@@ -203,11 +203,27 @@ export async function runHomologation(db: any, opts: { token: string; notificati
     if (String(charge?.status) !== 'DECLINED') throw new Error(`Esperado DECLINED, veio ${charge?.status}`);
   });
 
-  await step('8. Estorno da cobrança aprovada (POST /charges/{id}/cancel)', async (note) => {
-    if (!paidChargeId) throw new Error('Sem cobrança aprovada do passo 6');
-    const r = await cancelPagBankCharge(paidChargeId, 12000);
-    note(`Situação após estorno: ${r.status}.`);
-  });
+  // O sandbox leva alguns segundos para a cobrança recém-paga ficar disponível para estorno
+  // ("Transaction is not found" logo em seguida). Espera e tenta de novo; no relatório fica a tentativa final.
+  steps.push(await (async (): Promise<Step> => {
+    const title = '8. Estorno da cobrança aprovada (POST /charges/{id}/cancel)';
+    if (!paidChargeId) return { title, ok: false, note: 'Sem cobrança aprovada do passo 6', calls: [] };
+    let last: Step = { title, ok: false, note: '', calls: [] };
+    let waited = 0;
+    for (const wait of opts.retryDelaysMs ?? [5000, 8000, 12000]) {
+      await new Promise((r) => setTimeout(r, wait));
+      waited += wait;
+      const calls: PagBankCallLog[] = [];
+      try {
+        const r = await runWithPagBank({ token: opts.token, env: 'sandbox' }, (c) => calls.push(c), () => cancelPagBankCharge(paidChargeId, 12000));
+        return { title, ok: true, note: `Situação após estorno: ${r.status} (feito ${Math.round(waited / 1000)} s depois do pagamento).`, calls };
+      } catch (e: any) {
+        last = { title, ok: false, note: String(e?.message || e), calls };
+        if (!/not found|não encontrad/i.test(last.note)) break;
+      }
+    }
+    return last;
+  })());
 
   const report = { generatedAt: new Date().toISOString(), env: 'sandbox', notificationUrl: opts.notificationUrl, steps };
   if (db) {
