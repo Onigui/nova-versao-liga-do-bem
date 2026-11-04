@@ -43,6 +43,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleAccount, isAccountPath } from './lib/account';
+import { HOMOLOG_PATH, captureHomologWebhook, loadLatest, reportToText, runHomologation } from './lib/pagbankHomolog';
 import { handleHome } from './lib/home';
 import { audienceFilter } from './lib/inbox';
 import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
@@ -482,6 +483,26 @@ async function handleRequest(req: any, res: any) {
       const diag = await dbDiagnostics(db);
       console.log('🩺 Diagnóstico do banco:', JSON.stringify(diag));
       return res.status(200).json(diag);
+    }
+
+    // Admin: homologação PagBank no SANDBOX (gera o anexo de requests/responses pedido pelo PagBank)
+    if (path === HOMOLOG_PATH) {
+      const db = getPrisma();
+      if (method === 'POST') {
+        const token = String(process.env.PAGBANK_SANDBOX_TOKEN || '').trim();
+        if (!token) {
+          return res.status(400).json({ error: 'Falta o token de sandbox: cadastre PAGBANK_SANDBOX_TOKEN na Vercel e faça o redeploy.', code: 'NO_SANDBOX_TOKEN' });
+        }
+        const apiBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/$/, '');
+        const report = await runHomologation(db, { token, notificationUrl: `${apiBase}/api/webhooks/pagbank` });
+        return res.status(200).json({ ...report, text: reportToText(report) });
+      }
+      if (method === 'GET') {
+        if (!db) return res.status(503).json({ error: 'Database not configured' });
+        const latest = await loadLatest(db);
+        if (!latest) return res.status(404).json({ error: 'Ainda não há relatório. Rode a homologação primeiro.' });
+        return res.status(200).json({ ...latest, text: reportToText(latest.report, latest.webhooks) });
+      }
     }
 
     // Admin: teste de push — manda um aviso para os aparelhos de um usuário e mostra a resposta do Firebase por aparelho
@@ -7560,9 +7581,20 @@ async function handleRequest(req: any, res: any) {
         // Autenticidade: x-authenticity-token = sha256("{PAGBANK_TOKEN}-{corpo cru}").
         // Modo padrão "monitor" (só registra); PAGBANK_WEBHOOK_SIGNATURE=enforce passa a recusar.
         // Mesmo sem bloquear, nada é liberado com base no corpo: o pedido é sempre consultado no PagBank.
+        // Homologação: notificação do SANDBOX com referência LIGA-HOMOLOG só é guardada para o relatório
+        const raw0 = await readRawBody(req);
+        {
+          let parsed: any = null;
+          try { parsed = raw0 ? JSON.parse(raw0) : (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body); } catch { parsed = null; }
+          const sbToken = String(process.env.PAGBANK_SANDBOX_TOKEN || '').trim();
+          const sbValid = sbToken && raw0 !== null ? verifyPagBankWebhook(sbToken, raw0, (req.headers['x-authenticity-token'] || '').toString()) : null;
+          if (await captureHomologWebhook(db, parsed, req.headers, sbValid)) {
+            return res.status(200).json({ received: true });
+          }
+        }
         const sigMode = webhookSignatureMode();
         if (sigMode !== 'off') {
-          const raw = await readRawBody(req);
+          const raw = raw0;
           const received = (req.headers['x-authenticity-token'] || '').toString();
           const valid = raw !== null && verifyPagBankWebhook(getPagBankConfig().token, raw, received);
           console.log(`🔏 Webhook PagBank: assinatura ${valid ? 'válida' : received ? 'INVÁLIDA' : 'ausente'} (modo ${sigMode}, corpo cru ${raw === null ? 'indisponível' : raw.length + ' bytes'})`);

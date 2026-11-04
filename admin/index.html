@@ -1402,6 +1402,15 @@
                     <div id="pushDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
                 </div>
                 <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title">Homologação PagBank (sandbox)</h3>
+                    <p class="header-subtitle" style="margin:8px 0 16px;">Roda no ambiente de teste do PagBank o mesmo pagamento do app (PIX, boleto, cartão aprovado e recusado, consulta e estorno) e gera o arquivo de requisições e respostas que o PagBank pede no questionário (campo "Anexo"). Usa só o token de sandbox, com dados de teste do próprio PagBank. Nenhum membro é cobrado.</p>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-secondary" onclick="runPagbankHomolog()" id="pbHomologBtn">Rodar homologação</button>
+                        <button class="btn btn-secondary" onclick="downloadPagbankHomolog()" id="pbHomologDl">Baixar relatório (.txt)</button>
+                    </div>
+                    <div id="pbHomologResult" style="margin-top:12px; font-size:.9rem;"></div>
+                </div>
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">Doações por PIX</h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Chave mostrada no app quando a pessoa doa. CNPJ da Liga: 27.644.955/0001-38</p>
                             <div class="form-row">
@@ -4779,6 +4788,52 @@
                 out.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`;
             } finally {
                 btn.disabled = false;
+            }
+        }
+
+        // ---------- Homologação PagBank (sandbox) ----------
+        function showPagbankHomolog(d) {
+            const out = document.getElementById('pbHomologResult');
+            const steps = (d.report || d).steps || [];
+            const rows = steps.map(s => `<tr><td>${escHtml(s.title)}</td><td>${s.ok ? '<span class="chip DONE">OK</span>' : '<span class="chip CANCELLED">Falhou</span>'}</td><td class="muted">${escHtml(s.note || '')}</td></tr>`).join('');
+            const okAll = steps.length && steps.every(s => s.ok);
+            const wh = d.webhooks ? `<p class="muted">Notificações (webhook) recebidas do sandbox: ${d.webhooks.length}. Se ainda for 0, espere alguns minutos e baixe de novo.</p>` : '';
+            out.innerHTML = `<p>${okAll ? '✅ Tudo certo. Baixe o relatório e anexe no questionário do PagBank.' : '⚠️ Algum passo falhou; veja abaixo (o relatório mostra a resposta completa do PagBank).'}</p>
+                <table class="data-table"><thead><tr><th>Passo</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>${wh}`;
+        }
+        function saveText(name, text) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+            a.download = name;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        }
+        async function runPagbankHomolog() {
+            const out = document.getElementById('pbHomologResult');
+            const btn = document.getElementById('pbHomologBtn');
+            btn.disabled = true;
+            out.innerHTML = '<span class="muted">Rodando no sandbox do PagBank… (até 1 minuto)</span>';
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/pagbank/homologacao`, { method: 'POST', headers: adminHeaders(), body: '{}' });
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.error || 'Erro');
+                showPagbankHomolog(d);
+            } catch (e) {
+                out.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        async function downloadPagbankHomolog() {
+            const out = document.getElementById('pbHomologResult');
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/pagbank/homologacao`, { headers: adminHeaders() });
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.error || 'Erro');
+                showPagbankHomolog(d);
+                saveText(`liga-do-bem-pagbank-homologacao-${new Date().toISOString().slice(0, 10)}.txt`, d.text);
+            } catch (e) {
+                out.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`;
             }
         }
 
