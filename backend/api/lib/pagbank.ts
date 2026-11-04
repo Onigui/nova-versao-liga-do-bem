@@ -3,9 +3,37 @@
  * Docs: https://developer.pagbank.com.br/reference/criar-pedido
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 export type PagBankEnv = 'sandbox' | 'production';
 
+/** Uma chamada à API do PagBank, para o relatório de homologação (token sempre mascarado). */
+export type PagBankCallLog = {
+  at: string;
+  method: string;
+  url: string;
+  requestHeaders: Record<string, string>;
+  requestBody: any;
+  status: number;
+  responseHeaders: Record<string, string>;
+  responseBody: any;
+  ms: number;
+};
+type PagBankScope = { config: { token: string; env: PagBankEnv; baseUrl: string; configured: boolean }; record?: (c: PagBankCallLog) => void };
+const pagbankScope = new AsyncLocalStorage<PagBankScope>();
+
+/**
+ * Roda `fn` com outra configuração do PagBank (ex.: sandbox) e registra cada chamada.
+ * Só vale dentro de `fn` — as demais requisições continuam em produção.
+ */
+export function runWithPagBank<T>(config: { token: string; env: PagBankEnv }, record: (c: PagBankCallLog) => void, fn: () => Promise<T>) {
+  const baseUrl = config.env === 'sandbox' ? 'https://sandbox.api.pagseguro.com' : 'https://api.pagseguro.com';
+  return pagbankScope.run({ config: { ...config, baseUrl, configured: Boolean(config.token) }, record }, fn);
+}
+
 export function getPagBankConfig() {
+  const scoped = pagbankScope.getStore();
+  if (scoped) return scoped.config;
   const token = (process.env.PAGBANK_TOKEN || process.env.PAGSEGURO_TOKEN || '').trim();
   const env = ((process.env.PAGBANK_ENV || 'production').toLowerCase() === 'sandbox'
     ? 'sandbox'
@@ -157,6 +185,7 @@ async function pagbankFetch(path: string, init: RequestInit = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
+  const started = Date.now();
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     method,
@@ -169,6 +198,25 @@ async function pagbankFetch(path: string, init: RequestInit = {}) {
     data = text ? JSON.parse(text) : null;
   } catch {
     data = { raw: text };
+  }
+
+  const record = pagbankScope.getStore()?.record;
+  if (record) {
+    let reqBody: any = init.body ?? null;
+    try { reqBody = typeof reqBody === 'string' ? JSON.parse(reqBody) : reqBody; } catch { /* texto */ }
+    const respHeaders: Record<string, string> = {};
+    try { response.headers.forEach((v, k) => { if (/^(content-type|date|x-.*id.*)$/i.test(k)) respHeaders[k] = v; }); } catch { /* sem headers */ }
+    record({
+      at: new Date(started).toISOString(),
+      method,
+      url: `${baseUrl}${path}`,
+      requestHeaders: { ...headers, Authorization: 'Bearer ****' },
+      requestBody: reqBody,
+      status: response.status,
+      responseHeaders: respHeaders,
+      responseBody: data,
+      ms: Date.now() - started,
+    });
   }
 
   if (!response.ok) {
@@ -561,7 +609,8 @@ function extractPublicKey(payload: any): string {
  * houver, cria uma. Cache em memória por 6h.
  */
 export async function getPagBankCardPublicKey(): Promise<string> {
-  if (cardPublicKeyCache && Date.now() - cardPublicKeyCache.at < CARD_PUBLIC_KEY_TTL_MS) {
+  const scoped = Boolean(pagbankScope.getStore());
+  if (!scoped && cardPublicKeyCache && Date.now() - cardPublicKeyCache.at < CARD_PUBLIC_KEY_TTL_MS) {
     return cardPublicKeyCache.key;
   }
   let key = '';
@@ -576,7 +625,7 @@ export async function getPagBankCardPublicKey(): Promise<string> {
     );
   }
   if (!key) throw new Error('PagBank não retornou a chave pública de cartão');
-  cardPublicKeyCache = { key, at: Date.now() };
+  if (!scoped) cardPublicKeyCache = { key, at: Date.now() };
   return key;
 }
 
