@@ -226,6 +226,7 @@ const q = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
 let isoReady: Promise<IsolationReport> | null = null;
 let isoDb: any = null;
+let isoFlag: boolean | null = null;
 
 export type IsolationReport = { ok: boolean; tables: number; policies: number; errors: string[]; skipped?: boolean };
 const ISOLATION_VERSION = 1;
@@ -237,8 +238,9 @@ const ISOLATION_VERSION = 1;
  */
 export function ensureIsolationSchema(db: any, force = false): Promise<IsolationReport> {
   const raw = db?.__raw || db;
-  if (!force && isoReady && isoDb === raw) return isoReady;
+  if (!force && isoReady && isoDb === raw && isoFlag === isolationOn()) return isoReady;
   isoDb = raw;
+  isoFlag = isolationOn();
   isoReady = runAsSystem(() => applyIsolation(raw, force)).catch((e) => {
     isoReady = null;
     throw e;
@@ -262,7 +264,7 @@ async function applyIsolation(db: any, force = false): Promise<IsolationReport> 
   // Uma consulta por partida a frio: só refaz se mudou a lista de tabelas ou esta configuração.
   await schemaApplied(db, 'org_isolation', '-'); // cria app_schema_marks antes de listar as tabelas
   const tables = await listTables(db);
-  const fp = schemaFingerprint(ISOLATION_VERSION, tables, GLOBAL_TABLES, PER_ORG_UNIQUES);
+  const fp = schemaFingerprint(ISOLATION_VERSION, isolationOn(), tables, GLOBAL_TABLES, PER_ORG_UNIQUES);
   if (!force && (await schemaApplied(db, 'org_isolation', fp))) {
     return { ok: true, tables: tables.length, policies: -1, errors: [], skipped: true };
   }
@@ -354,7 +356,7 @@ async function applyIsolation(db: any, force = false): Promise<IsolationReport> 
 
   for (const u of PER_ORG_UNIQUES) {
     if (!tables.some((t) => t.name === u.table && t.hasOrg)) continue;
-    await migrateUnique(db, u, run);
+    await migrateUnique(db, u, run, isolationOn());
   }
   // Tabela sem "orgId" é bloqueada de propósito; não impede a marca (senão rodaria toda vez).
   const fatal = errors.filter((e) => !e.includes('sem coluna "orgId"'));
@@ -363,7 +365,11 @@ async function applyIsolation(db: any, force = false): Promise<IsolationReport> 
 }
 
 /** Troca o único (key) pelo único ("orgId", key), sem janela sem proteção. */
-async function migrateUnique(db: any, u: { table: string; cols: string[]; pk?: boolean }, run: (sql: string) => Promise<void>) {
+/**
+ * Cria o único ("orgId", …). O antigo (só a chave) só sai com a chave ligada: enquanto estiver
+ * desligada, o código antigo (deploy anterior, preview, rollback) continua funcionando.
+ */
+async function migrateUnique(db: any, u: { table: string; cols: string[]; pk?: boolean }, run: (sql: string) => Promise<void>, dropOld: boolean) {
   const T = q(u.table);
   const want = ['orgId', ...u.cols];
   const idx: any[] = await db.$queryRawUnsafe(
@@ -380,7 +386,7 @@ async function migrateUnique(db: any, u: { table: string; cols: string[]; pk?: b
   );
   const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
   const old = idx.find((i) => same(i.cols, u.cols));
-  if (u.pk) {
+  if (u.pk && dropOld) {
     if (idx.some((i) => i.pk && same(i.cols, want))) return;
     const pk = idx.find((i) => i.pk);
     if (pk) await run(`ALTER TABLE ${T} DROP CONSTRAINT ${q(pk.constraint || pk.name)}`);
@@ -390,7 +396,7 @@ async function migrateUnique(db: any, u: { table: string; cols: string[]; pk?: b
   if (!idx.some((i) => same(i.cols, want))) {
     await run(`CREATE UNIQUE INDEX IF NOT EXISTS ${q(`${u.table}_org_${u.cols.join('_')}_key`.slice(0, 63))} ON ${T} (${want.map(q).join(', ')})`);
   }
-  if (old) {
+  if (old && dropOld && !u.pk) {
     if (old.constraint) await run(`ALTER TABLE ${T} DROP CONSTRAINT IF EXISTS ${q(old.constraint)}`);
     else await run(`DROP INDEX IF EXISTS ${q(old.name)}`);
   }
@@ -416,13 +422,14 @@ export async function isolationSelfTest(db: any) {
       const as = async (org: string) =>
         tx.$executeRawUnsafe(`SELECT set_config('role', '${ORG_ROLE}', true), set_config('app.org_id', $1, true)`, org);
       const reset = async () => tx.$executeRawUnsafe(`SELECT set_config('role', 'none', true), set_config('app.org_id', '', true)`);
+      // Chaves diferentes por ONG: o autoteste funciona mesmo com o único antigo (chave desligada)
       const count = async () =>
-        Number((await tx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM system_config WHERE key = $1`, key))[0]?.n || 0);
-      const ins = (value: string) =>
+        Number((await tx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM system_config WHERE key LIKE $1`, `${key}_%`))[0]?.n || 0);
+      const ins = (value: string, k = `${key}_${value}`) =>
         tx.$executeRawUnsafe(
           `INSERT INTO system_config (id, key, value, type, "isPublic", "createdAt", "updatedAt")
            VALUES (gen_random_uuid()::text, $1, $2, 'STRING'::"ConfigType", false, NOW(), NOW())`,
-          key,
+          k,
           value,
         );
 
@@ -431,9 +438,9 @@ export async function isolationSelfTest(db: any) {
       await as(B);
       await ins('b');
       checks.push({ name: 'B vê só o próprio dado', ok: (await count()) === 1 });
-      const rowB: any[] = await tx.$queryRawUnsafe(`SELECT value, "orgId" FROM system_config WHERE key = $1`, key);
+      const rowB: any[] = await tx.$queryRawUnsafe(`SELECT value, "orgId" FROM system_config WHERE key LIKE $1`, `${key}_%`);
       checks.push({ name: 'padrão do orgId cai na ONG da sessão', ok: rowB[0]?.orgId === B && rowB[0]?.value === 'b' });
-      const upd = await tx.$executeRawUnsafe(`UPDATE system_config SET value = 'x' WHERE key = $1 AND "orgId" = $2`, key, A);
+      const upd = await tx.$executeRawUnsafe(`UPDATE system_config SET value = 'x' WHERE key LIKE $1 AND "orgId" = $2`, `${key}_%`, A);
       checks.push({ name: 'B não altera dado de A', ok: Number(upd) === 0 });
       let blocked = false;
       await tx.$executeRawUnsafe('SAVEPOINT s1');
@@ -460,6 +467,18 @@ export async function isolationSelfTest(db: any) {
       checks.push({ name: 'ONG não lê credenciais (org_secrets)', ok: secretBlocked });
       await as(A);
       checks.push({ name: 'A vê só o próprio dado', ok: (await count()) === 1 });
+      if (isolationOn()) {
+        // Com a chave ligada o único antigo já saiu: a mesma chave pode existir em outra ONG
+        let dup = true;
+        await tx.$executeRawUnsafe('SAVEPOINT s3');
+        try {
+          await ins('a', `${key}_b`);
+        } catch {
+          dup = false;
+        }
+        await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT s3');
+        checks.push({ name: 'mesma chave de configuração em ONGs diferentes', ok: dup });
+      }
       const users = Number((await tx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM users`))[0]?.n || 0);
       checks.push({ name: 'ONG nova não enxerga usuários da Liga', ok: users === 0 });
       await as(DEFAULT_ORG);

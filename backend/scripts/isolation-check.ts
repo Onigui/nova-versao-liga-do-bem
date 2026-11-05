@@ -22,6 +22,7 @@ async function main() {
   const db: any = scopeDb(raw);
 
   await ensureOrgSchema(db);
+  forceIsolation(true); // como em produção depois de ligar: os únicos antigos saem
   const rep = await ensureIsolationSchema(db, true);
   check('esquema de isolamento aplicado', rep.ok, rep.errors);
 
