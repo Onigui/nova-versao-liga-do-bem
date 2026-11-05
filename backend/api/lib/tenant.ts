@@ -491,7 +491,3 @@ export async function isolationSelfTest(db: any) {
   return { ok: checks.length > 0 && checks.every((c) => c.ok), ms: Date.now() - t0, checks };
 }
 
-/** Diagnóstico: o que a próxima consulta faria agora. */
-export function debugPlan() {
-  return { on: isolationOn(), ctx: tenantStore.getStore() || null, plan: plan() };
-}

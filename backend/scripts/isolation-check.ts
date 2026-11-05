@@ -7,7 +7,7 @@
 import { PrismaClient } from '@prisma/client';
 import { instrumentDb } from '../api/lib/dbTiming';
 import { ensureOrgSchema } from '../api/lib/orgs';
-import { debugPlan, ensureIsolationSchema, forceIsolation, isolationSelfTest, runAsSystem, runWithOrg, scopeDb } from '../api/lib/tenant';
+import { ensureIsolationSchema, forceIsolation, isolationSelfTest, runAsSystem, runWithOrg, scopeDb } from '../api/lib/tenant';
 
 let pass = 0;
 let fail = 0;
@@ -29,14 +29,21 @@ async function main() {
     await db.$executeRawUnsafe(`INSERT INTO organizations (id, slug, name, status) VALUES ('org_b', 'patinhas', 'Patinhas', 'ACTIVE') ON CONFLICT (id) DO NOTHING`);
   });
 
-  // Diagnóstico: em qual papel/ONG a consulta roda
+  // Em qual papel/ONG a consulta roda
   forceIsolation(true);
-  console.log('diag plan:', JSON.stringify(runWithOrg('org_b', () => debugPlan())), 'scoped:', (db as any).__scoped);
   const who: any[] = await runWithOrg('org_b', () => db.$queryRawUnsafe(`SELECT current_user::text AS u, current_setting('app.org_id', true) AS org`));
-  console.log('diag raw:', JSON.stringify(who), '| typeof user:', typeof db.user, typeof (raw as any).user, '| findMany:', typeof db.user?.findMany);
-  const who2: any[] = await runWithOrg('org_b', () => db.$transaction(async (tx: any) => tx.$queryRawUnsafe(`SELECT current_user::text AS u, current_setting('app.org_id', true) AS org`)));
-  console.log('diag tx:', JSON.stringify(who2));
   check('consulta roda como org_member na ONG B', who[0]?.u === 'org_member' && who[0]?.org === 'org_b', who);
+
+  // Transação de verdade (o tx.$queryRawUnsafe medido pelo dbTiming não pode escapar dela)
+  forceIsolation(false);
+  await db
+    .$transaction(async (tx: any) => {
+      await tx.$executeRawUnsafe(`INSERT INTO system_config (id, key, value, type, "updatedAt") VALUES ('rb', 'rollback.test', 'x', 'STRING', NOW())`);
+      throw new Error('desfaz');
+    })
+    .catch(() => {});
+  check('erro dentro de $transaction desfaz o SQL cru (atomicidade)', (await raw.systemConfig.count({ where: { key: 'rollback.test' } })) === 0);
+  forceIsolation(true);
 
   // Com a chave desligada nada muda: tudo cai na Liga
   forceIsolation(false);
