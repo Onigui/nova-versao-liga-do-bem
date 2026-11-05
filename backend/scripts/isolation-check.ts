@@ -29,6 +29,14 @@ async function main() {
     await db.$executeRawUnsafe(`INSERT INTO organizations (id, slug, name, status) VALUES ('org_b', 'patinhas', 'Patinhas', 'ACTIVE') ON CONFLICT (id) DO NOTHING`);
   });
 
+  // Diagnóstico: em qual papel/ONG a consulta roda
+  forceIsolation(true);
+  const who: any[] = await runWithOrg('org_b', () => db.$queryRawUnsafe(`SELECT current_user::text AS u, current_setting('app.org_id', true) AS org`));
+  console.log('diag raw:', JSON.stringify(who), '| typeof user:', typeof db.user, typeof (raw as any).user, '| findMany:', typeof db.user?.findMany);
+  const who2: any[] = await runWithOrg('org_b', () => db.$transaction(async (tx: any) => tx.$queryRawUnsafe(`SELECT current_user::text AS u, current_setting('app.org_id', true) AS org`)));
+  console.log('diag tx:', JSON.stringify(who2));
+  check('consulta roda como org_member na ONG B', who[0]?.u === 'org_member' && who[0]?.org === 'org_b', who);
+
   // Com a chave desligada nada muda: tudo cai na Liga
   forceIsolation(false);
   await db.user.create({ data: { email: 'liga@x.org', password: 'x', name: 'Liga', role: 'ADMIN' } });
