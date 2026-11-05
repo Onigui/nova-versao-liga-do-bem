@@ -1,0 +1,37 @@
+name: Backend — separação de dados entre ONGs
+
+# Confere o isolamento (RLS + papel org_member) com o Prisma de verdade num Postgres limpo.
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-isolation.yml'
+  workflow_dispatch:
+
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: pw
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:pw@localhost:5432/postgres
+      JWT_SECRET: ci-only-secret-isolation-check-0123456789abcdef
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma db push --skip-generate --accept-data-loss
+      - run: npx --yes tsx@4.19.2 scripts/isolation-check.ts

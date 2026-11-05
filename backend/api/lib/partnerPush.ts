@@ -12,6 +12,7 @@
  * Status: AWAITING_PAYMENT → PENDING_REVIEW → SCHEDULED → SENDING → SENT
  *                       ↘ CANCELLED          ↘ REJECTED (refundStatus: REFUNDED | REFUND_FAILED)
  */
+import { orgScope } from './tenant';
 import crypto from 'crypto';
 import {
   createPagBankOrder,
@@ -19,6 +20,7 @@ import {
   getPagBankCardPublicKey,
   isPaidChargeStatus,
   cancelPagBankCharge,
+  pagbankWebhookUrl,
 } from './pagbank';
 import { syncPaymentFromPagBank } from './membershipBilling';
 import { markPartnerPushPaid } from './partnerPushSettle';
@@ -128,19 +130,23 @@ export async function getPushSettings(db: any) {
 }
 
 async function setConfig(db: any, key: string, value: string, type: 'NUMBER' | 'BOOLEAN' | 'STRING') {
+  const o = orgScope(3);
   const n = await db.$executeRawUnsafe(
-    `UPDATE system_config SET value = $2, "updatedAt" = NOW() WHERE key = $1`,
+    `UPDATE system_config SET value = $2, "updatedAt" = NOW() WHERE key = $1${o.where}`,
     key,
     value,
+    ...o.params,
   );
   if (!n) {
+    const c = orgScope(5);
     await db.$executeRawUnsafe(
-      `INSERT INTO system_config (id, key, value, type, "isPublic", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4::"ConfigType", false, NOW(), NOW())`,
+      `INSERT INTO system_config (id, key, value, type, "isPublic"${c.col}, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4::"ConfigType", false${c.val}, NOW(), NOW())`,
       crypto.randomUUID(),
       key,
       value,
       type,
+      ...c.params,
     );
   }
 }
@@ -619,7 +625,7 @@ export async function handlePartnerPushRoutes(
         description: 'Notificação para membros — Liga do Bem',
         customer: { name: payer?.name || campaign.partnerName, email: payer?.email, taxId, phone: payer?.phone },
         method: payMethod as any,
-        notificationUrl: `${apiBase.replace(/\/$/, '')}/api/webhooks/pagbank`,
+        notificationUrl: pagbankWebhookUrl(apiBase),
         card: payMethod === 'CREDIT_CARD' ? { encrypted: body.card.encrypted, holderName: body.card.holderName || payer?.name } : undefined,
         installments: 1,
       });

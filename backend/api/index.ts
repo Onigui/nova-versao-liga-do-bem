@@ -16,6 +16,7 @@ import {
   cashInstallmentOption,
   isPaidChargeStatus,
   mapPagBankStatusToPayment,
+  pagbankWebhookUrl,
 } from './lib/pagbank';
 import {
   activateMembershipFromPayment,
@@ -48,6 +49,8 @@ import { HOMOLOG_PATH, captureHomologWebhook, loadLatest, reportToText, runHomol
 import { handleHome } from './lib/home';
 import { audienceFilter } from './lib/inbox';
 import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
+import { currentOrgId, ensureIsolationSchema, isolationOn, orgScope, scopeDb } from './lib/tenant';
+import { withTenant } from './lib/tenantRequest';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
@@ -259,7 +262,8 @@ function resolveAnimalAge(animal: { birthDate?: Date | string | null; age?: numb
 
 function getPrisma() {
   if (!prisma && process.env.DATABASE_URL) {
-    prisma = instrumentDb(new PrismaClient());
+    // scopeDb: com MULTI_ORG_ISOLATION=on cada consulta fica presa na ONG da requisição (lib/tenant.ts)
+    prisma = scopeDb(instrumentDb(new PrismaClient()));
   }
   return prisma;
 }
@@ -314,7 +318,8 @@ let handlerWarm = false;
 
 export default function handler(req: any, res: any) {
   // Cada requisição ganha um contador próprio de consultas ao banco (aparece na linha ⏱)
-  return dbStatsStore.run({ q: 0, ms: 0 }, () => handleRequest(req, res));
+  // withTenant: escolhe a ONG da requisição (só age com MULTI_ORG_ISOLATION=on)
+  return dbStatsStore.run({ q: 0, ms: 0 }, () => withTenant(req, res, handleRequest, getPrisma, JWT_SECRET));
 }
 
 /** Texto do pedido de adoção para o admin: contato informado, data/período sugeridos e mensagem. */
@@ -435,7 +440,15 @@ async function handleRequest(req: any, res: any) {
     return res.status(401).json({ error: 'Não autorizado' });
   }
   // Várias ONGs: cria a tabela de ONGs e a coluna "orgId" (uma vez por instância; não bloqueia)
-  { const dbOrg = getPrisma(); if (dbOrg) ensureOrgSchema(dbOrg).catch((e) => console.warn('⚠️ ensureOrgSchema:', e?.message)); }
+  {
+    const dbOrg = getPrisma();
+    if (dbOrg) {
+      ensureOrgSchema(dbOrg)
+        .then(() => ensureIsolationSchema(dbOrg))
+        .then((r) => { if (r.errors.length) console.warn('⚠️ isolamento:', r.errors.slice(0, 5).join(' | ')); })
+        .catch((e) => console.warn('⚠️ ensureOrgSchema/isolamento:', e?.message));
+    }
+  }
   
   // DEBUG: Log específico para o endpoint de update/check
   if (path.includes('update/check') || req.url?.includes('update/check')) {
@@ -3553,21 +3566,21 @@ async function handleRequest(req: any, res: any) {
           });
         }
 
+        // Atualiza ou cria, sem upsert do Prisma (ele usaria ON CONFLICT (key); o único agora é ("orgId", key))
         for (const config of configsToUpdate) {
-          await db.systemConfig.upsert({
-            where: { key: config.key },
-            update: {
-              value: config.value,
-              type: config.type as any,
-              isPublic: config.isPublic,
-            },
-            create: {
-              key: config.key,
-              value: config.value,
-              type: config.type as any,
-              isPublic: config.isPublic,
-            },
-          });
+          const o = orgScope(5);
+          const n = await db.$executeRawUnsafe(
+            `UPDATE system_config SET value = $2, type = $3::"ConfigType", "isPublic" = $4, "updatedAt" = NOW()
+              WHERE key = $1${o.where}`,
+            config.key, config.value, config.type, !!config.isPublic, ...o.params,
+          );
+          if (Number(n) > 0) continue;
+          const c = orgScope(6);
+          await db.$executeRawUnsafe(
+            `INSERT INTO system_config (id, key, value, type, "isPublic"${c.col}, "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4::"ConfigType", $5${c.val}, NOW(), NOW())`,
+            require('crypto').randomUUID(), config.key, config.value, config.type, !!config.isPublic, ...c.params,
+          );
         }
 
         return res.status(200).json({ message: 'Configuration updated successfully' });
@@ -5454,7 +5467,7 @@ async function handleRequest(req: any, res: any) {
             description: 'Doação — Liga do Bem Botucatu',
             customer: { name: donorName, email: donorEmail, taxId, phone: donorPhone },
             method: payMethod as any,
-            notificationUrl: `${apiBase.replace(/\/$/, '')}/api/webhooks/pagbank`,
+            notificationUrl: pagbankWebhookUrl(apiBase),
             card: payMethod === 'CREDIT_CARD'
               ? { encrypted: body.card.encrypted, holderName: body.card.holderName || donorName }
               : undefined,
@@ -7396,7 +7409,7 @@ async function handleRequest(req: any, res: any) {
           process.env.API_PUBLIC_URL ||
           process.env.BACKEND_URL ||
           'https://nova-versao-liga-do-bem.vercel.app';
-        const notificationUrl = `${apiBase.replace(/\/$/, '')}/api/webhooks/pagbank`;
+        const notificationUrl = pagbankWebhookUrl(apiBase);
 
         let order;
         try {
@@ -7637,12 +7650,14 @@ async function handleRequest(req: any, res: any) {
         // PagBank às vezes manda só o id; buscamos payments pelo gatewayId (order)
         let paymentRows: any[] = [];
         if (orderId) {
+          // Com separação ligada, o aviso só mexe em pagamentos da ONG da URL (?org=)
           paymentRows = await db.$queryRawUnsafe(
             `SELECT id, "gatewayId", status FROM payments
-             WHERE "gatewayId" = $1 OR "gatewayData"::text ILIKE $2
+             WHERE ("gatewayId" = $1 OR "gatewayData"::text ILIKE $2)${isolationOn() ? ' AND "orgId" = $3' : ''}
              ORDER BY "createdAt" DESC LIMIT 5`,
             orderId,
-            `%${orderId}%`
+            `%${orderId}%`,
+            ...(isolationOn() ? [currentOrgId()] : [])
           );
         }
 
@@ -7650,9 +7665,10 @@ async function handleRequest(req: any, res: any) {
         if (!paymentRows?.[0] && body?.charges?.[0]?.id) {
           paymentRows = await db.$queryRawUnsafe(
             `SELECT id, "gatewayId", status FROM payments
-             WHERE "gatewayData"::text ILIKE $1
+             WHERE "gatewayData"::text ILIKE $1${isolationOn() ? ' AND "orgId" = $2' : ''}
              ORDER BY "createdAt" DESC LIMIT 5`,
-            `%${body.charges[0].id}%`
+            `%${body.charges[0].id}%`,
+            ...(isolationOn() ? [currentOrgId()] : [])
           );
         }
 

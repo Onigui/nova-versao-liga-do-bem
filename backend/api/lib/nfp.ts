@@ -9,6 +9,7 @@
  * Privacidade: os CPFs da lista importada são usados só para conferir na hora; não são guardados.
  * Ficam salvos apenas quem foi confirmado (pelo id do usuário) e os totais de cada importação.
  */
+import { orgScope } from './tenant';
 import crypto from 'crypto';
 import { sendFcmToTokens } from './push';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
@@ -248,11 +249,16 @@ export async function getNfpSettings(db: any) {
 }
 
 async function setSetting(db: any, key: string, value: string) {
-  await db.$executeRawUnsafe(
-    `INSERT INTO nfp_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, "updatedAt" = NOW()`,
+  // Sem ON CONFLICT (key): a chave passa a ser ("orgId", key) — cada ONG tem a sua configuração
+  const o = orgScope(3);
+  const n = await db.$executeRawUnsafe(
+    `UPDATE nfp_settings SET value = $2, "updatedAt" = NOW() WHERE key = $1${o.where}`,
     key,
     value,
+    ...o.params,
   );
+  if (Number(n) > 0) return;
+  await db.$executeRawUnsafe(`INSERT INTO nfp_settings (key, value${o.col}) VALUES ($1, $2${o.val})`, key, value, ...o.params);
 }
 
 async function notify(db: any, userId: string, title: string, message: string) {

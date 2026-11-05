@@ -3,6 +3,7 @@
  * "Para você", meus pets, promoções perto, próximo evento e adoção.
  * Cada bloco é independente: se um falhar, os outros continuam (a tela nunca quebra).
  */
+import { currentOrgId } from './tenant';
 import { isMembershipCurrentlyActive, listMembershipPlans } from './membershipBilling';
 import { ensurePartnerPortalSchema, listCurrentDiscounts } from './partnerPortal';
 
@@ -58,13 +59,16 @@ export function petVaccineStatus(vaccs: any[], now = Date.now()) {
 
 // Partes iguais para todo mundo: guardadas por 60 s em cada instância (a tela abre mais rápido)
 const SHARED_TTL = 60 * 1000;
-let shared: { at: number; data: any } | null = null;
+// Por ONG: cada ONG tem os seus parceiros, eventos e adoções
+const shared = new Map<string, { at: number; data: any }>();
 export function clearHomeCache() {
-  shared = null;
+  shared.clear();
 }
 
 async function sharedBlocks(db: any) {
-  if (shared && Date.now() - shared.at < SHARED_TTL) return shared.data;
+  const org = currentOrgId();
+  const hit = shared.get(org);
+  if (hit && Date.now() - hit.at < SHARED_TTL) return hit.data;
   const [tables, partners, nextEvent, adoption, plan] = await Promise.all([
     safe(async () => {
       const r: any[] = await db.$queryRawUnsafe(
@@ -99,7 +103,7 @@ async function sharedBlocks(db: any) {
     }, null),
   ]);
   const data = { tables, partners, nextEvent, adoption, plan };
-  shared = { at: Date.now(), data };
+  shared.set(org, { at: Date.now(), data });
   return data;
 }
 
