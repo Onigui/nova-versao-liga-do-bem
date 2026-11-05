@@ -43,6 +43,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleAccount, isAccountPath } from './lib/account';
+import { handleOrgs, isOrgPath, userOrgId, ensureOrgSchema } from './lib/orgs';
 import { HOMOLOG_PATH, captureHomologWebhook, loadLatest, reportToText, runHomologation } from './lib/pagbankHomolog';
 import { handleHome } from './lib/home';
 import { audienceFilter } from './lib/inbox';
@@ -428,10 +429,13 @@ async function handleRequest(req: any, res: any) {
   // Trava global de admin: toda rota administrativa exige JWT de ADMIN (exceto o próprio login).
   const isAdminRoute =
     (path.startsWith('/api/admin/') && path !== '/api/admin/login') ||
-    path.startsWith('/api/notifications/admin/');
+    path.startsWith('/api/notifications/admin/') ||
+    path.startsWith('/api/platform/');
   if (isAdminRoute && !isAdminRequest(req)) {
     return res.status(401).json({ error: 'Não autorizado' });
   }
+  // Várias ONGs: cria a tabela de ONGs e a coluna "orgId" (uma vez por instância; não bloqueia)
+  { const dbOrg = getPrisma(); if (dbOrg) ensureOrgSchema(dbOrg).catch((e) => console.warn('⚠️ ensureOrgSchema:', e?.message)); }
   
   // DEBUG: Log específico para o endpoint de update/check
   if (path.includes('update/check') || req.url?.includes('update/check')) {
@@ -557,6 +561,22 @@ async function handleRequest(req: any, res: any) {
     // Tela inicial em uma chamada (carteirinha, para você, pets, promoções perto)
     if (path === '/api/home') {
       const handled = await handleHome({ req, res, path, method, db: getPrisma(), authUser: () => decodeAuthUser(req) });
+      if (handled) return;
+    }
+
+    // Várias ONGs: lista pública, configuração da ONG e área da equipe da plataforma
+    if (isOrgPath(path)) {
+      let decoded: any = null;
+      const handled = await handleOrgs({
+        req, res, path, method, body, db: getPrisma(), isAdmin: isAdminRequest(req),
+        auth: () => {
+          if (decoded) return decoded;
+          for (const t of [extractBearerToken(req), readHeader(req, 'x-admin-token')].filter(Boolean) as string[]) {
+            try { decoded = jwt.verify(t, JWT_SECRET); return decoded; } catch { /* próximo */ }
+          }
+          return null;
+        },
+      });
       if (handled) return;
     }
 
@@ -1043,6 +1063,7 @@ async function handleRequest(req: any, res: any) {
                 userId: user.id,
                 email: user.email,
                 role: 'ADMIN',
+                orgId: await userOrgId(db, user.id),
               });
               return res.status(200).json({
                 success: true,
@@ -1758,7 +1779,7 @@ async function handleRequest(req: any, res: any) {
       }
       const cpf = u.cpf && String(u.cpf).trim() !== '' && u.cpf !== '00000000000' ? u.cpf : null;
       return res.status(200).json({
-        token: generateToken({ userId: u.id, email: u.email, role: u.role }),
+        token: generateToken({ userId: u.id, email: u.email, role: u.role, orgId: await userOrgId(db, u.id) }),
         user: { id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role, cpf },
       });
     }
@@ -1877,7 +1898,8 @@ async function handleRequest(req: any, res: any) {
         const token = generateToken({
           userId: user.id,
           email: user.email,
-          role: user.role
+          role: user.role,
+          orgId: await userOrgId(db, user.id),
         });
 
         console.log('✅ Login successful:', user.id);
@@ -2055,7 +2077,8 @@ async function handleRequest(req: any, res: any) {
             token: generateToken({
               userId: user.id,
               email: user.email,
-              role: user.role
+              role: user.role,
+              orgId: await userOrgId(db, user.id),
             })
           });
 
