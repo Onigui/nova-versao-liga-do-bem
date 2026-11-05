@@ -27,11 +27,15 @@ export default function PromoCard({discount: d, accent = '#7C3AED', soft = '#F5F
       <View style={[styles.value, {backgroundColor: soft}]}>
         <Ionicons name={ICON[p.kind]} size={16} color={accent} />
         {p.original ? <Text style={styles.original}>De {p.original}</Text> : null}
+        {/* "por" em linha própria: junto do preço, "por R$ 189,90" não cabia e era cortado */}
+        {p.kind === 'FINAL_PRICE' ? <Text style={[styles.por, {color: accent}]}>{p.original ? 'por' : 'Por'}</Text> : null}
         <Text
           style={[styles.headline, {color: accent}, p.kind === 'OTHER' && styles.headlineText]}
           numberOfLines={p.kind === 'OTHER' ? 3 : 1}
-          adjustsFontSizeToFit>
-          {p.kind === 'FINAL_PRICE' && !p.original ? `Por ${p.headline}` : p.original ? `por ${p.headline}` : p.headline}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+          testID="promo-headline">
+          {p.headline}
         </Text>
         <Text style={styles.caption}>{p.caption}</Text>
         {p.savings ? (
@@ -59,7 +63,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   value: {
-    width: 118,
+    width: 128,
     paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: 'center',
@@ -68,6 +72,7 @@ const styles = StyleSheet.create({
   original: {
     ...F.regular, fontSize: 12, color: '#6B7280', textDecorationLine: 'line-through', marginTop: 4},
   headline: {fontSize: 22, ...F.heavy, marginTop: 2, textAlign: 'center'},
+  por: {...F.bold, fontSize: 12, marginTop: 2},
   headlineText: {
     ...F.regular, fontSize: 15, lineHeight: 19},
   caption: {

@@ -264,11 +264,15 @@ describe('App Parceiros', () => {
     await type(tree.root, 'campo-title', 'Coceira');
     await type(tree.root, 'campo-details', 'Dermatite');
     await type(tree.root, 'campo-weight', '3,8');
-    await pickDate(tree.root, 'campo-returnDate', '29/10/2026');
+    // Data de retorno sempre no futuro (o seletor não aceita data passada)
+    const ret = new Date(Date.now() + 30 * 864e5);
+    const retBR = `${ret.getDate()}/${ret.getMonth() + 1}/${ret.getFullYear()}`;
+    const retISO = `${ret.getFullYear()}-${String(ret.getMonth() + 1).padStart(2, '0')}-${String(ret.getDate()).padStart(2, '0')}`;
+    await pickDate(tree.root, 'campo-returnDate', retBR);
     await press(tree.root, 'salvar-registro');
     const [m, path, body] = mockCtx.api.mock.calls[0];
     expect([m, path]).toEqual(['POST', '/partner/pets/visits/v1/history']);
-    expect(body).toMatchObject({kind: 'CONSULTA', title: 'Coceira', details: 'Dermatite', weight: '3.8', returnDate: '2026-10-29'});
+    expect(body).toMatchObject({kind: 'CONSULTA', title: 'Coceira', details: 'Dermatite', weight: '3.8', returnDate: retISO});
     expect(nav.goBack).toHaveBeenCalled();
   });
 });
