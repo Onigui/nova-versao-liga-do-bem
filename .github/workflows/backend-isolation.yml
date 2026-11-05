@@ -21,6 +21,7 @@ jobs:
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgres://postgres:pw@localhost:5432/postgres
+      DIRECT_URL: postgres://postgres:pw@localhost:5432/postgres
       JWT_SECRET: ci-only-secret-isolation-check-0123456789abcdef
     defaults:
       run:
