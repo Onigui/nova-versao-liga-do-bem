@@ -92,7 +92,7 @@ export const SERVICE_GROUPS = [
     items: [
       {id: 'doar', label: 'Doar', icon: 'heart', bg: '#FFE4E6', fg: '#BE123C', screen: 'Donation', keywords: 'doacao pix ajudar'},
       {id: 'nfp', label: 'Nota Fiscal Paulista', icon: 'receipt', bg: '#D1FAE5', fg: '#047857', screen: 'NotaFiscal', keywords: 'nota fiscal cpf doacao automatica', isNew: true},
-      {id: 'adotar', label: 'Adotar', icon: 'happy', bg: '#FCE7F3', fg: '#9D174D', screen: 'Adoções', keywords: 'adocao adotar animal'},
+      {id: 'adotar', label: 'Adotar', icon: 'home', bg: '#FFEDD5', fg: '#C2410C', screen: 'Adoções', keywords: 'adocao adotar animal'},
       {id: 'voluntario', label: 'Voluntariado', icon: 'people', bg: '#E0F2FE', fg: '#0369A1', screen: 'Volunteer', keywords: 'voluntario ajudar'},
       {id: 'eventos', label: 'Eventos', icon: 'calendar', bg: '#FEF3C7', fg: '#B45309', screen: 'EventsCalendar', keywords: 'evento feira agenda'},
       {id: 'transparencia', label: 'Transparência', icon: 'stats-chart', bg: '#E0F2FE', fg: '#0369A1', screen: 'Transparency', keywords: 'prestacao contas gastos'},
@@ -129,7 +129,7 @@ export function searchServices(query, groups = SERVICE_GROUPS) {
 }
 
 /** Atalhos do Início (8: o último é "Ver tudo"). */
-export const HOME_SHORTCUTS = ['pets', 'orcamento', 'achados', 'precos', 'doar', 'nfp', 'eventos'];
+export const HOME_SHORTCUTS = ['adotar', 'orcamento', 'achados', 'precos', 'doar', 'nfp', 'eventos'];
 
 export function findService(id) {
   for (const g of SERVICE_GROUPS) {

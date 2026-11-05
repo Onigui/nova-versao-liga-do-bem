@@ -107,6 +107,10 @@ test('membro ativo: carteirinha, atalhos, para você, pets, promoções, evento 
   expect(nav.navigate).toHaveBeenLastCalledWith('MainTabs', {screen: 'Cartão', params: undefined});
   await press(tree.root, 'para-voce-REVIEW');
   expect(nav.navigate).toHaveBeenLastCalledWith('ReviewForm', {partnerId: 'p1', partnerName: 'Pet Shop Central'});
+  // Primeiro atalho é "Adotar" (o objetivo principal das ONGs); "Meus pets" fica na barra inferior
+  expect(tree.root.findAll(x => x.props.testID === 'atalho-pets').length).toBe(0);
+  await press(tree.root, 'atalho-adotar');
+  expect(nav.navigate).toHaveBeenLastCalledWith('Adoções', undefined);
   await press(tree.root, 'atalho-achados');
   expect(nav.navigate).toHaveBeenLastCalledWith('LostFound', undefined);
   await press(tree.root, 'atalho-tudo');
