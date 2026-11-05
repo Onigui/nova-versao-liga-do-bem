@@ -7,7 +7,7 @@
 import { PrismaClient } from '@prisma/client';
 import { instrumentDb } from '../api/lib/dbTiming';
 import { ensureOrgSchema } from '../api/lib/orgs';
-import { ensureIsolationSchema, forceIsolation, isolationSelfTest, runAsSystem, runWithOrg, scopeDb } from '../api/lib/tenant';
+import { debugPlan, ensureIsolationSchema, forceIsolation, isolationSelfTest, runAsSystem, runWithOrg, scopeDb } from '../api/lib/tenant';
 
 let pass = 0;
 let fail = 0;
@@ -31,6 +31,7 @@ async function main() {
 
   // Diagnóstico: em qual papel/ONG a consulta roda
   forceIsolation(true);
+  console.log('diag plan:', JSON.stringify(runWithOrg('org_b', () => debugPlan())), 'scoped:', (db as any).__scoped);
   const who: any[] = await runWithOrg('org_b', () => db.$queryRawUnsafe(`SELECT current_user::text AS u, current_setting('app.org_id', true) AS org`));
   console.log('diag raw:', JSON.stringify(who), '| typeof user:', typeof db.user, typeof (raw as any).user, '| findMany:', typeof db.user?.findMany);
   const who2: any[] = await runWithOrg('org_b', () => db.$transaction(async (tx: any) => tx.$queryRawUnsafe(`SELECT current_user::text AS u, current_setting('app.org_id', true) AS org`)));
