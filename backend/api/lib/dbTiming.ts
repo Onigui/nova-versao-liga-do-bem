@@ -17,10 +17,12 @@ export function instrumentDb(client: any) {
   for (const name of ['$queryRawUnsafe', '$executeRawUnsafe']) {
     const orig = client[name];
     if (typeof orig !== 'function') continue;
-    client[name] = function timed(...args: any[]) {
+    client[name] = function timed(this: any, ...args: any[]) {
       const stats = dbStatsStore.getStore();
       const t0 = Date.now();
-      const p = orig.apply(client, args);
+      // `this`, não `client`: dentro de $transaction(async (tx) => …) o Prisma chama tx.$queryRawUnsafe,
+      // e o tx herda este método. Chamar no client raiz tirava a consulta da transação.
+      const p = orig.apply(this && this !== globalThis ? this : client, args);
       if (!stats || typeof p?.then !== 'function') return p;
       return p.then(
         (v: any) => {

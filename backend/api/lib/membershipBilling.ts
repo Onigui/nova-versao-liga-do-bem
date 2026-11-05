@@ -1,3 +1,4 @@
+import { currentOrgId, DEFAULT_ORG, orgScope } from './tenant';
 import {
   FALLBACK_MEMBERSHIP_PLANS,
   addMonths,
@@ -21,11 +22,13 @@ export function isMembershipCurrentlyActive(membership: {
   return new Date(membership.endDate).getTime() >= Date.now();
 }
 
-let schemaEnsuredAt = 0;
+// Por ONG: os planos padrão são sincronizados em cada ONG (fase 2 do multi-ONG)
+const schemaEnsuredAt = new Map<string, number>();
 const SCHEMA_TTL_MS = 6 * 60 * 60 * 1000;
 
 export async function ensureMembershipBillingSchema(db: any) {
-  if (Date.now() - schemaEnsuredAt < SCHEMA_TTL_MS) return;
+  const org = currentOrgId();
+  if (Date.now() - (schemaEnsuredAt.get(org) || 0) < SCHEMA_TTL_MS) return;
 
   // Tabelas e colunas: uma vez por versão do código. Os planos abaixo continuam sincronizando sempre.
   const fp = schemaFingerprint(ensureMembershipBillingSchema.toString());
@@ -69,30 +72,39 @@ export async function ensureMembershipBillingSchema(db: any) {
     await markSchemaApplied(db, 'membershipBilling', fp);
   }
 
+  // Atualiza e, se não existir, cria. Sem ON CONFLICT (code): o único passa a ser ("orgId", code).
   for (const plan of FALLBACK_MEMBERSHIP_PLANS) {
-    await db.$executeRawUnsafe(
-      `INSERT INTO subscription_plans
-        (id, code, name, description, months, amount_cents, "isActive", "order", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, true, $7, NOW(), NOW())
-       ON CONFLICT (code) DO UPDATE SET
-         name = EXCLUDED.name,
-         description = EXCLUDED.description,
-         months = EXCLUDED.months,
-         amount_cents = EXCLUDED.amount_cents,
-         "isActive" = true,
-         "order" = EXCLUDED."order",
-         "updatedAt" = NOW()`,
-      `plan_${plan.code.toLowerCase()}`,
+    const o = orgScope(7);
+    const n = await db.$executeRawUnsafe(
+      `UPDATE subscription_plans SET name = $2, description = $3, months = $4, amount_cents = $5,
+              "isActive" = true, "order" = $6, "updatedAt" = NOW()
+        WHERE code = $1${o.where}`,
       plan.code,
       plan.name,
       plan.description,
       plan.months,
       plan.amountCents,
       plan.order,
+      ...o.params,
+    );
+    if (Number(n) > 0) continue;
+    const c = orgScope(8);
+    await db.$executeRawUnsafe(
+      `INSERT INTO subscription_plans
+        (id, code, name, description, months, amount_cents, "isActive", "order"${c.col}, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, true, $7${c.val}, NOW(), NOW())`,
+      org === DEFAULT_ORG ? `plan_${plan.code.toLowerCase()}` : `plan_${plan.code.toLowerCase()}_${org}`,
+      plan.code,
+      plan.name,
+      plan.description,
+      plan.months,
+      plan.amountCents,
+      plan.order,
+      ...c.params,
     );
   }
 
-  schemaEnsuredAt = Date.now();
+  schemaEnsuredAt.set(org, Date.now());
 }
 
 /** Assinatura só fica ACTIVE com pagamento MEMBERSHIP aprovado. Doação não conta. */

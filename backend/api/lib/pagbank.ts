@@ -4,6 +4,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { currentOrgId, currentSecret, DEFAULT_ORG, isolationOn } from './tenant';
 
 export type PagBankEnv = 'sandbox' | 'production';
 
@@ -34,7 +35,12 @@ export function runWithPagBank<T>(config: { token: string; env: PagBankEnv }, re
 export function getPagBankConfig() {
   const scoped = pagbankScope.getStore();
   if (scoped) return scoped.config;
-  const token = (process.env.PAGBANK_TOKEN || process.env.PAGSEGURO_TOKEN || '').trim();
+  // Outra ONG (fase 2): o token é o da conta PagBank dela, carregado no início da requisição.
+  // Sem token salvo, fica "não configurado" — nunca cai no token da Liga.
+  const otherOrg = isolationOn() && currentOrgId() !== DEFAULT_ORG;
+  const token = otherOrg
+    ? String(currentSecret('PAGBANK_TOKEN') || '').trim()
+    : (process.env.PAGBANK_TOKEN || process.env.PAGSEGURO_TOKEN || '').trim();
   const env = ((process.env.PAGBANK_ENV || 'production').toLowerCase() === 'sandbox'
     ? 'sandbox'
     : 'production') as PagBankEnv;
@@ -431,7 +437,7 @@ export async function getPagBankInstallmentPlans(params: {
   const requestedBin = onlyDigits(params.cardBin || '').slice(0, 6);
   const defaultBin = onlyDigits(process.env.PAGBANK_DEFAULT_CARD_BIN || '552100').slice(0, 6);
   const binsToTry = [...new Set([requestedBin, defaultBin, ''].filter((bin) => bin.length === 0 || bin.length >= 6))];
-  const cacheKey = `${valueCents}:${maxInstallments}:${noInterest}:${requestedBin || defaultBin}`;
+  const cacheKey = `${currentOrgId()}:${valueCents}:${maxInstallments}:${noInterest}:${requestedBin || defaultBin}`;
   const cached = installmentCache.get(cacheKey);
   if (cached && Date.now() - cached.at < INSTALLMENT_CACHE_MS && cached.options.length > 1) {
     return cached.options;
@@ -596,7 +602,8 @@ export async function createPagBankOrder(input: CreateOrderInput): Promise<PagBa
   return extractPaymentArtifacts(order);
 }
 
-let cardPublicKeyCache: { key: string; at: number } | null = null;
+// Por ONG: cada conta PagBank tem a sua chave
+const cardPublicKeyCache = new Map<string, { key: string; at: number }>();
 const CARD_PUBLIC_KEY_TTL_MS = 6 * 60 * 60 * 1000;
 
 function extractPublicKey(payload: any): string {
@@ -610,8 +617,9 @@ function extractPublicKey(payload: any): string {
  */
 export async function getPagBankCardPublicKey(): Promise<string> {
   const scoped = Boolean(pagbankScope.getStore());
-  if (!scoped && cardPublicKeyCache && Date.now() - cardPublicKeyCache.at < CARD_PUBLIC_KEY_TTL_MS) {
-    return cardPublicKeyCache.key;
+  const cached = cardPublicKeyCache.get(currentOrgId());
+  if (!scoped && cached && Date.now() - cached.at < CARD_PUBLIC_KEY_TTL_MS) {
+    return cached.key;
   }
   let key = '';
   try {
@@ -625,7 +633,7 @@ export async function getPagBankCardPublicKey(): Promise<string> {
     );
   }
   if (!key) throw new Error('PagBank não retornou a chave pública de cartão');
-  if (!scoped) cardPublicKeyCache = { key, at: Date.now() };
+  if (!scoped) cardPublicKeyCache.set(currentOrgId(), { key, at: Date.now() });
   return key;
 }
 
@@ -655,4 +663,11 @@ export async function cancelPagBankCharge(chargeId: string, amountCents: number)
     body: JSON.stringify({ amount: { value: Math.round(amountCents) } }),
   });
   return { status: String(data?.status || ''), raw: data };
+}
+
+/** URL do webhook: outras ONGs recebem ?org= para o aviso cair na conta e no token certos. */
+export function pagbankWebhookUrl(apiBase: string) {
+  const base = `${String(apiBase || '').replace(/\/$/, '')}/api/webhooks/pagbank`;
+  const org = currentOrgId();
+  return isolationOn() && org !== DEFAULT_ORG ? `${base}?org=${encodeURIComponent(org)}` : base;
 }

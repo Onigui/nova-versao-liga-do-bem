@@ -11,6 +11,7 @@
  * da Liga pode ser ativada — a trava de ativação confere isso.
  */
 import crypto from 'crypto';
+import { ensureIsolationSchema, isolationOn, isolationSelfTest, runAsSystem } from './tenant';
 
 export const DEFAULT_ORG_ID = 'org_liga';
 
@@ -111,7 +112,10 @@ export function decryptSecret(stored: string) {
 export async function getOrgSecret(db: any, orgId: string, key: string): Promise<string | null> {
   try {
     await ensureOrgSchema(db);
-    const r: any[] = await db.$queryRawUnsafe(`SELECT value FROM org_secrets WHERE "orgId" = $1 AND key = $2`, orgId, key);
+    // org_secrets é fechada para as ONGs: só o sistema lê
+    const r: any[] = await runAsSystem(() =>
+      db.$queryRawUnsafe(`SELECT value FROM org_secrets WHERE "orgId" = $1 AND key = $2`, orgId, key),
+    );
     if (r[0]?.value) return decryptSecret(r[0].value);
   } catch {
     /* sem credencial salva */
@@ -128,7 +132,8 @@ let schemaDb: any = null;
 export function ensureOrgSchema(db: any): Promise<void> {
   if (schemaReady && schemaDb === db) return schemaReady;
   schemaDb = db;
-  schemaReady = (async () => {
+  // Sempre em modo sistema: semeia organizations/org_onboarding, que as ONGs não podem gravar
+  schemaReady = runAsSystem(async () => {
     for (const sql of [
       `CREATE TABLE IF NOT EXISTS organizations (
          id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, "legalName" TEXT,
@@ -167,7 +172,7 @@ export function ensureOrgSchema(db: any): Promise<void> {
         console.warn('⚠️ orgId não adicionado em', table_name, String(e?.message || e).slice(0, 100));
       });
     }
-  })().catch((e) => {
+  }).catch((e) => {
     schemaReady = null;
     throw e;
   });
@@ -217,7 +222,7 @@ export function orgIdForRequest(req: any, auth: { orgId?: string; email?: string
 export async function userOrgId(db: any, userId: string): Promise<string> {
   try {
     await ensureOrgSchema(db);
-    const r: any[] = await db.$queryRawUnsafe(`SELECT "orgId" FROM users WHERE id = $1`, userId);
+    const r: any[] = await runAsSystem(() => db.$queryRawUnsafe(`SELECT "orgId" FROM users WHERE id = $1`, userId));
     return r[0]?.orgId || DEFAULT_ORG_ID;
   } catch {
     return DEFAULT_ORG_ID;
@@ -253,6 +258,20 @@ async function checklist(db: any, orgId: string) {
   return { items, approved: req.filter((i) => i.status === 'APPROVED').length, required: req.length };
 }
 
+/** Separação ligada E autoteste no banco de verdade passando. */
+async function isolationCheck(db: any, isDefault: boolean) {
+  const label = 'Separação de dados entre ONGs ligada e testada no banco';
+  if (isDefault) return { key: 'isolation', ok: true, label, detail: null };
+  if (!isolationOn()) {
+    return { key: 'isolation', ok: false, label, detail: 'Ligue MULTI_ORG_ISOLATION=on na Vercel depois de o autoteste passar (Plataforma → Separação de dados)' };
+  }
+  const schema = await ensureIsolationSchema(db).catch((e: any) => ({ ok: false, errors: [e?.message] } as any));
+  const test = await isolationSelfTest(db);
+  const failed = test.checks.filter((c) => !c.ok).map((c) => (c.detail ? `${c.name} (${c.detail})` : c.name));
+  const ok = schema.ok !== false && test.ok;
+  return { key: 'isolation', ok, label, detail: ok ? null : `Autoteste falhou: ${failed.join('; ') || (schema.errors || []).join('; ')}` };
+}
+
 /** O que falta para ligar a ONG no app. Cada condição diz o que fazer. */
 export async function activationChecks(db: any, orgId: string) {
   const list = await checklist(db, orgId);
@@ -264,7 +283,7 @@ export async function activationChecks(db: any, orgId: string) {
     { key: 'checklist', ok: pending.length === 0, label: 'Todos os itens obrigatórios aprovados', detail: pending.length ? `Faltam: ${pending.map((p) => p.key).join(', ')}` : null },
     { key: 'pagbank', ok: !!pagbank, label: 'Conta PagBank da ONG conectada', detail: pagbank ? null : 'Salve o token do PagBank da ONG em Credenciais' },
     { key: 'admin', ok: (admins[0]?.c || 0) > 0, label: 'Pelo menos 1 administrador da ONG cadastrado', detail: (admins[0]?.c || 0) > 0 ? null : 'Cadastre um administrador para a ONG' },
-    { key: 'isolation', ok: isDefault || process.env.MULTI_ORG_ISOLATION === 'on', label: 'Separação de dados entre ONGs ligada na plataforma', detail: isDefault || process.env.MULTI_ORG_ISOLATION === 'on' ? null : 'Fase 2 do projeto: só depois dela a segunda ONG pode ir ao ar' },
+    await isolationCheck(db, isDefault),
     { key: 'platform', ok: isDefault || platformEmails().length > 0, label: 'Equipe da plataforma definida (PLATFORM_ADMIN_EMAILS)', detail: isDefault || platformEmails().length > 0 ? null : 'Cadastre PLATFORM_ADMIN_EMAILS na Vercel para separar a equipe da plataforma dos administradores das ONGs' },
   ];
   return { ready: checks.every((c) => c.ok), checks, checklist: list };
@@ -322,6 +341,13 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
   // ---------- equipe da plataforma
   if (path.startsWith('/api/platform/')) {
     if (!isPlatformAdmin(auth, ctx.isAdmin)) return send(res, 403, { error: 'Só a equipe da plataforma' }), true;
+
+    // Separação de dados (fase 2): estado, aplicar de novo e autoteste no banco de verdade (tudo desfeito)
+    if (path === '/api/platform/isolation' && (method === 'GET' || method === 'POST')) {
+      const schema = await ensureIsolationSchema(db, method === 'POST').catch((e: any) => ({ ok: false, errors: [e?.message || String(e)] }));
+      const selfTest = await isolationSelfTest(db);
+      return send(res, 200, { enabled: isolationOn(), schema, selfTest }), true;
+    }
 
     if (path === '/api/platform/orgs' && method === 'GET') {
       const rows: any[] = await db.$queryRawUnsafe(
