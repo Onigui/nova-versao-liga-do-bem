@@ -8,7 +8,7 @@ Este sistema permite que o logo e o ícone do aplicativo sejam baixados durante 
 2. **Download**: O script busca as configurações da API (`/api/app/config`) e baixa:
    - Logo da página inicial (`app.logoUrl`) → `src/assets/images/app-logo.png`
    - Logo do login (`login.logoUrl` ou `app.logoUrl`) → `src/assets/images/login-logo.png`
-   - Ícone (`login.iconImage`) → `src/assets/images/app-icon.png`
+   - Arte da ONG (`login.iconImage`) → `src/assets/images/ong-icon.png` (usada na carteirinha)
    - Configuração do ícone emoji (`login.icon`) → `src/assets/images/icon-config.json`
 3. **Embarcado no APK**: Esses arquivos são incluídos no build do React Native
 4. **Uso no App**: As telas verificam primeiro se os assets locais existem, usando-os instantaneamente. Se não existirem, fazem fallback para a API.
@@ -32,7 +32,8 @@ mobile/
         └── images/
             ├── app-logo.png          # Logo da página inicial
             ├── login-logo.png        # Logo da tela de login
-            ├── app-icon.png          # Ícone do app
+            ├── app-icon.png          # Ícone do SóciONG (fixo, scripts/brand-icons.js)
+            ├── ong-icon.png          # Arte da ONG (carteirinha)
             └── icon-config.json      # Configuração do ícone emoji
 ```
 

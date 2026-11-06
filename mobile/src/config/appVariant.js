@@ -1,7 +1,7 @@
 import {NativeModules} from 'react-native';
 
 /**
- * Qual app está rodando: 'member' (Liga do Bem) ou 'partner' (Liga do Bem Parceiros).
+ * Qual app está rodando: 'member' (SóciONG) ou 'partner' (SóciONG Parceiros).
  * Vem do flavor do Android (BuildConfig.FLAVOR). Sem o módulo nativo (testes, APK antigo) = 'member'.
  */
 export const APP_VARIANT =

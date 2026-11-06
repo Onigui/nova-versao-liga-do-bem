@@ -109,7 +109,8 @@ async function updateAppAssets() {
     const iconImage = config['login.iconImage'];
     if (iconImage && iconImage.trim() !== '') {
       console.log('📥 Baixando ícone...');
-      const iconPath = path.join(ASSETS_PATH, 'app-icon.png');
+      // Arte da ONG (carteirinha). O ícone do app é o da plataforma: scripts/brand-icons.js
+      const iconPath = path.join(ASSETS_PATH, 'ong-icon.png');
       
       if (iconImage.startsWith('data:')) {
         await saveBase64Image(iconImage, iconPath);

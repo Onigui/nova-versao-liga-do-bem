@@ -47,7 +47,7 @@ export default function ForgotPasswordScreen({navigation, route, fetchImpl = fet
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
-        Alert.alert('Não foi possível enviar o e-mail', data.error || 'Peça um código de acesso à Liga do Bem (ou ao responsável da sua empresa).', [
+        Alert.alert('Não foi possível enviar o e-mail', data.error || 'Peça um código de acesso à equipe do SóciONG (ou ao responsável da sua empresa).', [
           {text: 'Fechar', style: 'cancel'},
           {text: 'Já tenho um código', onPress: goToManualCode},
         ]);
@@ -105,7 +105,7 @@ export default function ForgotPasswordScreen({navigation, route, fetchImpl = fet
     return (
       <AuthLayout
         title={firstAccess ? 'Crie sua senha' : 'Nova senha'}
-        subtitle={codeSource === 'manual' ? 'Digite o código que você recebeu da Liga do Bem.' : `Enviamos um código de 6 dígitos para ${cleanEmail}.`}
+        subtitle={codeSource === 'manual' ? 'Digite o código que você recebeu da equipe do SóciONG.' : `Enviamos um código de 6 dígitos para ${cleanEmail}.`}
         onBack={() => setStep('email')}
         compactHero>
         <Note icon={codeSource === 'manual' ? 'time-outline' : 'mail-unread-outline'}>
@@ -163,7 +163,7 @@ export default function ForgotPasswordScreen({navigation, route, fetchImpl = fet
       <PrimaryButton title="Enviar código por e-mail" icon="mail-outline" onPress={requestCode} loading={loading} testID="enviar-codigo" />
       <SecondaryButton title="Já tenho um código" icon="keypad-outline" onPress={goToManualCode} testID="ja-tenho-codigo" />
       <Text style={[{color: '#6B6880', fontSize: 12, textAlign: 'center', marginTop: 14, lineHeight: 17}, F.regular]}>
-        Recebeu um código da Liga do Bem{firstAccess ? ' ou do responsável da empresa' : ''}? Digite o e-mail acima e toque em{' '}
+        Recebeu um código da equipe do SóciONG{firstAccess ? ' ou do responsável da empresa' : ''}? Digite o e-mail acima e toque em{' '}
         <Text style={[{color: A.primary}, F.bold]}>Já tenho um código</Text>.
       </Text>
     </AuthLayout>

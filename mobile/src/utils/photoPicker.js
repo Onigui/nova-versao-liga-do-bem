@@ -20,13 +20,13 @@ export async function ensureCameraPermission() {
     if (await PermissionsAndroid.check(perm)) return true;
     const res = await PermissionsAndroid.request(perm, {
       title: 'Usar a câmera',
-      message: 'A Liga do Bem precisa da câmera para tirar a foto.',
+      message: 'O SóciONG precisa da câmera para tirar a foto.',
       buttonPositive: 'Permitir',
       buttonNegative: 'Agora não',
     });
     if (res === PermissionsAndroid.RESULTS.GRANTED) return true;
     if (res === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert('Câmera bloqueada', 'A permissão da câmera foi negada. Libere em Configurações > Apps > Liga do Bem > Permissões.', [
+      Alert.alert('Câmera bloqueada', 'A permissão da câmera foi negada. Libere em Configurações > Apps > SóciONG > Permissões.', [
         {text: 'Agora não', style: 'cancel'},
         {text: 'Abrir configurações', onPress: () => Linking.openSettings().catch(() => {})},
       ]);

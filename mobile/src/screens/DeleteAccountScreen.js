@@ -29,7 +29,7 @@ export default function DeleteAccountScreen({navigation, fetchImpl = fetch}) {
     setSending(true);
     try {
       await api('POST', '/user/account/delete', {password});
-      Alert.alert('Conta excluída', 'Seus dados foram apagados. Obrigado por ter feito parte da Liga do Bem. 💜');
+      Alert.alert('Conta excluída', 'Seus dados foram apagados. Obrigado por ter feito parte do SóciONG.');
       logout?.();
     } catch (e) {
       Alert.alert('Não foi possível excluir', e.message);
