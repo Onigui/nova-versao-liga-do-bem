@@ -49,7 +49,7 @@ async function orgSecrets(db: any, orgId: string) {
 }
 
 const SYSTEM_PREFIXES = ['/api/auth/', '/api/webhooks/', '/api/platform/', '/api/public/'];
-const SYSTEM_EXACT = new Set(['/api/admin/login', '/api/admin/org', '/api/orgs', '/api/health', '/api/excluir-conta', '/api/privacidade']);
+const SYSTEM_EXACT = new Set(['/api/platform-digest', '/api/admin/login', '/api/admin/org', '/api/orgs', '/api/health', '/api/excluir-conta', '/api/privacidade']);
 
 export function isSystemPath(path: string) {
   return SYSTEM_EXACT.has(path) || path.startsWith('/api/orgs/') || SYSTEM_PREFIXES.some((p) => path.startsWith(p));

@@ -1,19 +1,19 @@
 /*
- * Visual novo do painel (mesmo estilo do app): Plus Jakarta Sans, fundo lilás bem claro,
- * roxo profundo no menu, cartões brancos arredondados, ícones de traço.
+ * Visual da Central SóciONG: Plus Jakarta Sans, fundo verde bem claro,
+ * verde profundo no menu, cartões brancos arredondados, ícones de traço.
  * Carregado depois do CSS antigo: só sobrescreve aparência, não muda a lógica.
  */
 :root {
-  --bg: #F6F5FB;
+  --bg: #F3F7F6;
   --card: #FFFFFF;
-  --ink: #1E1B2E;
-  --muted: #6B6880;
-  --line: #ECEAF3;
-  --primary: #6D28D9;
-  --primary-soft: #EDE9FE;
-  --deep: #3B1A78;
-  --deep-2: #2A1258;
-  --deep-text: #DDD6FE;
+  --ink: #10231F;
+  --muted: #4B5E59;
+  --line: #E3ECE9;
+  --primary: #0E7C66;
+  --primary-soft: #D9F3EC;
+  --deep: #0A5C4C;
+  --deep-2: #08463A;
+  --deep-text: #C8EFE4;
   --ok: #166534;
   --ok-soft: #DCFCE7;
   --warn: #92400E;
@@ -25,14 +25,14 @@
   --radius: 18px;
 
   /* nomes antigos apontando para a paleta nova */
-  --primary-purple: #6D28D9;
-  --primary-purple-dark: #5B21B6;
-  --text-dark: #1E1B2E;
-  --text-gray: #6B6880;
-  --bg-gray-50: #F6F5FB;
-  --bg-gray-100: #ECEAF3;
-  --fx-brand: #6D28D9;
-  --fx-wash: #F6F5FB;
+  --primary-purple: #0E7C66;
+  --primary-purple-dark: #0A5C4C;
+  --text-dark: #10231F;
+  --text-gray: #4B5E59;
+  --bg-gray-50: #F3F7F6;
+  --bg-gray-100: #E3ECE9;
+  --fx-brand: #0E7C66;
+  --fx-wash: #F3F7F6;
 }
 
 body {
@@ -67,7 +67,7 @@ body {
 .sidebar-header p { color: var(--deep-text) !important; opacity: .75; font-size: .78rem !important; margin-top: 4px !important; }
 .nav-menu { padding: 0 12px; }
 .nav-group {
-  color: rgba(221, 214, 254, .55);
+  color: rgba(200, 239, 228, .55);
   font-size: .68rem;
   font-weight: 700;
   letter-spacing: .09em;
@@ -106,7 +106,7 @@ body {
 .sidebar-footer {
   margin-top: auto;
   padding: 16px 22px 0;
-  color: rgba(221, 214, 254, .55);
+  color: rgba(200, 239, 228, .55);
   font-size: .72rem;
 }
 
@@ -138,9 +138,9 @@ body {
 }
 .btn:active { transform: translateY(1px); }
 .btn-primary { background: var(--primary); color: #fff; border: none; }
-.btn-primary:hover { background: #5B21B6; transform: none; box-shadow: none; }
+.btn-primary:hover { background: #0A5C4C; transform: none; box-shadow: none; }
 .btn-secondary { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
-.btn-secondary:hover { background: var(--primary-soft); border-color: #DDD6FE; color: var(--deep); transform: none; }
+.btn-secondary:hover { background: var(--primary-soft); border-color: #C8EFE4; color: var(--deep); transform: none; }
 .btn-danger { border-radius: 12px; }
 
 /* ---------------------------------------------------------------- cartões e tabelas */
@@ -188,7 +188,7 @@ body {
   border: 1px solid #DCD8E8;
   font-family: inherit;
 }
-.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(109, 40, 217, .15); outline: none; }
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 124, 102, .15); outline: none; }
 
 /* ---------------------------------------------------------------- subabas */
 .subtabs {
@@ -232,7 +232,7 @@ body {
 .hello .when { color: var(--muted); font-size: .82rem; }
 
 .hero {
-  background: linear-gradient(135deg, var(--deep) 0%, #5B21B6 100%);
+  background: linear-gradient(135deg, var(--deep) 0%, #0A5C4C 100%);
   color: #fff;
   border-radius: 22px;
   padding: 22px 24px;
@@ -289,7 +289,7 @@ body {
   cursor: pointer;
   color: var(--ink);
 }
-.attn button:hover { border-color: #DDD6FE; background: #FBFAFE; }
+.attn button:hover { border-color: #C8EFE4; background: #FBFAFE; }
 .attn .n {
   min-width: 38px;
   height: 38px;
@@ -336,11 +336,11 @@ body {
 .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; min-width: 0; }
 .bar-pair { display: flex; gap: 4px; align-items: flex-end; height: 100%; width: 100%; justify-content: center; }
 .bar { width: 40%; max-width: 22px; border-radius: 7px 7px 3px 3px; background: var(--primary); min-height: 3px; position: relative; }
-.bar.alt { background: #C4B5FD; }
+.bar.alt { background: #A7E8D6; }
 .bar-col small { color: var(--muted); font-size: .72rem; font-weight: 600; }
 .legend { display: flex; gap: 14px; color: var(--muted); font-size: .78rem; font-weight: 600; margin-top: 8px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--primary); margin-right: 5px; vertical-align: -1px; }
-.legend i.alt { background: #C4B5FD; }
+.legend i.alt { background: #A7E8D6; }
 
 .shortcuts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .shortcut {
@@ -358,7 +358,7 @@ body {
   gap: 10px;
   text-align: left;
 }
-.shortcut:hover { border-color: #DDD6FE; background: #FBFAFE; }
+.shortcut:hover { border-color: #C8EFE4; background: #FBFAFE; }
 .shortcut svg { width: 18px; height: 18px; color: var(--primary); flex: 0 0 18px; }
 
 /* ---------------------------------------------------------------- orçamentos */
@@ -419,3 +419,32 @@ body {
 @media (max-width: 860px) {
   body.menu-open .menu-toggle { left: 276px; }
 }
+
+/* ---------------------------------------------------------------- central SóciONG */
+.sidebar-logo { display: flex; align-items: center; gap: 10px; }
+.sidebar-logo svg { border-radius: 10px; flex: none; }
+.org-switch { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.org-switch label { color: var(--deep-text); font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.org-switch select {
+  width: 100%; min-height: 44px; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .1); color: #fff; font: inherit; font-weight: 700;
+}
+.org-switch select option { color: var(--ink); }
+.org-switch small { color: var(--deep-text); opacity: .75; font-size: .72rem; line-height: 1.35; }
+.org-banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line);
+  border-left: 6px solid var(--primary); border-radius: 14px; padding: 10px 14px; margin-bottom: 18px; font-size: .95rem;
+}
+.org-banner .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); flex: none; }
+.org-banner .btn { margin-left: auto; min-height: 40px; }
+.central-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.central-org-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.central-org-head h2 { font-size: 1.1rem; font-weight: 800; margin: 0; }
+.central-org-head .badge { font-size: .72rem; font-weight: 700; background: var(--warn-soft); color: var(--warn); border-radius: 999px; padding: 2px 8px; vertical-align: middle; }
+.central-total { color: var(--muted); font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.central-note { grid-column: 1 / -1; background: var(--info-soft); color: var(--info); border-radius: 12px; padding: 10px 14px; margin: 0; }
+.central-msg { min-height: 1.2em; color: var(--muted); margin: 0 0 10px; }
+.attn .age { font-style: normal; color: var(--muted); font-size: .8rem; font-weight: 600; margin-left: 4px; }
+.attn .age.late { color: var(--bad); }
+.all-clear { color: var(--ok); display: flex; gap: 8px; align-items: center; margin: 0; }
+.all-clear svg { width: 18px; height: 18px; }

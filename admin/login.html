@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Liga do Bem Admin</title>
+    <title>Entrar · SóciONG Central</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐾</text></svg>">
     <style>
         :root {
-            --primary-purple: #8B5CF6;
-            --primary-purple-dark: #7C3AED;
+            --primary-purple: #14967B;
+            --primary-purple-dark: #0E7C66;
             --secondary-pink: #EC4899;
             --accent-blue: #06B6D4;
             --success-green: #10B981;
@@ -293,25 +293,25 @@
     </style>
     <style>
         /* Visual novo (mesmo estilo do app e do painel) */
-        :root { --primary-purple: #6D28D9; --primary-purple-dark: #5B21B6; --secondary-pink: #3B1A78; --text-dark: #1E1B2E; --text-gray: #6B6880; }
-        body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif !important; background: radial-gradient(circle at 85% 10%, rgba(255,255,255,.08) 0 180px, transparent 181px), linear-gradient(160deg, #3B1A78 0%, #2A1258 100%) !important; }
+        :root { --primary-purple: #0E7C66; --primary-purple-dark: #0A5C4C; --secondary-pink: #0A5C4C; --text-dark: #10231F; --text-gray: #4B5E59; }
+        body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif !important; background: radial-gradient(circle at 85% 10%, rgba(255,255,255,.08) 0 180px, transparent 181px), linear-gradient(160deg, #0A5C4C 0%, #08463A 100%) !important; }
         .login-container { border-radius: 24px !important; box-shadow: 0 24px 60px rgba(10, 4, 30, .45) !important; background: #fff !important; }
-        .login-logo-icon { background: #EDE9FE !important; border-radius: 14px !important; }
+        .login-logo-icon { background: #D9F3EC !important; border-radius: 14px !important; }
         .login-title { font-weight: 800 !important; letter-spacing: -.02em; }
         .form-input { border-radius: 12px !important; border: 1px solid #DCD8E8 !important; font-family: inherit !important; }
-        .form-input:focus { border-color: #6D28D9 !important; box-shadow: 0 0 0 3px rgba(109, 40, 217, .15) !important; }
-        .btn, button[type="submit"] { border-radius: 12px !important; font-family: inherit !important; font-weight: 700 !important; background: #6D28D9 !important; }
-        .demo-credentials { border-radius: 14px !important; background: #F6F5FB !important; border: 1px solid #ECEAF3 !important; }
+        .form-input:focus { border-color: #0E7C66 !important; box-shadow: 0 0 0 3px rgba(14, 124, 102, .15) !important; }
+        .btn, button[type="submit"] { border-radius: 12px !important; font-family: inherit !important; font-weight: 700 !important; background: #0E7C66 !important; }
+        .demo-credentials { border-radius: 14px !important; background: #F3F7F6 !important; border: 1px solid #E3ECE9 !important; }
     </style>
 </head>
 <body>
     <div class="login-container">
         <div class="login-header">
             <div class="login-logo">
-                <div class="login-logo-icon">🐾</div>
-                <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary-purple);">Liga do Bem</span>
+                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#FF7A3D"/><rect x="20" y="26" width="64" height="44" rx="8" fill="#0E7C66" transform="rotate(6 52 48)"/><g transform="rotate(-8 50 52)"><rect x="14" y="32" width="68" height="44" rx="8" fill="#FFFFFF"/><g fill="#0E7C66" transform="translate(32 54) scale(0.34) translate(-50 -54)"><path d="M50 54 C 38 54 30 64 30 72 C 30 80 37 84 44 82 C 47 81 53 81 56 82 C 63 84 70 80 70 72 C 70 64 62 54 50 54 Z"/><ellipse cx="32" cy="44" rx="7" ry="9" transform="rotate(-20 32 44)"/><ellipse cx="44" cy="33" rx="7" ry="9.5"/><ellipse cx="56" cy="33" rx="7" ry="9.5"/><ellipse cx="68" cy="44" rx="7" ry="9" transform="rotate(20 68 44)"/></g><rect x="48" y="45" width="24" height="6" rx="3" fill="#0E7C66"/><rect x="48" y="56" width="16" height="6" rx="3" fill="#0E7C66" opacity="0.45"/></g></svg>
+                <span style="font-size: 1.5rem; font-weight: 700; color: #10231F;">Sóci<span style="color:#0E7C66;font-weight:800">ONG</span></span>
             </div>
-            <h1 class="login-title">Painel Administrativo</h1>
+            <h1 class="login-title">Central da plataforma</h1>
             <p class="login-subtitle">Faça login para acessar o painel</p>
         </div>
 
@@ -591,7 +591,7 @@
             checkAuth();
         });
 
-        console.log('🔐 Sistema de Login da Liga do Bem carregado!');
+        console.log('🔐 Login da Central SóciONG carregado');
         console.log('🌐 API URL:', (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, ''));
     </script>
 
