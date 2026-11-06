@@ -6376,7 +6376,7 @@ async function handleRequest(req: any, res: any) {
             status: m.status,
             startDate: m.startDate,
             endDate: m.endDate,
-            monthlyFee: parseFloat(m.monthlyFee?.toString?.() || '29.9'),
+            monthlyFee: parseFloat(m.monthlyFee?.toString?.() || '24.9'),
             nextPayment: m.nextPayment,
             paymentMethod: m.paymentMethod,
             qrCode: m.qrCode,
@@ -7092,7 +7092,7 @@ async function handleRequest(req: any, res: any) {
                 (id, "userId", "memberId", status, "startDate", "endDate",
                  "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
                  "planCode", "planMonths", "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 19.90, $4, NULL, $5, NULL, NULL, NOW(), NOW())`,
+               VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 24.90, $4, NULL, $5, NULL, NULL, NOW(), NOW())`,
               membershipId,
               userId,
               memberId,
@@ -7105,7 +7105,7 @@ async function handleRequest(req: any, res: any) {
                 (id, "userId", "memberId", status, "startDate", "endDate",
                  "monthlyFee", "nextPayment", "paymentMethod", "qrCode",
                  "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 19.90, $4, NULL, $5, NOW(), NOW())`,
+               VALUES ($1, $2, $3, 'PENDING_PAYMENT', $4, NULL, 24.90, $4, NULL, $5, NOW(), NOW())`,
               membershipId,
               userId,
               memberId,

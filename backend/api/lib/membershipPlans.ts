@@ -1,37 +1,59 @@
+/**
+ * Regra da plataforma SóciONG: nenhum plano de sócio pode sair por menos de R$ 20,00 por mês
+ * (vale para todas as ONGs, as que existem e as que entrarem). O mensal é R$ 24,90 e o anual
+ * chega a R$ 20,00 por mês.
+ */
+export const MIN_MONTHLY_CENTS = 2000;
+
+/** Menor valor permitido para um plano de `months` meses. */
+export function minPlanCents(months: number) {
+  return MIN_MONTHLY_CENTS * Math.max(1, Math.round(Number(months) || 1));
+}
+
+/** Aplica o piso de R$ 20,00/mês: um plano abaixo dele sobe para o piso. */
+export function enforcePlanFloor(amountCents: number, months: number) {
+  return Math.max(Math.round(Number(amountCents) || 0), minPlanCents(months));
+}
+
 export const FALLBACK_MEMBERSHIP_PLANS = [
   {
     code: 'MONTHLY',
     name: 'Mensal',
-    description: '1 mês de acesso ativo com QR Code',
+    description: '1 mês de acesso ativo com QR Code · R$ 24,90/mês',
     months: 1,
-    amountCents: 1990,
+    amountCents: 2490,
     order: 1,
   },
   {
     code: 'QUARTERLY',
     name: 'Trimestral',
-    description: '3 meses de acesso ativo com QR Code',
+    description: '3 meses de acesso ativo com QR Code · R$ 23,30/mês',
     months: 3,
-    amountCents: 5490,
+    amountCents: 6990,
     order: 2,
   },
   {
     code: 'SEMIANNUAL',
     name: 'Semestral',
-    description: '6 meses de acesso ativo com QR Code',
+    description: '6 meses de acesso ativo com QR Code · R$ 21,65/mês',
     months: 6,
-    amountCents: 10490,
+    amountCents: 12990,
     order: 3,
   },
   {
     code: 'ANNUAL',
     name: 'Anual',
-    description: '12 meses de acesso ativo com QR Code',
+    description: '12 meses de acesso ativo com QR Code · R$ 20,00/mês',
     months: 12,
-    amountCents: 20490,
+    amountCents: 24000,
     order: 4,
   },
 ] as const;
+
+// Trava no código: se alguém baixar um valor abaixo do piso, o servidor nem sobe
+for (const p of FALLBACK_MEMBERSHIP_PLANS) {
+  if (p.amountCents < minPlanCents(p.months)) throw new Error(`Plano ${p.code} abaixo de R$ 20,00/mês`);
+}
 
 export function formatBrlFromCents(cents: number) {
   return (cents / 100).toLocaleString('pt-BR', {
