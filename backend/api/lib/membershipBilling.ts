@@ -2,6 +2,7 @@ import { currentOrgId, DEFAULT_ORG, orgScope } from './tenant';
 import {
   FALLBACK_MEMBERSHIP_PLANS,
   addMonths,
+  enforcePlanFloor,
   planMonthsFromCode,
 } from './membershipPlans';
 import {
@@ -104,6 +105,13 @@ export async function ensureMembershipBillingSchema(db: any) {
     );
   }
 
+  // Quem ainda não pagou passa a ver o valor novo (quem já pagou mantém o que pagou até renovar)
+  try {
+    await db.$executeRawUnsafe(`UPDATE memberships SET "monthlyFee" = 24.90, "updatedAt" = NOW() WHERE status = 'PENDING_PAYMENT' AND "monthlyFee" < 24.90`);
+  } catch {
+    /* tabela ainda não existe */
+  }
+
   schemaEnsuredAt.set(org, Date.now());
 }
 
@@ -161,8 +169,9 @@ export async function listMembershipPlans(db: any) {
         name: r.name,
         description: r.description,
         months: Number(r.months),
-        amountCents: Number(r.amountCents),
-        amount: Number(r.amountCents) / 100,
+        // Piso de R$ 20,00/mês da plataforma, mesmo se o banco tiver um valor menor
+        amountCents: enforcePlanFloor(Number(r.amountCents), Number(r.months)),
+        amount: enforcePlanFloor(Number(r.amountCents), Number(r.months)) / 100,
         order: Number(r.order),
       }));
     }
@@ -255,7 +264,7 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
         memberId,
         now,
         endDate,
-        Number(payment.amount) || 19.9,
+        Number(payment.amount) || 24.9,
         payment.method || 'PIX',
         qrCode,
         payment.planCode || 'MONTHLY',
@@ -289,7 +298,7 @@ export async function activateMembershipFromPayment(db: any, paymentId: string) 
          WHERE id = $8`,
         endDate,
         payment.method || 'PIX',
-        Number(payment.amount) || 19.9,
+        Number(payment.amount) || 24.9,
         payment.planCode || 'MONTHLY',
         months,
         payment.id,
