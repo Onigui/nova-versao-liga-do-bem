@@ -54,7 +54,7 @@ export default function PartnerLoginScreen({navigation}) {
             <Icon name="storefront" size={44} color="#FFFFFF" />
           </View>
           <Text style={{color: '#FFFFFF', fontSize: 26, fontWeight: '800'}}>
-            Liga do Bem Parceiros
+            SóciONG Parceiros
           </Text>
           <Text
             style={{
@@ -114,7 +114,7 @@ export default function PartnerLoginScreen({navigation}) {
             fontSize: 13,
             marginTop: 8,
           }}>
-          O acesso é criado pela Liga do Bem. Ainda não tem? Fale com a
+          O acesso é criado pela equipe do SóciONG. Ainda não tem? Fale com a
           administração.
         </Text>
       </ScrollView>

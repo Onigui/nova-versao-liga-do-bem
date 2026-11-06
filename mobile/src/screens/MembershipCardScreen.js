@@ -54,7 +54,8 @@ export default function MembershipCardScreen({navigation}) {
   useEffect(() => {
     try {
       const cfg = require('../assets/images/icon-config.json');
-      setLocalIcon(require('../assets/images/app-icon.png'));
+      // Na carteirinha vai a arte da ONG (o ícone do app agora é o da plataforma SóciONG)
+      setLocalIcon(require('../assets/images/ong-icon.png'));
       setLocalIconEmoji(cfg?.icon || '🐾');
     } catch (e) {
       // assets opcionais

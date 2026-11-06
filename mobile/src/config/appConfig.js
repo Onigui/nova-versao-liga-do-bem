@@ -14,7 +14,7 @@ export const APP_CONFIG = {
   logoLocal: null,
   
   // Nome da aplicação (usado como fallback se logo não estiver configurado)
-  appName: 'Liga do Bem',
+  appName: 'SóciONG',
   appSubtitle: 'Botucatu',
 };
 

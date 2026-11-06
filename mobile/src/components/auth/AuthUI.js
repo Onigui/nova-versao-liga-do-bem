@@ -24,7 +24,7 @@ import {F} from '../../theme/home';
 
 export const A = IS_PARTNER_APP
   ? {deep: '#134E4A', primary: '#0F766E', soft: '#CCFBF1', text: '#99F6E4'}
-  : {deep: '#3B1A78', primary: '#6D28D9', soft: '#EDE9FE', text: '#DDD6FE'};
+  : {deep: '#0A5C4C', primary: '#0E7C66', soft: '#D9F3EC', text: '#A7E8D6'}; // marca SóciONG
 const INK = '#1E1B2E';
 const MUTED = '#6B6880';
 
@@ -56,7 +56,7 @@ export function AuthLayout({title, subtitle, onBack, children, footer, compactHe
               <View style={styles.logo}>
                 {icon ? <Image source={icon} style={{width: 40, height: 40}} resizeMode="contain" /> : <Ionicons name="paw" size={28} color={A.primary} />}
               </View>
-              <Text style={[styles.brandName, F.heavy]}>{IS_PARTNER_APP ? 'Liga do Bem Parceiros' : 'Liga do Bem'}</Text>
+              <Text style={[styles.brandName, F.heavy]}>{IS_PARTNER_APP ? 'SóciONG Parceiros' : 'SóciONG'}</Text>
             </View>
             <Text style={[styles.title, F.heavy]}>{title}</Text>
             {subtitle ? <Text style={[styles.subtitle, F.regular, {color: A.text}]}>{subtitle}</Text> : null}

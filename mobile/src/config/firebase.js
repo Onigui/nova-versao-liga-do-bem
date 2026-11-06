@@ -13,8 +13,8 @@ export const NOTIFICATION_CONFIG = {
   // Canal de notificação padrão
   defaultChannel: {
     id: 'liga-do-bem-default',
-    name: 'Liga do Bem',
-    description: 'Notificações gerais da Liga do Bem',
+    name: 'SóciONG',
+    description: 'Notificações gerais do SóciONG',
     importance: 'high',
   },
   

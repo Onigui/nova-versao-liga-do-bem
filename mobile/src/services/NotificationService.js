@@ -197,7 +197,7 @@ export class NotificationService {
           Authorization: `Bearer ${userToken}`,
         },
         body: JSON.stringify({
-          title: 'Teste Liga do Bem',
+          title: 'Teste SóciONG',
           body: 'Esta é uma notificação de teste!',
         }),
       });
