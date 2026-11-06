@@ -192,6 +192,16 @@ async function seedChecklist(db: any, orgId: string, approved: string[] = [], by
 }
 
 // ---------------------------------------------------------------- quem é quem
+/** E-mails da equipe da plataforma: PLATFORM_ADMIN_EMAILS, senão os admins da Liga (pioneira). */
+export async function platformAdminEmails(db: any): Promise<string[]> {
+  const list = platformEmails();
+  if (list.length) return list;
+  const rows: any[] = await runAsSystem(() =>
+    db.$queryRawUnsafe(`SELECT email FROM users WHERE role = 'ADMIN' AND "isActive" = true AND COALESCE("orgId", $1) = $1`, DEFAULT_ORG_ID),
+  ).catch(() => []);
+  return rows.map((r) => String(r.email || '').trim().toLowerCase()).filter((e) => e.includes('@'));
+}
+
 function platformEmails() {
   return String(process.env.PLATFORM_ADMIN_EMAILS || '')
     .split(/[,;\s]+/)
@@ -291,7 +301,7 @@ export async function activationChecks(db: any, orgId: string) {
 
 // ---------------------------------------------------------------- rotas
 export function isOrgPath(path: string) {
-  return path === '/api/orgs' || path.startsWith('/api/orgs/') || path === '/api/admin/org' || path.startsWith('/api/platform/');
+  return path === '/api/orgs' || path.startsWith('/api/orgs/') || path === '/api/admin/org' || path.startsWith('/api/platform/') || path === '/api/platform-digest';
 }
 
 const send = (res: any, status: number, body: any) => res.status(status).json(body);
@@ -308,6 +318,12 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
     auth = null;
   }
   await ensureOrgSchema(db);
+
+  // ---------- agendador: resumo diário de pendências por e-mail (idempotente: um por dia)
+  if (path === '/api/platform-digest' && method === 'POST') {
+    const { runDailyDigest } = await import('./platformInbox');
+    return send(res, 200, await runDailyDigest(db)), true;
+  }
 
   // ---------- público: lista de ONGs ativas (escolha no cadastro) e a configuração de uma
   if (path === '/api/orgs' && method === 'GET') {
@@ -349,9 +365,25 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
       return send(res, 200, { enabled: isolationOn(), schema, selfTest }), true;
     }
 
+    // Central de pendências de todas as ONGs
+    if (path === '/api/platform/inbox' && method === 'GET') {
+      const { buildInbox } = await import('./platformInbox');
+      return send(res, 200, await buildInbox(db)), true;
+    }
+    // Manda o resumo agora para quem chamou (teste)
+    if (path === '/api/platform/digest/test' && method === 'POST') {
+      const { buildInbox, digestContent } = await import('./platformInbox');
+      const { sendEmail } = await import('./email');
+      const to = String(auth?.email || '').trim();
+      if (!to) return send(res, 400, { error: 'Sua conta não tem e-mail' }), true;
+      const inbox = await buildInbox(db);
+      const r = await sendEmail({ to, ...digestContent(inbox) });
+      return send(res, r.ok ? 200 : 502, { ok: r.ok, to, total: inbox.total, error: r.error }), true;
+    }
+
     if (path === '/api/platform/orgs' && method === 'GET') {
       const rows: any[] = await db.$queryRawUnsafe(
-        `SELECT o.id, o.slug, o.name, o.cnpj, o.status, o.city, o.state, o."createdAt", o."activatedAt",
+        `SELECT o.id, o.slug, o.name, o.cnpj, o.status, o.city, o.state, o.branding, o."createdAt", o."activatedAt",
                 (SELECT COUNT(*)::int FROM org_onboarding b WHERE b."orgId" = o.id AND b.status = 'APPROVED'
                    AND b.item = ANY($1::text[])) AS approved
            FROM organizations o ORDER BY (o.id = $2) DESC, o."createdAt"`,
@@ -359,7 +391,7 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
         DEFAULT_ORG_ID,
       );
       const required = ONBOARDING_ITEMS.filter((i) => i.required).length;
-      return send(res, 200, { orgs: rows.map((r) => ({ ...r, required })) }), true;
+      return send(res, 200, { orgs: rows.map((r) => ({ ...r, required })), isolation: isolationOn() }), true;
     }
 
     if (path === '/api/platform/orgs' && method === 'POST') {

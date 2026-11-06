@@ -14,7 +14,7 @@ async function sendViaResend(msg: Mail): Promise<{ ok: boolean; error?: string }
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         // Sem domínio próprio verificado, o Resend só entrega para o e-mail dono da conta
-        from: process.env.RESEND_FROM || process.env.EMAIL_FROM || 'Liga do Bem <onboarding@resend.dev>',
+        from: process.env.RESEND_FROM || process.env.EMAIL_FROM || 'SóciONG <onboarding@resend.dev>',
         to: [msg.to],
         subject: msg.subject,
         text: msg.text,
@@ -39,7 +39,7 @@ async function sendViaSmtp(msg: Mail, from: string): Promise<{ ok: boolean; erro
     const nodemailer = require('nodemailer');
     const port = parseInt(process.env.SMTP_PORT || '465', 10);
     const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
-    await transporter.sendMail({ from: from || `Liga do Bem <${user}>`, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html });
+    await transporter.sendMail({ from: from || `SóciONG <${user}>`, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html });
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: `SMTP: ${e?.message || 'falha'}` };

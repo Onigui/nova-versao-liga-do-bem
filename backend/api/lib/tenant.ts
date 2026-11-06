@@ -208,6 +208,7 @@ export const GLOBAL_TABLES: Record<string, 'all' | 'read' | 'liga-write' | 'none
   org_onboarding: 'none',
   org_secrets: 'none',
   pagbank_homolog: 'none',
+  platform_kv: 'none',
   _prisma_migrations: 'none',
 };
 

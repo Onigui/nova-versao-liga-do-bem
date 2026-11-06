@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Administrativo - Liga do Bem</title>
+    <title>SóciONG · Central</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐾</text></svg>">
     <style>
         :root {
-            --primary-purple: #8B5CF6;
-            --primary-purple-dark: #7C3AED;
+            --primary-purple: #14967B;
+            --primary-purple-dark: #0E7C66;
             --secondary-pink: #EC4899;
             --accent-blue: #06B6D4;
             --success-green: #10B981;
@@ -596,13 +596,20 @@
         <nav class="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-logo">
-                    <div class="sidebar-logo-icon">🐾</div>
-                    <span>Liga do Bem</span>
+                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#FF7A3D"/><rect x="20" y="26" width="64" height="44" rx="8" fill="#0E7C66" transform="rotate(6 52 48)"/><g transform="rotate(-8 50 52)"><rect x="14" y="32" width="68" height="44" rx="8" fill="#FFFFFF"/><g fill="#0E7C66" transform="translate(32 54) scale(0.34) translate(-50 -54)"><path d="M50 54 C 38 54 30 64 30 72 C 30 80 37 84 44 82 C 47 81 53 81 56 82 C 63 84 70 80 70 72 C 70 64 62 54 50 54 Z"/><ellipse cx="32" cy="44" rx="7" ry="9" transform="rotate(-20 32 44)"/><ellipse cx="44" cy="33" rx="7" ry="9.5"/><ellipse cx="56" cy="33" rx="7" ry="9.5"/><ellipse cx="68" cy="44" rx="7" ry="9" transform="rotate(20 68 44)"/></g><rect x="48" y="45" width="24" height="6" rx="3" fill="#0E7C66"/><rect x="48" y="56" width="16" height="6" rx="3" fill="#0E7C66" opacity="0.45"/></g></svg>
+                    <span>Sóci<span style="color:#5FD3B8">ONG</span></span>
                 </div>
-                <p style="color: var(--text-gray); font-size: 0.875rem; margin-top: 0.5rem;">Painel Administrativo</p>
+                <p style="color: var(--text-gray); font-size: 0.875rem; margin-top: 0.5rem;">Central da plataforma</p>
+                <div class="org-switch" id="orgSwitchBox" hidden>
+                    <label for="orgSwitcher">Trabalhando em</label>
+                    <select id="orgSwitcher" onchange="switchOrg(this.value)"></select>
+                    <small id="orgSwitchNote"></small>
+                </div>
             </div>
 
             <ul class="nav-menu">
+                <li class="nav-item" id="navItemCentral" hidden><a href="#central" class="nav-link" onclick="showSection('central'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13h4l2 3h4l2-3h4"/><path d="M5.5 5h13L20 13v6H4v-6z"/></svg></span>Central de pendências<span class="nav-count" id="navCountCentral" hidden></span></a></li>
+                <li class="nav-group" id="navGroupOrg">ONG selecionada</li>
                 <li class="nav-item"><a href="#dashboard" class="nav-link active" onclick="showSection('dashboard'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></span>Início</a></li>
                 <li class="nav-group">Pessoas</li>
                 <li class="nav-item"><a href="#members" class="nav-link" onclick="showSection('members'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14.6c1.8.7 3 2.5 3.5 5.4"/></svg></span>Membros</a></li>
@@ -630,17 +637,41 @@
                 <li class="nav-item"><a href="#help-support" class="nav-link" onclick="showSection('help-support'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg></span>Ajuda no app</a></li>
                 <li class="nav-item"><a href="#app-versions" class="nav-link" onclick="showSection('app-versions'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18h2"/></svg></span>Versões do app</a></li>
             </ul>
-            <div class="sidebar-footer">Liga do Bem Botucatu · CNPJ 27.644.955/0001-38</div>
+            <div class="sidebar-footer" id="sidebarFooter">SóciONG · Central da plataforma</div>
         </nav>
 
         <!-- Main Content -->
         <main class="main-content">
+            <div class="org-banner" id="orgBanner" hidden>
+                <span class="dot" id="orgBannerDot"></span>
+                <span>Trabalhando em <strong id="orgBannerName"></strong></span>
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('orgSwitcher').focus(); document.body.classList.add('menu-open')">Trocar ONG</button>
+            </div>
+
+            <!-- Central de pendências (todas as ONGs) -->
+            <section id="central-section" class="content-section" style="display:none">
+                <div class="hello">
+                    <div>
+                        <small>Central da plataforma</small>
+                        <h1>Pendências de todas as ONGs</h1>
+                    </div>
+                    <div class="header-actions" style="align-items:center">
+                        <span class="when" id="centralUpdated"></span>
+                        <button class="btn btn-secondary" onclick="sendDigestTest()">Mandar resumo para meu e-mail</button>
+                        <button class="btn btn-secondary" onclick="loadCentral()">Atualizar</button>
+                    </div>
+                </div>
+                <p class="central-msg" id="centralMsg" role="status"></p>
+                <div id="centralList" class="central-list"><p class="muted">Carregando…</p></div>
+                <p class="muted" style="margin-top:18px">Todo dia, a partir das 8h, a equipe da plataforma recebe este resumo por e-mail, só quando há algo pendente.</p>
+            </section>
+
             <!-- Dashboard Section -->
             <section id="dashboard-section" class="content-section active">
                 <div class="hello">
                     <div>
                         <small id="helloGreeting">Olá,</small>
-                        <h1 id="helloName">equipe da Liga</h1>
+                        <h1 id="helloName">equipe SóciONG</h1>
                     </div>
                     <div class="header-actions" style="align-items:center">
                         <span class="when" id="dashUpdated"></span>
@@ -2590,6 +2621,22 @@
         // Normalizar URL (remover barra final se existir)
         const baseUrl = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '');
         const API_BASE_URL = baseUrl;
+
+        // ONG selecionada na central: toda chamada à API vai com X-Org-Id (o servidor só aceita da equipe da plataforma)
+        (function () {
+            const original = window.fetch.bind(window);
+            window.fetch = function (input, init) {
+                let org = null;
+                try { org = localStorage.getItem('admin_org'); } catch { org = null; }
+                const url = typeof input === 'string' ? input : (input && input.url) || '';
+                if (!org || !url.startsWith(API_BASE_URL)) return original(input, init);
+                const opts = Object.assign({}, init || {});
+                const h = new Headers(opts.headers || (typeof input !== 'string' && input.headers) || {});
+                if (!h.has('X-Org-Id')) h.set('X-Org-Id', org);
+                opts.headers = h;
+                return original(input, opts);
+            };
+        })();
         
         // Verificar autenticação
         function checkAuth() {
@@ -2745,7 +2792,9 @@
             showSub(sectionId, sub);
 
             // Carregar dados específicos da seção
-            if (sectionId === 'dashboard') {
+            if (sectionId === 'central') {
+                loadCentral();
+            } else if (sectionId === 'dashboard') {
                 loadDashboardData();
             } else if (sectionId === 'companies') {
                 loadCompanies();
@@ -3318,6 +3367,8 @@
                 alert('Por favor, preencha todos os campos obrigatórios.');
                 return;
             }
+            // Envio em massa: confirma com o nome da ONG para não mandar na ONG errada
+            if (targetType !== 'specific' && !confirm(`Enviar "${title}" para ${document.getElementById('targetType').selectedOptions[0].textContent.toLowerCase()} da ONG ${currentOrgName()}?`)) return;
 
             try {
                 const token = localStorage.getItem('admin_token');
@@ -4836,6 +4887,111 @@
         const ORG_STATUS = { DRAFT: ['Rascunho', 'OPEN'], ONBOARDING: ['Em entrada', 'RESERVED'], ACTIVE: ['Ativa', 'DONE'], SUSPENDED: ['Suspensa', 'CANCELLED'] };
         const ITEM_STATUS = { PENDING: 'Pendente', RECEIVED: 'Recebido', APPROVED: 'Aprovado', REJECTED: 'Recusado' };
         let openOrgId = null;
+        // ========== CENTRAL: ONG selecionada e pendências de todas as ONGs ==========
+        let platformOrgs = [];
+        let currentOrg = null;
+        function currentOrgName() { return currentOrg ? currentOrg.name : 'selecionada'; }
+        function applyOrgBanner(org) {
+            currentOrg = org;
+            const color = (org.branding && org.branding.primary) || '#0E7C66';
+            document.getElementById('orgBanner').hidden = false;
+            document.getElementById('orgBannerName').textContent = org.name;
+            document.getElementById('orgBannerDot').style.background = color;
+            document.getElementById('orgBanner').style.borderLeftColor = color;
+            const f = document.getElementById('sidebarFooter');
+            f.textContent = org.cnpj ? `${org.legalName || org.name} · CNPJ ${org.cnpj}` : org.name;
+            const g = document.getElementById('navGroupOrg');
+            if (g) g.textContent = org.name;
+        }
+        async function initOrgSwitcher(org) {
+            try {
+                const d = await platformApi('GET', '/orgs');
+                platformOrgs = d.orgs || [];
+                const sel = document.getElementById('orgSwitcher');
+                const selected = (org && org.id) || 'org_liga';
+                sel.innerHTML = platformOrgs.map((o) => {
+                    const locked = !d.isolation && o.id !== 'org_liga';
+                    const tag = o.status === 'ACTIVE' ? '' : ' (em entrada)';
+                    return `<option value="${escHtml(o.id)}"${o.id === selected ? ' selected' : ''}${locked ? ' disabled' : ''}>${escHtml(o.name)}${tag}${locked ? ' — separação desligada' : ''}</option>`;
+                }).join('');
+                document.getElementById('orgSwitchNote').textContent = d.isolation ? '' : 'Outras ONGs abrem quando a separação de dados for ligada.';
+                document.getElementById('orgSwitchBox').hidden = false;
+            } catch { /* sem seletor */ }
+        }
+        function switchOrg(orgId, after) {
+            try {
+                if (orgId === 'org_liga') localStorage.removeItem('admin_org'); else localStorage.setItem('admin_org', orgId);
+                if (after) sessionStorage.setItem('admin_after_switch', JSON.stringify(after));
+            } catch { /* navegador sem armazenamento */ }
+            location.hash = after ? `#${after.section}` : '#dashboard';
+            location.reload();
+        }
+        function runAfterSwitch() {
+            let after = null;
+            try { after = JSON.parse(sessionStorage.getItem('admin_after_switch') || 'null'); sessionStorage.removeItem('admin_after_switch'); } catch { after = null; }
+            if (after && after.section) showSection(after.section, after.sub || undefined);
+        }
+        function openInboxItem(orgId, section, sub) {
+            const selected = (currentOrg && currentOrg.id) || 'org_liga';
+            if (orgId && orgId !== selected) return switchOrg(orgId, { section, sub });
+            showSection(section, sub || undefined);
+        }
+        function since(iso) {
+            if (!iso) return '';
+            const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+            return d <= 0 ? 'desde hoje' : d === 1 ? 'há 1 dia' : `há ${d} dias`;
+        }
+        function inboxItemHtml(i, orgId) {
+            const age = since(i.oldestAt);
+            const late = i.oldestAt && (Date.now() - new Date(i.oldestAt).getTime()) > 3 * 86400000;
+            return `<li class="${escHtml(i.tone)}"><button type="button" onclick="openInboxItem(${orgId ? `'${escHtml(orgId)}'` : 'null'}, '${escHtml(i.section)}'${i.sub ? `, '${escHtml(i.sub)}'` : ''})">
+                <span class="n">${i.count > 99 ? '99+' : i.count}</span><span class="t">${escHtml(i.label)}${age ? ` <em class="age${late ? ' late' : ''}">${age}</em>` : ''}</span><span class="go">${icon('chevron')}</span></button></li>`;
+        }
+        function setCentralCount(total) {
+            const el = document.getElementById('navCountCentral');
+            if (!el) return;
+            el.hidden = !total;
+            el.textContent = total > 99 ? '99+' : String(total || '');
+        }
+        async function refreshCentralCount() {
+            try { setCentralCount((await platformApi('GET', '/inbox')).total); } catch { /* sem contador */ }
+        }
+        async function loadCentral() {
+            const box = document.getElementById('centralList');
+            try {
+                const d = await platformApi('GET', '/inbox');
+                setCentralCount(d.total);
+                document.getElementById('centralUpdated').textContent = `Atualizado às ${new Date(d.generatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+                const blocks = d.orgs.map((o) => {
+                    const color = o.org.color || '#0E7C66';
+                    const status = o.org.status === 'ACTIVE' ? '' : `<span class="badge">${o.org.status === 'SUSPENDED' ? 'Suspensa' : 'Em entrada'}</span>`;
+                    const body = o.blocked
+                        ? `<p class="muted">${escHtml(o.blocked)}</p>`
+                        : o.items.length
+                            ? `<ul class="attn">${o.items.map((i) => inboxItemHtml(i, o.org.id)).join('')}</ul>`
+                            : `<p class="all-clear">${icon('check')} Tudo em dia nesta ONG.</p>`;
+                    return `<div class="panel central-org" style="border-top:4px solid ${escHtml(color)}">
+                        <div class="central-org-head"><h2>${escHtml(o.org.name)} ${status}</h2><span class="central-total">${o.total ? `${o.total} pendente${o.total === 1 ? '' : 's'}` : 'em dia'}</span></div>${body}</div>`;
+                });
+                if (d.platform.length) {
+                    blocks.push(`<div class="panel central-org" style="border-top:4px solid #10231F"><div class="central-org-head"><h2>Plataforma (todas as ONGs)</h2></div><ul class="attn">${d.platform.map((i) => inboxItemHtml(i, null)).join('')}</ul></div>`);
+                }
+                box.innerHTML = (d.isolation ? '' : `<p class="central-note">A separação de dados ainda está desligada: por enquanto só a Liga do Bem tem dados no app. As outras ONGs aparecem aqui com o checklist de entrada.</p>`) + blocks.join('');
+            } catch (e) {
+                box.innerHTML = `<p class="muted">Não foi possível carregar: ${escHtml(e.message)}</p>`;
+            }
+        }
+        async function sendDigestTest() {
+            const msg = document.getElementById('centralMsg');
+            msg.textContent = 'Enviando…';
+            try {
+                const d = await platformApi('POST', '/digest/test');
+                msg.textContent = `Resumo enviado para ${d.to} (${d.total} pendência${d.total === 1 ? '' : 's'}).`;
+            } catch (e) {
+                msg.textContent = `Não foi possível enviar: ${e.message}`;
+            }
+        }
+
         async function initPlatformNav() {
             try {
                 const r = await fetch(`${API_BASE_URL}/api/admin/org`, { headers: adminHeaders() });
@@ -4843,6 +4999,16 @@
                 const on = r.ok && d.platformAdmin;
                 document.getElementById('navGroupPlatform').hidden = !on;
                 document.getElementById('navItemPlatform').hidden = !on;
+                document.getElementById('navItemCentral').hidden = !on;
+                if (r.ok && d.org) applyOrgBanner(d.org);
+                if (on) {
+                    initOrgSwitcher(d.org);
+                    refreshCentralCount();
+                    if (!location.hash || location.hash === '#dashboard') {
+                        try { if (!sessionStorage.getItem('admin_after_switch')) showSection('central'); } catch { /* fica no início */ }
+                    }
+                }
+                runAfterSwitch();
             } catch { /* área fica escondida */ }
         }
         function toggleNewOrgForm(show) {
@@ -4898,7 +5064,7 @@
                 const o = d.org;
                 const [label, tone] = ORG_STATUS[o.status] || [o.status, 'OPEN'];
                 const groups = [...new Set(d.checklist.items.map(i => i.group))];
-                const rows = groups.map(g => `<tr><td colspan="4" style="background:var(--surface-2, #F6F5FB); font-weight:700;">${escHtml(g)}</td></tr>` + d.checklist.items.filter(i => i.group === g).map(i => `
+                const rows = groups.map(g => `<tr><td colspan="4" style="background:var(--surface-2, #F3F7F6); font-weight:700;">${escHtml(g)}</td></tr>` + d.checklist.items.filter(i => i.group === g).map(i => `
                     <tr><td><strong>${escHtml(i.key)}</strong></td><td>${escHtml(i.label)}${i.required ? '' : ' <span class="muted">(opcional)</span>'}${i.updatedBy ? `<div class="muted" style="font-size:.75rem;">${escHtml(i.updatedBy)}${i.updatedAt ? ' · ' + new Date(i.updatedAt).toLocaleDateString('pt-BR') : ''}</div>` : ''}</td>
                     <td><select class="form-input" id="st-${i.key}" style="min-width:130px;">${Object.entries(ITEM_STATUS).map(([k, v]) => `<option value="${k}"${k === i.status ? ' selected' : ''}>${v}</option>`).join('')}</select></td>
                     <td style="display:flex; gap:6px;"><input class="form-input" id="nt-${i.key}" placeholder="Observação" value="${escHtml(i.note || '')}" style="min-width:180px;"><button class="btn btn-secondary" onclick="saveOrgItem('${escHtml(id)}','${i.key}')">Salvar</button></td></tr>`).join('')).join('');
@@ -6148,7 +6314,7 @@
                             </div>
                         </td>
                         <td>
-                            <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; background-color: #F5F3FF; color: #8B5CF6;">
+                            <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; background-color: #EEF8F5; color: #14967B;">
                                 ${typeMap[event.type] || event.type}
                             </span>
                         </td>
@@ -6516,7 +6682,7 @@
                     <h4 style="color: #1F2937; margin-bottom: 0.5rem; font-size: 16px;">Informações do Evento</h4>
                     <p style="color: #6B7280; margin: 0.25rem 0; font-size: 14px;"><strong>Data:</strong> ${formattedDate}</p>
                     ${event.location ? `<p style="color: #6B7280; margin: 0.25rem 0; font-size: 14px;"><strong>Local:</strong> ${event.location}</p>` : ''}
-                    <p style="color: #6B7280; margin: 0.25rem 0; font-size: 14px;"><strong>Total de Inscritos:</strong> <span style="color: #8B5CF6; font-weight: 600;">${registrations.length}</span></p>
+                    <p style="color: #6B7280; margin: 0.25rem 0; font-size: 14px;"><strong>Total de Inscritos:</strong> <span style="color: #14967B; font-weight: 600;">${registrations.length}</span></p>
                 </div>
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
@@ -6579,8 +6745,8 @@
                             color: #1F2937;
                         }
                         h1 {
-                            color: #8B5CF6;
-                            border-bottom: 2px solid #8B5CF6;
+                            color: #14967B;
+                            border-bottom: 2px solid #14967B;
                             padding-bottom: 10px;
                             margin-bottom: 20px;
                         }
@@ -6596,7 +6762,7 @@
                             margin-top: 20px;
                         }
                         th {
-                            background: #8B5CF6;
+                            background: #14967B;
                             color: white;
                             padding: 12px;
                             text-align: left;
@@ -6911,7 +7077,7 @@
                     .help-info-item-field input:focus,
                     .help-info-item-field select:focus {
                         outline: none;
-                        border-color: #8B5CF6;
+                        border-color: #14967B;
                         box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
                     }
                 `;
