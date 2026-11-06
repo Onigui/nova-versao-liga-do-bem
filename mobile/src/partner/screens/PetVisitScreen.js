@@ -158,7 +158,7 @@ export default function PetVisitScreen({route, navigation}) {
           }}
           testID="situacao-membro">
           <Text style={{fontWeight: '700', color: member.active ? COLORS.ok : COLORS.muted}}>
-            {member.active ? `✓ Membro ativo (${member.memberId}) · aplique o desconto` : 'Não é membro pagante · sem desconto da Liga'}
+            {member.active ? `✓ Membro ativo (${member.memberId}) · aplique o desconto` : 'Não é sócio pagante · sem desconto de sócio'}
           </Text>
         </View>
       </Card>

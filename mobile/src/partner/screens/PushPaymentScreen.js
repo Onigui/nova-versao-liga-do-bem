@@ -217,7 +217,7 @@ export default function PushPaymentScreen({route, navigation}) {
             Pagamento confirmado ✅
           </Text>
           <Text style={{color: COLORS.ok, marginTop: 4}}>
-            A Liga do Bem vai revisar e enviar sua notificação. Você recebe um
+            Nossa equipe vai revisar e enviar sua notificação. Você recebe um
             aviso aqui no app.
           </Text>
           <Button
@@ -311,7 +311,7 @@ export default function PushPaymentScreen({route, navigation}) {
               </View>
               <Text style={[ui.muted, {fontSize: 12, marginBottom: 10}]}>
                 Os dados do cartão são criptografados no celular pelo PagBank e
-                não passam pela Liga.
+                não passam pelo SóciONG.
               </Text>
             </>
           ) : null}

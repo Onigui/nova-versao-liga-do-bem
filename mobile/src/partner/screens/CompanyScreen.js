@@ -17,7 +17,7 @@ function Line({icon, text}) {
 }
 
 export default function CompanyScreen({navigation}) {
-  const {partner: p, isOwner, logout} = usePartner();
+  const {partner: p, isOwner, logout, org} = usePartner();
   let version = '';
   try {
     version = DeviceInfo.getVersion();
@@ -60,6 +60,11 @@ export default function CompanyScreen({navigation}) {
               {p?.name}
             </Text>
             {p?.category ? <Text style={ui.muted}>{p.category}</Text> : null}
+            {org?.name ? (
+              <Text style={{color: COLORS.primaryDark, fontWeight: '700', marginTop: 2}} testID="partner-org">
+                Parceiro da {org.name}
+              </Text>
+            ) : null}
           </View>
           <Badge
             text={isOwner ? 'Responsável' : 'Funcionário'}
@@ -118,7 +123,7 @@ export default function CompanyScreen({navigation}) {
           Veterinário: carimbo de vacinas
         </Text>
         <Text style={[ui.muted, {marginVertical: 6}]}>
-          Com o CRMV aprovado pela Liga, você registra vacinas direto na carteira digital do pet.
+          Com o CRMV aprovado pela nossa equipe, você registra vacinas direto na carteira digital do pet.
         </Text>
         <Button
           title="Meu CRMV"
@@ -134,7 +139,7 @@ export default function CompanyScreen({navigation}) {
         </Text>
         <Text style={[ui.muted, {marginVertical: 6}]}>
           Divulgue suas promoções com um aviso no celular de todo mundo que tem
-          o app Liga do Bem.
+          o app SóciONG.
         </Text>
         <Button
           title="Notificar membros"
@@ -162,7 +167,7 @@ export default function CompanyScreen({navigation}) {
       />
       <Text
         style={[ui.muted, {textAlign: 'center', marginTop: 16, fontSize: 12}]}>
-        Liga do Bem Parceiros {version ? `v${version}` : ''}
+        SóciONG Parceiros {version ? `v${version}` : ''}
       </Text>
     </ScrollView>
   );

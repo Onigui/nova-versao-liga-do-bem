@@ -187,7 +187,7 @@ export default function ValidationResultScreen({route, navigation}) {
             Registrar o atendimento
           </Text>
           <Text style={[ui.muted, {marginBottom: 12}]}>
-            Opcional: ajuda a Liga a mostrar quanto os membros economizam.
+            Opcional: ajuda a ONG a mostrar quanto os membros economizam.
           </Text>
           {r.discounts?.length ? (
             <View

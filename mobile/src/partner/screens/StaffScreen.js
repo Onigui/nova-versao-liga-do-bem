@@ -56,7 +56,7 @@ export default function StaffScreen() {
       } else {
         setIssued(null);
         setMsg({
-          text: `Acesso liberado. ${r.email} já tem conta na Liga do Bem e entra com a senha de sempre.`,
+          text: `Acesso liberado. ${r.email} já tem conta no SóciONG e entra com a senha de sempre.`,
           tone: 'ok',
         });
       }

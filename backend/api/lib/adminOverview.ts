@@ -52,6 +52,7 @@ export const ATTENTION_DEFS = [
   { key: 'lostFoundMerges', label: 'Achados e perdidos: casos que podem ser o mesmo animal', section: 'moderation', sub: 'achados', tone: 'info' },
   { key: 'catalogSuggested', label: 'Itens sugeridos por parceiros para o catálogo', section: 'discounts', sub: 'catalogo', tone: 'info' },
   { key: 'nfpDeclared', label: 'Apoiadores da Nota Fiscal Paulista para conferir', section: 'nfp', sub: null, tone: 'info' },
+  { key: 'partnerRequests', label: 'Empresas querendo ser parceiras (pedido pelo App Parceiros)', section: 'companies', sub: null, tone: 'warn' },
   { key: 'adoptionsPending', label: 'Pedidos de adoção esperando resposta', section: 'animals', sub: null, tone: 'warn' },
   { key: 'membershipsExpiring', label: 'Carteirinhas que vencem nos próximos 7 dias', section: 'members', sub: null, tone: 'info' },
 ] as const;
@@ -132,7 +133,7 @@ export async function buildOverview(db: any, now = new Date()) {
               (SELECT COUNT(*)::int FROM animals WHERE "isActive" AND NOT "isAdopted") AS available`,
     ),
   ]);
-  const [crmv, catalog, series] = await Promise.all([
+  const [crmv, catalog, series, partnerReq] = await Promise.all([
     one(db, `SELECT COUNT(*)::int AS n FROM partner_vets WHERE status = 'PENDING'`),
     one(db, `SELECT COUNT(*)::int AS n FROM catalog_items WHERE "partnerId" IS NOT NULL AND "isActive"`),
     many(
@@ -146,6 +147,7 @@ export async function buildOverview(db: any, now = new Date()) {
          FROM m ORDER BY m.m`,
       now,
     ),
+    one(db, `SELECT COUNT(*)::int AS n FROM partner_requests WHERE status = 'NEW'`),
   ]);
 
   const counts: Record<string, number> = {
@@ -158,6 +160,7 @@ export async function buildOverview(db: any, now = new Date()) {
     catalogSuggested: num(catalog.n),
     nfpDeclared: num(nfp.declared),
     adoptionsPending: num(adoption.pending),
+    partnerRequests: num(partnerReq?.n),
     membershipsExpiring: num(members.expiring),
   };
   const attention = ATTENTION_DEFS.filter((d) => counts[d.key] > 0).map((d) => ({ ...d, count: counts[d.key] }));

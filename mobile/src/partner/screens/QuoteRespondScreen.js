@@ -143,7 +143,7 @@ export default function QuoteRespondScreen({route, navigation}) {
           {request.petWeight ? ` ${request.petWeight} kg` : ''}
         </Text>
         <Text style={ui.muted}>
-          {[request.district, request.city].filter(Boolean).join(', ') || 'Membro da Liga do Bem'} · o nome do cliente não aparece
+          {[request.district, request.city].filter(Boolean).join(', ') || 'Sócio da ONG'} · o nome do cliente não aparece
         </Text>
         {request.notes ? <Text style={{marginTop: 8, color: COLORS.text}}>“{request.notes}”</Text> : null}
         {request.hasPrescription ? (

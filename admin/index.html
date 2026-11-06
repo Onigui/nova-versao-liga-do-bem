@@ -740,6 +740,12 @@
                     </div>
                 </div>
 
+                <div class="panel partner-req" id="partnerReqPanel" hidden>
+                    <div class="central-org-head"><h2>Pedidos de parceria pelo App Parceiros</h2><span class="central-total" id="partnerReqCount"></span></div>
+                    <p class="muted" style="margin:0 0 10px">Empresas que escolheram esta ONG no app. Fale com elas e cadastre a empresa aqui mesmo.</p>
+                    <div id="partnerReqList"></div>
+                </div>
+
                 <div class="table-container">
                     <div class="table-header">
                         <h3 class="table-title">Todas as Empresas</h3>
@@ -3092,7 +3098,59 @@
 
         // Inicializar tabelas (removido - consolidado no DOMContentLoaded principal)
 
+        // ---------- Pedidos de parceria ("Quero ser parceiro" no App Parceiros)
+        const REQ_STATUS = { NEW: ['Novo', 'warn'], CONTACTED: ['Em contato', 'info'], APPROVED: ['Virou parceiro', 'ok'], REJECTED: ['Recusado', 'bad'] };
+        let partnerReqs = [];
+        async function loadPartnerRequests() {
+            const panel = document.getElementById('partnerReqPanel');
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/partner-requests`, { headers: adminHeaders() });
+                if (!r.ok) { panel.hidden = true; return; }
+                const d = await r.json();
+                partnerReqs = d.requests || [];
+                const open = partnerReqs.filter((q) => q.status === 'NEW' || q.status === 'CONTACTED');
+                panel.hidden = partnerReqs.length === 0;
+                document.getElementById('partnerReqCount').textContent = open.length ? `${open.length} em aberto` : 'nenhum em aberto';
+                document.getElementById('partnerReqList').innerHTML = partnerReqs.slice(0, 30).map((q) => {
+                    const [label, tone] = REQ_STATUS[q.status] || [q.status, 'info'];
+                    const when = new Date(q.createdAt).toLocaleDateString('pt-BR');
+                    const actions = q.status === 'NEW' || q.status === 'CONTACTED'
+                        ? `<div class="req-actions">
+                            ${q.status === 'NEW' ? `<button type="button" class="btn btn-secondary" onclick="setPartnerReq('${escHtml(q.id)}','CONTACTED')">Já falei com eles</button>` : ''}
+                            <button type="button" class="btn btn-primary" onclick="createFromPartnerReq('${escHtml(q.id)}')" title="Abre o cadastro já preenchido e marca o pedido como parceiro">Cadastrar empresa</button>
+                            <button type="button" class="btn btn-secondary" onclick="setPartnerReq('${escHtml(q.id)}','REJECTED')">Recusar</button></div>`
+                        : (q.note ? `<p class="muted" style="margin:6px 0 0">${escHtml(q.note)}</p>` : '');
+                    return `<div class="req-item"><div class="req-head"><strong>${escHtml(q.company)}</strong> <span class="pill ${tone}">${label}</span><span class="muted"> · ${when}</span></div>
+                        <div class="muted">${escHtml(q.contactName)} · <a href="mailto:${escHtml(q.email)}">${escHtml(q.email)}</a> · <a href="https://wa.me/55${escHtml(String(q.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">${escHtml(q.phone)}</a>${q.city ? ` · ${escHtml(q.city)}${q.state ? '/' + escHtml(q.state) : ''}` : ''}${q.category ? ` · ${escHtml(q.category)}` : ''}</div>
+                        ${q.message ? `<p style="margin:6px 0 0">${escHtml(q.message)}</p>` : ''}${actions}</div>`;
+                }).join('');
+            } catch { panel.hidden = true; }
+        }
+        async function setPartnerReq(id, status) {
+            let note = null;
+            if (status === 'REJECTED') {
+                note = prompt('Motivo da recusa (fica registrado):');
+                if (!note) return;
+            }
+            const r = await fetch(`${API_BASE_URL}/api/admin/partner-requests/${encodeURIComponent(id)}`, { method: 'PATCH', headers: adminHeaders(), body: JSON.stringify({ status, note }) });
+            if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || 'Não foi possível salvar'); return; }
+            loadPartnerRequests();
+            if (typeof refreshCentralCount === 'function') refreshCentralCount();
+        }
+        function createFromPartnerReq(id) {
+            const q = partnerReqs.find((x) => x.id === id);
+            if (!q) return;
+            openModal('companyModal');
+            setTimeout(() => {
+                const fill = (fid, v) => { const el = document.getElementById(fid); if (el && v) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+                fill('cf-name', q.company); fill('cf-phone', q.phone); fill('cf-email', q.email); fill('cf-city', q.city);
+            }, 50);
+            // Ao abrir o cadastro, o pedido passa para "virou parceiro"; se desistir, dá para recusar depois
+            setPartnerReq(id, 'APPROVED');
+        }
+
         async function loadCompanies() {
+            loadPartnerRequests();
             try {
                 const token = localStorage.getItem('admin_token');
                 if (!token) {

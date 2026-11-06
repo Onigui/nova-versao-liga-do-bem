@@ -448,3 +448,12 @@ body {
 .attn .age.late { color: var(--bad); }
 .all-clear { color: var(--ok); display: flex; gap: 8px; align-items: center; margin: 0; }
 .all-clear svg { width: 18px; height: 18px; }
+.partner-req { margin-bottom: 18px; }
+.req-item { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+.req-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.req-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.pill { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: 2px 8px; }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.info { background: var(--info-soft); color: var(--info); }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }

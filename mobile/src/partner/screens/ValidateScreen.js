@@ -53,7 +53,7 @@ export default function ValidateScreen({navigation}) {
             marginTop: 10,
             textAlign: 'center',
           }}>
-          Peça para o membro abrir a carteirinha no app Liga do Bem
+          Peça para o membro abrir a carteirinha no app SóciONG
         </Text>
         <Text
           style={[

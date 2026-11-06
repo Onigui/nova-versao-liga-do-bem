@@ -7,6 +7,7 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import {COLORS, PartnerProvider, usePartner} from './PartnerContext';
 import {Button, Card, styles as ui} from './ui';
 import PartnerLoginScreen from './screens/PartnerLoginScreen';
+import PartnerSignupScreen from './screens/PartnerSignupScreen';
 import ValidateScreen from './screens/ValidateScreen';
 import ScannerScreen from './screens/ScannerScreen';
 import ValidationResultScreen from './screens/ValidationResultScreen';
@@ -47,6 +48,11 @@ export function PartnerAuthStack() {
     <Stack.Navigator screenOptions={{headerShown: false}}>
       <Stack.Screen name="Login" component={PartnerLoginScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen
+        name="PartnerSignup"
+        component={PartnerSignupScreen}
+        options={{...header, headerShown: true, title: 'Quero ser parceiro'}}
+      />
     </Stack.Navigator>
   );
 }

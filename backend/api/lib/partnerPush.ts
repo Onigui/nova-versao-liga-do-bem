@@ -12,7 +12,7 @@
  * Status: AWAITING_PAYMENT → PENDING_REVIEW → SCHEDULED → SENDING → SENT
  *                       ↘ CANCELLED          ↘ REJECTED (refundStatus: REFUNDED | REFUND_FAILED)
  */
-import { orgScope } from './tenant';
+import { currentOrgId, orgScope } from './tenant';
 import crypto from 'crypto';
 import {
   createPagBankOrder,
@@ -236,6 +236,16 @@ async function notifyPartner(db: any, partnerId: string, title: string, body: st
   }
 }
 
+/** Nome da ONG (para os textos do parceiro e da cobrança). */
+async function orgName(db: any, orgId?: string | null) {
+  try {
+    const r: any[] = await db.$queryRawUnsafe(`SELECT name FROM organizations WHERE id = $1`, orgId || currentOrgId());
+    return String(r?.[0]?.name || 'a ONG');
+  } catch {
+    return 'a ONG';
+  }
+}
+
 // ---------------------------------------------------------------- horários (vagas)
 
 /** Condição SQL de "vaga ocupada" (alias c): paga/agendada/enviada, ou reservada esperando o PIX. */
@@ -266,12 +276,15 @@ export async function listSlots(db: any, settings: { slots: string[] }, opts: { 
   const now = opts.nowMs ?? Date.now();
   const minAt = now + SLOT_LEAD_HOURS * 3600e3;
   const until = new Date(now + (SLOT_DAYS_AHEAD + 1) * 864e5);
+  // Cada ONG tem as próprias vagas de horário
+  const slotOrg = orgScope(3);
   const rows: any[] = await db.$queryRawUnsafe(
     `SELECT c."scheduledFor" FROM partner_push_campaigns c
       WHERE c."scheduledFor" >= NOW() - INTERVAL '1 hour' AND c."scheduledFor" <= $1 AND ${SLOT_TAKEN_SQL}
-        AND ($2::text IS NULL OR c.id <> $2)`,
+        AND ($2::text IS NULL OR c.id <> $2)${slotOrg.where.replace('"orgId"', 'c."orgId"')}`,
     until,
     opts.ignoreCampaignId || null,
+    ...slotOrg.params,
   );
   const taken = new Set(rows.map((r) => new Date(r.scheduledFor).getTime()));
   const days: any[] = [];
@@ -322,10 +335,12 @@ async function withSlotLock<T>(db: any, fn: (tx: any) => Promise<T>): Promise<T>
 }
 
 async function slotTaken(tx: any, at: Date, ignoreId?: string) {
+  const o = orgScope(3);
   const rows: any[] = await tx.$queryRawUnsafe(
-    `SELECT c.id FROM partner_push_campaigns c WHERE c."scheduledFor" = $1 AND ${SLOT_TAKEN_SQL} AND ($2::text IS NULL OR c.id <> $2) LIMIT 1`,
+    `SELECT c.id FROM partner_push_campaigns c WHERE c."scheduledFor" = $1 AND ${SLOT_TAKEN_SQL} AND ($2::text IS NULL OR c.id <> $2)${o.where.replace('"orgId"', 'c."orgId"')} LIMIT 1`,
     at,
     ignoreId || null,
+    ...o.params,
   );
   return rows.length > 0;
 }
@@ -337,17 +352,22 @@ async function sendCampaign(db: any, id: string) {
   const c = await loadCampaign(db, id);
   const text = buildPushText(c.partnerName, c.title, c.body);
   const data = { screen: 'Parceiros', partnerId: c.partnerId, campaignId: c.id };
+  // Só os membros da ONG da campanha, sempre — também quando roda em modo sistema (aviso de pagamento),
+  // em que o banco não filtra sozinho
+  const org: string | null = c.orgId || null;
   const recipients = await db.$executeRawUnsafe(
     `INSERT INTO notifications (id, "userId", title, message, type, data, "isRead", "sentAt")
      SELECT gen_random_uuid()::text, u.id, $1, $2, 'GENERAL'::"NotificationType", $3::jsonb, false, NOW()
-       FROM users u WHERE u."isActive" = true AND u.role <> 'PARTNER'`,
+       FROM users u WHERE u."isActive" = true AND u.role <> 'PARTNER'${org ? ' AND u."orgId" = $4' : ''}`,
     text.title,
     text.body,
     JSON.stringify(data),
+    ...(org ? [org] : []),
   );
   const tokens: any[] = await db.$queryRawUnsafe(
     `SELECT t.token FROM device_tokens t JOIN users u ON u.id = t."userId"
-      WHERE t."isActive" = true AND t.platform <> 'android-partner' AND u."isActive" = true`,
+      WHERE t."isActive" = true AND t.platform <> 'android-partner' AND u."isActive" = true${org ? ' AND u."orgId" = $1' : ''}`,
+    ...(org ? [org] : []),
   );
   const push = await sendFcmToTokens(tokens.map((t) => t.token), {
     title: text.title,
@@ -360,7 +380,7 @@ async function sendCampaign(db: any, id: string) {
     Number(recipients) || 0,
     push.success,
   );
-  await notifyPartner(db, c.partnerId, 'Sua notificação foi enviada! 🎉', `"${c.title}" foi enviada para os membros da Liga do Bem.`);
+  await notifyPartner(db, c.partnerId, 'Sua notificação foi enviada! 🎉', `"${c.title}" foi enviada para os sócios da ${await orgName(db, org)}.`);
   return { recipients: Number(recipients) || 0, pushAttempted: push.attempted, pushSuccess: push.success };
 }
 
@@ -455,12 +475,15 @@ export async function handlePartnerPushRoutes(
   const settings = await getPushSettings(db);
 
   if (path === base && method === 'GET') {
+    const aud = orgScope(1);
     const rows: any[] = await db.$queryRawUnsafe(
       `SELECT * FROM partner_push_campaigns WHERE "partnerId" = $1 ORDER BY "createdAt" DESC LIMIT 50`,
       acc.partnerId,
     );
     const audience: any[] = await db.$queryRawUnsafe(
-      `SELECT COUNT(DISTINCT "userId")::int AS n FROM device_tokens WHERE "isActive" = true AND platform <> 'android-partner'`,
+      `SELECT COUNT(DISTINCT t."userId")::int AS n FROM device_tokens t JOIN users u ON u.id = t."userId"
+        WHERE t."isActive" = true AND t.platform <> 'android-partner'${aud.where.replace('"orgId"', 'u."orgId"')}`,
+      ...aud.params,
     );
     const next = await nextAllowedAt(db, acc.partnerId, settings.weeklyLimit);
     res.status(200).json({
@@ -579,7 +602,7 @@ export async function handlePartnerPushRoutes(
       `UPDATE partner_push_campaigns SET status = 'CANCELLED', "updatedAt" = NOW() WHERE id = $1 AND status = 'AWAITING_PAYMENT'`,
       campaign.id,
     );
-    if (!n) throw new HttpError(409, 'Só dá para cancelar antes do pagamento. Depois de pago, fale com a Liga do Bem.');
+    if (!n) throw new HttpError(409, 'Só dá para cancelar antes do pagamento. Depois de pago, fale com a equipe do SóciONG.');
     res.status(200).json({ message: 'Notificação cancelada' });
     return true;
   }
@@ -622,7 +645,7 @@ export async function handlePartnerPushRoutes(
       order = await createPagBankOrder({
         referenceId: `PUSH-${paymentId.slice(0, 8)}`,
         amountCents,
-        description: 'Notificação para membros — Liga do Bem',
+        description: `Notificação para sócios — ${await orgName(db)}`,
         customer: { name: payer?.name || campaign.partnerName, email: payer?.email, taxId, phone: payer?.phone },
         method: payMethod as any,
         notificationUrl: pagbankWebhookUrl(apiBase),
@@ -657,7 +680,7 @@ export async function handlePartnerPushRoutes(
       campaign: formatCampaign(c),
       payment: await paymentView(db, paymentId),
       message: paid
-        ? 'Pagamento aprovado! A Liga do Bem vai revisar e enviar sua notificação.'
+        ? 'Pagamento aprovado! Nossa equipe vai revisar e enviar sua notificação.'
         : declined
           ? 'Pagamento recusado pelo emissor do cartão.'
           : 'PIX gerado. A confirmação é automática assim que você pagar.',

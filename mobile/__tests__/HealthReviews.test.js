@@ -240,7 +240,7 @@ describe('App Parceiros', () => {
     let t = allText(tree.root);
     expect(t).toContain('2 avaliações');
     expect(t).toContain('Resposta de Pet Shop Central');
-    expect(t).toContain('Em análise pela Liga');
+    expect(t).toContain('Em análise pela equipe');
     expect(t).toContain('Bom atendimento');
     await press(tree.root, 'responder-a');
     await type(tree.root, 'texto-avaliacao', 'Sentimos muito, já corrigimos!');

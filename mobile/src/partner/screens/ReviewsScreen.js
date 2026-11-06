@@ -46,7 +46,7 @@ export default function ReviewsScreen() {
     try {
       const path = `/partner/reviews/${edit.id}/${edit.mode}`;
       const r = await api('POST', path, edit.mode === 'reply' ? {text: edit.text} : {reason: edit.text});
-      if (edit.mode === 'report') Alert.alert('Denúncia enviada', r?.message || 'A Liga vai analisar.');
+      if (edit.mode === 'report') Alert.alert('Denúncia enviada', r?.message || 'Nossa equipe vai analisar.');
       setEdit(null);
       await load();
     } catch (e) {
@@ -116,7 +116,7 @@ export default function ReviewsScreen() {
                     </Pressable>
                   ) : null}
                   {r.reported ? (
-                    <Text style={[ui.muted, {fontSize: 12}]}>Em análise pela Liga</Text>
+                    <Text style={[ui.muted, {fontSize: 12}]}>Em análise pela equipe</Text>
                   ) : (
                     <Pressable onPress={() => setEdit({id: r.id, mode: 'report', text: ''})} style={[ui.row, {gap: 4}]} testID={`denunciar-${r.id}`}>
                       <Icon name="flag-outline" size={16} color={COLORS.muted} />

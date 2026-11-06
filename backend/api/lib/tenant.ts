@@ -68,6 +68,7 @@ export function orgScope(index: number) {
 }
 
 const SYSTEM_SQL = /^\s*(CREATE|ALTER|DROP|COMMENT|GRANT|REVOKE|DO|TRUNCATE|REINDEX|VACUUM|ANALYZE)\b/i;
+const CREATE_TABLE = /^\s*CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?/i;
 const RAW = new Set(['$queryRawUnsafe', '$executeRawUnsafe', '$queryRaw', '$executeRaw']);
 const TX_OPTS = { maxWait: 10000, timeout: 30000 };
 
@@ -143,6 +144,15 @@ export function scopeDb<T extends object>(raw: T): T {
         return (...args: any[]) => {
           const p = plan();
           const sql = typeof args[0] === 'string' ? args[0] : Array.isArray(args[0]) ? args[0].join('') : '';
+          const created = typeof args[0] === 'string' ? CREATE_TABLE.exec(args[0]) : null;
+          if (created) {
+            // Tabela nova nasce fechada para as ONGs; aqui ela ganha RLS e política na hora
+            return (async () => {
+              const out = await value.apply(target, args);
+              await runAsSystem(() => isolateTable(target, created[2])).catch((e: any) => console.warn('⚠️ isolar tabela nova:', created[2], e?.message));
+              return out;
+            })();
+          }
           if (!p || SYSTEM_SQL.test(sql)) return value.apply(target, args);
           return scoped(target, p, (tx) => tx[prop](...args));
         };
@@ -229,8 +239,8 @@ let isoReady: Promise<IsolationReport> | null = null;
 let isoDb: any = null;
 let isoFlag: boolean | null = null;
 
-export type IsolationReport = { ok: boolean; tables: number; policies: number; errors: string[]; skipped?: boolean };
-const ISOLATION_VERSION = 1;
+export type IsolationReport = { ok: boolean; tables: number; policies: number; errors: string[]; skipped?: boolean; alreadyOk?: number };
+const ISOLATION_VERSION = 2;
 
 /**
  * Cria o papel, as permissões, as políticas e os únicos por ONG. Idempotente.
@@ -291,68 +301,22 @@ async function applyIsolation(db: any, force = false): Promise<IsolationReport> 
   }
   await run(`GRANT USAGE ON SCHEMA public TO ${ORG_ROLE}`);
   await run(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${ORG_ROLE}`);
-  await run(`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${ORG_ROLE}`);
+  // Sem privilégio padrão em tabela nova: ela fica FECHADA para as ONGs até ganhar RLS e política
+  // (isolateTable, logo depois do CREATE TABLE). Antes era aberta e sem RLS: falhava aberta.
+  await run(`ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM ${ORG_ROLE}`);
   await run(`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${ORG_ROLE}`);
 
+  // Incremental: pula a tabela que já está certa. Assim cada partida a frio avança, mesmo que a
+  // função seja congelada no meio (a primeira passada em produção parou na letra "d").
+  const status = force ? new Map<string, TableStatus>() : await tableStatus(db);
   let policies = 0;
-  // Cada tabela numa transação só: troca de política sem janela, e lock_timeout curto para
-  // nunca enfileirar o app atrás de uma consulta longa (se não pegar a trava, tenta na próxima).
-  const atomically = async (name: string, stmts: string[]) => {
-    try {
-      await db.$transaction(async (tx: any) => {
-        await tx.$executeRawUnsafe(`SET LOCAL lock_timeout = '3s'`);
-        for (const sql of stmts) await tx.$executeRawUnsafe(sql);
-      }, TX_OPTS);
-      return true;
-    } catch (e: any) {
-      errors.push(`${name} → ${e?.message || e}`);
-      return false;
-    }
-  };
+  let skipped = 0;
   for (const t of tables) {
-    const name = String(t.name);
-    const T = q(name);
-    const mode = GLOBAL_TABLES[name];
-    const stmts = [
-      `ALTER TABLE ${T} ENABLE ROW LEVEL SECURITY`,
-      `DROP POLICY IF EXISTS org_isolation ON ${T}`,
-      `DROP POLICY IF EXISTS org_read ON ${T}`,
-      `DROP POLICY IF EXISTS org_write ON ${T}`,
-      `REVOKE ALL ON ${T} FROM ${ORG_ROLE}`,
-    ];
-    let added = 0;
-    if (mode === 'read') {
-      stmts.push(`GRANT SELECT ON ${T} TO ${ORG_ROLE}`, `CREATE POLICY org_read ON ${T} FOR SELECT TO ${ORG_ROLE} USING (true)`);
-      added = 1;
-    } else if (mode === 'all') {
-      stmts.push(
-        `GRANT SELECT, INSERT, UPDATE, DELETE ON ${T} TO ${ORG_ROLE}`,
-        `CREATE POLICY org_isolation ON ${T} FOR ALL TO ${ORG_ROLE} USING (true) WITH CHECK (true)`,
-      );
-      added = 1;
-    } else if (mode === 'liga-write') {
-      const liga = `current_setting('app.org_id', true) = '${DEFAULT_ORG}'`;
-      stmts.push(
-        `GRANT SELECT, INSERT, UPDATE, DELETE ON ${T} TO ${ORG_ROLE}`,
-        `CREATE POLICY org_read ON ${T} FOR SELECT TO ${ORG_ROLE} USING (true)`,
-        `CREATE POLICY org_write ON ${T} FOR ALL TO ${ORG_ROLE} USING (${liga}) WITH CHECK (${liga})`,
-      );
-      added = 2;
-    } else if (!mode) {
-      if (!t.hasOrg) {
-        // Tabela nova sem "orgId": nenhuma ONG enxerga até ganhar a coluna (falha fechada).
-        errors.push(`${name}: sem coluna "orgId" (bloqueada para ONGs)`);
-      } else {
-        stmts.push(
-          `GRANT SELECT, INSERT, UPDATE, DELETE ON ${T} TO ${ORG_ROLE}`,
-          `ALTER TABLE ${T} ALTER COLUMN "orgId" SET DEFAULT ${ORG_DEFAULT}`,
-          `CREATE POLICY org_isolation ON ${T} FOR ALL TO ${ORG_ROLE} USING (${ORG_EXPR}) WITH CHECK (${ORG_EXPR})`,
-        );
-        added = 1;
-      }
+    if (!force && isolatedOk(t.name, status.get(t.name))) {
+      skipped++;
+      continue;
     }
-    if (await atomically(name, stmts)) policies += added;
-    if (!mode && t.hasOrg) await run(`CREATE INDEX IF NOT EXISTS ${q(`${name}_orgId_idx`.slice(0, 63))} ON ${T} ("orgId")`);
+    policies += await isolateOne(db, t, errors);
   }
 
   for (const u of PER_ORG_UNIQUES) {
@@ -362,7 +326,134 @@ async function applyIsolation(db: any, force = false): Promise<IsolationReport> 
   // Tabela sem "orgId" é bloqueada de propósito; não impede a marca (senão rodaria toda vez).
   const fatal = errors.filter((e) => !e.includes('sem coluna "orgId"'));
   if (!fatal.length) await markSchemaApplied(db, 'org_isolation', fp);
-  return { ok: errors.length === 0, tables: tables.length, policies, errors };
+  return { ok: errors.length === 0, tables: tables.length, policies, errors, alreadyOk: skipped } as IsolationReport;
+}
+
+type TableStatus = { rls: boolean; pols: string[]; hasOrg: boolean; def: string | null; priv: boolean };
+
+async function tableStatus(db: any): Promise<Map<string, TableStatus>> {
+  const rows: any[] = await db.$queryRawUnsafe(
+    `SELECT c.relname AS name, c.relrowsecurity AS rls,
+            ARRAY(SELECT p.polname::text FROM pg_policy p WHERE p.polrelid = c.oid ORDER BY 1) AS pols,
+            EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'orgId' AND NOT a.attisdropped) AS "hasOrg",
+            (SELECT pg_get_expr(d.adbin, d.adrelid) FROM pg_attrdef d JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+              WHERE d.adrelid = c.oid AND a.attname = 'orgId') AS def,
+            has_table_privilege('${ORG_ROLE}', c.oid, 'SELECT') AS priv
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')`,
+  );
+  return new Map(rows.map((r) => [String(r.name), { rls: !!r.rls, pols: r.pols || [], hasOrg: !!r.hasOrg, def: r.def, priv: !!r.priv }]));
+}
+
+/** A tabela já tem RLS, as políticas esperadas e (se for por ONG) o padrão do "orgId" da sessão? */
+function isolatedOk(name: string, st?: TableStatus) {
+  if (!st || !st.rls) return false;
+  const mode = GLOBAL_TABLES[name];
+  const has = (...p: string[]) => p.every((x) => st.pols.includes(x)) && st.pols.length === p.length;
+  if (mode === 'none') return st.pols.length === 0 && !st.priv;
+  if (mode === 'read') return has('org_read') && st.priv;
+  if (mode === 'all') return has('org_isolation') && st.priv;
+  if (mode === 'liga-write') return has('org_read', 'org_write') && st.priv;
+  return st.hasOrg && has('org_isolation') && st.priv && /current_setting\('app\.org_id'/.test(st.def || '');
+}
+
+/** Statements de isolamento de UMA tabela (e cria "orgId" se faltar). Devolve as políticas criadas. */
+async function isolateOne(db: any, t: { name: string; hasOrg: boolean }, errors: string[]): Promise<number> {
+  const name = String(t.name);
+  const T = q(name);
+  const mode = GLOBAL_TABLES[name];
+  if (!mode && !t.hasOrg) {
+    // Tabela criada por um módulo depois da primeira passada: ganha a coluna aqui mesmo
+    // (padrão constante primeiro: instantâneo, sem reescrever a tabela; o padrão da sessão vem abaixo)
+    try {
+      await db.$executeRawUnsafe(`ALTER TABLE ${T} ADD COLUMN IF NOT EXISTS "orgId" TEXT NOT NULL DEFAULT '${DEFAULT_ORG}'`);
+      t.hasOrg = true;
+    } catch (e: any) {
+      errors.push(`${name}: não deu para criar "orgId" → ${e?.message || e}`);
+    }
+  }
+  const stmts = [
+    `ALTER TABLE ${T} ENABLE ROW LEVEL SECURITY`,
+    `DROP POLICY IF EXISTS org_isolation ON ${T}`,
+    `DROP POLICY IF EXISTS org_read ON ${T}`,
+    `DROP POLICY IF EXISTS org_write ON ${T}`,
+    `REVOKE ALL ON ${T} FROM ${ORG_ROLE}`,
+  ];
+  let added = 0;
+  if (mode === 'read') {
+    stmts.push(`GRANT SELECT ON ${T} TO ${ORG_ROLE}`, `CREATE POLICY org_read ON ${T} FOR SELECT TO ${ORG_ROLE} USING (true)`);
+    added = 1;
+  } else if (mode === 'all') {
+    stmts.push(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON ${T} TO ${ORG_ROLE}`,
+      `CREATE POLICY org_isolation ON ${T} FOR ALL TO ${ORG_ROLE} USING (true) WITH CHECK (true)`,
+    );
+    added = 1;
+  } else if (mode === 'liga-write') {
+    const liga = `current_setting('app.org_id', true) = '${DEFAULT_ORG}'`;
+    stmts.push(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON ${T} TO ${ORG_ROLE}`,
+      `CREATE POLICY org_read ON ${T} FOR SELECT TO ${ORG_ROLE} USING (true)`,
+      `CREATE POLICY org_write ON ${T} FOR ALL TO ${ORG_ROLE} USING (${liga}) WITH CHECK (${liga})`,
+    );
+    added = 2;
+  } else if (!mode) {
+    if (!t.hasOrg) {
+      errors.push(`${name}: sem coluna "orgId" (bloqueada para ONGs)`);
+    } else {
+      stmts.push(
+        `GRANT SELECT, INSERT, UPDATE, DELETE ON ${T} TO ${ORG_ROLE}`,
+        `ALTER TABLE ${T} ALTER COLUMN "orgId" SET DEFAULT ${ORG_DEFAULT}`,
+        `CREATE POLICY org_isolation ON ${T} FOR ALL TO ${ORG_ROLE} USING (${ORG_EXPR}) WITH CHECK (${ORG_EXPR})`,
+      );
+      added = 1;
+    }
+  }
+  // Uma transação por tabela: troca de política sem janela; lock_timeout curto para nunca
+  // enfileirar o app atrás de uma consulta longa (se não pegar a trava, tenta na próxima).
+  try {
+    // Um bloco só (uma ida ao banco, atômico): troca de política sem janela e lock_timeout curto
+    // para nunca enfileirar o app atrás de uma consulta longa (se não pegar a trava, tenta na próxima)
+    await db.$executeRawUnsafe(`DO $iso$ BEGIN PERFORM set_config('lock_timeout', '3s', true); ${stmts.join('; ')}; END $iso$`);
+  } catch (e: any) {
+    errors.push(`${name} → ${e?.message || e}`);
+    return 0;
+  }
+  if (!mode && t.hasOrg) {
+    try {
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS ${q(`${name}_orgId_idx`.slice(0, 63))} ON ${T} ("orgId")`);
+    } catch {
+      /* índice é só desempenho */
+    }
+  }
+  return added;
+}
+
+/**
+ * Isola uma tabela recém-criada (chamado pelo scopeDb logo depois de um CREATE TABLE).
+ * Barato quando ela já está isolada: uma consulta só.
+ */
+export async function isolateTable(db: any, name: string) {
+  const raw = db?.__raw || db;
+  const rows: any[] = await raw.$queryRawUnsafe(
+    `SELECT c.relrowsecurity AS rls,
+            EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid) AS pol,
+            EXISTS (SELECT 1 FROM information_schema.columns k
+                     WHERE k.table_schema = 'public' AND k.table_name = c.relname AND k.column_name = 'orgId') AS "hasOrg"
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = $1 AND c.relkind IN ('r', 'p')`,
+    name,
+  );
+  const r = rows[0];
+  if (!r) return { ok: false, skipped: true };
+  const mode = GLOBAL_TABLES[name];
+  if (r.rls && r.pol && (mode || r.hasOrg)) return { ok: true, skipped: true };
+  if (!r.rls && !r.pol && mode === 'none') {
+    // tabela só do sistema: basta RLS ligado e nenhuma permissão
+  }
+  const errors: string[] = [];
+  await isolateOne(raw, { name, hasOrg: !!r.hasOrg }, errors);
+  return { ok: errors.length === 0, errors };
 }
 
 /** Troca o único (key) pelo único ("orgId", key), sem janela sem proteção. */
