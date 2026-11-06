@@ -51,6 +51,18 @@ jobs:
       # Ícone do launcher: é o da plataforma SóciONG, versionado no repositório (scripts/brand-icons.js).
       # Não vem mais da arte da ONG configurada no admin.
 
+      - name: 🔥 Conferir Firebase do app dos membros
+        working-directory: ./mobile
+        run: |
+          # Pacote novo (br.com.sociong.app): o google-services.json precisa ter um client para ele
+          PKG=$(grep -oE 'applicationId "[^"]+"' android/app/build.gradle | head -1 | cut -d'"' -f2)
+          if node -e "const g=require('./android/app/google-services.json');process.exit(g.client.some(c=>c.client_info.android_client_info.package_name==='$PKG')?0:1)"; then
+            echo "✅ Firebase conhece $PKG"
+          else
+            echo "::error::Registre o app Android $PKG no Firebase (Configurações do projeto → Adicionar app) e troque mobile/android/app/google-services.json pelo arquivo novo."
+            exit 1
+          fi
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:

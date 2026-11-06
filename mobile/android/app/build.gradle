@@ -81,7 +81,8 @@ android {
 
     namespace "com.ligadobemnovo"
     defaultConfig {
-        applicationId "com.ligadobem.botucatu"
+        // SóciONG (pacote novo: quem tinha o APK da Liga instala de novo, pela Play Store)
+        applicationId "br.com.sociong.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 69
