@@ -7,6 +7,44 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:398857279152:android:f4cef11c7ed352f5578d75",
+        "android_client_info": {
+          "package_name": "br.com.sociong.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDorHZ_EA9VIRRaVLvxWtwguJ0j_wYdPhU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:398857279152:android:f41b7f9d1c23cfaa578d75",
+        "android_client_info": {
+          "package_name": "br.com.sociong.parceiros"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDorHZ_EA9VIRRaVLvxWtwguJ0j_wYdPhU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:398857279152:android:24398742fe38ed32578d75",
         "android_client_info": {
           "package_name": "com.ligadobem.botucatu"
