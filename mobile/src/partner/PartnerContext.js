@@ -64,6 +64,7 @@ export function PartnerProvider({children}) {
     partner: null,
     account: null,
     stats: null,
+    org: null,
   });
 
   const refresh = useCallback(async () => {
@@ -75,6 +76,7 @@ export function PartnerProvider({children}) {
         partner: data.partner,
         account: data.account,
         stats: data.stats,
+        org: data.org || null, // ONG de que a empresa é parceira
       });
       return data;
     } catch (e) {

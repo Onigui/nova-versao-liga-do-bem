@@ -650,9 +650,22 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
          FROM partner_validations WHERE "partnerId" = $1`,
         acc.partnerId,
       );
+      // ONG de que a empresa é parceira (o app mostra o nome e a cor dela)
+      let org: any = null;
+      try {
+        const o: any[] = await db.$queryRawUnsafe(
+          `SELECT o.id, o.slug, o.name, o.branding FROM organizations o
+            WHERE o.id = COALESCE((SELECT p."orgId" FROM partners p WHERE p.id = $1), 'org_liga')`,
+          acc.partnerId,
+        );
+        if (o[0]) org = { id: o[0].id, slug: o[0].slug, name: o[0].name, branding: o[0].branding || {} };
+      } catch {
+        org = null;
+      }
       res.status(200).json({
         account: { id: acc.id, role: acc.role },
         partner,
+        org,
         stats: stats?.[0] || { today: 0, last30: 0, discountsUsed30: 0 },
       });
       return true;

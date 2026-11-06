@@ -23,7 +23,7 @@ export function toMemberPartner(p, discounts) {
     /** Selo pronto: "20% OFF", "R$ 10 OFF", "Por R$ 69,90", "Leve 3, pague 2"… (null = sem promoção) */
     badge: partnerBadge(p, list),
     discount: short || 'Sem desconto',
-    description: p?.description || 'Parceiro da Liga do Bem',
+    description: p?.description || 'Parceiro SóciONG',
     address: p?.address || `${p?.city || ''}${p?.state ? ` - ${p.state}` : ''}`.trim(),
     phone: p?.phone || '',
     whatsapp: String(p?.phone || '').replace(/\D/g, ''),

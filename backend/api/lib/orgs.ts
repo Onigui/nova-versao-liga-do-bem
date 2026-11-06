@@ -129,8 +129,9 @@ const ORG_TABLES = new Set(['organizations', 'org_onboarding', 'org_secrets', '_
 let schemaReady: Promise<void> | null = null;
 let schemaDb: any = null;
 
-export function ensureOrgSchema(db: any): Promise<void> {
-  if (schemaReady && schemaDb === db) return schemaReady;
+/** force: roda de novo (ex.: um módulo criou tabela nova depois da primeira passada). */
+export function ensureOrgSchema(db: any, force = false): Promise<void> {
+  if (!force && schemaReady && schemaDb === db) return schemaReady;
   schemaDb = db;
   // Sempre em modo sistema: semeia organizations/org_onboarding, que as ONGs não podem gravar
   schemaReady = runAsSystem(async () => {

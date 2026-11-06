@@ -108,7 +108,7 @@ describe('App Parceiros', () => {
     await press(tree.root, 'uf-MG');
     await press(tree.root, 'vet-salvar');
     expect(mockCtx.api).toHaveBeenLastCalledWith('POST', '/partner/vet', {fullName: 'Carla Lima', crmv: '12345', crmvUf: 'MG'});
-    expect(allText(tree.root)).toContain('Em análise pela Liga');
+    expect(allText(tree.root)).toContain('Em análise pela equipe');
     expect(allText(tree.root)).toContain('CRMV-MG 12345');
   });
 

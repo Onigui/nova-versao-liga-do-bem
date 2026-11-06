@@ -11,7 +11,7 @@ import {Badge, Button, Card, Field, styles as ui} from '../ui';
 export const UFS = 'SP MG RJ PR SC RS MS MT GO DF BA PE CE ES PA AM MA PB RN AL SE PI TO RO AC AP RR'.split(' ');
 
 export const VET_STATUS = {
-  PENDING: {text: 'Em análise pela Liga', tone: 'warn'},
+  PENDING: {text: 'Em análise pela equipe', tone: 'warn'},
   APPROVED: {text: 'Aprovado · pode carimbar', tone: 'ok'},
   REJECTED: {text: 'Não aprovado', tone: 'bad'},
 };
@@ -70,7 +70,7 @@ export default function VetProfileScreen({navigation}) {
           </Text>
         </View>
         <Text style={{color: COLORS.primaryDark, marginTop: 6}}>
-          Veterinários com CRMV aprovado pela Liga registram vacinas, vermífugos e antipulgas direto na carteira do pet,
+          Veterinários com CRMV aprovado pela equipe do SóciONG registram vacinas, vermífugos e antipulgas direto na carteira do pet,
           com nome e CRMV. O tutor não consegue alterar esses registros.
         </Text>
       </Card>
@@ -86,7 +86,7 @@ export default function VetProfileScreen({navigation}) {
           </Text>
           {vet.status === 'PENDING' ? (
             <Text style={[ui.muted, {marginTop: 10}]}>
-              A Liga confere seu CRMV no conselho e avisa por notificação. Normalmente leva até 1 dia útil.
+              Nossa equipe confere seu CRMV no conselho e avisa por notificação. Normalmente leva até 1 dia útil.
             </Text>
           ) : null}
           {vet.status === 'REJECTED' && vet.reviewNote ? (

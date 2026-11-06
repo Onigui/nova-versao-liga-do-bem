@@ -18,7 +18,7 @@ import {TOURS} from '../../tours';
 
 export const PUSH_STATUS = {
   AWAITING_PAYMENT: {text: 'Aguardando pagamento', tone: 'warn'},
-  PENDING_REVIEW: {text: 'Paga · em análise pela Liga', tone: 'warn'},
+  PENDING_REVIEW: {text: 'Paga · em análise pela equipe', tone: 'warn'},
   SCHEDULED: {text: 'Aprovada · agendada', tone: 'ok'},
   SENDING: {text: 'Enviando…', tone: 'ok'},
   SENT: {text: 'Enviada', tone: 'ok'},
@@ -45,7 +45,7 @@ export function validatePush(
 }
 
 export default function PushCampaignsScreen({navigation}) {
-  const {api, partner, isOwner} = usePartner();
+  const {api, partner, isOwner, org} = usePartner();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -152,7 +152,7 @@ export default function PushCampaignsScreen({navigation}) {
         style={{backgroundColor: COLORS.primarySoft, borderColor: '#99F6E4'}}>
         <Text
           style={{fontSize: 16, fontWeight: '800', color: COLORS.primaryDark}}>
-          Fale com todos os membros da Liga do Bem
+          Fale com todos os sócios da {org?.name || 'sua ONG'}
         </Text>
         <Text style={{color: COLORS.primaryDark, marginTop: 4}}>
           {data
@@ -164,7 +164,7 @@ export default function PushCampaignsScreen({navigation}) {
             : 'Carregando…'}
         </Text>
         <Text style={[ui.muted, {marginTop: 6, fontSize: 12}]}>
-          Você escolhe o dia e o horário. A Liga revisa antes de enviar; se não aprovar, o valor é devolvido.
+          Você escolhe o dia e o horário. Nossa equipe revisa antes de enviar; se não aprovar, o valor é devolvido.
         </Text>
       </Card>
       {error ? (
@@ -233,7 +233,7 @@ export default function PushCampaignsScreen({navigation}) {
       ) : !enabled ? (
         <Card>
           <Text style={ui.muted}>
-            As notificações pagas estão pausadas pela Liga no momento.
+            As notificações pagas estão pausadas no momento.
           </Text>
         </Card>
       ) : blockedUntil ? (
@@ -270,7 +270,7 @@ export default function PushCampaignsScreen({navigation}) {
             onChangeText={setBody}
             maxLength={limits.bodyMax}
             multiline
-            placeholder="Ex.: Só nesta semana, membros da Liga têm 20% no banho e tosa. Mostre a carteirinha!"
+            placeholder="Ex.: Só nesta semana, sócios da ONG têm 20% no banho e tosa. Mostre a carteirinha!"
             testID="push-mensagem"
           />
           <Text style={[ui.label, {fontSize: 15, marginTop: 4}]}>Quando enviar?</Text>
@@ -284,7 +284,7 @@ export default function PushCampaignsScreen({navigation}) {
               marginBottom: 12,
             }}>
             <Text style={{color: '#94A3B8', fontSize: 11}}>
-              Liga do Bem · {slot ? formatSlot(slot) : 'no horário escolhido'}
+              SóciONG · {slot ? formatSlot(slot) : 'no horário escolhido'}
             </Text>
             <Text
               style={{color: '#FFFFFF', fontWeight: '700', marginTop: 2}}

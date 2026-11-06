@@ -56,7 +56,7 @@ export default function DiscountsScreen({navigation}) {
       ListHeaderComponent={
         <View>
           <Text style={[ui.muted, {marginBottom: 12}]}>
-            As promoções "no ar" aparecem para os membros no app Liga do Bem, na
+            As promoções "no ar" aparecem para os membros no app SóciONG, na
             página da sua empresa.
           </Text>
           <Button

@@ -51,6 +51,7 @@ import { audienceFilter } from './lib/inbox';
 import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
 import { currentOrgId, ensureIsolationSchema, isolationOn, orgScope, scopeDb } from './lib/tenant';
 import { withTenant } from './lib/tenantRequest';
+import { handlePartnerRequests, isPartnerRequestPath } from './lib/partnerRequests';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
@@ -590,6 +591,14 @@ async function handleRequest(req: any, res: any) {
           return null;
         },
       });
+      if (handled) return;
+    }
+
+    // "Quero ser parceiro": pedido da empresa para uma ONG (App Parceiros) e a lista no painel
+    if (isPartnerRequestPath(path)) {
+      let adminEmail: string | null = null;
+      try { adminEmail = (jwt.verify(extractBearerToken(req) || readHeader(req, 'x-admin-token') || '', JWT_SECRET) as any)?.email || null; } catch { adminEmail = null; }
+      const handled = await handlePartnerRequests({ req, res, path, method, body, db: getPrisma(), isAdmin: isAdminRequest(req), adminEmail });
       if (handled) return;
     }
 

@@ -114,9 +114,16 @@ export default function PartnerLoginScreen({navigation}) {
             fontSize: 13,
             marginTop: 8,
           }}>
-          O acesso é criado pela equipe do SóciONG. Ainda não tem? Fale com a
-          administração.
+          O acesso é liberado pela equipe do SóciONG. Sua empresa ainda não é
+          parceira?
         </Text>
+        <Button
+          title="Quero ser parceiro de uma ONG"
+          variant="secondary"
+          testID="partner-signup"
+          style={{marginTop: 10}}
+          onPress={() => navigation.navigate('PartnerSignup')}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

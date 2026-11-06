@@ -35,6 +35,7 @@ const AGE_SQL: Record<string, string> = {
   lostFoundMerges: `SELECT MIN("createdAt") AS t FROM lf_merges WHERE status = 'PENDING'`,
   nfpDeclared: `SELECT MIN("declaredAt") AS t FROM nfp_supporters WHERE status = 'DECLARED'`,
   adoptionsPending: `SELECT MIN("createdAt") AS t FROM adoptions WHERE status = 'PENDING'`,
+  partnerRequests: `SELECT MIN("createdAt") AS t FROM partner_requests WHERE status = 'NEW'`,
 };
 
 async function oldest(db: any, keys: string[]) {

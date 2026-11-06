@@ -136,7 +136,7 @@ export default function PriceEditScreen({route, navigation}) {
         <Card>
           <Text style={{fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 6}}>Novo item</Text>
           <Text style={[ui.muted, {marginBottom: 12}]}>
-            Ele aparece na sua página. A Liga pode incluí-lo no catálogo padrão para os membros compararem.
+            Ele aparece na sua página. Nossa equipe pode incluí-lo no catálogo padrão para os membros compararem.
           </Text>
           <Text style={ui.label}>Categoria</Text>
           <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12}}>

@@ -168,7 +168,7 @@ async function geocode(address, city, state) {
     const r = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(q)}`,
       {
-        headers: {'Accept-Language': 'pt-BR', 'User-Agent': 'LigaDoBemParceiros/1.0'},
+        headers: {'Accept-Language': 'pt-BR', 'User-Agent': 'SociONGParceiros/1.0'},
         signal: ctrl?.signal,
       },
     );
@@ -503,7 +503,7 @@ export default function CompanyEditScreen({navigation}) {
       const r = await api('PUT', '/partner/me', patch);
       savedRef.current = true;
       setPartner(r.partner);
-      Alert.alert('Pronto!', 'Os dados da empresa já estão atualizados no app Liga do Bem.');
+      Alert.alert('Pronto!', 'Os dados da empresa já estão atualizados no app SóciONG.');
       navigation.goBack();
     } catch (e) {
       setError(e.message);
@@ -625,7 +625,7 @@ export default function CompanyEditScreen({navigation}) {
               onChangeText={v => set({description: v})}
               multiline
               maxLength={DESCRIPTION_MAX}
-              placeholder="O que a empresa oferece e qual o benefício para quem é membro da Liga."
+              placeholder="O que a empresa oferece e qual o benefício para quem é sócio da ONG."
               hint={`${form.description.length}/${DESCRIPTION_MAX} · aparece em "Benefício" na página da empresa`}
               style={{marginBottom: 0}}
             />
