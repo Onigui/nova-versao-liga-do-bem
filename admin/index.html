@@ -5141,10 +5141,43 @@
                     <h4 style="margin:18px 0 6px;">Credenciais (guardadas criptografadas; ninguém consegue ler de volta)</h4>
                     ${secrets}
                     <div id="orgSecMsg"></div>
+                    <h4 style="margin:18px 0 6px;">Acesso ao relatório da ONG (só leitura)</h4>
+                    <p class="muted" style="margin:0 0 8px;">Quem a ONG indicar vê sócios, receita, doações e crescimento em <strong>ong.html</strong>, sem mexer em nada. O convite vai por e-mail (vale 72 horas).</p>
+                    <div id="orgReportUsers" class="muted">Carregando…</div>
+                    <div class="form-row" style="align-items:end; margin-top:8px;">
+                        <div class="form-group"><label class="form-label" for="ru-name">Nome</label><input class="form-input" id="ru-name" placeholder="Ex.: Maria (tesoureira)"></div>
+                        <div class="form-group"><label class="form-label" for="ru-email">E-mail</label><input class="form-input" id="ru-email" type="email" placeholder="email@ong.org"></div>
+                        <div class="form-group"><button class="btn btn-primary" onclick="addReportUser('${escHtml(id)}')">Dar acesso</button></div>
+                    </div>
+                    <div id="orgRuMsg"></div>
                 </div>`;
+                loadReportUsers(id);
             } catch (e) {
                 box.innerHTML = `<div class="dashboard-card" style="color:#B91C1C">${escHtml(e.message)}</div>`;
             }
+        }
+        async function loadReportUsers(id) {
+            const box = document.getElementById('orgReportUsers');
+            try {
+                const d = await platformApi('GET', `/orgs/${id}/report-users`);
+                const list = (d.users || []).filter(u => u.isActive);
+                box.innerHTML = list.length ? `<table class="data-table"><thead><tr><th>Nome</th><th>E-mail</th><th>Situação</th><th></th></tr></thead><tbody>${list.map(u => `<tr><td>${escHtml(u.name || '—')}</td><td>${escHtml(u.email)}</td><td>${u.hasPassword ? (u.lastLoginAt ? 'Entrou em ' + new Date(u.lastLoginAt).toLocaleDateString('pt-BR') : 'Senha criada') : 'Convite enviado'}</td><td style="display:flex;gap:6px;"><button class="btn btn-secondary" onclick="addReportUser('${escHtml(id)}', '${escHtml(u.email)}')">Reenviar convite</button><button class="btn btn-secondary" onclick="removeReportUser('${escHtml(id)}','${escHtml(u.id)}')">Remover</button></td></tr>`).join('')}</tbody></table>` : 'Ninguém da ONG tem acesso ainda.';
+            } catch (e) { box.textContent = e.message; }
+        }
+        async function addReportUser(id, email) {
+            const em = email || document.getElementById('ru-email').value.trim();
+            const name = email ? undefined : document.getElementById('ru-name').value.trim();
+            try {
+                const d = await platformApi('POST', `/orgs/${id}/report-users`, { email: em, name });
+                const msg = document.getElementById('orgRuMsg');
+                msg.innerHTML = `<p style="margin:8px 0;">${d.emailed ? 'Convite enviado por e-mail.' : 'Não deu para mandar o e-mail; envie este link para a pessoa:'} <input class="form-input" readonly value="${escHtml(d.inviteUrl)}" onclick="this.select()" style="margin-top:6px;"></p>`;
+                if (!email) { document.getElementById('ru-email').value = ''; document.getElementById('ru-name').value = ''; }
+                loadReportUsers(id);
+            } catch (e) { alertInline('orgRuMsg', e.message); }
+        }
+        async function removeReportUser(id, uid) {
+            if (!confirm('Remover o acesso desta pessoa ao relatório?')) return;
+            try { await platformApi('DELETE', `/orgs/${id}/report-users/${uid}`); loadReportUsers(id); } catch (e) { alertInline('orgRuMsg', e.message); }
         }
         async function saveOrgItem(id, key) {
             try {

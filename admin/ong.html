@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Relatório da ONG · SóciONG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#10231F; --muted:#4B5E59; --line:#E3ECE9; --bg:#F3F7F6; --card:#FFFFFF; --primary:#0E7C66; --deep:#0A5C4C; --soft:#D9F3EC; --orange:#C2410C; --bad:#B42318; --org:#0E7C66; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
+  .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; }
+  .brand svg { border-radius: 10px; }
+  .brand b { color: var(--primary); }
+  .top .spacer { flex: 1; }
+  .btn { min-height: 44px; padding: 10px 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn:focus-visible, input:focus-visible { outline: 3px solid #5FD3B8; outline-offset: 2px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+  .auth { max-width: 420px; margin: 8vh auto 0; }
+  .auth h1 { margin: 0 0 6px; font-size: 1.5rem; }
+  label { display: block; font-weight: 700; font-size: .9rem; margin: 14px 0 6px; }
+  input { width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 12px; border: 1px solid #C9D6D2; font: inherit; }
+  .muted { color: var(--muted); }
+  .err { color: var(--bad); min-height: 1.2em; margin: 10px 0 0; }
+  .ok { color: var(--primary); }
+  .link { background: none; border: 0; color: var(--primary); font: inherit; font-weight: 700; cursor: pointer; padding: 8px 0; min-height: 44px; }
+  .hero { border-left: 8px solid var(--org); }
+  .hero h1 { margin: 0; font-size: 1.6rem; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 14px; margin: 18px 0; }
+  .kpi small { display: block; color: var(--muted); font-weight: 600; }
+  .kpi strong { display: block; font-size: 1.6rem; margin-top: 4px; }
+  .kpi span { font-size: .85rem; font-weight: 700; }
+  .up { color: var(--primary); } .down { color: var(--orange); }
+  .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 14px; }
+  .chart h2 { margin: 0 0 4px; font-size: 1.05rem; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 160px; margin-top: 14px; }
+  .bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .bar i { display: block; width: 100%; background: var(--org); border-radius: 6px 6px 0 0; min-height: 2px; }
+  .bar em { font-style: normal; font-size: .7rem; color: var(--muted); margin-top: 6px; white-space: nowrap; }
+  .tablebox { overflow-x: auto; margin-top: 14px; }
+  table { width: 100%; border-collapse: collapse; min-width: 560px; }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: .9rem; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 700; }
+  footer { margin-top: 28px; color: var(--muted); font-size: .85rem; text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#FF7A3D"/><rect x="20" y="26" width="64" height="44" rx="8" fill="#0E7C66" transform="rotate(6 52 48)"/><g transform="rotate(-8 50 52)"><rect x="14" y="32" width="68" height="44" rx="8" fill="#FFFFFF"/><g fill="#0E7C66" transform="translate(32 54) scale(0.34) translate(-50 -54)"><path d="M50 54 C 38 54 30 64 30 72 C 30 80 37 84 44 82 C 47 81 53 81 56 82 C 63 84 70 80 70 72 C 70 64 62 54 50 54 Z"/><ellipse cx="32" cy="44" rx="7" ry="9" transform="rotate(-20 32 44)"/><ellipse cx="44" cy="33" rx="7" ry="9.5"/><ellipse cx="56" cy="33" rx="7" ry="9.5"/><ellipse cx="68" cy="44" rx="7" ry="9" transform="rotate(20 68 44)"/></g><rect x="48" y="45" width="24" height="6" rx="3" fill="#0E7C66"/><rect x="48" y="56" width="16" height="6" rx="3" fill="#0E7C66" opacity="0.45"/></g></svg><span>Sóci<b>ONG</b></span></div>
+    <span class="spacer"></span>
+    <button class="btn" id="btnSair" hidden onclick="sair()">Sair</button>
+  </div>
+
+  <!-- Entrar -->
+  <form class="card auth" id="formLogin" hidden onsubmit="entrar(event)">
+    <h1>Relatório da ONG</h1>
+    <p class="muted" style="margin:0">Acompanhe sócios, receita, doações e o crescimento da sua ONG.</p>
+    <label for="email">E-mail</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="senha">Senha</label>
+    <input id="senha" type="password" autocomplete="current-password" required>
+    <p class="err" id="errLogin" role="alert"></p>
+    <button class="btn primary" type="submit" style="width:100%">Entrar</button>
+    <button class="link" type="button" onclick="mostrar('formEsqueci')">Esqueci a senha</button>
+  </form>
+
+  <!-- Criar senha (convite ou esqueci) -->
+  <form class="card auth" id="formSenha" hidden onsubmit="criarSenha(event)">
+    <h1 id="tituloSenha">Crie sua senha</h1>
+    <p class="muted" style="margin:0">Use pelo menos 8 caracteres.</p>
+    <label for="nova">Nova senha</label>
+    <input id="nova" type="password" autocomplete="new-password" minlength="8" required>
+    <label for="nova2">Repita a senha</label>
+    <input id="nova2" type="password" autocomplete="new-password" minlength="8" required>
+    <p class="err" id="errSenha" role="alert"></p>
+    <button class="btn primary" type="submit" style="width:100%">Salvar senha</button>
+  </form>
+
+  <!-- Esqueci -->
+  <form class="card auth" id="formEsqueci" hidden onsubmit="esqueci(event)">
+    <h1>Esqueci a senha</h1>
+    <p class="muted" style="margin:0">Mandamos um link para o seu e-mail.</p>
+    <label for="emailEsq">E-mail</label>
+    <input id="emailEsq" type="email" autocomplete="username" required>
+    <p class="err" id="msgEsqueci" role="status"></p>
+    <button class="btn primary" type="submit" style="width:100%">Enviar link</button>
+    <button class="link" type="button" onclick="mostrar('formLogin')">Voltar</button>
+  </form>
+
+  <!-- Relatório -->
+  <main id="relatorio" hidden>
+    <section class="card hero">
+      <small class="muted" id="ongCidade"></small>
+      <h1 id="ongNome"></h1>
+      <p class="muted" style="margin:6px 0 0" id="atualizado"></p>
+    </section>
+    <div class="kpis" id="kpis"></div>
+    <div class="charts">
+      <section class="card chart"><h2>Receita de mensalidades</h2><p class="muted" style="margin:0" id="totReceita"></p><div class="bars" id="chReceita" role="img"></div></section>
+      <section class="card chart"><h2>Novos sócios</h2><p class="muted" style="margin:0" id="totSocios"></p><div class="bars" id="chSocios" role="img"></div></section>
+      <section class="card chart"><h2>Doações</h2><p class="muted" style="margin:0" id="totDoacoes"></p><div class="bars" id="chDoacoes" role="img"></div></section>
+      <section class="card chart"><h2>Descontos usados nos parceiros</h2><p class="muted" style="margin:0" id="totUsos"></p><div class="bars" id="chUsos" role="img"></div></section>
+    </div>
+    <section class="card" style="margin-top:14px">
+      <h2 style="margin:0;font-size:1.05rem">Mês a mês</h2>
+      <div class="tablebox"><table><thead><tr><th scope="col">Mês</th><th scope="col">Novos sócios</th><th scope="col">Mensalidades</th><th scope="col">Doações</th><th scope="col">Descontos usados</th><th scope="col">Adoções</th></tr></thead><tbody id="tabela"></tbody></table></div>
+    </section>
+  </main>
+  <p class="err" id="errGeral" role="alert"></p>
+  <footer>Relatório só de leitura · SóciONG</footer>
+</div>
+<script>
+  const API = (window.API_BASE_URL || 'https://nova-versao-liga-do-bem.vercel.app').replace(/\/+$/, '') + '/api/ong';
+  const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const int = (v) => Number(v || 0).toLocaleString('pt-BR');
+  const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const mes = (ym) => { const [y, m] = ym.split('-'); return `${MESES[Number(m) - 1]}/${y.slice(2)}`; };
+  let linkToken = null;
+  const getTok = () => { try { return localStorage.getItem('ong_token'); } catch { return null; } };
+  const setTok = (t) => { try { t ? localStorage.setItem('ong_token', t) : localStorage.removeItem('ong_token'); } catch { /* sem armazenamento */ } };
+
+  function mostrar(id) {
+    for (const el of ['formLogin', 'formSenha', 'formEsqueci', 'relatorio']) document.getElementById(el).hidden = el !== id;
+    document.getElementById('btnSair').hidden = id !== 'relatorio';
+    const first = document.querySelector(`#${id} input`);
+    if (first) first.focus();
+  }
+  async function post(path, body) {
+    const r = await fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Não foi possível concluir');
+    return d;
+  }
+  async function entrar(e) {
+    e.preventDefault();
+    const err = document.getElementById('errLogin');
+    err.textContent = '';
+    try {
+      const d = await post('/login', { email: document.getElementById('email').value, password: document.getElementById('senha').value });
+      setTok(d.token);
+      carregar();
+    } catch (x) { err.textContent = x.message; }
+  }
+  async function criarSenha(e) {
+    e.preventDefault();
+    const err = document.getElementById('errSenha');
+    const a = document.getElementById('nova').value, b = document.getElementById('nova2').value;
+    if (a !== b) { err.textContent = 'As senhas não são iguais.'; return; }
+    try {
+      await post('/senha', { token: linkToken, password: a });
+      history.replaceState(null, '', location.pathname);
+      mostrar('formLogin');
+      document.getElementById('errLogin').innerHTML = '<span class="ok">Senha criada. Agora é só entrar.</span>';
+    } catch (x) { err.textContent = x.message; }
+  }
+  async function esqueci(e) {
+    e.preventDefault();
+    try {
+      const d = await post('/esqueci', { email: document.getElementById('emailEsq').value });
+      document.getElementById('msgEsqueci').innerHTML = `<span class="ok">${d.message}</span>`;
+    } catch (x) { document.getElementById('msgEsqueci').textContent = x.message; }
+  }
+  function sair() { setTok(null); mostrar('formLogin'); }
+
+  function bars(id, series, key, fmt) {
+    const max = Math.max(1, ...series.map((s) => Number(s[key] || 0)));
+    const el = document.getElementById(id);
+    el.setAttribute('aria-label', series.map((s) => `${mes(s.month)}: ${fmt(s[key])}`).join('; '));
+    el.innerHTML = series.map((s) => `<div class="bar" title="${mes(s.month)}: ${fmt(s[key])}"><i style="height:${Math.round((Number(s[key] || 0) / max) * 100)}%"></i><em>${mes(s.month)}</em></div>`).join('');
+  }
+  const trend = (v) => (v == null ? '' : `<span class="${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '▲' : '▼'} ${Math.abs(v)}% vs mês anterior</span>`);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function carregar() {
+    const tok = getTok();
+    if (!tok) return mostrar('formLogin');
+    const geral = document.getElementById('errGeral');
+    geral.textContent = '';
+    try {
+      const r = await fetch(API + '/relatorio', { headers: { Authorization: `Bearer ${tok}` } });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) { setTok(null); return mostrar('formLogin'); }
+      if (!r.ok) { mostrar('relatorio'); document.getElementById('relatorio').hidden = true; geral.textContent = d.error || 'Não foi possível carregar.'; return; }
+      document.documentElement.style.setProperty('--org', (d.org.branding && d.org.branding.primary) || '#0E7C66');
+      document.getElementById('ongNome').textContent = d.org.name;
+      document.getElementById('ongCidade').textContent = [d.org.city, d.org.state].filter(Boolean).join(' / ');
+      document.getElementById('atualizado').textContent = `Atualizado em ${new Date(d.generatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`;
+      const k = d.kpis;
+      const cards = [
+        ['Sócios ativos', int(k.activeMembers), ''],
+        ['Novos sócios (30 dias)', int(k.newMembers30d), trend(k.newMembersTrend)],
+        ['Mensalidades no mês', brl(k.revenueMonth), trend(k.revenueTrend)],
+        ['Doações no mês', brl(k.donationsMonth), ''],
+        ['Parceiros ativos', int(k.activePartners), ''],
+        ['Descontos usados (30 dias)', int(k.cardUses30d), `<span class="muted">${int(k.membersUsingCard30d)} sócios usaram</span>`],
+        ['Adoções concluídas', int(k.adoptionsCompleted), `<span class="muted">${int(k.animalsAvailable)} esperando um lar</span>`],
+        ['Nota dos parceiros', k.ratingAvg == null ? '—' : Number(k.ratingAvg).toFixed(1).replace('.', ','), `<span class="muted">${int(k.ratingCount)} avaliações</span>`],
+      ];
+      document.getElementById('kpis').innerHTML = cards.map(([t, v, s]) => `<div class="card kpi"><small>${t}</small><strong>${v}</strong>${s}</div>`).join('');
+      const s = d.series || [];
+      bars('chReceita', s, 'revenue', brl); bars('chSocios', s, 'newMembers', int); bars('chDoacoes', s, 'donations', brl); bars('chUsos', s, 'cardUses', int);
+      document.getElementById('totReceita').textContent = `${brl(d.year.revenue)} nos últimos 12 meses`;
+      document.getElementById('totSocios').textContent = `${int(d.year.newMembers)} nos últimos 12 meses`;
+      document.getElementById('totDoacoes').textContent = `${brl(d.year.donations)} nos últimos 12 meses`;
+      document.getElementById('totUsos').textContent = `${int(d.year.cardUses)} nos últimos 12 meses`;
+      document.getElementById('tabela').innerHTML = s.slice().reverse().map((r) => `<tr><td>${esc(mes(r.month))}</td><td>${int(r.newMembers)}</td><td>${brl(r.revenue)}</td><td>${brl(r.donations)}</td><td>${int(r.cardUses)}</td><td>${int(r.adoptions)}</td></tr>`).join('');
+      mostrar('relatorio');
+    } catch { geral.textContent = 'Sem conexão. Tente de novo.'; }
+  }
+
+  (function iniciar() {
+    const m = location.hash.match(/^#(convite|senha)=([\w-]+)/);
+    if (m) {
+      linkToken = m[2];
+      document.getElementById('tituloSenha').textContent = m[1] === 'convite' ? 'Bem-vindo! Crie sua senha' : 'Crie uma nova senha';
+      return mostrar('formSenha');
+    }
+    carregar();
+  })();
+</script>
+</body>
+</html>
