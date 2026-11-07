@@ -44,7 +44,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleAccount, isAccountPath } from './lib/account';
-import { handleOrgs, isOrgPath, userOrgId, ensureOrgSchema } from './lib/orgs';
+import { handleOrgs, isOrgPath, isPlatformAdmin, userOrgId, ensureOrgSchema } from './lib/orgs';
 import { HOMOLOG_PATH, captureHomologWebhook, loadLatest, reportToText, runHomologation } from './lib/pagbankHomolog';
 import { handleHome } from './lib/home';
 import { audienceFilter } from './lib/inbox';
@@ -52,6 +52,7 @@ import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
 import { currentOrgId, ensureIsolationSchema, isolationOn, orgScope, scopeDb } from './lib/tenant';
 import { withTenant } from './lib/tenantRequest';
 import { handlePartnerRequests, isPartnerRequestPath } from './lib/partnerRequests';
+import { handleOngReport, isOngReportPath } from './lib/ongReport';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
@@ -575,6 +576,21 @@ async function handleRequest(req: any, res: any) {
     // Tela inicial em uma chamada (carteirinha, para você, pets, promoções perto)
     if (path === '/api/home') {
       const handled = await handleHome({ req, res, path, method, db: getPrisma(), authUser: () => decodeAuthUser(req) });
+      if (handled) return;
+    }
+
+    // Relatório da ONG (acesso só de leitura) e os acessos que a equipe da plataforma cria
+    if (isOngReportPath(path)) {
+      let claims: any = null;
+      for (const t of [extractBearerToken(req), readHeader(req, 'x-admin-token')].filter(Boolean) as string[]) {
+        try { claims = jwt.verify(t, JWT_SECRET); break; } catch { claims = null; }
+      }
+      const isAdm = isAdminRequest(req);
+      const handled = await handleOngReport({
+        req, res, path, method, body, db: getPrisma(), jwtSecret: JWT_SECRET,
+        platformEmail: claims?.email || null,
+        isPlatform: !!(isAdm && claims && claims.kind !== 'ong_report' && isPlatformAdmin({ orgId: claims.orgId || 'org_liga', email: claims.email, role: claims.role }, isAdm)),
+      });
       if (handled) return;
     }
 
