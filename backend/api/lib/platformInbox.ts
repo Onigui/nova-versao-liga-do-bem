@@ -114,7 +114,7 @@ export async function buildInbox(db: any, now = new Date()) {
 
 // ---------------------------------------------------------------- resumo diário por e-mail
 
-const ADMIN_URL = () => process.env.ADMIN_URL || 'https://nova-versao-liga-do-bem-admin.vercel.app';
+const ADMIN_URL = () => process.env.ADMIN_URL || 'https://nova-versao-liga-do-bem-pufx.vercel.app';
 
 function daysAgo(iso: string | null, now: Date) {
   if (!iso) return '';

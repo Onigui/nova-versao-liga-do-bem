@@ -22,7 +22,7 @@ import { DEFAULT_ORG, isolationOn, runAsSystem, runWithOrg } from './tenant';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const TOKEN_KIND = 'ong_report';
 const INVITE_HOURS = 72;
-const ADMIN_URL = () => (process.env.ADMIN_URL || 'https://nova-versao-liga-do-bem-admin.vercel.app').replace(/\/$/, '');
+const ADMIN_URL = () => (process.env.ADMIN_URL || 'https://nova-versao-liga-do-bem-pufx.vercel.app').replace(/\/$/, '');
 const hash = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
 const num = (v: any) => Number(v || 0);
 const money = (v: any) => Math.round(num(v) * 100) / 100;
