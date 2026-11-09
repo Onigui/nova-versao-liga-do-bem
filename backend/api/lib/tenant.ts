@@ -144,7 +144,9 @@ export function scopeDb<T extends object>(raw: T): T {
         return (...args: any[]) => {
           const p = plan();
           const sql = typeof args[0] === 'string' ? args[0] : Array.isArray(args[0]) ? args[0].join('') : '';
-          const created = typeof args[0] === 'string' ? CREATE_TABLE.exec(args[0]) : null;
+          // Só com a chave ligada (desligada, ninguém usa o papel org_member e a passada completa
+          // cuida de tudo quando ligar)
+          const created = isolationOn() && typeof args[0] === 'string' ? CREATE_TABLE.exec(args[0]) : null;
           if (created) {
             // Tabela nova nasce fechada para as ONGs; aqui ela ganha RLS e política na hora
             return (async () => {

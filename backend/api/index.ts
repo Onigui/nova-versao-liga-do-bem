@@ -445,10 +445,19 @@ async function handleRequest(req: any, res: any) {
   {
     const dbOrg = getPrisma();
     if (dbOrg) {
-      ensureOrgSchema(dbOrg)
-        .then(() => ensureIsolationSchema(dbOrg))
-        .then((r) => { if (r.errors.length) console.warn('⚠️ isolamento:', r.errors.slice(0, 5).join(' | ')); })
-        .catch((e) => console.warn('⚠️ ensureOrgSchema/isolamento:', e?.message));
+      // Esperado, nunca "solto": DDL disparado em segundo plano podia ficar pela metade quando a
+      // Vercel congela a função depois da resposta, deixando uma transação aberta segurando a trava
+      // da tabela (foi o que derrubou o login). A passada de isolamento só roda com a chave ligada;
+      // desligada, ela roda pelo botão/autoteste da plataforma (POST /api/platform/isolation).
+      try {
+        await ensureOrgSchema(dbOrg);
+        if (isolationOn()) {
+          const r = await ensureIsolationSchema(dbOrg);
+          if (r.errors.length) console.warn('⚠️ isolamento:', r.errors.slice(0, 5).join(' | '));
+        }
+      } catch (e: any) {
+        console.warn('⚠️ ensureOrgSchema/isolamento:', e?.message);
+      }
     }
   }
   
