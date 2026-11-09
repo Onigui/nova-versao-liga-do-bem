@@ -107,7 +107,7 @@ JWT_SECRET=<GERE_UM_SEGREDO_FORTE>
 JWT_EXPIRES_IN=7d
 FRONTEND_URL=https://nova-versao-liga-do-bem-web.vercel.app
 MOBILE_URL=exp://localhost:19000
-ADMIN_URL=https://nova-versao-liga-do-bem-admin.vercel.app
+ADMIN_URL=https://nova-versao-liga-do-bem-pufx.vercel.app
 WEB_URL=https://nova-versao-liga-do-bem-web.vercel.app
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -198,7 +198,7 @@ Agora que você tem os URLs do admin e site, atualize as variáveis no backend:
 1. Vá no projeto do backend no Vercel
 2. Vá em **Settings** > **Environment Variables**
 3. Atualize:
-   - `ADMIN_URL=https://nova-versao-liga-do-bem-admin.vercel.app`
+   - `ADMIN_URL=https://nova-versao-liga-do-bem-pufx.vercel.app`
    - `WEB_URL=https://nova-versao-liga-do-bem-web.vercel.app`
    - `FRONTEND_URL=https://nova-versao-liga-do-bem-web.vercel.app`
 

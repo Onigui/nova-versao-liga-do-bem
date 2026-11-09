@@ -43,7 +43,7 @@ nova-versao-liga-do-bem-1/
 | Serviço | URL |
 |--------|-----|
 | **API (produção)** | `https://nova-versao-liga-do-bem.vercel.app` |
-| **Admin** | `https://nova-versao-liga-do-bem-admin.vercel.app` (ou subdomínio configurado no Vercel) |
+| **Admin** | `https://nova-versao-liga-do-bem-pufx.vercel.app` |
 | **Web** | `https://nova-versao-liga-do-bem-web.vercel.app` (ou subdomínio configurado no Vercel) |
 | **Banco** | Supabase PostgreSQL (variáveis `DATABASE_URL` e `DIRECT_URL` no Vercel, nunca no código) |
 
