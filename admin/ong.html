@@ -43,7 +43,8 @@
   .bar i { display: block; width: 100%; background: var(--org); border-radius: 6px 6px 0 0; min-height: 2px; }
   .bar em { font-style: normal; font-size: .7rem; color: var(--muted); margin-top: 6px; white-space: nowrap; }
   .tablebox { overflow-x: auto; margin-top: 14px; }
-  table { width: 100%; border-collapse: collapse; min-width: 560px; }
+  table { width: 100%; border-collapse: collapse; min-width: 760px; }
+  .fee { margin-bottom: 14px; }
   th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: .9rem; }
   th:first-child, td:first-child { text-align: left; }
   th { color: var(--muted); font-weight: 700; }
@@ -103,6 +104,12 @@
       <p class="muted" style="margin:6px 0 0" id="atualizado"></p>
     </section>
     <div class="kpis" id="kpis"></div>
+    <section class="card fee" id="taxa">
+      <h2 style="margin:0;font-size:1.05rem">Taxa SóciONG (<span id="taxaPct">10%</span> do valor bruto)</h2>
+      <p class="muted" style="margin:4px 0 12px">Calculada sobre tudo o que entrou pelo app: mensalidades dos sócios, doações e pagamentos dos parceiros. Cada mês fechado vira uma cobrança.</p>
+      <div class="kpis" style="margin:0" id="taxaCards"></div>
+      <div id="taxaLista"></div>
+    </section>
     <div class="charts">
       <section class="card chart"><h2>Receita de mensalidades</h2><p class="muted" style="margin:0" id="totReceita"></p><div class="bars" id="chReceita" role="img"></div></section>
       <section class="card chart"><h2>Novos sócios</h2><p class="muted" style="margin:0" id="totSocios"></p><div class="bars" id="chSocios" role="img"></div></section>
@@ -111,7 +118,7 @@
     </div>
     <section class="card" style="margin-top:14px">
       <h2 style="margin:0;font-size:1.05rem">Mês a mês</h2>
-      <div class="tablebox"><table><thead><tr><th scope="col">Mês</th><th scope="col">Novos sócios</th><th scope="col">Mensalidades</th><th scope="col">Doações</th><th scope="col">Descontos usados</th><th scope="col">Adoções</th></tr></thead><tbody id="tabela"></tbody></table></div>
+      <div class="tablebox"><table><thead><tr><th scope="col">Mês</th><th scope="col">Novos sócios</th><th scope="col">Mensalidades</th><th scope="col">Doações</th><th scope="col">Parceiros</th><th scope="col">Total bruto</th><th scope="col">Taxa SóciONG</th><th scope="col">Descontos usados</th><th scope="col">Adoções</th></tr></thead><tbody id="tabela"></tbody></table></div>
     </section>
   </main>
   <p class="err" id="errGeral" role="alert"></p>
@@ -211,7 +218,23 @@
       document.getElementById('totSocios').textContent = `${int(d.year.newMembers)} nos últimos 12 meses`;
       document.getElementById('totDoacoes').textContent = `${brl(d.year.donations)} nos últimos 12 meses`;
       document.getElementById('totUsos').textContent = `${int(d.year.cardUses)} nos últimos 12 meses`;
-      document.getElementById('tabela').innerHTML = s.slice().reverse().map((r) => `<tr><td>${esc(mes(r.month))}</td><td>${int(r.newMembers)}</td><td>${brl(r.revenue)}</td><td>${brl(r.donations)}</td><td>${int(r.cardUses)}</td><td>${int(r.adoptions)}</td></tr>`).join('');
+      const fm = new Map(((d.fees && d.fees.months) || []).map((m) => [m.month, m]));
+      const c = (v) => brl(Number(v || 0) / 100);
+      document.getElementById('tabela').innerHTML = s.slice().reverse().map((r) => { const f = fm.get(r.month) || {}; return `<tr><td>${esc(mes(r.month))}</td><td>${int(r.newMembers)}</td><td>${c(f.membershipsCents)}</td><td>${c(f.donationsCents)}</td><td>${c(f.partnersCents)}</td><td><strong>${c(f.grossCents)}</strong></td><td>${c(f.feeCents)}</td><td>${int(r.cardUses)}</td><td>${int(r.adoptions)}</td></tr>`; }).join('');
+      if (d.fees) {
+        const pct = `${Math.round(d.fees.rate * 1000) / 10}%`.replace('.', ',');
+        document.getElementById('taxaPct').textContent = pct;
+        const atual = d.fees.months[d.fees.months.length - 1] || {};
+        const pend = d.fees.invoices.filter((f) => f.status === 'PENDING');
+        document.getElementById('taxaCards').innerHTML = [
+          ['A pagar', c(d.fees.dueCents), pend.length ? `<span class="down">${pend.map((f) => mes(f.month)).join(', ')}</span>` : '<span class="up">Tudo em dia</span>'],
+          ['Este mês até agora (bruto)', c(atual.grossCents), '<span class="muted">ainda pode mudar</span>'],
+          [`Taxa deste mês até agora (${pct})`, c(atual.feeCents), '<span class="muted">vira cobrança quando o mês fechar</span>'],
+        ].map(([t, v, x]) => `<div class="card kpi"><small>${t}</small><strong>${v}</strong>${x}</div>`).join('');
+        document.getElementById('taxaLista').innerHTML = d.fees.invoices.length
+          ? `<div class="tablebox"><table><thead><tr><th scope="col">Mês</th><th scope="col">Total bruto</th><th scope="col">Taxa</th><th scope="col">Situação</th></tr></thead><tbody>${d.fees.invoices.map((f) => `<tr><td>${esc(mes(f.month))}</td><td>${c(f.grossCents)}</td><td><strong>${c(f.feeCents)}</strong></td><td>${f.status === 'PAID' ? '<span class="up">Paga</span>' : '<span class="down">A pagar</span>'}</td></tr>`).join('')}</tbody></table></div>`
+          : '';
+      }
       mostrar('relatorio');
     } catch { geral.textContent = 'Sem conexão. Tente de novo.'; }
   }

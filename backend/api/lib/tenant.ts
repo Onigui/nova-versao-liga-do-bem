@@ -222,6 +222,7 @@ export const GLOBAL_TABLES: Record<string, 'all' | 'read' | 'liga-write' | 'none
   pagbank_homolog: 'none',
   platform_kv: 'none',
   org_report_users: 'none',
+  platform_fee_invoices: 'none',
   _prisma_migrations: 'none',
 };
 

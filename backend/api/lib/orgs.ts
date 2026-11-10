@@ -152,8 +152,11 @@ export function ensureOrgSchema(db: any, force = false): Promise<void> {
          value TEXT NOT NULL, "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(), PRIMARY KEY ("orgId", key))`,
       `INSERT INTO organizations (id, slug, name, "legalName", cnpj, status, city, state, branding, fees, "activatedAt")
        VALUES ('${DEFAULT_ORG_ID}', 'liga-do-bem', 'Liga do Bem', 'Liga do Bem Botucatu', '27644955000138', 'ACTIVE', 'Botucatu', 'SP',
-               '{"primary":"#6D28D9","dark":"#3B1A78"}'::jsonb, '{"rate":0.10,"donationRate":0.10,"capCents":2000000}'::jsonb, NOW())
+               '{"primary":"#6D28D9","dark":"#3B1A78"}'::jsonb, '{"rate":0.10}'::jsonb, NOW())
        ON CONFLICT (id) DO NOTHING`,
+      // Taxa única de 10% sobre o bruto, sem teto (antes: teto de R$ 20 mil e taxa de doação à parte)
+      `UPDATE organizations SET fees = jsonb_build_object('rate', COALESCE(NULLIF(fees->>'rate', '')::numeric, 0.10))
+        WHERE fees ? 'capCents' OR fees ? 'donationRate'`,
     ]) {
       await db.$executeRawUnsafe(sql);
     }
@@ -367,6 +370,13 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
     }
 
     // Central de pendências de todas as ONGs
+    // Taxa da plataforma (10% do bruto): cobranças dos meses fechados e o mês corrente
+    if (path === '/api/platform/fees' || path.startsWith('/api/platform/fees/')) {
+      const { handleFeeRoutes } = await import('./platformFees');
+      const handled = await handleFeeRoutes({ path, method, body, db, res: { status: (c: number) => ({ json: (b: any) => send(res, c, b) }) }, email: auth?.email || null });
+      if (handled) return true;
+    }
+
     if (path === '/api/platform/inbox' && method === 'GET') {
       const { buildInbox } = await import('./platformInbox');
       return send(res, 200, await buildInbox(db)), true;
@@ -537,9 +547,10 @@ function pickEditable(b: any, platform: boolean): { data?: any; error?: string }
     }
     if (b.legalName !== undefined) out.legalName = String(b.legalName || '').trim().slice(0, 160) || null;
     if (b.fees !== undefined) {
-      const rate = Number(b.fees?.rate), donationRate = Number(b.fees?.donationRate ?? b.fees?.rate), capCents = Math.round(Number(b.fees?.capCents));
-      if (!(rate >= 0 && rate <= 0.3) || !(donationRate >= 0 && donationRate <= 0.3) || !(capCents >= 0)) return { error: 'Taxa inválida (0 a 30%, teto em centavos)' };
-      out.fees = { rate, donationRate, capCents };
+      // Uma taxa só, sobre o valor bruto de tudo (mensalidades, doações e parceiros), sem teto
+      const rate = Number(b.fees?.rate);
+      if (!(rate >= 0 && rate <= 0.3)) return { error: 'Taxa inválida (de 0 a 30%)' };
+      out.fees = { rate };
     }
   }
   return { data: out };

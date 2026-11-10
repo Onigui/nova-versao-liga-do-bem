@@ -1361,6 +1361,11 @@
                         </div>
                     </div>
                 </div>
+                <div class="dashboard-card" id="feesCard" style="margin-bottom:1.5rem;">
+                    <h3 class="card-title">Taxa SóciONG · 10% do valor bruto</h3>
+                    <p class="header-subtitle" style="margin:6px 0 12px;">Sobre tudo o que a ONG arrecada pelo app: mensalidades, doações e pagamentos de parceiros, sem teto. Cada mês fechado vira uma cobrança, que aparece também no relatório da ONG.</p>
+                    <div id="feesBox" class="muted">Carregando…</div>
+                </div>
                 <div class="dashboard-card" id="newOrgCard" style="margin-bottom:1.5rem;" hidden>
                     <h3 class="card-title">Nova ONG</h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">A ONG nasce como rascunho, com o checklist do protocolo. Ela só aparece no app depois de ativada.</p>
@@ -2847,6 +2852,7 @@
                 loadVolunteers();
             } else if (sectionId === 'platform') {
                 loadOrgs();
+                loadFees().then(() => { if (sub === 'taxas') document.getElementById('feesCard')?.scrollIntoView({ behavior: 'smooth' }); });
             }
         }
 
@@ -5078,6 +5084,26 @@
             const d = await r.json().catch(() => ({}));
             if (!r.ok) { const e = new Error(d.error || 'Erro'); e.data = d; throw e; }
             return d;
+        }
+        const centsBRL = (c) => (Number(c || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const monthBR = (m) => m.split('-').reverse().join('/');
+        async function loadFees() {
+            const box = document.getElementById('feesBox');
+            try {
+                const d = await platformApi('GET', '/fees');
+                const cur = d.current.map(c => `<tr><td>${escHtml(c.orgName)}</td><td>${centsBRL(c.membershipsCents)}</td><td>${centsBRL(c.donationsCents)}</td><td>${centsBRL(c.partnersCents)}</td><td><strong>${centsBRL(c.grossCents)}</strong></td><td><strong>${centsBRL(c.feeCents)}</strong></td></tr>`).join('');
+                const inv = d.invoices.map(f => `<tr><td>${escHtml(f.orgName)}</td><td>${monthBR(f.month)}</td><td>${centsBRL(f.grossCents)}</td><td><strong>${centsBRL(f.feeCents)}</strong></td><td>${f.status === 'PAID' ? `<span class="pill ok">Paga</span> <span class="muted">${f.paidAt ? new Date(f.paidAt).toLocaleDateString('pt-BR') : ''}</span>` : '<span class="pill warn">A receber</span>'}</td><td>${f.status === 'PAID' ? `<button class="btn btn-secondary" onclick="markFee('${escHtml(f.id)}','pending')">Desfazer</button>` : `<button class="btn btn-primary" onclick="markFee('${escHtml(f.id)}','paid')">Marcar como paga</button>`}</td></tr>`).join('');
+                box.innerHTML = `<h4 style="margin:4px 0 6px;">Este mês até agora (estimativa)</h4>
+                    <div class="table-container" style="overflow-x:auto"><table class="data-table"><thead><tr><th>ONG</th><th>Mensalidades</th><th>Doações</th><th>Parceiros</th><th>Bruto</th><th>Taxa</th></tr></thead><tbody>${cur || '<tr><td colspan="6" class="muted">Nenhuma ONG ativa.</td></tr>'}</tbody></table></div>
+                    <h4 style="margin:16px 0 6px;">Cobranças dos meses fechados</h4>
+                    <div class="table-container" style="overflow-x:auto"><table class="data-table"><thead><tr><th>ONG</th><th>Mês</th><th>Bruto</th><th>Taxa</th><th>Situação</th><th></th></tr></thead><tbody>${inv || '<tr><td colspan="6" class="muted">Nenhuma cobrança ainda.</td></tr>'}</tbody></table></div>`;
+            } catch (e) { box.textContent = e.message; }
+        }
+        async function markFee(id, to) {
+            let note = null;
+            if (to === 'paid') { note = prompt('Como foi pago? (ex.: PIX em 05/12, comprovante no e-mail) — opcional'); if (note === null) return; }
+            try { await platformApi('POST', `/fees/${encodeURIComponent(id)}/${to}`, { note }); await loadFees(); if (typeof refreshCentralCount === 'function') refreshCentralCount(); }
+            catch (e) { alert(e.message); }
         }
         async function loadOrgs() {
             const tb = document.getElementById('orgsTable');
