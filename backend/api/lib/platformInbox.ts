@@ -12,6 +12,7 @@ import { buildOverview } from './adminOverview';
 import { escapeHtml, sendEmail } from './email';
 import { getOrgSecret, platformAdminEmails } from './orgs';
 import { DEFAULT_ORG, isolationOn, runAsSystem, runWithOrg } from './tenant';
+import { listInvoices, syncFeeInvoices } from './platformFees';
 
 type Item = {
   key: string;
@@ -63,6 +64,15 @@ export async function buildInbox(db: any, now = new Date()) {
       DEFAULT_ORG,
     ),
   );
+  // Taxa de 10%: os meses fechados viram cobrança; as que faltam receber entram na central
+  let pendingFees: any[] = [];
+  try {
+    await syncFeeInvoices(db, now);
+    pendingFees = (await listInvoices(db)).filter((f) => f.status === 'PENDING' && f.feeCents > 0);
+  } catch {
+    pendingFees = [];
+  }
+  const brl = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const result: any[] = [];
   for (const o of orgs) {
     const items: Item[] = [];
@@ -83,6 +93,11 @@ export async function buildInbox(db: any, now = new Date()) {
       if (!hasPagbank) {
         items.push({ key: 'pagbankMissing', label: 'PagBank não conectado: a ONG não consegue cobrar mensalidades', count: 1, section: 'platform', sub: null, tone: 'danger', oldestAt: null });
       }
+    }
+    const fees = pendingFees.filter((f) => f.orgId === o.id);
+    if (fees.length) {
+      const total = fees.reduce((a, f) => a + f.feeCents, 0);
+      items.push({ key: 'feeDue', label: `Taxa SóciONG a receber: ${brl(total)} (${fees.map((f) => f.month.split('-').reverse().join('/')).join(', ')})`, count: fees.length, section: 'platform', sub: 'taxas', tone: 'warn', oldestAt: null });
     }
     if (num(o.received) > 0) {
       items.push({ key: 'onboardingReceived', label: 'Documentos do protocolo de entrada recebidos para conferir', count: num(o.received), section: 'platform', sub: null, tone: 'warn', oldestAt: null });

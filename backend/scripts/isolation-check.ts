@@ -7,6 +7,7 @@
 import { PrismaClient } from '@prisma/client';
 import { instrumentDb } from '../api/lib/dbTiming';
 import { ensureOrgSchema } from '../api/lib/orgs';
+import { grossByMonth, listInvoices, syncFeeInvoices, withFee } from '../api/lib/platformFees';
 import { ensureIsolationSchema, forceIsolation, isolationSelfTest, runAsSystem, runWithOrg, scopeDb } from '../api/lib/tenant';
 
 let pass = 0;
@@ -101,6 +102,36 @@ async function main() {
   // Sistema
   check('modo sistema vê tudo', (await runAsSystem(() => db.user.count())) === 2);
   check('fora de requisição passa direto', (await db.user.count()) === 2);
+
+  // Taxa de 10% sobre o bruto, por ONG, sem teto
+  const lastMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 15));
+  await runWithOrg('org_b', () =>
+    db.payment.create({ data: { amount: 1000, description: 'Anual', type: 'MEMBERSHIP', status: 'APPROVED', gateway: 'PAGBANK', paidAt: lastMonth } }),
+  );
+  await runWithOrg('org_b', () => db.donation.create({ data: { amount: 250, method: 'PIX', status: 'APPROVED', updatedAt: lastMonth } as any }));
+  await runWithOrg('org_b', () => db.$executeRawUnsafe(`UPDATE donations SET "updatedAt" = $1`, lastMonth));
+  await runWithOrg('org_liga', () =>
+    db.payment.create({ data: { amount: 240, description: 'Anual', type: 'MEMBERSHIP', status: 'APPROVED', gateway: 'PAGBANK', paidAt: lastMonth } }),
+  );
+  await runWithOrg('org_liga', () =>
+    db.payment.create({ data: { amount: 999, description: 'Recusado', type: 'MEMBERSHIP', status: 'REJECTED', gateway: 'PAGBANK', paidAt: lastMonth } }),
+  );
+  const gb = withFee(await runWithOrg('org_b', () => grossByMonth(db, new Date(), 2)), 0.1);
+  check('bruto da B no mês passado: mensalidade + doação (R$ 1.250,00)', gb[0].grossCents === 125000 && gb[0].membershipsCents === 100000 && gb[0].donationsCents === 25000, gb);
+  check('taxa de 10% sem teto (R$ 125,00)', gb[0].feeCents === 12500, gb[0]);
+  const gl = await runWithOrg('org_liga', () => grossByMonth(db, new Date(), 2));
+  check('Liga: só o pagamento aprovado, sem dados da B (R$ 240,00)', gl[0].grossCents === 24000, gl);
+  await syncFeeInvoices(db);
+  const inv = await listInvoices(db);
+  const invB = inv.find((f) => f.orgId === 'org_b');
+  const invL = inv.find((f) => f.orgId === 'org_liga');
+  check('mês fechado vira cobrança de cada ONG', invB?.feeCents === 12500 && invB?.status === 'PENDING' && invL?.feeCents === 2400, inv);
+  await runAsSystem(() => db.$executeRawUnsafe(`UPDATE platform_fee_invoices SET status = 'PAID' WHERE "orgId" = 'org_b'`));
+  await runWithOrg('org_b', () =>
+    db.payment.create({ data: { amount: 50, description: 'Mensal', type: 'MEMBERSHIP', status: 'APPROVED', gateway: 'PAGBANK', paidAt: lastMonth } }),
+  );
+  await syncFeeInvoices(db);
+  check('cobrança paga não muda depois', (await listInvoices(db, 'org_b'))[0]?.feeCents === 12500);
 
   const st = await isolationSelfTest(db);
   check('autoteste', st.ok, st.checks.filter((c) => !c.ok));

@@ -18,6 +18,7 @@ import bcrypt from 'bcryptjs';
 import { buildOverview } from './adminOverview';
 import { escapeHtml, sendEmail } from './email';
 import { DEFAULT_ORG, isolationOn, runAsSystem, runWithOrg } from './tenant';
+import { feeRate, grossByMonth, listInvoices, syncFeeInvoices, withFee } from './platformFees';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const TOKEN_KIND = 'ong_report';
@@ -295,7 +296,14 @@ export async function handleOngReport(ctx: Ctx): Promise<boolean> {
       return res.status(409).json({ error: 'O relatório desta ONG abre quando ela entrar no ar na plataforma.' }), true;
     }
     const report = await runWithOrg(u.orgId, () => buildOngReport(db));
-    return res.status(200).json({ org: { id: u.orgId, name: u.orgName, branding: u.branding || {}, city: u.city, state: u.state }, viewer: { name: u.name }, ...report }), true;
+    // Taxa SóciONG: 10% do bruto de tudo o que entrou pelo app, mês a mês, e o que falta pagar
+    const orgFees: any[] = await sys(() => db.$queryRawUnsafe(`SELECT fees FROM organizations WHERE id = $1`, u.orgId));
+    const rate = feeRate(orgFees[0]?.fees);
+    const months = withFee(await runWithOrg(u.orgId, () => grossByMonth(db, new Date(), 12)), rate);
+    await syncFeeInvoices(db).catch(() => undefined);
+    const invoices = (await listInvoices(db, u.orgId)).map((f) => ({ month: f.month, grossCents: f.grossCents, feeCents: f.feeCents, status: f.status, paidAt: f.paidAt }));
+    const fees = { rate, months, invoices, dueCents: invoices.filter((f) => f.status === 'PENDING').reduce((a, f) => a + f.feeCents, 0) };
+    return res.status(200).json({ org: { id: u.orgId, name: u.orgName, branding: u.branding || {}, city: u.city, state: u.state }, viewer: { name: u.name }, ...report, fees }), true;
   }
 
   return res.status(404).json({ error: 'Não encontrado' }), true;
