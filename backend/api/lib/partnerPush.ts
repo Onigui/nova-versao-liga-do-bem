@@ -1,7 +1,7 @@
 /**
- * Notificação paga do parceiro: o parceiro escreve a mensagem, paga (PIX ou cartão pelo PagBank),
+ * Notificação paga do parceiro: o parceiro escreve a mensagem, paga (PIX ou cartão pelo Asaas ou PagBank),
  * o admin aprova e ela vai para todos os membros (push + caixa de notificações do app).
- * Reprovada depois de paga → estorno automático no PagBank (ou aviso de estorno manual).
+ * Reprovada depois de paga → estorno automático no gateway (Asaas ou PagBank) (ou aviso de estorno manual).
  *
  * Agendamento: o parceiro escolhe um HORÁRIO (vaga) — cada vaga recebe só UMA notificação, então
  * duas empresas nunca disparam juntas e o membro não recebe várias de uma vez. A vaga fica
@@ -15,14 +15,17 @@
 import { currentOrgId, orgScope } from './tenant';
 import crypto from 'crypto';
 import {
-  createPagBankOrder,
-  getPagBankConfig,
-  getPagBankCardPublicKey,
-  isPaidChargeStatus,
-  cancelPagBankCharge,
-  pagbankWebhookUrl,
-} from './pagbank';
-import { syncPaymentFromPagBank } from './membershipBilling';
+  createGatewayOrder,
+  gatewayCardPublicKey,
+  gatewayNotificationUrl,
+  isDeclinedStatus,
+  isPaidStatus,
+  paymentsInfo,
+  paymentsReady,
+  refundGatewayCharge,
+  HOSTED_CARD_MESSAGE,
+} from './gateway';
+import { syncPaymentFromGateway } from './membershipBilling';
 import { markPartnerPushPaid } from './partnerPushSettle';
 import { sendFcmToTokens } from './push';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
@@ -205,7 +208,7 @@ async function loadCampaign(db: any, id: string, partnerId?: string) {
 async function paymentView(db: any, paymentId: string | null) {
   if (!paymentId) return null;
   const rows: any[] = await db.$queryRawUnsafe(
-    `SELECT id, status, method, amount, "pixCopyPaste", "qrCode", "expiresAt" FROM payments WHERE id = $1`,
+    `SELECT id, status, method, amount, "pixCopyPaste", "qrCode", "expiresAt", "paymentUrl" FROM payments WHERE id = $1`,
     paymentId,
   );
   const p = rows?.[0];
@@ -218,6 +221,7 @@ async function paymentView(db: any, paymentId: string | null) {
     pixCopyPaste: p.pixCopyPaste,
     pixQrImage: p.qrCode,
     pixExpiration: p.expiresAt,
+    paymentUrl: p.paymentUrl || null,
   };
 }
 
@@ -468,7 +472,7 @@ export async function handlePartnerPushRoutes(
   await ensurePartnerPushSchema(db);
 
   if (path === '/api/partner/card-public-key' && method === 'GET') {
-    res.status(200).json({ publicKey: await getPagBankCardPublicKey(), env: getPagBankConfig().env });
+    res.status(200).json({ publicKey: await gatewayCardPublicKey(), ...paymentsInfo() });
     return true;
   }
 
@@ -566,7 +570,7 @@ export async function handlePartnerPushRoutes(
     let payment = await paymentView(db, c.paymentId);
     if (c.status === 'AWAITING_PAYMENT' && payment?.status === 'PENDING') {
       try {
-        await syncPaymentFromPagBank(db, payment.id);
+        await syncPaymentFromGateway(db, payment.id);
         c = await loadCampaign(db, c.id);
         payment = await paymentView(db, c.paymentId);
       } catch (e) {
@@ -609,7 +613,8 @@ export async function handlePartnerPushRoutes(
 
   if (m[2] === '/checkout' && method === 'POST') {
     if (campaign.status !== 'AWAITING_PAYMENT') throw new HttpError(409, 'Esta notificação já foi paga ou encerrada.');
-    if (!getPagBankConfig().configured) throw new HttpError(503, 'Pagamentos ainda não configurados.');
+    if (!paymentsReady()) throw new HttpError(503, 'Pagamentos ainda não configurados.');
+    const hostedCard = paymentsInfo().hostedCard;
     if (campaign.scheduledFor) {
       const at = new Date(campaign.scheduledFor);
       const free = await withSlotLock(db, async (tx) => !(await slotTaken(tx, at, campaign.id)));
@@ -621,7 +626,7 @@ export async function handlePartnerPushRoutes(
     }
     const payMethod = String(body.method || 'PIX').toUpperCase();
     if (!['PIX', 'CREDIT_CARD'].includes(payMethod)) throw new HttpError(400, 'Use PIX ou cartão de crédito.');
-    if (payMethod === 'CREDIT_CARD' && !body.card?.encrypted) throw new HttpError(400, 'Dados do cartão ausentes.', 'CARD_ENCRYPTION_REQUIRED');
+    if (payMethod === 'CREDIT_CARD' && !hostedCard && !body.card?.encrypted) throw new HttpError(400, 'Dados do cartão ausentes.', 'CARD_ENCRYPTION_REQUIRED');
     const taxId = String(body.taxId || '').replace(/\D/g, '');
     if (taxId.length !== 11 && taxId.length !== 14) throw new HttpError(400, 'Informe o CPF ou CNPJ de quem paga.', 'TAX_ID_REQUIRED');
 
@@ -642,32 +647,33 @@ export async function handlePartnerPushRoutes(
     const apiBase = process.env.API_PUBLIC_URL || process.env.BACKEND_URL || 'https://nova-versao-liga-do-bem.vercel.app';
     let order;
     try {
-      order = await createPagBankOrder({
+      order = await createGatewayOrder({
         referenceId: `PUSH-${paymentId.slice(0, 8)}`,
         amountCents,
         description: `Notificação para sócios — ${await orgName(db)}`,
         customer: { name: payer?.name || campaign.partnerName, email: payer?.email, taxId, phone: payer?.phone },
         method: payMethod as any,
-        notificationUrl: pagbankWebhookUrl(apiBase),
-        card: payMethod === 'CREDIT_CARD' ? { encrypted: body.card.encrypted, holderName: body.card.holderName || payer?.name } : undefined,
+        notificationUrl: gatewayNotificationUrl(apiBase),
+        card: payMethod === 'CREDIT_CARD' && !hostedCard ? { encrypted: body.card.encrypted, holderName: body.card.holderName || payer?.name } : undefined,
         installments: 1,
       });
     } catch (e: any) {
-      console.error('❌ PagBank notificação paga:', e?.payload || e?.message);
-      throw new HttpError(502, e?.message || 'Falha ao gerar o pagamento no PagBank');
+      console.error('❌ Gateway notificação paga:', e?.payload || e?.message);
+      throw new HttpError(e?.status === 400 && e?.code ? 400 : 502, e?.message || 'Falha ao gerar o pagamento');
     }
-    const paid = isPaidChargeStatus(order.chargeStatus);
-    const declined = ['DECLINED', 'CANCELED', 'CANCELLED'].includes(String(order.chargeStatus || '').toUpperCase());
+    const paid = isPaidStatus(order.chargeStatus);
+    const declined = isDeclinedStatus(order.chargeStatus);
     await db.$executeRawUnsafe(
       `INSERT INTO payments
         (id, amount, description, type, status, gateway, "gatewayId", "qrCode", "expiresAt", "gatewayData",
-         "userEmail", "userName", "userPhone", "userId", method, "pixCopyPaste", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, 'PARTNER_PUSH', $4::"PaymentStatus", 'PAGBANK', $5, $6, $7, $8::jsonb,
-         $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
+         "userEmail", "userName", "userPhone", "userId", method, "pixCopyPaste", "paymentUrl", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, 'PARTNER_PUSH', $4::"PaymentStatus", $16, $5, $6, $7, $8::jsonb,
+         $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
       paymentId, amountCents / 100, `Notificação paga — ${campaign.partnerName}`, declined ? 'REJECTED' : 'PENDING',
       order.id, order.pixQrImage || null, order.pixExpiration ? new Date(order.pixExpiration) : null,
-      JSON.stringify({ ...(order.raw || {}), campaignId: campaign.id, partnerId: acc.partnerId }),
+      JSON.stringify({ ...(order.raw || {}), campaignId: campaign.id, partnerId: acc.partnerId, splitFeeCents: order.splitFeeCents || 0 }),
       payer?.email || null, payer?.name || null, payer?.phone || null, userId, payMethod, order.pixCopyPaste || null,
+      order.paymentLink || null, order.gateway,
     );
     await db.$executeRawUnsafe(
       `UPDATE partner_push_campaigns SET "paymentId" = $2, "updatedAt" = NOW() WHERE id = $1 AND status = 'AWAITING_PAYMENT'`,
@@ -683,7 +689,9 @@ export async function handlePartnerPushRoutes(
         ? 'Pagamento aprovado! Nossa equipe vai revisar e enviar sua notificação.'
         : declined
           ? 'Pagamento recusado pelo emissor do cartão.'
-          : 'PIX gerado. A confirmação é automática assim que você pagar.',
+          : payMethod === 'CREDIT_CARD' && order.paymentLink
+            ? HOSTED_CARD_MESSAGE
+            : 'PIX gerado. A confirmação é automática assim que você pagar.',
     });
     return true;
   }
@@ -811,10 +819,12 @@ export async function handleAdminPushRoutes(
     let refundStatus = 'REFUND_FAILED';
     let refundError: string | null = null;
     try {
-      const pay: any[] = await db.$queryRawUnsafe(`SELECT "gatewayData" FROM payments WHERE id = $1`, c.paymentId);
-      const chargeId = pay?.[0]?.gatewayData?.charges?.[0]?.id;
+      const pay: any[] = await db.$queryRawUnsafe(`SELECT gateway, "gatewayId", "gatewayData" FROM payments WHERE id = $1`, c.paymentId);
+      const gw = String(pay?.[0]?.gateway || 'PAGBANK').toUpperCase();
+      // Asaas: o id da cobrança é o próprio gatewayId; PagBank: o id da charge dentro do pedido
+      const chargeId = gw === 'ASAAS' ? pay?.[0]?.gatewayId : pay?.[0]?.gatewayData?.charges?.[0]?.id;
       if (!chargeId) throw new Error('cobrança não encontrada no pagamento');
-      const r = await cancelPagBankCharge(chargeId, c.priceCents);
+      const r = await refundGatewayCharge(gw, chargeId, c.priceCents);
       refundStatus = 'REFUNDED';
       await db.$executeRawUnsafe(
         `UPDATE payments SET status = 'CANCELLED', "updatedAt" = NOW(),
@@ -838,7 +848,7 @@ export async function handleAdminPushRoutes(
       `"${c.title}": ${note}${refundStatus === 'REFUNDED' ? ' O valor foi estornado.' : ''}`,
     );
     res.status(200).json({
-      message: refundStatus === 'REFUNDED' ? 'Reprovada e estornada' : 'Reprovada, mas o estorno automático falhou: estorne manualmente no PagBank',
+      message: refundStatus === 'REFUNDED' ? 'Reprovada e estornada' : 'Reprovada, mas o estorno automático falhou: estorne manualmente no painel do gateway (Asaas ou PagBank)',
       refundStatus,
       refundError,
     });

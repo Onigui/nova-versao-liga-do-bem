@@ -4,7 +4,7 @@
  * - `organizations`: cada ONG. A Liga do Bem é a pioneira (id fixo `org_liga`).
  * - Toda tabela ganha a coluna "orgId" (padrão = Liga), então nada do que existe muda.
  * - `org_onboarding`: o checklist do Protocolo de entrada (mesmos códigos D1…O5).
- * - `org_secrets`: credenciais por ONG (token do PagBank etc.), criptografadas.
+ * - `org_secrets`: credenciais por ONG (chave da conta Asaas etc.), criptografadas.
  * - Equipe da plataforma (/api/platform/*): cria ONG, acompanha o checklist, ativa, suspende.
  *
  * Isolamento de dados (fase 2): enquanto MULTI_ORG_ISOLATION != 'on', nenhuma ONG além
@@ -42,7 +42,7 @@ export const ONBOARDING_ITEMS: OnboardingItem[] = [
   { key: 'I4', group: 'Identidade', label: 'Texto "Quem somos" (até 500 caracteres)', required: true },
   { key: 'I5', group: 'Identidade', label: 'Cidades atendidas', required: true },
   { key: 'I6', group: 'Identidade', label: 'Foto de capa horizontal', required: false },
-  { key: 'P1', group: 'Pagamentos', label: 'Conta PagBank PJ no CNPJ da ONG, conectada', required: true },
+  { key: 'P1', group: 'Pagamentos', label: 'Conta Asaas PJ no CNPJ da ONG, aprovada e conectada', required: true },
   { key: 'P2', group: 'Pagamentos', label: 'Chave PIX no CNPJ', required: true },
   { key: 'P3', group: 'Pagamentos', label: 'Ciência dos planos da plataforma (R$ 24,90 a R$ 20,00/mês)', required: true },
   { key: 'O1', group: 'Operação', label: 'De 1 a 3 pessoas com acesso ao relatório, só leitura (nome, e-mail, CPF)', required: true },
@@ -108,6 +108,27 @@ export function decryptSecret(stored: string) {
   d.setAuthTag(Buffer.from(tag, 'base64'));
   return Buffer.concat([d.update(Buffer.from(data, 'base64')), d.final()]).toString('utf8');
 }
+export async function saveOrgSecret(db: any, orgId: string, key: string, value: string) {
+  await ensureOrgSchema(db);
+  await runAsSystem(() =>
+    db.$executeRawUnsafe(
+      `INSERT INTO org_secrets ("orgId", key, value, "updatedAt") VALUES ($1, $2, $3, NOW())
+       ON CONFLICT ("orgId", key) DO UPDATE SET value = EXCLUDED.value, "updatedAt" = NOW()`,
+      orgId, key, encryptSecret(value),
+    ),
+  );
+  // As requisições passam a usar a credencial nova já na próxima chamada
+  try {
+    (await import('./tenantRequest')).clearTenantCaches();
+  } catch {
+    /* sem cache */
+  }
+}
+
+function apiPublicBase() {
+  return process.env.API_PUBLIC_URL || process.env.BACKEND_URL || 'https://nova-versao-liga-do-bem.vercel.app';
+}
+
 /** Credencial de uma ONG; a Liga cai nas variáveis de ambiente de sempre se não tiver uma salva. */
 export async function getOrgSecret(db: any, orgId: string, key: string): Promise<string | null> {
   try {
@@ -291,11 +312,17 @@ export async function activationChecks(db: any, orgId: string) {
   const list = await checklist(db, orgId);
   const pending = list.items.filter((i) => i.required && i.status !== 'APPROVED');
   const admins: any[] = await db.$queryRawUnsafe(`SELECT COUNT(*)::int AS c FROM users WHERE "orgId" = $1 AND role::text = 'ADMIN' AND "isActive" = true`, orgId).catch(() => [{ c: 0 }]);
-  const pagbank = await getOrgSecret(db, orgId, 'PAGBANK_TOKEN');
+  const asaas = await getOrgSecret(db, orgId, 'ASAAS_API_KEY');
+  const pagbank = asaas ? null : await getOrgSecret(db, orgId, 'PAGBANK_TOKEN');
   const isDefault = orgId === DEFAULT_ORG_ID;
   const checks = [
     { key: 'checklist', ok: pending.length === 0, label: 'Todos os itens obrigatórios aprovados', detail: pending.length ? `Faltam: ${pending.map((p) => p.key).join(', ')}` : null },
-    { key: 'pagbank', ok: !!pagbank, label: 'Conta PagBank da ONG conectada', detail: pagbank ? null : 'Salve o token do PagBank da ONG em Credenciais' },
+    {
+      key: 'payments',
+      ok: !!(asaas || pagbank),
+      label: asaas || !pagbank ? 'Conta Asaas da ONG conectada' : 'Conta de pagamentos da ONG conectada (PagBank, até a troca para o Asaas)',
+      detail: asaas || pagbank ? null : 'Conecte a conta Asaas da ONG em "Conta Asaas" (ou abra uma por lá)',
+    },
     { key: 'admin', ok: (admins[0]?.c || 0) > 0, label: 'Pelo menos 1 administrador da ONG cadastrado', detail: (admins[0]?.c || 0) > 0 ? null : 'Cadastre um administrador para a ONG' },
     await isolationCheck(db, isDefault),
     { key: 'platform', ok: isDefault || platformEmails().length > 0, label: 'Equipe da plataforma definida (PLATFORM_ADMIN_EMAILS)', detail: isDefault || platformEmails().length > 0 ? null : 'Cadastre PLATFORM_ADMIN_EMAILS na Vercel para separar a equipe da plataforma dos administradores das ONGs' },
@@ -468,6 +495,78 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
         );
         if (org.status === 'DRAFT') await db.$executeRawUnsafe(`UPDATE organizations SET status = 'ONBOARDING', "updatedAt" = NOW() WHERE id = $1`, orgId);
         return send(res, 200, { ok: true }), true;
+      }
+      if (sub === '/asaas' && method === 'GET') {
+        const key = await getOrgSecret(db, orgId, 'ASAAS_API_KEY');
+        const wallet = await getOrgSecret(db, orgId, 'ASAAS_WALLET_ID');
+        const { asaasEnvForKey } = await import('./asaas');
+        return send(res, 200, {
+          connected: !!key,
+          env: key ? asaasEnvForKey(key) : null,
+          walletId: wallet ? `…${wallet.slice(-6)}` : null,
+          platformSplit: !!String(process.env.ASAAS_PLATFORM_WALLET_ID || '').trim(),
+          canCreateSubaccount: !!String(process.env.ASAAS_PLATFORM_API_KEY || '').trim(),
+          ligaUsesEnv: orgId === DEFAULT_ORG_ID,
+        }), true;
+      }
+      // Conecta uma conta Asaas que a ONG já tem: confere a chave, pega a carteira e cadastra o webhook.
+      // A Liga pode mandar sem chave: usa ASAAS_API_KEY da Vercel.
+      if (sub === '/asaas/connect' && method === 'POST') {
+        const { connectAsaasAccount, asaasWebhookUrl } = await import('./asaas');
+        let apiKey = String(body.apiKey || '').trim();
+        const fromEnv = !apiKey && orgId === DEFAULT_ORG_ID;
+        if (fromEnv) apiKey = String(process.env.ASAAS_API_KEY || '').trim();
+        if (!/^\$aact_[A-Za-z0-9_$:.=+\/-]{20,}$/.test(apiKey)) return send(res, 400, { error: 'Cole a chave de API da conta Asaas da ONG (começa com $aact_)', field: 'apiKey' }), true;
+        try {
+          const r = await connectAsaasAccount(apiKey, { webhookUrl: asaasWebhookUrl(apiPublicBase(), orgId), orgId, email: org.contactEmail });
+          if (r.cpfCnpj && org.cnpj && String(r.cpfCnpj).replace(/\D/g, '') !== String(org.cnpj)) {
+            return send(res, 409, { error: `Esta conta Asaas é do documento ${r.cpfCnpj}, não do CNPJ da ONG. Use a conta PJ no CNPJ da ONG.` }), true;
+          }
+          if (!fromEnv) await saveOrgSecret(db, orgId, 'ASAAS_API_KEY', apiKey);
+          await saveOrgSecret(db, orgId, 'ASAAS_WALLET_ID', r.walletId);
+          console.log(`🔐 Conta Asaas conectada para ${orgId} (${r.env})`);
+          return send(res, 200, { ok: true, env: r.env, accountName: r.accountName, walletId: `…${r.walletId.slice(-6)}` }), true;
+        } catch (e: any) {
+          return send(res, e?.status === 401 ? 400 : 502, { error: e?.status === 401 ? 'Chave de API recusada pelo Asaas' : e?.message || 'Falha ao falar com o Asaas' }), true;
+        }
+      }
+      // Abre a conta Asaas da ONG como subconta da plataforma (o Asaas manda o e-mail de ativação à ONG)
+      if (sub === '/asaas/subaccount' && method === 'POST') {
+        if (await getOrgSecret(db, orgId, 'ASAAS_API_KEY')) return send(res, 409, { error: 'Esta ONG já tem conta Asaas conectada' }), true;
+        const { createAsaasSubaccount, asaasWebhookUrl } = await import('./asaas');
+        const digits = (v: any) => String(v || '').replace(/\D/g, '');
+        const income = Number(String(body.incomeValue || '').replace(/\./g, '').replace(',', '.'));
+        const fields = {
+          mobilePhone: digits(body.mobilePhone),
+          address: String(body.address || '').trim().slice(0, 120),
+          addressNumber: String(body.addressNumber || '').trim().slice(0, 20),
+          complement: String(body.complement || '').trim().slice(0, 60) || null,
+          province: String(body.province || '').trim().slice(0, 60),
+          postalCode: digits(body.postalCode),
+        };
+        if (fields.mobilePhone.length < 10) return send(res, 400, { error: 'Celular do responsável com DDD', field: 'mobilePhone' }), true;
+        if (fields.postalCode.length !== 8) return send(res, 400, { error: 'CEP com 8 dígitos', field: 'postalCode' }), true;
+        if (!fields.address || !fields.addressNumber || !fields.province) return send(res, 400, { error: 'Endereço completo: rua, número e bairro', field: 'address' }), true;
+        if (!(income > 0)) return send(res, 400, { error: 'Faturamento mensal estimado (R$)', field: 'incomeValue' }), true;
+        try {
+          const r = await createAsaasSubaccount({
+            name: String(org.legalName || org.name),
+            email: String(body.email || org.contactEmail || '').trim(),
+            cpfCnpj: String(org.cnpj || ''),
+            companyType: 'ASSOCIATION',
+            incomeValue: income,
+            ...fields,
+            webhookUrl: asaasWebhookUrl(apiPublicBase(), orgId),
+            orgId,
+          });
+          // A chave só vem nesta resposta: guarda já, criptografada
+          await saveOrgSecret(db, orgId, 'ASAAS_API_KEY', r.apiKey);
+          await saveOrgSecret(db, orgId, 'ASAAS_WALLET_ID', r.walletId);
+          console.log(`🏦 Subconta Asaas criada para ${orgId} (${r.env})`);
+          return send(res, 201, { ok: true, env: r.env, walletId: `…${r.walletId.slice(-6)}`, next: 'O Asaas enviou o e-mail de ativação para a ONG: ela cria a senha e manda os documentos no próprio Asaas. Depois da aprovação, as cobranças já caem na conta dela.' }), true;
+        } catch (e: any) {
+          return send(res, e?.status === 503 ? 503 : 502, { error: e?.message || 'Falha ao abrir a conta no Asaas' }), true;
+        }
       }
       const secretMatch = sub.match(/^\/secrets\/([A-Z_]{3,40})$/);
       if (secretMatch && method === 'PUT') {

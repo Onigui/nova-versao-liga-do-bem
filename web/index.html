@@ -1065,7 +1065,7 @@
 
                     <div class="donor-info hidden" id="cardFields">
                         <h4>Dados do Cartão</h4>
-                        <p class="form-hint">🔒 Criptografado no seu navegador pelo PagBank. A Liga do Bem não vê o número do cartão.</p>
+                        <p class="form-hint" id="cardSecureHint">🔒 Criptografado no seu navegador pelo PagBank. A Liga do Bem não vê o número do cartão.</p>
                         <input type="text" id="cardHolder" placeholder="Nome impresso no cartão *" autocomplete="cc-name">
                         <input type="text" id="cardNumber" placeholder="Número do cartão *" inputmode="numeric" maxlength="19" autocomplete="cc-number">
                         <div class="form-row">
@@ -1150,6 +1150,10 @@
                     </div>
                     <p><a id="boletoLink" class="donate-btn boleto-link" target="_blank" rel="noopener">Abrir boleto (PDF)</a></p>
                     <p class="form-hint">O boleto compensa em 1 a 3 dias úteis; a doação é confirmada automaticamente.</p>
+                </div>
+                <div id="cardResult" class="hidden">
+                    <p><a id="cardLink" class="donate-btn boleto-link" target="_blank" rel="noopener">Pagar com cartão (página segura)</a></p>
+                    <p class="form-hint">Digite o cartão na página segura do Asaas. Esta janela confirma sozinha quando o pagamento for aprovado.</p>
                 </div>
             </div>
         </div>
@@ -1422,7 +1426,9 @@
         console.log('🐾 Liga do Bem Botucatu - Site carregado com sucesso!');
         console.log('📱 Backend API: https://nova-versao-liga-do-bem.vercel.app');
         console.log('🌐 Frontend Web: https://nova-versao-liga-do-bem-web.vercel.app');
-        // ===== Doações reais pelo PagBank (PIX, cartão e boleto) =====
+        // ===== Doações reais (Asaas ou PagBank: PIX, cartão e boleto) =====
+        // Asaas: o cartão é digitado na página segura do Asaas (hostedCard); PagBank: criptografado aqui.
+        let payCfg = { hostedCard: false, minAmountCents: 100 };
         let selectedAmount = 0;
         let selectedMethod = 'PIX';
         let pollTimer = null;
@@ -1464,10 +1470,18 @@
                     selectedMethod = this.dataset.method;
                     $('methodHint').textContent = METHOD_HINTS[selectedMethod];
                     $('boletoFields').classList.toggle('hidden', selectedMethod !== 'BOLETO');
-                    $('cardFields').classList.toggle('hidden', selectedMethod !== 'CREDIT_CARD');
+                    $('cardFields').classList.toggle('hidden', selectedMethod !== 'CREDIT_CARD' || payCfg.hostedCard);
                 });
             });
             $('addrCep').addEventListener('input', onCepInput);
+            fetch(API_BASE_URL + '/api/payments/config').then(r => r.ok ? r.json() : null).then(cfg => {
+                if (!cfg) return;
+                payCfg = Object.assign(payCfg, cfg);
+                if (payCfg.hostedCard) {
+                    METHOD_HINTS.CREDIT_CARD = 'Você digita o cartão na página segura do Asaas. Cobrança à vista.';
+                    if (selectedMethod === 'CREDIT_CARD') { $('methodHint').textContent = METHOD_HINTS.CREDIT_CARD; $('cardFields').classList.add('hidden'); }
+                }
+            }).catch(() => {});
             $('cardExp').addEventListener('input', function() {
                 const d = onlyDigits(this.value).slice(0, 4);
                 this.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
@@ -1535,7 +1549,8 @@
             const name = $('donorName').value.trim();
             const email = $('donorEmail').value.trim();
             const cpf = onlyDigits($('donorCpf').value);
-            if (!(selectedAmount >= 1)) return showError('Escolha um valor (mínimo R$ 1,00).');
+            const minAmount = (Number(payCfg.minAmountCents) || 100) / 100;
+            if (!(selectedAmount >= minAmount)) return showError('Escolha um valor (mínimo ' + money(minAmount) + ').');
             if (name.length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('Informe seu nome e um e-mail válido.');
             if (cpf.length !== 11) return showError('Informe um CPF válido.');
 
@@ -1565,7 +1580,7 @@
             btnText.textContent = 'Processando...';
             btn.disabled = true;
             try {
-                if (selectedMethod === 'CREDIT_CARD') {
+                if (selectedMethod === 'CREDIT_CARD' && !payCfg.hostedCard) {
                     payload.card = { encrypted: await encryptCard($('cardHolder').value.trim()), holderName: $('cardHolder').value.trim() };
                     $('cardCvv').value = '';
                 }
@@ -1592,6 +1607,7 @@
             $('resultTitle').textContent = payment.status === 'APPROVED' ? 'Obrigado! 💜' : 'Sua doação';
             if (payment.status !== 'PENDING') {
                 $('pixResult').classList.add('hidden');
+                $('cardResult').classList.add('hidden');
                 stopPolling();
             }
         }
@@ -1600,6 +1616,9 @@
             $('paymentAmount').textContent = money(payment.amount);
             $('pixResult').classList.toggle('hidden', !(payment.method === 'PIX' && payment.status === 'PENDING'));
             $('boletoResult').classList.toggle('hidden', payment.method !== 'BOLETO');
+            const cardUrl = payment.method === 'CREDIT_CARD' && payment.status === 'PENDING' ? payment.paymentUrl : null;
+            $('cardResult').classList.toggle('hidden', !cardUrl);
+            if (cardUrl) $('cardLink').href = cardUrl;
             if (payment.method === 'PIX') {
                 $('pixCode').value = payment.pixCopyPaste || '';
                 if (payment.pixQrImage) $('pixQrImage').src = payment.pixQrImage;

@@ -84,6 +84,9 @@ export default function MembershipCheckoutScreen({navigation, route}) {
     securityCode: '',
     holderName: '',
   });
+  // Como a ONG cobra: no Asaas o cartão é digitado na página segura do Asaas (hostedCard)
+  const [payCfg, setPayCfg] = useState({hostedCard: false, gatewayName: '', minAmountCents: 100});
+  const hosted = Boolean(payCfg.hostedCard);
   const pollRef = useRef(null);
   const encryptorRef = useRef(null);
 
@@ -126,6 +129,18 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         setCpf(prev => prev || savedCpf);
       }
       setHasToken(Boolean(await AsyncStorage.getItem('auth_token')));
+      try {
+        const cfgToken = await AsyncStorage.getItem('auth_token');
+        const cfgRes = await fetch(`${API_BASE_PATH}/payments/config`, {
+          headers: cfgToken ? {Authorization: `Bearer ${cfgToken}`} : {},
+        });
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          if (cfg && typeof cfg === 'object') setPayCfg(prev => ({...prev, ...cfg}));
+        }
+      } catch {
+        // servidor antigo: segue no fluxo de cartão no app
+      }
       if (isDonation) {
         return;
       }
@@ -143,10 +158,13 @@ export default function MembershipCheckoutScreen({navigation, route}) {
       if (!list.find(p => p.code === planCode) && list[0]) {
         setPlanCode(list[0].code);
       }
+      if (data.payments && typeof data.payments === 'object') {
+        setPayCfg(prev => ({...prev, ...data.payments}));
+      }
       if (!data.paymentsEnabled) {
         Alert.alert(
           'Pagamentos',
-          'O PagBank ainda não está configurado no servidor. Peça para adicionar PAGBANK_TOKEN na Vercel.',
+          'Os pagamentos pelo app ainda não foram ativados para esta ONG. Tente novamente mais tarde.',
         );
       }
     } catch (e) {
@@ -251,8 +269,9 @@ export default function MembershipCheckoutScreen({navigation, route}) {
 
   const handleCheckout = async () => {
     if (!isDonation && !selectedPlan) return;
-    if (isDonation && !(donationAmount >= 1)) {
-      Alert.alert('Doação', 'O valor mínimo para doar é R$ 1,00.');
+    const minDonation = (Number(payCfg.minAmountCents) || 100) / 100;
+    if (isDonation && !(donationAmount >= minDonation)) {
+      Alert.alert('Doação', `O valor mínimo para doar é ${formatMoney(minDonation)}.`);
       return;
     }
     if (isDonation && !hasToken) {
@@ -274,7 +293,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
       return;
     }
 
-    if (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+    if ((method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && !hosted) {
       if (
         onlyDigits(card.number).length < 13 ||
         !card.expMonth ||
@@ -308,7 +327,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
       if (method === 'BOLETO') {
         payload.address = address;
       }
-      if (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+      if ((method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && !hosted) {
         // Criptografa no aparelho com o SDK do PagBank: número e CVV nunca vão para a API.
         const keyRes = await fetch(`${API_BASE_PATH}/membership/card-public-key`, {
           headers: {Authorization: `Bearer ${token}`},
@@ -367,6 +386,10 @@ export default function MembershipCheckoutScreen({navigation, route}) {
       }
 
       setPayment(data.payment);
+      // Cartão no Asaas: abre a página segura de pagamento; a tela segue conferindo sozinha
+      if (data.payment?.paymentUrl && (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && data.payment?.status !== 'APPROVED') {
+        Linking.openURL(data.payment.paymentUrl).catch(() => {});
+      }
       if (data.payment?.status === 'APPROVED') {
         Alert.alert(
           isDonation ? 'Doação confirmada!' : 'Assinatura ativa!',
@@ -408,7 +431,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
         </Text>
       </View>
 
-      {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && (
+      {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && !hosted && (
         <PagBankCardEncryptor ref={encryptorRef} />
       )}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -506,7 +529,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
 
         <Field
           label="CPF do pagador"
-          hint="Necessário para emitir o pagamento no PagBank">
+          hint="Necessário para emitir o pagamento">
           <TextInput
             style={styles.input}
             placeholder="000.000.000-00"
@@ -522,7 +545,41 @@ export default function MembershipCheckoutScreen({navigation, route}) {
           <BoletoAddressForm value={address} onChange={setAddress} />
         ) : null}
 
-        {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && (
+        {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && hosted && (
+          <View style={styles.cardBox}>
+            <Text style={styles.sectionTitle}>Pagamento com cartão</Text>
+            <Text style={styles.fieldHint}>
+              Ao tocar em pagar, abrimos a página segura do {payCfg.gatewayName || 'Asaas'} para você
+              digitar o cartão. A ONG não vê nem guarda o número do cartão.
+            </Text>
+            {method === 'CREDIT_CARD' && !isDonation && installmentOptions.length > 1 ? (
+              <View style={styles.installmentsBox}>
+                <Text style={styles.fieldLabel}>Parcelamento</Text>
+                {installmentNote ? <Text style={styles.fieldHint}>{installmentNote}</Text> : null}
+                {installmentOptions.map(option => {
+                  const active = option.installments === installments;
+                  return (
+                    <TouchableOpacity
+                      key={option.installments}
+                      style={[styles.installmentOption, active && styles.installmentOptionActive]}
+                      onPress={() => setInstallments(option.installments)}>
+                      <View style={styles.installmentRadio}>
+                        {active ? <View style={styles.installmentRadioDot} /> : null}
+                      </View>
+                      <Text style={[styles.installmentText, active && styles.installmentTextActive]}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.secureHint}>Cobrado à vista no cartão.</Text>
+            )}
+          </View>
+        )}
+
+        {(method === 'CREDIT_CARD' || method === 'DEBIT_CARD') && !hosted && (
           <View style={styles.cardBox}>
             <Text style={styles.sectionTitle}>Dados do cartão</Text>
 
@@ -640,7 +697,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
 
             <Text style={styles.secureHint}>
               Os dados do cartão são criptografados no seu celular e enviados direto ao
-              PagBank. A Liga do Bem não vê nem armazena o número do cartão.
+              PagBank. A ONG não vê nem armazena o número do cartão.
             </Text>
           </View>
         )}
@@ -670,7 +727,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
               <>
                 {payment.pixCopyPaste ? (
                   // QR gerado no aparelho a partir do copia-e-cola (é o mesmo conteúdo):
-                  // não depende de baixar a imagem do PagBank.
+                  // não depende de baixar a imagem do gateway.
                   <View style={styles.qrLocal}>
                     <QRCode value={payment.pixCopyPaste} size={200} />
                   </View>
@@ -708,14 +765,27 @@ export default function MembershipCheckoutScreen({navigation, route}) {
               </>
             )}
 
+            {payment.paymentUrl &&
+            (payment.method === 'CREDIT_CARD' || payment.method === 'DEBIT_CARD') &&
+            payment.status === 'PENDING' ? (
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                onPress={() => Linking.openURL(payment.paymentUrl)}>
+                <Ionicons name="lock-closed-outline" size={18} color="#0284C7" />
+                <Text style={styles.secondaryBtnText}>Abrir página de pagamento do cartão</Text>
+              </TouchableOpacity>
+            ) : null}
+
             {payment.status === 'PENDING' ? (
               <Text style={styles.pollHint}>
                 {payment.method === 'BOLETO'
                   ? 'O boleto compensa em 1 a 3 dias úteis. '
-                  : 'Pague pelo app do seu banco; esta tela atualiza sozinha. '}
+                  : payment.method === 'CREDIT_CARD' || payment.method === 'DEBIT_CARD'
+                    ? 'Termine o pagamento na página do cartão; esta tela atualiza sozinha. '
+                    : 'Pague pelo app do seu banco; esta tela atualiza sozinha. '}
                 {isDonation
                   ? 'A doação é confirmada automaticamente.'
-                  : 'Assim que o PagBank confirmar, sua assinatura fica ativa.'}
+                  : 'Assim que o pagamento for confirmado, sua assinatura fica ativa.'}
               </Text>
             ) : null}
           </View>

@@ -220,7 +220,7 @@
       document.getElementById('totUsos').textContent = `${int(d.year.cardUses)} nos últimos 12 meses`;
       const fm = new Map(((d.fees && d.fees.months) || []).map((m) => [m.month, m]));
       const c = (v) => brl(Number(v || 0) / 100);
-      document.getElementById('tabela').innerHTML = s.slice().reverse().map((r) => { const f = fm.get(r.month) || {}; return `<tr><td>${esc(mes(r.month))}</td><td>${int(r.newMembers)}</td><td>${c(f.membershipsCents)}</td><td>${c(f.donationsCents)}</td><td>${c(f.partnersCents)}</td><td><strong>${c(f.grossCents)}</strong></td><td>${c(f.feeCents)}</td><td>${int(r.cardUses)}</td><td>${int(r.adoptions)}</td></tr>`; }).join('');
+      document.getElementById('tabela').innerHTML = s.slice().reverse().map((r) => { const f = fm.get(r.month) || {}; return `<tr><td>${esc(mes(r.month))}</td><td>${int(r.newMembers)}</td><td>${c(f.membershipsCents)}</td><td>${c(f.donationsCents)}</td><td>${c(f.partnersCents)}</td><td><strong>${c(f.grossCents)}</strong></td><td>${c((f.feeCents || 0) + (f.splitFeeCents || 0))}</td><td>${int(r.cardUses)}</td><td>${int(r.adoptions)}</td></tr>`; }).join('');
       if (d.fees) {
         const pct = `${Math.round(d.fees.rate * 1000) / 10}%`.replace('.', ',');
         document.getElementById('taxaPct').textContent = pct;
@@ -229,7 +229,7 @@
         document.getElementById('taxaCards').innerHTML = [
           ['A pagar', c(d.fees.dueCents), pend.length ? `<span class="down">${pend.map((f) => mes(f.month)).join(', ')}</span>` : '<span class="up">Tudo em dia</span>'],
           ['Este mês até agora (bruto)', c(atual.grossCents), '<span class="muted">ainda pode mudar</span>'],
-          [`Taxa deste mês até agora (${pct})`, c(atual.feeCents), '<span class="muted">vira cobrança quando o mês fechar</span>'],
+          [`Taxa deste mês até agora (${pct})`, c((atual.feeCents || 0) + (atual.splitFeeCents || 0)), atual.splitFeeCents ? `<span class="muted">${c(atual.splitFeeCents)} já descontado na hora pelo Asaas${atual.feeCents ? `; ${c(atual.feeCents)} vira cobrança quando o mês fechar` : ''}</span>` : '<span class="muted">vira cobrança quando o mês fechar</span>'],
         ].map(([t, v, x]) => `<div class="card kpi"><small>${t}</small><strong>${v}</strong>${x}</div>`).join('');
         document.getElementById('taxaLista').innerHTML = d.fees.invoices.length
           ? `<div class="tablebox"><table><thead><tr><th scope="col">Mês</th><th scope="col">Total bruto</th><th scope="col">Taxa</th><th scope="col">Situação</th></tr></thead><tbody>${d.fees.invoices.map((f) => `<tr><td>${esc(mes(f.month))}</td><td>${c(f.grossCents)}</td><td><strong>${c(f.feeCents)}</strong></td><td>${f.status === 'PAID' ? '<span class="up">Paga</span>' : '<span class="down">A pagar</span>'}</td></tr>`).join('')}</tbody></table></div>`
