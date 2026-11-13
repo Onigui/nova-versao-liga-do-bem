@@ -1,11 +1,13 @@
 /**
- * Pagamento da notificação paga: PIX (QR + copia e cola) ou cartão (criptografado no aparelho).
- * Faz polling até o PagBank confirmar; aí a notificação vai para a análise da Liga.
+ * Pagamento da notificação paga: PIX (QR + copia e cola) ou cartão.
+ * Cartão: no Asaas, na página segura do Asaas (abre no navegador); no PagBank, criptografado no aparelho.
+ * Faz polling até o pagamento ser confirmado; aí a notificação vai para a análise da ONG.
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Alert,
   Clipboard,
+  Linking,
   Pressable,
   ScrollView,
   Text,
@@ -56,6 +58,8 @@ export default function PushPaymentScreen({route, navigation}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  // Asaas: cartão digitado na página segura do Asaas, não no app
+  const [hosted, setHosted] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -71,6 +75,9 @@ export default function PushPaymentScreen({route, navigation}) {
 
   useEffect(() => {
     refresh();
+    api('GET', '/payments/config')
+      .then(cfg => setHosted(Boolean(cfg?.hostedCard)))
+      .catch(() => {});
     AsyncStorage.getItem(TAX_KEY)
       .then(v => v && setTaxId(formatTaxId(v)))
       .catch(() => {});
@@ -96,7 +103,7 @@ export default function PushPaymentScreen({route, navigation}) {
     setBusy(true);
     try {
       const body = {method, taxId: tax};
-      if (method === 'CREDIT_CARD') {
+      if (method === 'CREDIT_CARD' && !hosted) {
         const key = await api('GET', '/partner/card-public-key');
         let encrypted;
         try {
@@ -127,6 +134,9 @@ export default function PushPaymentScreen({route, navigation}) {
       setCampaign(r.campaign);
       setPayment(r.payment);
       if (r.message) setInfo(r.message);
+      if (r.payment?.paymentUrl && method === 'CREDIT_CARD' && r.payment?.status === 'PENDING') {
+        Linking.openURL(r.payment.paymentUrl).catch(() => {});
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -196,7 +206,7 @@ export default function PushPaymentScreen({route, navigation}) {
       style={ui.screen}
       contentContainerStyle={ui.content}
       keyboardShouldPersistTaps="handled">
-      <PagBankCardEncryptor ref={encryptorRef} />
+      {hosted ? null : <PagBankCardEncryptor ref={encryptorRef} />}
       <Card>
         <View style={[ui.row, {justifyContent: 'space-between'}]}>
           <Text
@@ -248,6 +258,22 @@ export default function PushPaymentScreen({route, navigation}) {
             A confirmação é automática. Pode deixar esta tela aberta.
           </Text>
         </Card>
+      ) : payment?.status === 'PENDING' &&
+        payment.method === 'CREDIT_CARD' &&
+        payment.paymentUrl ? (
+        <Card style={{alignItems: 'center'}}>
+          <Text style={{fontWeight: '800', color: COLORS.text, marginBottom: 10}}>
+            Pague com cartão
+          </Text>
+          <Text style={[ui.muted, {textAlign: 'center'}]}>
+            Termine o pagamento na página segura que abrimos. Esta tela atualiza sozinha.
+          </Text>
+          <Button
+            title="Abrir página de pagamento"
+            onPress={() => Linking.openURL(payment.paymentUrl).catch(() => {})}
+            style={{alignSelf: 'stretch', marginTop: 14}}
+          />
+        </Card>
       ) : (
         <Card>
           <Text style={ui.label}>Forma de pagamento</Text>
@@ -263,7 +289,12 @@ export default function PushPaymentScreen({route, navigation}) {
             maxLength={18}
             testID="taxid"
           />
-          {method === 'CREDIT_CARD' ? (
+          {method === 'CREDIT_CARD' && hosted ? (
+            <Text style={[ui.muted, {fontSize: 12, marginBottom: 10}]}>
+              Você digita o cartão na página segura do Asaas. O cartão não passa pelo SóciONG.
+            </Text>
+          ) : null}
+          {method === 'CREDIT_CARD' && !hosted ? (
             <>
               <Field
                 label="Número do cartão"

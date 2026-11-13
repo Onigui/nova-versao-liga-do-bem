@@ -5,11 +5,7 @@ import {
   enforcePlanFloor,
   planMonthsFromCode,
 } from './membershipPlans';
-import {
-  getPagBankOrder,
-  isPaidChargeStatus,
-  mapPagBankStatusToPayment,
-} from './pagbank';
+import { getGatewayOrder, isPaidStatus, mapGatewayStatus } from './gateway';
 import { approveDonationFromPayment, syncDonationFailure } from './donations';
 import { markPartnerPushPaid } from './partnerPushSettle';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
@@ -378,19 +374,22 @@ export async function settleApprovedPayment(db: any, paymentId: string) {
   return activateMembershipFromPayment(db, paymentId);
 }
 
-/** Consulta o pedido no PagBank e aplica o status (usado pelo webhook e pelo polling do app). */
-export async function syncPaymentFromPagBank(db: any, paymentId: string) {
+/**
+ * Consulta o pagamento no gateway em que ele foi feito (Asaas ou PagBank) e aplica o status.
+ * Usado pelos webhooks e pelo polling do app. Nunca confia no corpo do aviso.
+ */
+export async function syncPaymentFromGateway(db: any, paymentId: string) {
   const rows: any[] = await db.$queryRawUnsafe(
-    `SELECT id, "gatewayId", status FROM payments WHERE id = $1 LIMIT 1`,
+    `SELECT id, gateway, "gatewayId", status FROM payments WHERE id = $1 LIMIT 1`,
     paymentId,
   );
   const payment = rows?.[0];
   if (!payment?.gatewayId) return { ok: false, reason: 'no_gateway' };
 
-  const order = await getPagBankOrder(payment.gatewayId);
-  const mapped = mapPagBankStatusToPayment(order.chargeStatus || order.status);
+  const order = await getGatewayOrder(payment.gateway, payment.gatewayId);
+  const mapped = mapGatewayStatus(payment.gateway, order.chargeStatus || order.status);
 
-  if (mapped === 'APPROVED' || isPaidChargeStatus(order.chargeStatus)) {
+  if (mapped === 'APPROVED' || isPaidStatus(order.chargeStatus)) {
     return settleApprovedPayment(db, payment.id);
   }
 
@@ -406,3 +405,6 @@ export async function syncPaymentFromPagBank(db: any, paymentId: string) {
 
   return { ok: true, status: mapped, order };
 }
+
+/** Nome antigo, mantido para quem ainda chama. */
+export const syncPaymentFromPagBank = syncPaymentFromGateway;

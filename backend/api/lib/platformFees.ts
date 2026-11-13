@@ -6,6 +6,8 @@
  * - Ao virar o mês, o mês fechado vira uma cobrança (platform_fee_invoices) "a pagar":
  *   aparece na central de pendências e no relatório da ONG, pronta para ela só pagar.
  * - A equipe marca como paga no painel (Plataforma → Taxas).
+ * - Pagamentos pelo Asaas com split já entregam a taxa na hora: entram no bruto, mas a parte
+ *   que já veio por split (splitCents) sai da cobrança do mês.
  */
 import crypto from 'crypto';
 import { DEFAULT_ORG, isolationOn, runAsSystem, runWithOrg } from './tenant';
@@ -42,21 +44,28 @@ export async function grossByMonth(db: any, now = new Date(), months = 12) {
       return new Map<string, number>();
     }
   };
-  const [memberships, donations, partners] = await Promise.all([
+  const [memberships, donations, partners, split] = await Promise.all([
     q(`SELECT COALESCE(SUM(p.amount), 0) * 100 FROM payments p WHERE p.status = 'APPROVED' AND p.type = 'MEMBERSHIP' AND ${inMonth('COALESCE(p."paidAt", p."createdAt")')}`),
     q(`SELECT COALESCE(SUM(d.amount), 0) * 100 FROM donations d WHERE d.status = 'APPROVED' AND ${inMonth('d."updatedAt"')}`),
     q(`SELECT COALESCE(SUM(c."priceCents"), 0) FROM partner_push_campaigns c WHERE c."paidAt" IS NOT NULL AND c.status <> 'REFUNDED' AND ${inMonth('c."paidAt"')}`),
+    // Bruto que já pagou a taxa por split no Asaas
+    q(`SELECT COALESCE(SUM(p.amount), 0) * 100 FROM payments p WHERE p.status = 'APPROVED' AND p.gateway = 'ASAAS' AND COALESCE((p."gatewayData"->>'splitFeeCents')::numeric, 0) > 0 AND ${inMonth('COALESCE(p."paidAt", p."createdAt")')}`),
   ]);
   return lastMonths(now, months).map((month) => {
     const m = memberships.get(month) || 0;
     const d = donations.get(month) || 0;
     const p = partners.get(month) || 0;
-    return { month, membershipsCents: m, donationsCents: d, partnersCents: p, grossCents: m + d + p };
+    const gross = m + d + p;
+    return { month, membershipsCents: m, donationsCents: d, partnersCents: p, grossCents: gross, splitCents: Math.min(gross, split.get(month) || 0) };
   });
 }
 
-export function withFee<T extends { grossCents: number }>(rows: T[], rate: number) {
-  return rows.map((r) => ({ ...r, feeCents: Math.round(r.grossCents * rate) }));
+/** feeCents = o que ainda falta pagar (fora do split); splitFeeCents = o que já veio pelo Asaas. */
+export function withFee<T extends { grossCents: number; splitCents?: number }>(rows: T[], rate: number) {
+  return rows.map((r) => {
+    const split = Math.max(0, Math.min(r.grossCents, r.splitCents || 0));
+    return { ...r, feeCents: Math.round((r.grossCents - split) * rate), splitFeeCents: Math.round(split * rate) };
+  });
 }
 
 // ---------------------------------------------------------------- cobranças dos meses fechados
@@ -77,6 +86,7 @@ export function ensureFeeSchema(db: any) {
       "grossCents" INTEGER NOT NULL DEFAULT 0,
       rate NUMERIC NOT NULL DEFAULT 0.1,
       "feeCents" INTEGER NOT NULL DEFAULT 0,
+      "splitCents" INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'PENDING',
       "paidAt" TIMESTAMP,
       "paidNote" TEXT,
@@ -85,6 +95,7 @@ export function ensureFeeSchema(db: any) {
       "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
       UNIQUE ("orgId", month)
     )`);
+    await db.$executeRawUnsafe(`ALTER TABLE platform_fee_invoices ADD COLUMN IF NOT EXISTS "splitCents" INTEGER NOT NULL DEFAULT 0`);
   }).catch((e) => {
     ready = null;
     throw e;
@@ -106,15 +117,16 @@ export async function syncFeeInvoices(db: any, now = new Date()) {
     const rate = feeRate(o.fees);
     const rows = withFee(await runWithOrg(o.id, () => grossByMonth(db, now, 4)), rate).filter((r) => closed.includes(r.month));
     for (const r of rows) {
-      if (r.grossCents <= 0) continue;
+      // Mês todo pago por split (Asaas) não vira cobrança
+      if (r.grossCents <= 0 || r.feeCents <= 0) continue;
       await runAsSystem(() =>
         db.$executeRawUnsafe(
-          `INSERT INTO platform_fee_invoices (id, "orgId", month, "membershipsCents", "donationsCents", "partnersCents", "grossCents", rate, "feeCents")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          `INSERT INTO platform_fee_invoices (id, "orgId", month, "membershipsCents", "donationsCents", "partnersCents", "grossCents", rate, "feeCents", "splitCents")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT ("orgId", month) DO UPDATE SET
              "membershipsCents" = EXCLUDED."membershipsCents", "donationsCents" = EXCLUDED."donationsCents",
              "partnersCents" = EXCLUDED."partnersCents", "grossCents" = EXCLUDED."grossCents",
-             rate = EXCLUDED.rate, "feeCents" = EXCLUDED."feeCents", "updatedAt" = NOW()
+             rate = EXCLUDED.rate, "feeCents" = EXCLUDED."feeCents", "splitCents" = EXCLUDED."splitCents", "updatedAt" = NOW()
            WHERE platform_fee_invoices.status = 'PENDING'`,
           crypto.randomUUID(),
           o.id,
@@ -125,6 +137,7 @@ export async function syncFeeInvoices(db: any, now = new Date()) {
           r.grossCents,
           rate,
           r.feeCents,
+          r.splitCents || 0,
         ),
       );
     }
@@ -151,6 +164,7 @@ export async function listInvoices(db: any, orgId?: string | null) {
     grossCents: num(r.grossCents),
     rate: Number(r.rate),
     feeCents: num(r.feeCents),
+    splitCents: num(r.splitCents),
     status: r.status,
     paidAt: r.paidAt,
     paidNote: r.paidNote,

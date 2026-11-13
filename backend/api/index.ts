@@ -7,17 +7,23 @@ import Busboy from 'busboy';
 import fs from 'fs';
 import path from 'path';
 import {
-  createPagBankOrder,
   getPagBankConfig,
-  getPagBankInstallmentPlans,
-  getPagBankCardPublicKey,
   normalizeBoletoAddress,
-  getPagBankOrder,
   cashInstallmentOption,
-  isPaidChargeStatus,
-  mapPagBankStatusToPayment,
-  pagbankWebhookUrl,
 } from './lib/pagbank';
+import {
+  activeGateway,
+  createGatewayOrder,
+  gatewayCardPublicKey,
+  gatewayInstallmentPlans,
+  gatewayNotificationUrl,
+  isDeclinedStatus,
+  isPaidStatus,
+  paymentsInfo,
+  paymentsReady,
+  HOSTED_CARD_MESSAGE,
+} from './lib/gateway';
+import { getAsaasConfig, verifyAsaasWebhook } from './lib/asaas';
 import {
   activateMembershipFromPayment,
   ensureMembershipBillingSchema,
@@ -25,7 +31,7 @@ import {
   isMembershipCurrentlyActive,
   listMembershipPlans,
   requirePaidMembership,
-  syncPaymentFromPagBank,
+  syncPaymentFromGateway,
 } from './lib/membershipBilling';
 import { cashOnlyInstallmentOptions } from './lib/membershipPlans';
 import { verifyGithubOidc } from './lib/githubOidc';
@@ -1170,6 +1176,11 @@ async function handleRequest(req: any, res: any) {
       return res.status(200).json({
         pagbankConfigured: getPagBankConfig().configured,
         pagbankEnv: getPagBankConfig().env,
+        asaasConfigured: getAsaasConfig().configured,
+        asaasEnv: getAsaasConfig().env,
+        asaasSplit: Boolean(String(process.env.ASAAS_PLATFORM_WALLET_ID || '').trim()),
+        paymentsGateway: activeGateway(),
+        paymentsReady: paymentsReady(),
         fcmConfigured: isPushConfigured(),
         demoAdminEnabled: process.env.ALLOW_DEMO_ADMIN === 'true',
         databaseConfigured: Boolean(getPrisma()),
@@ -5395,28 +5406,34 @@ async function handleRequest(req: any, res: any) {
     // Chave pública de cartão para doações sem login (site). É uma chave PÚBLICA RSA:
     // só serve para criptografar; apenas o PagBank consegue abrir o resultado.
     if (path === '/api/donations/card-public-key' && method === 'GET') {
-      if (!getPagBankConfig().configured) {
+      if (!paymentsReady()) {
         return res.status(503).json({ error: 'Pagamentos ainda não configurados.' });
       }
       try {
-        return res.status(200).json({ publicKey: await getPagBankCardPublicKey() });
+        return res.status(200).json({ publicKey: await gatewayCardPublicKey(), ...paymentsInfo() });
       } catch (e: any) {
         console.error('❌ PagBank public key (doação):', e?.payload || e?.message);
         return res.status(502).json({ error: 'Não foi possível obter a chave de criptografia do cartão.' });
       }
     }
 
-    // ===== Doações pelo PagBank (PIX, boleto e cartão) — confirmação automática =====
+    // Como a ONG cobra (gateway, cartão na página do gateway ou no app, valor mínimo). Público.
+    if (path === '/api/payments/config' && method === 'GET') {
+      return res.status(200).json(paymentsInfo());
+    }
+
+    // ===== Doações (Asaas ou PagBank: PIX, boleto e cartão) — confirmação automática =====
     if (path === '/api/donations/checkout' && method === 'POST') {
       const db = getPrisma();
       if (!db) return res.status(503).json({ error: 'Database not configured' });
-      if (!getPagBankConfig().configured) {
+      if (!paymentsReady()) {
         return res.status(503).json({ error: 'Pagamentos ainda não configurados.' });
       }
       try {
         const amount = Math.round(Number(String(body?.amount ?? '').replace(',', '.')) * 100) / 100;
-        if (!Number.isFinite(amount) || amount < 1) {
-          return res.status(400).json({ error: 'O valor mínimo para doar é R$ 1,00.' });
+        const minDonation = paymentsInfo().minAmountCents / 100;
+        if (!Number.isFinite(amount) || amount < minDonation) {
+          return res.status(400).json({ error: `O valor mínimo para doar é ${minDonation.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` });
         }
         if (amount > 100000) {
           return res.status(400).json({ error: 'Valor máximo por doação: R$ 100.000,00' });
@@ -5425,7 +5442,8 @@ async function handleRequest(req: any, res: any) {
         if (!['PIX', 'BOLETO', 'CREDIT_CARD'].includes(payMethod)) {
           return res.status(400).json({ error: 'Forma de pagamento inválida. Use PIX, BOLETO ou CREDIT_CARD.' });
         }
-        if (payMethod === 'CREDIT_CARD' && !body?.card?.encrypted) {
+        const hostedCard = paymentsInfo().hostedCard;
+        if (payMethod === 'CREDIT_CARD' && !hostedCard && !body?.card?.encrypted) {
           return res.status(400).json({
             error: 'Atualize o aplicativo para doar com cartão com segurança.',
             code: 'CARD_ENCRYPTION_REQUIRED',
@@ -5478,7 +5496,7 @@ async function handleRequest(req: any, res: any) {
         const descParts: string[] = [];
         if (body?.recurring) descParts.push('Doação mensal (intenção)');
         if (body?.description) descParts.push(String(body.description).slice(0, 180));
-        const description = descParts.join(' — ') || 'Doação via PagBank';
+        const description = descParts.join(' — ') || 'Doação pelo app';
 
         const crypto = require('crypto');
         const donationId = crypto.randomUUID();
@@ -5495,14 +5513,14 @@ async function handleRequest(req: any, res: any) {
         const apiBase = process.env.API_PUBLIC_URL || process.env.BACKEND_URL || 'https://nova-versao-liga-do-bem.vercel.app';
         let order;
         try {
-          order = await createPagBankOrder({
+          order = await createGatewayOrder({
             referenceId: `DON-${paymentId.slice(0, 8)}`,
             amountCents: Math.round(amount * 100),
             description: 'Doação — Liga do Bem Botucatu',
             customer: { name: donorName, email: donorEmail, taxId, phone: donorPhone },
             method: payMethod as any,
-            notificationUrl: pagbankWebhookUrl(apiBase),
-            card: payMethod === 'CREDIT_CARD'
+            notificationUrl: gatewayNotificationUrl(apiBase),
+            card: payMethod === 'CREDIT_CARD' && !hostedCard
               ? { encrypted: body.card.encrypted, holderName: body.card.holderName || donorName }
               : undefined,
             installments: 1,
@@ -5510,30 +5528,31 @@ async function handleRequest(req: any, res: any) {
             instructionLines: ['Doação para a Liga do Bem Botucatu', 'Obrigado por ajudar os animais!'],
           });
         } catch (e: any) {
-          console.error('❌ PagBank doação:', e?.payload || e?.message);
+          console.error('❌ Gateway doação:', e?.payload || e?.message);
           await db.$executeRawUnsafe(
             `UPDATE donations SET status = 'REJECTED', "updatedAt" = NOW() WHERE id = $1`,
             donationId
           );
-          return res.status(502).json({ error: e?.message || 'Falha ao gerar o pagamento no PagBank', code: e?.code || null });
+          return res.status(e?.status === 400 ? 400 : 502).json({ error: e?.message || 'Falha ao gerar o pagamento', code: e?.code || null });
         }
 
-        const immediatePaid = isPaidChargeStatus(order.chargeStatus);
-        const declined = ['DECLINED', 'CANCELED', 'CANCELLED'].includes(String(order.chargeStatus || '').toUpperCase());
+        const immediatePaid = isPaidStatus(order.chargeStatus);
+        const declined = isDeclinedStatus(order.chargeStatus);
         await db.$executeRawUnsafe(
           `INSERT INTO payments
             (id, amount, description, type, status, gateway, "gatewayId", "paymentUrl", "qrCode",
              "expiresAt", "gatewayData", "userEmail", "userName", "userPhone", "userId",
              method, "pixCopyPaste", "boletoUrl", "boletoBarcode", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, 'DONATION', $4::"PaymentStatus", 'PAGBANK', $5, $6, $7,
+           VALUES ($1, $2, $3, 'DONATION', $4::"PaymentStatus", $18, $5, $6, $7,
              $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())`,
           paymentId, amount, description, declined ? 'REJECTED' : 'PENDING', order.id,
           order.paymentLink || order.boletoUrl || null, order.pixQrImage || null,
           order.pixExpiration ? new Date(order.pixExpiration) : null,
-          JSON.stringify({ ...(order.raw || {}), donationId }),
+          JSON.stringify({ ...(order.raw || {}), donationId, splitFeeCents: order.splitFeeCents || 0 }),
           donorEmail, donorName, donorPhone, userId, payMethod,
           order.pixCopyPaste || null, order.boletoUrl || null,
-          order.boletoFormattedBarcode || order.boletoBarcode || null
+          order.boletoFormattedBarcode || order.boletoBarcode || null,
+          order.gateway
         );
 
         let status = declined ? 'REJECTED' : 'PENDING';
@@ -5556,11 +5575,15 @@ async function handleRequest(req: any, res: any) {
             pixExpiration: order.pixExpiration || null,
             boletoUrl: order.boletoUrl || null,
             boletoBarcode: order.boletoFormattedBarcode || order.boletoBarcode || null,
+            paymentUrl: order.paymentLink || null,
+            gateway: order.gateway,
           },
           message: status === 'APPROVED'
             ? 'Doação confirmada! Muito obrigado.'
             : status === 'REJECTED'
               ? 'Pagamento recusado pelo emissor do cartão.'
+              : payMethod === 'CREDIT_CARD' && order.paymentLink
+                ? HOSTED_CARD_MESSAGE
               : payMethod === 'PIX'
                 ? 'PIX gerado. A confirmação é automática assim que você pagar.'
                 : 'Boleto gerado. A confirmação acontece após a compensação (1 a 3 dias úteis).',
@@ -5590,7 +5613,7 @@ async function handleRequest(req: any, res: any) {
         if (!p) return res.status(404).json({ error: 'Doação não encontrada' });
         if (p.status === 'PENDING' && p.gatewayId) {
           try {
-            await syncPaymentFromPagBank(db, p.id);
+            await syncPaymentFromGateway(db, p.id);
             p = await load();
           } catch (e) {
             console.warn('⚠️ Sync doação falhou:', (e as any)?.message);
@@ -7167,8 +7190,6 @@ async function handleRequest(req: any, res: any) {
           );
         }
 
-        const pagbank = getPagBankConfig();
-
         return res.status(200).json({
           membership: {
             id: membership.id,
@@ -7188,7 +7209,8 @@ async function handleRequest(req: any, res: any) {
             createdAt: membership.createdAt,
             updatedAt: membership.updatedAt,
           },
-          paymentsEnabled: pagbank.configured,
+          paymentsEnabled: paymentsReady(),
+          payments: paymentsInfo(),
           user: {
             id: user.id,
             name: user.name,
@@ -7214,36 +7236,39 @@ async function handleRequest(req: any, res: any) {
         await ensureMembershipBillingSchema(db);
         const plans = await listMembershipPlans(db);
         const cardBin = String(req.query?.bin || req.query?.cardBin || '').replace(/\D/g, '').slice(0, 6);
-        const pagbankReady = getPagBankConfig().configured;
-        const amounts = [...new Set(plans.map((p) => p.amountCents))];
-        const optionsByAmount = new Map<number, any[]>();
+        const info = paymentsInfo();
+        const ready = info.ready;
+        // Chave por plano: no Asaas o número de parcelas depende dos meses do plano
+        const optionsByPlan = new Map<string, any[]>();
         await Promise.all(
-          amounts.map(async (cents) => {
-            if (!pagbankReady) {
-              optionsByAmount.set(cents, cashOnlyInstallmentOptions(cents));
+          plans.map(async (p) => {
+            if (!ready) {
+              optionsByPlan.set(p.code, cashOnlyInstallmentOptions(p.amountCents));
               return;
             }
             try {
-              optionsByAmount.set(
-                cents,
-                await getPagBankInstallmentPlans({ valueCents: cents, cardBin: cardBin || undefined }),
+              optionsByPlan.set(
+                p.code,
+                await gatewayInstallmentPlans({ valueCents: p.amountCents, cardBin: cardBin || undefined, maxInstallments: p.months || 1 }),
               );
             } catch (feeErr: any) {
-              console.warn('⚠️ PagBank fees/calculate falhou:', feeErr?.message || feeErr);
-              optionsByAmount.set(cents, [cashInstallmentOption(cents)]);
+              console.warn('⚠️ Parcelamento do gateway falhou:', feeErr?.message || feeErr);
+              optionsByPlan.set(p.code, [cashInstallmentOption(p.amountCents)]);
             }
           }),
         );
         return res.status(200).json({
           plans: plans.map((p) => ({
             ...p,
-            installmentOptions: optionsByAmount.get(p.amountCents) || cashOnlyInstallmentOptions(p.amountCents),
+            installmentOptions: optionsByPlan.get(p.code) || cashOnlyInstallmentOptions(p.amountCents),
           })),
-          paymentsEnabled: pagbankReady,
-          installmentSource: pagbankReady ? 'pagbank' : 'unavailable',
-          installmentCount: Math.max(0, ...plans.map((p) => (optionsByAmount.get(p.amountCents) || []).length)),
-          installmentNote:
-            'O parcelamento no crédito usa as taxas oficiais do PagBank. PIX, boleto e débito são à vista, no valor do plano.',
+          paymentsEnabled: ready,
+          payments: info,
+          installmentSource: ready ? info.gateway.toLowerCase() : 'unavailable',
+          installmentCount: Math.max(0, ...plans.map((p) => (optionsByPlan.get(p.code) || []).length)),
+          installmentNote: info.hostedCard
+            ? 'Parcelamento sem juros no cartão de crédito, até o número de meses do plano. O cartão é digitado na página segura do Asaas. PIX e boleto são à vista.'
+            : 'O parcelamento no crédito usa as taxas oficiais do PagBank. PIX, boleto e débito são à vista, no valor do plano.',
         });
       } catch (error: any) {
         return res.status(500).json({ error: 'Erro ao listar planos', detail: error?.message });
@@ -7260,7 +7285,7 @@ async function handleRequest(req: any, res: any) {
         const plan = await getPlanByCode(db, planCode);
         if (!plan) return res.status(400).json({ error: 'Plano inválido' });
         const cardBin = String(req.query?.bin || req.query?.cardBin || '').replace(/\D/g, '').slice(0, 6);
-        if (!getPagBankConfig().configured) {
+        if (!paymentsReady()) {
           return res.status(200).json({
             planCode: plan.code,
             amountCents: plan.amountCents,
@@ -7268,22 +7293,25 @@ async function handleRequest(req: any, res: any) {
             source: 'unavailable',
           });
         }
-        const options = await getPagBankInstallmentPlans({
+        const options = await gatewayInstallmentPlans({
           valueCents: plan.amountCents,
           cardBin: cardBin || undefined,
+          maxInstallments: plan.months || 1,
         });
+        const gw = activeGateway();
         return res.status(200).json({
           planCode: plan.code,
           amountCents: plan.amountCents,
           options,
-          source: 'pagbank',
-          installmentNote:
-            'Valores consultados na API de taxas do PagBank para o cartão informado.',
+          source: gw.toLowerCase(),
+          installmentNote: gw === 'ASAAS'
+            ? 'Parcelamento sem juros, até o número de meses do plano.'
+            : 'Valores consultados na API de taxas do PagBank para o cartão informado.',
         });
       } catch (error: any) {
-        console.warn('⚠️ Erro ao consultar parcelas PagBank:', error?.message || error);
+        console.warn('⚠️ Erro ao consultar parcelas:', error?.message || error);
         return res.status(502).json({
-          error: 'Não foi possível consultar o parcelamento no PagBank',
+          error: 'Não foi possível consultar o parcelamento',
           detail: error?.message || String(error),
         });
       }
@@ -7297,12 +7325,12 @@ async function handleRequest(req: any, res: any) {
       } catch (authErr: any) {
         return res.status(401).json({ error: authErr?.message || 'Token inválido' });
       }
-      if (!getPagBankConfig().configured) {
+      if (!paymentsReady()) {
         return res.status(503).json({ error: 'Pagamentos ainda não configurados.' });
       }
       try {
-        const publicKey = await getPagBankCardPublicKey();
-        return res.status(200).json({ publicKey, env: getPagBankConfig().env });
+        const publicKey = await gatewayCardPublicKey();
+        return res.status(200).json({ publicKey, ...paymentsInfo() });
       } catch (e: any) {
         console.error('❌ PagBank public key:', e?.payload || e?.message);
         return res.status(502).json({ error: 'Não foi possível obter a chave de criptografia do cartão.' });
@@ -7321,11 +7349,12 @@ async function handleRequest(req: any, res: any) {
           return res.status(401).json({ error: authErr?.message || 'Token inválido' });
         }
 
-        if (!getPagBankConfig().configured) {
+        if (!paymentsReady()) {
           return res.status(503).json({
-            error: 'Pagamentos ainda não configurados. Defina PAGBANK_TOKEN no servidor.',
+            error: 'Pagamentos ainda não configurados. Conecte a conta Asaas da ONG.',
           });
         }
+        const hostedCard = paymentsInfo().hostedCard;
 
         const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
         const planCode = String(body.planCode || body.plan || 'MONTHLY').toUpperCase();
@@ -7345,7 +7374,7 @@ async function handleRequest(req: any, res: any) {
         // O app novo manda só o cartão criptografado + BIN (6 primeiros dígitos, não sensível).
         const cardBin = (String(body.card?.bin || '').replace(/\D/g, '') || cardNumber).slice(0, 6);
         const isCardMethod = method === 'CREDIT_CARD' || method === 'DEBIT_CARD';
-        if (isCardMethod && !body.card?.encrypted) {
+        if (isCardMethod && !hostedCard && !body.card?.encrypted) {
           if (process.env.ALLOW_RAW_CARD === 'false') {
             return res.status(400).json({
               error: 'Atualize o aplicativo para pagar com cartão com segurança.',
@@ -7365,19 +7394,20 @@ async function handleRequest(req: any, res: any) {
         };
         if (method === 'CREDIT_CARD') {
           try {
-            const pagbankOptions = await getPagBankInstallmentPlans({
+            const pagbankOptions = await gatewayInstallmentPlans({
               valueCents: plan.amountCents,
               cardBin: cardBin || undefined,
+              maxInstallments: plan.months || 1,
             });
             installmentQuote =
               pagbankOptions.find((o) => o.installments === requestedInstallments) ||
               pagbankOptions[0] ||
               cashInstallmentOption(plan.amountCents);
           } catch (feeErr: any) {
-            console.error('❌ PagBank fees no checkout:', feeErr?.message || feeErr);
+            console.error('❌ Parcelamento no checkout:', feeErr?.message || feeErr);
             if (requestedInstallments > 1) {
               return res.status(502).json({
-                error: 'Não foi possível obter as taxas oficiais de parcelamento do PagBank. Tente à vista ou novamente em instantes.',
+                error: 'Não foi possível obter as opções de parcelamento. Tente à vista ou novamente em instantes.',
               });
             }
             installmentQuote = cashInstallmentOption(plan.amountCents);
@@ -7443,11 +7473,11 @@ async function handleRequest(req: any, res: any) {
           process.env.API_PUBLIC_URL ||
           process.env.BACKEND_URL ||
           'https://nova-versao-liga-do-bem.vercel.app';
-        const notificationUrl = pagbankWebhookUrl(apiBase);
+        const notificationUrl = gatewayNotificationUrl(apiBase);
 
         let order;
         try {
-          order = await createPagBankOrder({
+          order = await createGatewayOrder({
             referenceId,
             amountCents: chargeAmountCents,
             itemAmountCents: plan.amountCents,
@@ -7460,7 +7490,7 @@ async function handleRequest(req: any, res: any) {
             },
             method: method as any,
             notificationUrl,
-            card: body.card
+            card: body.card && !hostedCard
               ? {
                   encrypted: body.card.encrypted || undefined,
                   number: body.card.number,
@@ -7481,16 +7511,16 @@ async function handleRequest(req: any, res: any) {
                 : null,
           });
         } catch (e: any) {
-          console.error('❌ PagBank checkout error:', e?.payload || e?.message);
-          return res.status(502).json({
-            error: e?.message || 'Falha ao criar pagamento no PagBank',
+          console.error('❌ Checkout (gateway):', e?.payload || e?.message);
+          return res.status(e?.status === 400 && e?.code ? 400 : 502).json({
+            error: e?.message || 'Falha ao criar o pagamento',
             code: e?.code || null,
             detail: e?.code ? null : e?.payload || null,
           });
         }
 
         const expiresAt = order.pixExpiration ? new Date(order.pixExpiration) : new Date(Date.now() + 60 * 60 * 1000);
-        const immediatePaid = isPaidChargeStatus(order.chargeStatus);
+        const immediatePaid = isPaidStatus(order.chargeStatus);
 
         await db.$executeRawUnsafe(
           `INSERT INTO payments
@@ -7499,7 +7529,7 @@ async function handleRequest(req: any, res: any) {
              "membershipId", method, "pixCopyPaste", "boletoUrl", "boletoBarcode",
              "planCode", "planMonths", "createdAt", "updatedAt")
            VALUES
-            ($1, $2, $3, 'MEMBERSHIP', $4::"PaymentStatus", 'PAGBANK', $5, $6, $7,
+            ($1, $2, $3, 'MEMBERSHIP', $4::"PaymentStatus", $22, $5, $6, $7,
              $8, $9, $10::jsonb, $11, $12, $13, $14,
              $15, $16, $17, $18, $19,
              $20, $21, NOW(), NOW())`,
@@ -7516,6 +7546,7 @@ async function handleRequest(req: any, res: any) {
             ...(order.raw || {}),
             installmentQuote,
             planAmountCents: plan.amountCents,
+            splitFeeCents: order.splitFeeCents || 0,
           }),
           user.email,
           user.name,
@@ -7527,7 +7558,8 @@ async function handleRequest(req: any, res: any) {
           order.boletoUrl || null,
           order.boletoFormattedBarcode || order.boletoBarcode || null,
           plan.code,
-          plan.months
+          plan.months,
+          order.gateway
         );
 
         if (immediatePaid) {
@@ -7573,9 +7605,12 @@ async function handleRequest(req: any, res: any) {
             boletoBarcode: order.boletoFormattedBarcode || order.boletoBarcode || null,
             paymentUrl: order.paymentLink || null,
             chargeStatus: order.chargeStatus || null,
+            gateway: order.gateway,
           },
           message: immediatePaid
             ? 'Pagamento aprovado! Sua assinatura está ativa.'
+            : isCardMethod && order.paymentLink
+              ? HOSTED_CARD_MESSAGE
             : method === 'PIX'
               ? 'PIX gerado. Pague e aguarde a confirmação automática.'
               : method === 'BOLETO'
@@ -7624,7 +7659,7 @@ async function handleRequest(req: any, res: any) {
 
         if (payment.status === 'PENDING' && payment.gatewayId) {
           try {
-            await syncPaymentFromPagBank(db, payment.id);
+            await syncPaymentFromGateway(db, payment.id);
             const refreshed: any[] = await db.$queryRawUnsafe(
               `SELECT id, status, "paidAt" FROM payments WHERE id = $1 LIMIT 1`,
               payment.id
@@ -7711,7 +7746,7 @@ async function handleRequest(req: any, res: any) {
             try {
               // Consulta o pedido no PagBank (nunca confia no corpo do webhook) e aplica:
               // assinatura ou doação, de forma idempotente.
-              await syncPaymentFromPagBank(db, p.id);
+              await syncPaymentFromGateway(db, p.id);
             } catch (e) {
               console.warn('⚠️ Webhook sync falhou para', p.id, (e as any)?.message);
             }
@@ -7721,6 +7756,48 @@ async function handleRequest(req: any, res: any) {
         return res.status(200).json({ received: true });
       } catch (error: any) {
         console.error('❌ Webhook PagBank:', error);
+        return res.status(200).json({ received: true, warning: error?.message });
+      }
+    }
+
+    // Webhook Asaas. Autenticidade: header asaas-access-token = token cadastrado no webhook da conta
+    // da ONG (guardado na conexão). Mesmo válido, nada é liberado pelo corpo: o pagamento é sempre
+    // consultado no Asaas. Outras ONGs chegam com ?org= (a conta e o token certos).
+    if (path === '/api/webhooks/asaas' && method === 'POST') {
+      const db = getPrisma();
+      if (!db) return res.status(503).json({ error: 'Database not configured' });
+      try {
+        const expected = getAsaasConfig().webhookToken;
+        const received = String(req.headers['asaas-access-token'] || '');
+        if (expected && !verifyAsaasWebhook(expected, received)) {
+          console.warn('🔏 Webhook Asaas com token inválido', currentOrgId());
+          return res.status(401).json({ error: 'Token do webhook inválido' });
+        }
+        const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+        const event = String(body?.event || '');
+        const asaasId = String(body?.payment?.id || '');
+        const installment = String(body?.payment?.installment || '');
+        if (!event.startsWith('PAYMENT_') || !asaasId) return res.status(200).json({ received: true, ignored: true });
+        const iso = isolationOn();
+        const rows: any[] = await db.$queryRawUnsafe(
+          `SELECT id FROM payments
+            WHERE gateway = 'ASAAS' AND ("gatewayId" = $1 OR ($2 <> '' AND "gatewayData"->>'installment' = $2))${iso ? ' AND "orgId" = $3' : ''}
+            ORDER BY "createdAt" DESC LIMIT 5`,
+          asaasId,
+          installment,
+          ...(iso ? [currentOrgId()] : []),
+        );
+        for (const p of rows || []) {
+          try {
+            await syncPaymentFromGateway(db, p.id);
+          } catch (e) {
+            console.warn('⚠️ Webhook Asaas: sync falhou para', p.id, (e as any)?.message);
+          }
+        }
+        return res.status(200).json({ received: true });
+      } catch (error: any) {
+        // 200 para o Asaas não pausar a fila; o polling do app e o próximo aviso corrigem
+        console.error('❌ Webhook Asaas:', error);
         return res.status(200).json({ received: true, warning: error?.message });
       }
     }

@@ -43,6 +43,8 @@ async function orgSecrets(db: any, orgId: string) {
   const secrets: Record<string, string | null> = {
     PAGBANK_TOKEN: await getOrgSecret(db, orgId, 'PAGBANK_TOKEN'),
     PAGBANK_SANDBOX_TOKEN: await getOrgSecret(db, orgId, 'PAGBANK_SANDBOX_TOKEN'),
+    ASAAS_API_KEY: await getOrgSecret(db, orgId, 'ASAAS_API_KEY'),
+    ASAAS_WALLET_ID: await getOrgSecret(db, orgId, 'ASAAS_WALLET_ID'),
   };
   secretsCache.set(orgId, { at: Date.now(), secrets });
   return secrets;

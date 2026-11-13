@@ -4,7 +4,7 @@
  * - Por ONG ativa: os mesmos itens do "precisa da sua atenção" do painel (lib/adminOverview.ts),
  *   calculados dentro da ONG (com a separação ligada cada uma vê só os próprios dados),
  *   mais há quanto tempo o item mais antigo está esperando.
- * - Da plataforma: checklist de entrada recebido para conferir, ONG ativa sem PagBank,
+ * - Da plataforma: checklist de entrada recebido para conferir, ONG ativa sem conta Asaas,
  *   itens sugeridos para o catálogo (que é um só para todas as ONGs).
  * - Resumo diário por e-mail para a equipe da plataforma, só quando há algo pendente.
  */
@@ -86,12 +86,13 @@ export async function buildInbox(db: any, now = new Date()) {
       } else {
         blocked = 'Separação de dados desligada: os dados desta ONG só aparecem com MULTI_ORG_ISOLATION=on';
       }
-      const hasPagbank =
+      // Conta de pagamentos: Asaas (padrão) ou, até a troca, PagBank
+      const hasGateway =
         o.id === DEFAULT_ORG
-          ? !!String(process.env.PAGBANK_TOKEN || process.env.PAGSEGURO_TOKEN || '').trim()
-          : !!(await getOrgSecret(db, o.id, 'PAGBANK_TOKEN'));
-      if (!hasPagbank) {
-        items.push({ key: 'pagbankMissing', label: 'PagBank não conectado: a ONG não consegue cobrar mensalidades', count: 1, section: 'platform', sub: null, tone: 'danger', oldestAt: null });
+          ? !!String(process.env.ASAAS_API_KEY || process.env.PAGBANK_TOKEN || process.env.PAGSEGURO_TOKEN || '').trim()
+          : !!(await getOrgSecret(db, o.id, 'ASAAS_API_KEY')) || !!(await getOrgSecret(db, o.id, 'PAGBANK_TOKEN'));
+      if (!hasGateway) {
+        items.push({ key: 'paymentsMissing', label: 'Conta Asaas não conectada: a ONG não consegue cobrar mensalidades', count: 1, section: 'platform', sub: null, tone: 'danger', oldestAt: null });
       }
     }
     const fees = pendingFees.filter((f) => f.orgId === o.id);

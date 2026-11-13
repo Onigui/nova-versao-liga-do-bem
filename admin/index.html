@@ -1276,7 +1276,7 @@
                     <p style="margin: 0 16px 8px; color:#64748B; font-size:0.85rem;">
                         O parceiro escreve, escolhe um dos horários livres e paga pelo App Parceiros. Cada horário recebe só uma
                         empresa (nada de duas notificações juntas). Ao aprovar, ela fica agendada e sai sozinha no horário.
-                        Ao reprovar, o valor é estornado automaticamente no PagBank.
+                        Ao reprovar, o valor é estornado automaticamente (Asaas ou PagBank, onde foi pago).
                     </p>
                     <div id="pushSettingsMsg" style="margin: 0 16px 8px; font-size:0.85rem;"></div>
                     <table class="table">
@@ -1446,9 +1446,9 @@
 
                 <div class="dashboard-grid" style="margin-bottom: 1.5rem;">
                     <div class="dashboard-card">
-                        <div class="card-header"><h3 class="card-title">PagBank</h3></div>
+                        <div class="card-header"><h3 class="card-title">Pagamentos</h3></div>
                         <div class="card-value" id="statusPagbank" style="font-size:1.25rem;">—</div>
-                        <div class="card-change" id="statusPagbankEnv">token na Vercel</div>
+                        <div class="card-change" id="statusPagbankEnv">chave na Vercel</div>
                     </div>
                     <div class="dashboard-card">
                         <div class="card-header"><h3 class="card-title">Push FCM</h3></div>
@@ -1482,7 +1482,7 @@
                     <div id="pushDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
                 </div>
                 <div class="dashboard-card" style="margin-bottom: 1.5rem;">
-                    <h3 class="card-title">Homologação PagBank (sandbox)</h3>
+                    <h3 class="card-title">Homologação PagBank (sandbox) <span class="muted" style="font-weight:400; font-size:.85rem;">· só enquanto a Liga não migrar para o Asaas</span></h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Roda no ambiente de teste do PagBank o mesmo pagamento do app (PIX, boleto, cartão aprovado e recusado, consulta e estorno) e gera o arquivo de requisições e respostas que o PagBank pede no questionário (campo "Anexo"). Usa só o token de sandbox, com dados de teste do próprio PagBank. Nenhum membro é cobrado.</p>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button class="btn btn-secondary" onclick="runPagbankHomolog()" id="pbHomologBtn">Rodar homologação</button>
@@ -3049,8 +3049,11 @@
                 const statusRes = await fetch(`${API_BASE_URL}/api/admin/system-status`, { headers });
                 if (statusRes.ok) {
                     const s = await statusRes.json();
-                    document.getElementById('statusPagbank').textContent = s.pagbankConfigured ? 'Configurado' : 'Pendente';
-                    document.getElementById('statusPagbankEnv').textContent = s.pagbankEnv || '';
+                    const gwName = s.paymentsGateway === 'PAGBANK' ? 'PagBank' : 'Asaas';
+                    document.getElementById('statusPagbank').textContent = `${gwName}: ${s.paymentsReady ? 'Configurado' : 'Pendente'}`;
+                    document.getElementById('statusPagbankEnv').textContent = s.paymentsGateway === 'PAGBANK'
+                        ? (s.pagbankEnv || '')
+                        : `${s.asaasConfigured ? s.asaasEnv : 'ASAAS_API_KEY'}${s.asaasSplit ? ' · split da taxa ligado' : ' · split desligado (ASAAS_PLATFORM_WALLET_ID)'}`;
                     document.getElementById('statusFcm').textContent = s.fcmConfigured ? 'Configurado' : 'Pendente';
                     document.getElementById('statusDb').textContent = s.databaseConfigured ? 'OK' : 'Ausente';
                     document.getElementById('statusDemo').textContent = s.demoAdminEnabled ? 'Ativo' : 'Desligado';
@@ -5091,10 +5094,10 @@
             const box = document.getElementById('feesBox');
             try {
                 const d = await platformApi('GET', '/fees');
-                const cur = d.current.map(c => `<tr><td>${escHtml(c.orgName)}</td><td>${centsBRL(c.membershipsCents)}</td><td>${centsBRL(c.donationsCents)}</td><td>${centsBRL(c.partnersCents)}</td><td><strong>${centsBRL(c.grossCents)}</strong></td><td><strong>${centsBRL(c.feeCents)}</strong></td></tr>`).join('');
+                const cur = d.current.map(c => `<tr><td>${escHtml(c.orgName)}</td><td>${centsBRL(c.membershipsCents)}</td><td>${centsBRL(c.donationsCents)}</td><td>${centsBRL(c.partnersCents)}</td><td><strong>${centsBRL(c.grossCents)}</strong></td><td><strong>${centsBRL(c.feeCents)}</strong>${c.splitFeeCents ? `<div class="muted" style="font-size:.75rem;">+ ${centsBRL(c.splitFeeCents)} já recebido por split (Asaas)</div>` : ''}</td></tr>`).join('');
                 const inv = d.invoices.map(f => `<tr><td>${escHtml(f.orgName)}</td><td>${monthBR(f.month)}</td><td>${centsBRL(f.grossCents)}</td><td><strong>${centsBRL(f.feeCents)}</strong></td><td>${f.status === 'PAID' ? `<span class="pill ok">Paga</span> <span class="muted">${f.paidAt ? new Date(f.paidAt).toLocaleDateString('pt-BR') : ''}</span>` : '<span class="pill warn">A receber</span>'}</td><td>${f.status === 'PAID' ? `<button class="btn btn-secondary" onclick="markFee('${escHtml(f.id)}','pending')">Desfazer</button>` : `<button class="btn btn-primary" onclick="markFee('${escHtml(f.id)}','paid')">Marcar como paga</button>`}</td></tr>`).join('');
                 box.innerHTML = `<h4 style="margin:4px 0 6px;">Este mês até agora (estimativa)</h4>
-                    <div class="table-container" style="overflow-x:auto"><table class="data-table"><thead><tr><th>ONG</th><th>Mensalidades</th><th>Doações</th><th>Parceiros</th><th>Bruto</th><th>Taxa</th></tr></thead><tbody>${cur || '<tr><td colspan="6" class="muted">Nenhuma ONG ativa.</td></tr>'}</tbody></table></div>
+                    <div class="table-container" style="overflow-x:auto"><table class="data-table"><thead><tr><th>ONG</th><th>Mensalidades</th><th>Doações</th><th>Parceiros</th><th>Bruto</th><th>Taxa a receber</th></tr></thead><tbody>${cur || '<tr><td colspan="6" class="muted">Nenhuma ONG ativa.</td></tr>'}</tbody></table></div>
                     <h4 style="margin:16px 0 6px;">Cobranças dos meses fechados</h4>
                     <div class="table-container" style="overflow-x:auto"><table class="data-table"><thead><tr><th>ONG</th><th>Mês</th><th>Bruto</th><th>Taxa</th><th>Situação</th><th></th></tr></thead><tbody>${inv || '<tr><td colspan="6" class="muted">Nenhuma cobrança ainda.</td></tr>'}</tbody></table></div>`;
             } catch (e) { box.textContent = e.message; }
@@ -5164,8 +5167,11 @@
                     <div id="orgActMsg" style="margin-top:8px;"></div>
                     <h4 style="margin:18px 0 6px;">Checklist do protocolo · ${d.checklist.approved} de ${d.checklist.required} obrigatórios aprovados</h4>
                     <table class="data-table"><thead><tr><th>Código</th><th>Item</th><th>Situação</th><th>Observação</th></tr></thead><tbody>${rows}</tbody></table>
-                    <h4 style="margin:18px 0 6px;">Credenciais (guardadas criptografadas; ninguém consegue ler de volta)</h4>
+                    <h4 style="margin:18px 0 6px;">Conta Asaas da ONG (recebe mensalidades, doações e parceiros)</h4>
+                    <div id="orgAsaas" class="muted">Carregando…</div>
+                    <details style="margin-top:12px;"><summary class="muted" style="cursor:pointer;">Credenciais antigas (PagBank), guardadas criptografadas</summary>
                     ${secrets}
+                    </details>
                     <div id="orgSecMsg"></div>
                     <h4 style="margin:18px 0 6px;">Acesso ao relatório da ONG (só leitura)</h4>
                     <p class="muted" style="margin:0 0 8px;">Quem a ONG indicar vê sócios, receita, doações e crescimento em <strong>ong.html</strong>, sem mexer em nada. O convite vai por e-mail (vale 72 horas).</p>
@@ -5178,9 +5184,44 @@
                     <div id="orgRuMsg"></div>
                 </div>`;
                 loadReportUsers(id);
+                loadOrgAsaas(id);
             } catch (e) {
                 box.innerHTML = `<div class="dashboard-card" style="color:#B91C1C">${escHtml(e.message)}</div>`;
             }
+        }
+        async function loadOrgAsaas(id) {
+            const box = document.getElementById('orgAsaas');
+            try {
+                const a = await platformApi('GET', `/orgs/${id}/asaas`);
+                const split = a.platformSplit ? '<span class="chip DONE">taxa de 10% por split</span>' : '<span class="chip OPEN">split desligado: defina ASAAS_PLATFORM_WALLET_ID</span>';
+                const connect = `<div class="form-row" style="align-items:end;"><div class="form-group"><label class="form-label" for="asaas-key">Chave de API da conta Asaas da ONG</label><input class="form-input" type="password" id="asaas-key" autocomplete="off" placeholder="${a.ligaUsesEnv ? 'Deixe vazio para usar ASAAS_API_KEY da Vercel' : '$aact_…'}"></div><div class="form-group" style="flex:0;"><button class="btn btn-primary" onclick="connectOrgAsaas('${escHtml(id)}')">${a.connected ? 'Reconectar' : 'Conectar'}</button></div></div>
+                    <p class="muted" style="margin:4px 0 0; font-size:.8rem;">A ONG gera a chave no Asaas em Integrações → Chaves de API. Ao conectar, o sistema confere a conta, pega a carteira e cadastra o aviso automático de pagamento.</p>`;
+                const sub = a.connected ? '' : `<details style="margin-top:10px;"><summary style="cursor:pointer; font-weight:600;">A ONG ainda não tem conta? Abrir conta Asaas pela central</summary>
+                    ${a.canCreateSubaccount ? `<p class="muted" style="font-size:.8rem;">Abre a conta PJ no CNPJ da ONG. O Asaas manda o e-mail de ativação para a ONG, que cria a senha e envia os documentos lá.</p>
+                    <div class="form-row"><div class="form-group"><label class="form-label" for="as-phone">Celular do responsável</label><input class="form-input" id="as-phone" placeholder="(14) 99999-9999"></div><div class="form-group"><label class="form-label" for="as-income">Faturamento mensal estimado (R$)</label><input class="form-input" id="as-income" placeholder="5000"></div></div>
+                    <div class="form-row"><div class="form-group"><label class="form-label" for="as-cep">CEP</label><input class="form-input" id="as-cep"></div><div class="form-group"><label class="form-label" for="as-street">Rua</label><input class="form-input" id="as-street"></div><div class="form-group"><label class="form-label" for="as-number">Número</label><input class="form-input" id="as-number"></div></div>
+                    <div class="form-row"><div class="form-group"><label class="form-label" for="as-compl">Complemento</label><input class="form-input" id="as-compl"></div><div class="form-group"><label class="form-label" for="as-prov">Bairro</label><input class="form-input" id="as-prov"></div><div class="form-group" style="flex:0;"><button class="btn btn-secondary" onclick="createOrgAsaas('${escHtml(id)}')">Abrir conta</button></div></div>`
+                    : '<p class="muted" style="font-size:.8rem;">Para abrir contas pela central, defina ASAAS_PLATFORM_API_KEY na Vercel (chave da conta Asaas da SóciONG).</p>'}</details>`;
+                box.innerHTML = `<p style="margin:0 0 8px;">${a.connected ? `<span class="chip DONE">conectada</span> ${a.env === 'sandbox' ? '<span class="chip OPEN">sandbox (teste)</span>' : 'produção'} · carteira ${escHtml(a.walletId || '—')}` : '<span class="chip OPEN">não conectada</span>'} ${split}</p>${connect}${sub}<div id="orgAsaasMsg"></div>`;
+            } catch (e) { box.textContent = e.message; }
+        }
+        async function connectOrgAsaas(id) {
+            const el = document.getElementById('asaas-key');
+            try {
+                const r = await platformApi('POST', `/orgs/${id}/asaas/connect`, { apiKey: el.value.trim() });
+                el.value = '';
+                await openOrg(id);
+                okInline('orgAsaasMsg', `Conta conectada${r.accountName ? ': ' + r.accountName : ''} (${r.env === 'sandbox' ? 'sandbox' : 'produção'}).`);
+            } catch (e) { alertInline('orgAsaasMsg', e.message); }
+        }
+        async function createOrgAsaas(id) {
+            const v = (k) => (document.getElementById(k) || {}).value || '';
+            if (!confirm('Abrir a conta Asaas desta ONG agora? O Asaas manda o e-mail de ativação para o responsável.')) return;
+            try {
+                const r = await platformApi('POST', `/orgs/${id}/asaas/subaccount`, { mobilePhone: v('as-phone'), incomeValue: v('as-income'), postalCode: v('as-cep'), address: v('as-street'), addressNumber: v('as-number'), complement: v('as-compl'), province: v('as-prov') });
+                await openOrg(id);
+                okInline('orgAsaasMsg', r.next || 'Conta aberta.');
+            } catch (e) { alertInline('orgAsaasMsg', e.message); }
         }
         async function loadReportUsers(id) {
             const box = document.getElementById('orgReportUsers');
@@ -5237,6 +5278,10 @@
                 await platformApi('POST', `/orgs/${id}/suspend`, body);
                 await loadOrgs();
             } catch (e) { alertInline('orgActMsg', e.message); }
+        }
+        function okInline(id, text) {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = `<span style="color:#047857">${escHtml(text)}</span>`;
         }
         function alertInline(id, text) {
             const el = document.getElementById(id);
