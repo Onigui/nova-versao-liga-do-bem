@@ -1482,7 +1482,7 @@
                     <div id="pushDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
                 </div>
                 <div class="dashboard-card" style="margin-bottom: 1.5rem;">
-                    <h3 class="card-title">Homologação PagBank (sandbox) <span class="muted" style="font-weight:400; font-size:.85rem;">· só enquanto a Liga não migrar para o Asaas</span></h3>
+                    <h3 class="card-title">Homologação PagBank (sandbox) <span class="muted" style="font-weight:400; font-size:.85rem;">· legado: a Liga agora cobra pelo Asaas</span></h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Roda no ambiente de teste do PagBank o mesmo pagamento do app (PIX, boleto, cartão aprovado e recusado, consulta e estorno) e gera o arquivo de requisições e respostas que o PagBank pede no questionário (campo "Anexo"). Usa só o token de sandbox, com dados de teste do próprio PagBank. Nenhum membro é cobrado.</p>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button class="btn btn-secondary" onclick="runPagbankHomolog()" id="pbHomologBtn">Rodar homologação</button>
@@ -5194,7 +5194,7 @@
             try {
                 const a = await platformApi('GET', `/orgs/${id}/asaas`);
                 const split = a.platformSplit ? '<span class="chip DONE">taxa de 10% por split</span>' : '<span class="chip OPEN">split desligado: defina ASAAS_PLATFORM_WALLET_ID</span>';
-                const connect = `<div class="form-row" style="align-items:end;"><div class="form-group"><label class="form-label" for="asaas-key">Chave de API da conta Asaas da ONG</label><input class="form-input" type="password" id="asaas-key" autocomplete="off" placeholder="${a.ligaUsesEnv ? 'Deixe vazio para usar ASAAS_API_KEY da Vercel' : '$aact_…'}"></div><div class="form-group" style="flex:0;"><button class="btn btn-primary" onclick="connectOrgAsaas('${escHtml(id)}')">${a.connected ? 'Reconectar' : 'Conectar'}</button></div></div>
+                const connect = `<div class="form-row" style="align-items:end;"><div class="form-group"><label class="form-label" for="asaas-key">Chave de API da conta Asaas da ONG</label><input class="form-input" type="password" id="asaas-key" autocomplete="off" placeholder="${a.ligaUsesEnv ? '$aact_… (ou vazio para usar ASAAS_API_KEY da Vercel)' : '$aact_…'}"></div><div class="form-group" style="flex:0;"><button class="btn btn-primary" onclick="connectOrgAsaas('${escHtml(id)}')">${a.connected ? 'Reconectar' : 'Conectar'}</button></div></div>
                     <p class="muted" style="margin:4px 0 0; font-size:.8rem;">A ONG gera a chave no Asaas em Integrações → Chaves de API. Ao conectar, o sistema confere a conta, pega a carteira e cadastra o aviso automático de pagamento.</p>`;
                 const sub = a.connected ? '' : `<details style="margin-top:10px;"><summary style="cursor:pointer; font-weight:600;">A ONG ainda não tem conta? Abrir conta Asaas pela central</summary>
                     ${a.canCreateSubaccount ? `<p class="muted" style="font-size:.8rem;">Abre a conta PJ no CNPJ da ONG. O Asaas manda o e-mail de ativação para a ONG, que cria a senha e envia os documentos lá.</p>

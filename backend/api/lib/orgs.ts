@@ -522,7 +522,7 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
           if (r.cpfCnpj && org.cnpj && String(r.cpfCnpj).replace(/\D/g, '') !== String(org.cnpj)) {
             return send(res, 409, { error: `Esta conta Asaas é do documento ${r.cpfCnpj}, não do CNPJ da ONG. Use a conta PJ no CNPJ da ONG.` }), true;
           }
-          if (!fromEnv) await saveOrgSecret(db, orgId, 'ASAAS_API_KEY', apiKey);
+          await saveOrgSecret(db, orgId, 'ASAAS_API_KEY', apiKey);
           await saveOrgSecret(db, orgId, 'ASAAS_WALLET_ID', r.walletId);
           console.log(`🔐 Conta Asaas conectada para ${orgId} (${r.env})`);
           return send(res, 200, { ok: true, env: r.env, accountName: r.accountName, walletId: `…${r.walletId.slice(-6)}` }), true;
