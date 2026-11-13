@@ -41,12 +41,36 @@ export function asaasWebhookToken(orgId: string) {
   return `whk_${crypto.createHmac('sha256', base).update(`asaas-webhook:${orgId || DEFAULT_ORG}`).digest('hex')}`;
 }
 
-/** Conta Asaas da ONG da requisição. A Liga usa as variáveis da Vercel; as demais, org_secrets. */
+/**
+ * Conta da Liga conectada pela central (org_secrets), carregada no começo de cada requisição
+ * enquanto a separação por ONG está desligada. A variável ASAAS_API_KEY da Vercel fica de reserva.
+ */
+let ligaAsaas: { apiKey: string; walletId: string; at: number } | null = null;
+export async function primeLigaAsaas(db: any) {
+  if (!db || (ligaAsaas && Date.now() - ligaAsaas.at < 60e3)) return;
+  try {
+    const { getOrgSecret } = await import('./orgs');
+    ligaAsaas = {
+      apiKey: String((await getOrgSecret(db, DEFAULT_ORG, 'ASAAS_API_KEY')) || ''),
+      walletId: String((await getOrgSecret(db, DEFAULT_ORG, 'ASAAS_WALLET_ID')) || ''),
+      at: Date.now(),
+    };
+  } catch {
+    /* fica na variável da Vercel */
+  }
+}
+export function resetLigaAsaas() {
+  ligaAsaas = null;
+}
+
+/** Conta Asaas da ONG da requisição. Outras ONGs: org_secrets. Liga: conectada na central ou ASAAS_API_KEY. */
 export function getAsaasConfig() {
   const orgId = currentOrgId();
   const otherOrg = isolationOn() && orgId !== DEFAULT_ORG;
-  const apiKey = String((otherOrg ? currentSecret('ASAAS_API_KEY') : process.env.ASAAS_API_KEY) || '').trim();
-  const walletId = String((otherOrg ? currentSecret('ASAAS_WALLET_ID') : process.env.ASAAS_WALLET_ID) || '').trim();
+  const pick = (key: 'ASAAS_API_KEY' | 'ASAAS_WALLET_ID', cached?: string) =>
+    String((otherOrg ? currentSecret(key) : currentSecret(key) || cached || process.env[key]) || '').trim();
+  const apiKey = pick('ASAAS_API_KEY', ligaAsaas?.apiKey);
+  const walletId = pick('ASAAS_WALLET_ID', ligaAsaas?.walletId);
   const webhookToken = String((otherOrg ? '' : process.env.ASAAS_WEBHOOK_TOKEN) || '').trim() || asaasWebhookToken(otherOrg ? orgId : DEFAULT_ORG);
   const env = asaasEnvForKey(apiKey);
   return { apiKey, walletId, webhookToken, env, baseUrl: asaasBaseUrl(env), configured: Boolean(apiKey) };

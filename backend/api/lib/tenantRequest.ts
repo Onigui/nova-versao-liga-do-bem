@@ -21,6 +21,7 @@ const secretsCache = new Map<string, { at: number; secrets: Record<string, strin
 export function clearTenantCaches() {
   orgsCache = null;
   secretsCache.clear();
+  import('./asaas').then((m) => m.resetLigaAsaas()).catch(() => {});
 }
 
 async function orgs(db: any): Promise<Org[]> {
@@ -152,7 +153,11 @@ export async function withTenant(
   getDb: () => any,
   jwtSecret: string,
 ) {
-  if (!isolationOn()) return handle(req, res);
+  if (!isolationOn()) {
+    // Liga: conta Asaas conectada pela central
+    await (await import('./asaas')).primeLigaAsaas(getDb());
+    return handle(req, res);
+  }
   const method = String(req?.method || 'GET').toUpperCase();
   const db = getDb();
   if (method === 'OPTIONS' || !db) return handle(req, res);
