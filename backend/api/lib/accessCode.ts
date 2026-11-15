@@ -105,7 +105,7 @@ export async function verifyAccessCode(db: any, email: string, code: string) {
 /** Mensagem pronta para mandar pelo WhatsApp. */
 export function accessCodeMessage(opts: { name?: string | null; email: string; code: string; app: 'partner' | 'member'; partnerName?: string | null }) {
   const hello = opts.name ? `Olá, ${opts.name.split(' ')[0]}!` : 'Olá!';
-  const appName = opts.app === 'partner' ? 'Liga do Bem Parceiros' : 'Liga do Bem';
+  const appName = opts.app === 'partner' ? 'SóciONG Parceiros' : 'SóciONG';
   const where =
     opts.app === 'partner'
       ? `Abra o app ${appName}, toque em "Primeiro acesso / Esqueci a senha" e depois em "Já tenho um código".`

@@ -108,6 +108,32 @@ export function decryptSecret(stored: string) {
   d.setAuthTag(Buffer.from(tag, 'base64'));
   return Buffer.concat([d.update(Buffer.from(data, 'base64')), d.final()]).toString('utf8');
 }
+const orgNameCache = new Map<string, { at: number; name: string; legal: string }>();
+/**
+ * Nome da ONG da requisição, para textos de e-mail e cobranças ("Liga do Bem", "Liga do Bem Botucatu").
+ * Nunca falha: sem banco ou sem ONG, devolve "sua ONG".
+ */
+export async function currentOrgNames(db: any): Promise<{ name: string; legal: string }> {
+  const { currentOrgId } = await import('./tenant');
+  const id = currentOrgId() || DEFAULT_ORG_ID;
+  const hit = orgNameCache.get(id);
+  if (hit && Date.now() - hit.at < 5 * 60e3) return hit;
+  try {
+    const rows: any[] = await runAsSystem(() =>
+      db.$queryRawUnsafe(`SELECT name, "legalName" FROM organizations WHERE id = $1 LIMIT 1`, id),
+    );
+    const name = String(rows?.[0]?.name || '').trim();
+    if (name) {
+      const v = { at: Date.now(), name, legal: String(rows[0].legalName || name).trim() };
+      orgNameCache.set(id, v);
+      return v;
+    }
+  } catch {
+    /* segue com o genérico */
+  }
+  return { name: 'sua ONG', legal: 'sua ONG' };
+}
+
 export async function saveOrgSecret(db: any, orgId: string, key: string, value: string) {
   await ensureOrgSchema(db);
   await runAsSystem(() =>
