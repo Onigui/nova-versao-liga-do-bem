@@ -150,6 +150,13 @@ export default function CompanyScreen({navigation}) {
       </Card>
 
       <Button
+        title="Termos e privacidade"
+        variant="secondary"
+        onPress={() => navigation.navigate('Legal', {section: 'terms', tabs: ['terms', 'privacy']})}
+        style={{marginTop: 4}}
+        testID="termos-privacidade"
+      />
+      <Button
         title="Rever as dicas do app"
         variant="secondary"
         onPress={async () => {

@@ -159,6 +159,19 @@ export default function PartnerSignupScreen({navigation, fetchImpl = fetch}) {
           <Field label="Ramo (pet shop, clínica, banho e tosa…)" value={form.category} onChangeText={set('category')} />
           <Field label="Mensagem (opcional)" value={form.message} onChangeText={set('message')} multiline />
           {errors.form ? <Text style={{color: COLORS.bad, marginBottom: 8}}>{errors.form}</Text> : null}
+          <Text style={[ui.muted, {fontSize: 12, marginBottom: 10}]} testID="aviso-termos">
+            Ao enviar, você concorda com os{' '}
+            <Text
+              style={{color: COLORS.primary, textDecorationLine: 'underline'}}
+              onPress={() => {
+                const o = (orgs || []).find(x => x.id === orgId);
+                navigation.navigate('Legal', {section: 'terms', tabs: ['terms', 'privacy'], org: o ? o.slug || o.id : null});
+              }}
+              testID="ver-termos">
+              termos de uso e a política de privacidade
+            </Text>{' '}
+            da ONG escolhida.
+          </Text>
           <Button title="Enviar pedido" onPress={submit} loading={sending} testID="signup-submit" />
         </Card>
       </ScrollView>

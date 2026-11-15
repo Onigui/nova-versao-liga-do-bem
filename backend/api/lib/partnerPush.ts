@@ -12,7 +12,7 @@
  * Status: AWAITING_PAYMENT → PENDING_REVIEW → SCHEDULED → SENDING → SENT
  *                       ↘ CANCELLED          ↘ REJECTED (refundStatus: REFUNDED | REFUND_FAILED)
  */
-import { currentOrgId, orgScope } from './tenant';
+import { currentOrgId, DEFAULT_ORG, orgScope } from './tenant';
 import crypto from 'crypto';
 import {
   createGatewayOrder,
@@ -276,19 +276,24 @@ export function slotLabel(at: Date | string) {
 }
 
 /** Próximos dias com os horários e se cada um está livre. */
-export async function listSlots(db: any, settings: { slots: string[] }, opts: { ignoreCampaignId?: string; nowMs?: number } = {}) {
+/**
+ * ONG das vagas: a da campanha quando se sabe, senão a da requisição. O filtro vai sempre na
+ * consulta (não depende de MULTI_ORG_ISOLATION nem do banco filtrar sozinho): o horário que um
+ * parceiro de uma ONG pega continua livre para os parceiros das outras ONGs.
+ */
+const slotOrgId = (orgId?: string | null) => orgId || currentOrgId() || DEFAULT_ORG;
+
+export async function listSlots(db: any, settings: { slots: string[] }, opts: { ignoreCampaignId?: string; nowMs?: number; orgId?: string | null } = {}) {
   const now = opts.nowMs ?? Date.now();
   const minAt = now + SLOT_LEAD_HOURS * 3600e3;
   const until = new Date(now + (SLOT_DAYS_AHEAD + 1) * 864e5);
-  // Cada ONG tem as próprias vagas de horário
-  const slotOrg = orgScope(3);
   const rows: any[] = await db.$queryRawUnsafe(
     `SELECT c."scheduledFor" FROM partner_push_campaigns c
       WHERE c."scheduledFor" >= NOW() - INTERVAL '1 hour' AND c."scheduledFor" <= $1 AND ${SLOT_TAKEN_SQL}
-        AND ($2::text IS NULL OR c.id <> $2)${slotOrg.where.replace('"orgId"', 'c."orgId"')}`,
+        AND ($2::text IS NULL OR c.id <> $2) AND c."orgId" = $3`,
     until,
     opts.ignoreCampaignId || null,
-    ...slotOrg.params,
+    slotOrgId(opts.orgId),
   );
   const taken = new Set(rows.map((r) => new Date(r.scheduledFor).getTime()));
   const days: any[] = [];
@@ -320,8 +325,8 @@ function parseSlot(raw: any, settings: { slots: string[] }, nowMs = Date.now()):
 }
 
 /** Próxima vaga livre a partir de `from` (para remarcar quando a original não serve mais). */
-async function nextFreeSlot(db: any, settings: { slots: string[] }, fromMs: number, ignoreId?: string): Promise<Date | null> {
-  const days = await listSlots(db, settings, { ignoreCampaignId: ignoreId });
+async function nextFreeSlot(db: any, settings: { slots: string[] }, fromMs: number, ignoreId?: string, orgId?: string | null): Promise<Date | null> {
+  const days = await listSlots(db, settings, { ignoreCampaignId: ignoreId, orgId });
   for (const d of days) {
     for (const s of d.slots) {
       if (s.available && new Date(s.at).getTime() >= fromMs) return new Date(s.at);
@@ -338,13 +343,12 @@ async function withSlotLock<T>(db: any, fn: (tx: any) => Promise<T>): Promise<T>
   });
 }
 
-async function slotTaken(tx: any, at: Date, ignoreId?: string) {
-  const o = orgScope(3);
+export async function slotTaken(tx: any, at: Date, ignoreId?: string, orgId?: string | null) {
   const rows: any[] = await tx.$queryRawUnsafe(
-    `SELECT c.id FROM partner_push_campaigns c WHERE c."scheduledFor" = $1 AND ${SLOT_TAKEN_SQL} AND ($2::text IS NULL OR c.id <> $2)${o.where.replace('"orgId"', 'c."orgId"')} LIMIT 1`,
+    `SELECT c.id FROM partner_push_campaigns c WHERE c."scheduledFor" = $1 AND ${SLOT_TAKEN_SQL} AND ($2::text IS NULL OR c.id <> $2) AND c."orgId" = $3 LIMIT 1`,
     at,
     ignoreId || null,
-    ...o.params,
+    slotOrgId(orgId),
   );
   return rows.length > 0;
 }
@@ -357,21 +361,22 @@ async function sendCampaign(db: any, id: string) {
   const text = buildPushText(c.partnerName, c.title, c.body);
   const data = { screen: 'Parceiros', partnerId: c.partnerId, campaignId: c.id };
   // Só os membros da ONG da campanha, sempre — também quando roda em modo sistema (aviso de pagamento),
-  // em que o banco não filtra sozinho
-  const org: string | null = c.orgId || null;
+  // em que o banco não filtra sozinho. Sem ONG gravada (impossível: a coluna é obrigatória) → a da
+  // requisição, nunca "todo mundo".
+  const org: string = c.orgId || currentOrgId() || DEFAULT_ORG;
   const recipients = await db.$executeRawUnsafe(
     `INSERT INTO notifications (id, "userId", title, message, type, data, "isRead", "sentAt")
      SELECT gen_random_uuid()::text, u.id, $1, $2, 'GENERAL'::"NotificationType", $3::jsonb, false, NOW()
-       FROM users u WHERE u."isActive" = true AND u.role <> 'PARTNER'${org ? ' AND u."orgId" = $4' : ''}`,
+       FROM users u WHERE u."isActive" = true AND u.role <> 'PARTNER' AND u."orgId" = $4`,
     text.title,
     text.body,
     JSON.stringify(data),
-    ...(org ? [org] : []),
+    org,
   );
   const tokens: any[] = await db.$queryRawUnsafe(
     `SELECT t.token FROM device_tokens t JOIN users u ON u.id = t."userId"
-      WHERE t."isActive" = true AND t.platform <> 'android-partner' AND u."isActive" = true${org ? ' AND u."orgId" = $1' : ''}`,
-    ...(org ? [org] : []),
+      WHERE t."isActive" = true AND t.platform <> 'android-partner' AND u."isActive" = true AND u."orgId" = $1`,
+    org,
   );
   const push = await sendFcmToTokens(tokens.map((t) => t.token), {
     title: text.title,
@@ -429,15 +434,15 @@ export async function resolveSlotAfterPayment(db: any, campaignId: string) {
   const settings = await getPushSettings(db);
   const moved = await withSlotLock(db, async (tx) => {
     const rows: any[] = await tx.$queryRawUnsafe(
-      `SELECT id, "scheduledFor", "partnerId", title FROM partner_push_campaigns WHERE id = $1`,
+      `SELECT id, "scheduledFor", "partnerId", title, "orgId" FROM partner_push_campaigns WHERE id = $1`,
       campaignId,
     );
     const c = rows[0];
     if (!c?.scheduledFor) return null;
     const at = new Date(c.scheduledFor);
-    const stillOk = at.getTime() > Date.now() + 30 * 60e3 && !(await slotTaken(tx, at, c.id));
+    const stillOk = at.getTime() > Date.now() + 30 * 60e3 && !(await slotTaken(tx, at, c.id, c.orgId));
     if (stillOk) return null;
-    const next = await nextFreeSlot(tx, settings, Math.max(at.getTime(), Date.now()), c.id);
+    const next = await nextFreeSlot(tx, settings, Math.max(at.getTime(), Date.now()), c.id, c.orgId);
     await tx.$executeRawUnsafe(
       `UPDATE partner_push_campaigns SET "scheduledFor" = $2, "updatedAt" = NOW() WHERE id = $1`,
       c.id,
@@ -477,17 +482,19 @@ export async function handlePartnerPushRoutes(
   }
 
   const settings = await getPushSettings(db);
+  // ONG do parceiro: define vagas de horário, público e o "orgId" da campanha
+  const pOrg: any[] = await db.$queryRawUnsafe(`SELECT "orgId" FROM partners WHERE id = $1`, acc.partnerId);
+  const partnerOrg = slotOrgId(pOrg?.[0]?.orgId);
 
   if (path === base && method === 'GET') {
-    const aud = orgScope(1);
     const rows: any[] = await db.$queryRawUnsafe(
       `SELECT * FROM partner_push_campaigns WHERE "partnerId" = $1 ORDER BY "createdAt" DESC LIMIT 50`,
       acc.partnerId,
     );
     const audience: any[] = await db.$queryRawUnsafe(
       `SELECT COUNT(DISTINCT t."userId")::int AS n FROM device_tokens t JOIN users u ON u.id = t."userId"
-        WHERE t."isActive" = true AND t.platform <> 'android-partner'${aud.where.replace('"orgId"', 'u."orgId"')}`,
-      ...aud.params,
+        WHERE t."isActive" = true AND t.platform <> 'android-partner' AND u."isActive" = true AND u.role <> 'PARTNER' AND u."orgId" = $1`,
+      partnerOrg,
     );
     const next = await nextAllowedAt(db, acc.partnerId, settings.weeklyLimit);
     res.status(200).json({
@@ -502,7 +509,7 @@ export async function handlePartnerPushRoutes(
 
   if (path === `${base}/slots` && method === 'GET') {
     const ignore = ctx.req?.query?.campaignId ? String(ctx.req.query.campaignId) : undefined;
-    res.status(200).json({ days: await listSlots(db, settings, { ignoreCampaignId: ignore }), leadHours: SLOT_LEAD_HOURS });
+    res.status(200).json({ days: await listSlots(db, settings, { ignoreCampaignId: ignore, orgId: partnerOrg }), leadHours: SLOT_LEAD_HOURS });
     return true;
   }
 
@@ -544,12 +551,14 @@ export async function handlePartnerPushRoutes(
     }
     const at = parseSlot(body.scheduledFor, settings);
     const id = crypto.randomUUID();
+    // A campanha é da ONG do parceiro (gravada explícita, não só pelo padrão da coluna)
+    const campaignOrg = partnerOrg;
     const reserved = await withSlotLock(db, async (tx) => {
-      if (await slotTaken(tx, at)) return false;
+      if (await slotTaken(tx, at, undefined, campaignOrg)) return false;
       await tx.$executeRawUnsafe(
-        `INSERT INTO partner_push_campaigns (id, "partnerId", "createdById", title, body, "discountId", "priceCents", "scheduledFor")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        id, acc.partnerId, userId, title, text, discountId, settings.priceCents, at,
+        `INSERT INTO partner_push_campaigns (id, "partnerId", "createdById", title, body, "discountId", "priceCents", "scheduledFor", "orgId")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        id, acc.partnerId, userId, title, text, discountId, settings.priceCents, at, campaignOrg,
       );
       return true;
     });
@@ -587,7 +596,7 @@ export async function handlePartnerPushRoutes(
     }
     const at = parseSlot(body.scheduledFor, settings);
     const ok = await withSlotLock(db, async (tx) => {
-      if (await slotTaken(tx, at, campaign.id)) return false;
+      if (await slotTaken(tx, at, campaign.id, campaign.orgId)) return false;
       await tx.$executeRawUnsafe(
         `UPDATE partner_push_campaigns SET "scheduledFor" = $2, "updatedAt" = NOW()
           WHERE id = $1 AND status IN ('AWAITING_PAYMENT','PENDING_REVIEW','SCHEDULED')`,
@@ -617,7 +626,7 @@ export async function handlePartnerPushRoutes(
     const hostedCard = paymentsInfo().hostedCard;
     if (campaign.scheduledFor) {
       const at = new Date(campaign.scheduledFor);
-      const free = await withSlotLock(db, async (tx) => !(await slotTaken(tx, at, campaign.id)));
+      const free = await withSlotLock(db, async (tx) => !(await slotTaken(tx, at, campaign.id, campaign.orgId)));
       if (!free || at.getTime() < Date.now() + 60 * 60e3) {
         throw new HttpError(409, 'O horário escolhido não está mais disponível. Escolha outro horário antes de pagar.', 'SLOT_EXPIRED');
       }
@@ -771,14 +780,15 @@ export async function handleAdminPushRoutes(
       let at = new Date(c.scheduledFor);
       let movedTo: Date | null = null;
       const takenByOther: any[] = await db.$queryRawUnsafe(
-        `SELECT id FROM partner_push_campaigns WHERE "scheduledFor" = $1 AND id <> $2 AND status IN ('SCHEDULED','SENDING','SENT') LIMIT 1`,
+        `SELECT id FROM partner_push_campaigns WHERE "scheduledFor" = $1 AND id <> $2 AND status IN ('SCHEDULED','SENDING','SENT') AND "orgId" = $3 LIMIT 1`,
         at,
         id,
+        slotOrgId(c.orgId),
       );
       if (at.getTime() <= Date.now() || takenByOther.length) {
         // A aprovação chegou depois do horário: vai para a próxima vaga livre
         const settings = await getPushSettings(db);
-        movedTo = await withSlotLock(db, (tx) => nextFreeSlot(tx, settings, Date.now(), id));
+        movedTo = await withSlotLock(db, (tx) => nextFreeSlot(tx, settings, Date.now(), id, c.orgId));
         if (!movedTo) {
           await db.$executeRawUnsafe(`UPDATE partner_push_campaigns SET status = 'PENDING_REVIEW' WHERE id = $1`, id);
           throw new HttpError(409, 'Não há horário livre nas próximas 2 semanas. Aumente os horários nas configurações.');
