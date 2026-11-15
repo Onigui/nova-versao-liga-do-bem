@@ -773,7 +773,7 @@ export function renderSharePage(r: any, base: string) {
   const closed = v.status !== 'ACTIVE';
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
-<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(`${when} · ${v.district || v.locationNote || v.city || ''} · Liga do Bem`)}">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(`${when} · ${v.district || v.locationNote || v.city || ''} · SóciONG`)}">
 ${img ? `<meta property="og:image" content="${esc(img)}">` : ''}
 <style>body{font-family:system-ui,sans-serif;margin:0;background:#F9FAFB;color:#1F2937}main{max-width:560px;margin:0 auto;padding:16px}
 img{width:100%;border-radius:16px;max-height:420px;object-fit:cover;background:#E5E7EB}.tag{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:800;font-size:13px;color:#fff;background:${v.type === 'LOST' ? '#DC2626' : v.type === 'FOUND' ? '#059669' : '#D97706'}}
@@ -788,7 +788,7 @@ ${closed ? `<p class="closed">${v.status === 'RESOLVED' ? '✅ Este animal já v
 ${v.description ? `<p>${esc(v.description)}</p>` : ''}
 <a class="btn" href="${esc(map)}">Ver no mapa</a>
 <p class="warn">⚠️ Nunca faça PIX ou pagamento para "liberar" ou "devolver" um animal. Desconfie de quem pede dinheiro.</p>
-<p style="font-size:13px;color:#6B7280">Publicado no app Liga do Bem, achados e perdidos. Baixe o app para ver o contato e receber alertas de animais perto de você.</p>
+<p style="font-size:13px;color:#6B7280">Publicado no app SóciONG, achados e perdidos. Baixe o app para ver o contato e receber alertas de animais perto de você.</p>
 </main></body></html>`;
 }
 

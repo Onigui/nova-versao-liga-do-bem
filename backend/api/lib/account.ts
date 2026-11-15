@@ -24,7 +24,8 @@ type Ctx = {
   authUser: () => { userId: string };
 };
 
-export const ACCOUNT_PATHS = ['/api/user/account/delete', '/api/public/account/delete', '/api/excluir-conta', '/api/privacidade'];
+// A política de privacidade agora é texto de cada ONG (lib/orgDocs: /api/privacidade?org=slug)
+export const ACCOUNT_PATHS = ['/api/user/account/delete', '/api/public/account/delete', '/api/excluir-conta'];
 export function isAccountPath(path: string) {
   return ACCOUNT_PATHS.includes(path);
 }
@@ -87,7 +88,7 @@ async function checkUser(db: any, where: { id?: string; email?: string }, passwo
   if (!ok) return { error: 'Senha incorreta.', status: 401 };
   if (u.role === 'ADMIN' || u.role === 'PARTNER') {
     return {
-      error: 'Contas de parceiro ou da administração são encerradas pela Liga. Fale com a equipe.',
+      error: 'Contas de parceiro ou da administração são encerradas pela ONG. Fale com a equipe.',
       status: 409,
     };
   }
@@ -113,12 +114,25 @@ export async function handleAccount(ctx: Ctx): Promise<boolean> {
   if (!isAccountPath(path)) return false;
   const body = ctx.body && typeof ctx.body === 'object' ? ctx.body : {};
 
-  if (path === '/api/privacidade' && method === 'GET') {
-    sendHtml(res, privacyPage());
-    return true;
-  }
   if (path === '/api/excluir-conta' && method === 'GET') {
-    sendHtml(res, deletePage());
+    // ONG da página: ?org=slug (os links do app e da política mandam), senão a Liga
+    const ref = String(ctx.req?.query?.org || '').trim().toLowerCase();
+    let org: OrgLabels = { legalName: 'SóciONG', email: 'contato@sociong.com.br' };
+    try {
+      const { publicOrgInfo } = await import('./orgDocs');
+      const { runAsSystem, DEFAULT_ORG } = await import('./tenant');
+      const rows: any[] = db
+        ? await runAsSystem(() => db.$queryRawUnsafe(`SELECT * FROM organizations WHERE slug = $1 OR id = $1 LIMIT 1`, /^[a-z0-9_-]{1,64}$/.test(ref) ? ref : DEFAULT_ORG))
+        : [];
+      if (rows[0]) {
+        const p = publicOrgInfo(rows[0]);
+        const clean = (v: string) => String(v || '').replace(/[<>"'&]/g, '');
+        org = { legalName: clean(p.legalName), email: clean(p.contacts.privacyEmail || p.contacts.email || org.email) };
+      }
+    } catch {
+      /* página genérica */
+    }
+    sendHtml(res, deletePage(org));
     return true;
   }
   if (!db) {
@@ -178,11 +192,9 @@ function sendHtml(res: any, html: string) {
   res.status(200).send(html);
 }
 
-const ORG = 'Liga do Bem Botucatu';
-const CNPJ = '27.644.955/0001-38';
-const CONTACT = 'contato@ligadobem.com';
+type OrgLabels = { legalName: string; email: string };
 
-function shell(title: string, inner: string) {
+function shell(title: string, inner: string, ORG: string) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title} · ${ORG}</title>
 <style>
@@ -202,7 +214,8 @@ a{color:var(--brand)}
 </style></head><body><header><h1>${title}</h1><p>${ORG}</p></header><main>${inner}</main></body></html>`;
 }
 
-export function deletePage() {
+export function deletePage(org: OrgLabels) {
+  const CONTACT = org.email;
   return shell(
     'Excluir minha conta',
     `<section><h2>Como excluir</h2>
@@ -233,38 +246,6 @@ if(r.ok){m.textContent='Pronto: sua conta foi excluída.';m.className='msg ok';d
 else{m.textContent=d.error||'Não foi possível excluir.';m.className='msg err';b.disabled=false;}}
 catch(e){m.textContent='Sem conexão. Tente de novo.';m.className='msg err';b.disabled=false;}});
 </script>`,
-  );
-}
-
-export function privacyPage() {
-  return shell(
-    'Política de Privacidade',
-    `<section><p>Esta política explica como a ${ORG} (CNPJ ${CNPJ}, Botucatu/SP) trata os dados pessoais de quem usa o aplicativo da Liga do Bem e o aplicativo Liga do Bem Parceiros, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018). Última atualização: outubro de 2026.</p></section>
-<section><h2>Dados que coletamos</h2><ul>
-<li><b>Cadastro:</b> nome, e-mail, telefone, CPF e senha (guardada criptografada). O CPF é obrigatório para garantir uma conta por pessoa e validar a carteirinha de membro.</li>
-<li><b>Localização:</b> usada, com a sua permissão, para mostrar parceiros e animais perdidos perto de você e para marcar avisos e avistamentos no mapa. Quando o animal está na sua casa, o mapa público mostra só a região aproximada.</li>
-<li><b>Fotos e câmera:</b> fotos que você escolhe enviar (perfil, pets, avisos de achados e perdidos, receitas para orçamento).</li>
-<li><b>Pets:</b> nome, espécie, vacinas e histórico de saúde que você ou o veterinário parceiro registram.</li>
-<li><b>Pagamentos:</b> valores, datas e situação de mensalidades e doações. Os dados do cartão são enviados direto ao PagBank, criptografados; a Liga não guarda o número do cartão.</li>
-<li><b>Uso de benefícios:</b> registro de quando a carteirinha é validada em um parceiro.</li>
-<li><b>Notificações:</b> o identificador do aparelho para enviar avisos (Firebase Cloud Messaging).</li></ul></section>
-<section><h2>Para que usamos</h2><ul>
-<li>Criar e proteger a sua conta e emitir a carteirinha de membro;</li>
-<li>Liberar descontos nos parceiros para membros ativos;</li>
-<li>Processar mensalidades e doações e prestar contas;</li>
-<li>Avisar sobre adoções, eventos, campanhas e animais perdidos perto de você;</li>
-<li>Combater fraudes e abusos (por exemplo, golpes no mural de achados e perdidos).</li></ul>
-<p>Não vendemos seus dados e não usamos para publicidade de terceiros.</p></section>
-<section><h2>Com quem compartilhamos</h2><ul>
-<li><b>Parceiros:</b> ao validar a carteirinha, o parceiro vê seu nome e se você é membro ativo; em orçamentos, vê apenas o que você enviar.</li>
-<li><b>Outros membros:</b> avisos de achados e perdidos, avistamentos e comentários que você publica ficam visíveis para quem tem conta.</li>
-<li><b>Prestadores de serviço:</b> PagBank (pagamentos), Supabase (banco de dados, no Brasil), Vercel (servidor), Google Firebase (notificações) e serviço de e-mail transacional.</li>
-<li>Autoridades, quando exigido por lei.</li></ul></section>
-<section><h2>Por quanto tempo guardamos</h2>
-<p>Enquanto a sua conta existir. Ao excluir a conta, apagamos os dados pessoais e o conteúdo; registros de pagamentos e doações são mantidos sem identificação pelo prazo exigido para a prestação de contas da associação.</p></section>
-<section><h2>Seus direitos</h2>
-<p>Você pode acessar e corrigir seus dados no app (Perfil), revogar permissões de localização, câmera e notificações nas configurações do celular e <a href="/api/excluir-conta">excluir sua conta</a> a qualquer momento. Dúvidas ou pedidos: <a href="mailto:${CONTACT}">${CONTACT}</a>.</p></section>
-<section><h2>Segurança</h2><p>Conexões criptografadas (HTTPS), senhas com hash, acesso restrito à administração e QR Code da carteirinha que muda a cada poucos minutos.</p></section>
-<section><h2>Crianças</h2><p>O aplicativo é destinado a maiores de 18 anos.</p></section>`,
+    org.legalName,
   );
 }

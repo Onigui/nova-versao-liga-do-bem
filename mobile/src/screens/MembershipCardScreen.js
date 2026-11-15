@@ -22,6 +22,7 @@ import {F} from '../theme/home';
 import {reportUnauthorized} from '../services/session';
 import {useTour} from '../components/Tour';
 import {TOURS} from '../tours';
+import {useOrg} from '../utils/org';
 
 const STATUS_LABELS = {
   ACTIVE: 'ATIVO',
@@ -38,6 +39,7 @@ const STATUS_COLORS = {
 };
 
 export default function MembershipCardScreen({navigation}) {
+  const org = useOrg();
   const {user, token, isAuthenticated} = useAuth();
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -292,7 +294,7 @@ export default function MembershipCardScreen({navigation}) {
 
           <View style={styles.memberInfo}>
             <Text style={styles.memberName}>
-              {user?.name || 'Membro Liga do Bem'}
+              {user?.name || `Sócio da ${org.name}`}
             </Text>
             <Text style={styles.memberEmail}>
               {user?.email || 'membro@ligadobem.com'}
@@ -319,7 +321,7 @@ export default function MembershipCardScreen({navigation}) {
               ) : isActiveMember && cardCode.source === 'none' ? (
                 <View style={styles.qrBlocked}>
                   <Ionicons name="alert-circle-outline" size={36} color="#9CA3AF" />
-                  <Text style={styles.qrPlaceholder}>Carteirinha não encontrada nesta conta. Fale com a Liga do Bem.</Text>
+                  <Text style={styles.qrPlaceholder}>Carteirinha não encontrada nesta conta. Fale com a {org.name}.</Text>
                 </View>
               ) : isActiveMember && cardCode.source === 'offline' ? (
                 <View style={styles.qrBlocked} testID="qr-offline">

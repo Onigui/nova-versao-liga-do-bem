@@ -12,6 +12,7 @@ import {C, F, planName} from '../theme/home';
 import navigateTo from '../navigation/navigateTo';
 import {appVersionLabel} from '../utils/appVersion';
 import {resetTours} from '../components/Tour';
+import {useOrg} from '../utils/org';
 
 const fmtDate = d => {
   try {
@@ -62,6 +63,7 @@ function Group({title, children}) {
 }
 
 export default function ProfileScreen({navigation}) {
+  const org = useOrg();
   const {user, logout, updateUser} = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(user?.notificationsEnabled !== false);
   const [locationEnabled, setLocationEnabled] = useState(user?.locationEnabled !== false);
@@ -317,6 +319,7 @@ export default function ProfileScreen({navigation}) {
               }}
               testID="rever-dicas"
             />
+            <Row icon="heart-circle-outline" title={`Sobre a ${org.name}`} subtitle="Quem somos, contatos e redes" onPress={() => go('About')} testID="sobre-ong" />
             <Row icon="shield-checkmark-outline" title="Privacidade e termos" onPress={() => go('Legal', {section: 'both'})} testID="privacidade" />
             {isAdmin ? <Row icon="bug-outline" title="Debug e logs" subtitle="Somente administradores" onPress={() => go('Debug')} testID="debug" /> : null}
           </Group>
@@ -334,7 +337,7 @@ export default function ProfileScreen({navigation}) {
 
           <View style={styles.footer}>
             <Ionicons name="paw" size={16} color="#B8B5C6" />
-            <Text style={[styles.footerText, F.semibold]}>Liga do Bem Botucatu</Text>
+            <Text style={[styles.footerText, F.semibold]}>{org.legalName}</Text>
             {versionLabel ? (
               <Text style={[styles.version, F.regular]} testID="versao-app">
                 {versionLabel}

@@ -1,5 +1,5 @@
 /**
- * Nota Fiscal Paulista → Liga do Bem.
+ * Nota Fiscal Paulista → ONG (cada ONG com a sua entidade e CNPJ).
  *
  * O vínculo (doação automática dos cupons com CPF) é feito pela pessoa no sistema da Sefaz-SP:
  * não há API oficial, e o app nunca pede senha da Nota Fiscal Paulista. O app guia o passo a passo
@@ -33,7 +33,7 @@ type Ctx = {
 
 export const NFP_DEFAULTS = {
   enabled: true,
-  entityName: 'Liga do Bem',
+  entityName: '', // vazio = nome da ONG
   cnpj: '',
   siteUrl: 'https://www.nfp.fazenda.sp.gov.br',
 };
@@ -242,7 +242,7 @@ export async function getNfpSettings(db: any) {
   const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   return {
     enabled: m.enabled === undefined ? NFP_DEFAULTS.enabled : m.enabled === 'true',
-    entityName: m.entityName || NFP_DEFAULTS.entityName,
+    entityName: m.entityName || NFP_DEFAULTS.entityName || (await (await import('./orgs')).currentOrgNames(db)).name,
     cnpj: m.cnpj || NFP_DEFAULTS.cnpj,
     siteUrl: m.siteUrl || NFP_DEFAULTS.siteUrl,
   };

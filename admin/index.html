@@ -633,6 +633,7 @@
                 <li class="nav-group" id="navGroupPlatform" hidden>Plataforma</li>
                 <li class="nav-item" id="navItemPlatform" hidden><a href="#platform" class="nav-link" onclick="showSection('platform'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg></span>ONGs</a></li>
                 <li class="nav-group">Sistema</li>
+                <li class="nav-item"><a href="#texts" class="nav-link" onclick="showSection('texts'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg></span>Textos e contatos</a></li>
                 <li class="nav-item"><a href="#settings" class="nav-link" onclick="showSection('settings'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></span>Configurações</a></li>
                 <li class="nav-item"><a href="#help-support" class="nav-link" onclick="showSection('help-support'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg></span>Ajuda no app</a></li>
                 <li class="nav-item"><a href="#app-versions" class="nav-link" onclick="showSection('app-versions'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18h2"/></svg></span>Versões do app</a></li>
@@ -911,7 +912,7 @@
                     <div class="header-content">
                         <div>
                             <h1 class="header-title">Eventos</h1>
-                            <p class="header-subtitle">Gerencie eventos e atividades da Liga do Bem</p>
+                            <p class="header-subtitle">Gerencie eventos e atividades da ONG</p>
                         </div>
                         <div class="header-actions">
                             <button class="btn btn-primary" onclick="openEventModal()">
@@ -1431,6 +1432,47 @@
                 </div>
             </section>
 
+            <section id="texts-section" class="content-section">
+                <div class="header">
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Textos e contatos da ONG</h1>
+                            <p class="header-subtitle">O que aparece no app em "Sobre", "Termos e privacidade" e nas páginas da web. Mudou aqui, muda no app na hora, sem nova versão.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="loadTexts()">Atualizar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title">Contatos e redes</h3>
+                    <p class="header-subtitle" style="margin:8px 0 16px;">Aparecem na tela "Sobre a ONG" do app e entram nos textos onde houver {EMAIL}, {WHATSAPP} etc.</p>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label" for="tc-whatsapp">WhatsApp</label><input id="tc-whatsapp" class="form-input" placeholder="(14) 99999-9999"></div>
+                        <div class="form-group"><label class="form-label" for="tc-phone">Telefone fixo</label><input id="tc-phone" class="form-input" placeholder="(14) 3800-0000"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label" for="tc-email">E-mail de contato</label><input id="tc-email" class="form-input" type="email" placeholder="contato@suaong.org"></div>
+                        <div class="form-group"><label class="form-label" for="tc-privacyEmail">E-mail para privacidade (LGPD)</label><input id="tc-privacyEmail" class="form-input" type="email" placeholder="Se vazio, usa o de contato"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label" for="tc-instagram">Instagram</label><input id="tc-instagram" class="form-input" placeholder="@suaong"></div>
+                        <div class="form-group"><label class="form-label" for="tc-facebook">Facebook</label><input id="tc-facebook" class="form-input" placeholder="facebook.com/suaong"></div>
+                        <div class="form-group"><label class="form-label" for="tc-website">Site</label><input id="tc-website" class="form-input" placeholder="suaong.org"></div>
+                    </div>
+                    <div class="form-group"><label class="form-label" for="tc-address">Endereço (opcional)</label><input id="tc-address" class="form-input" placeholder="Rua, número, bairro, cidade"></div>
+                    <button class="btn btn-primary" onclick="saveTextContacts()">Salvar contatos</button>
+                    <div id="tcMsg" style="margin-top:10px;"></div>
+                </div>
+
+                <div class="dashboard-card">
+                    <h3 class="card-title">Textos do app</h3>
+                    <div id="docTabs" style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0;"></div>
+                    <div id="docEditor"><p class="muted">Carregando…</p></div>
+                </div>
+            </section>
+
             <section id="settings-section" class="content-section">
                 <div class="header">
                     <div class="header-content">
@@ -1492,7 +1534,7 @@
                 </div>
                 <div class="dashboard-card" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">Doações por PIX</h3>
-                    <p class="header-subtitle" style="margin:8px 0 16px;">Chave mostrada no app quando a pessoa doa. CNPJ da Liga: 27.644.955/0001-38</p>
+                    <p class="header-subtitle" style="margin:8px 0 16px;">Chave mostrada no app quando a pessoa doa.</p>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="form-label">Chave PIX (CNPJ/e-mail/telefone)</label>
@@ -1500,7 +1542,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Nome do recebedor</label>
-                                    <input type="text" class="form-input" id="pixHolderName" name="pixHolderName" placeholder="Liga do Bem Botucatu">
+                                    <input type="text" class="form-input" id="pixHolderName" name="pixHolderName" placeholder="Razão social da ONG">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1554,7 +1596,7 @@
                     <div class="header-content">
                         <div>
                             <h1 class="header-title">Moderação</h1>
-                            <p class="header-subtitle">O que membros e parceiros denunciaram e o que espera a conferência da Liga</p>
+                            <p class="header-subtitle">O que membros e parceiros denunciaram e o que espera a conferência da ONG</p>
                         </div>
                         <div class="header-actions"></div>
                     </div>
@@ -1578,7 +1620,7 @@
                     </div>
                     <p style="margin: 0 16px 8px; color:#64748B; font-size:0.85rem;">
                         Só avalia quem foi atendido (carteirinha validada, reserva concluída ou atendimento do pet). A empresa responde e pode denunciar;
-                        esconder a avaliação é decisão da Liga. A avaliação escondida sai da média, e o autor vê que ela foi escondida.
+                        esconder a avaliação é decisão da ONG. A avaliação escondida sai da média, e o autor vê que ela foi escondida.
                     </p>
                     <table class="table">
                         <thead><tr><th>Empresa</th><th>Nota</th><th>Comentário</th><th>Autor</th><th>Denúncia</th><th>Ações</th></tr></thead>
@@ -1610,7 +1652,7 @@
                 <div class="table-container" style="margin-top:1.5rem;">
                     <div class="table-header"><h3 class="table-title">Pode ser o mesmo animal? <span id="lfMergeBadge" class="nav-count" hidden></span></h3></div>
                     <p style="margin: 0 16px 8px; color:#64748B; font-size:0.85rem;">
-                        Sugestões de unificar dois avisos (de membros ou automáticas). Normalmente quem confirma é o tutor do animal perdido ou os autores; aqui a Liga pode decidir. Compare as fotos antes.
+                        Sugestões de unificar dois avisos (de membros ou automáticas). Normalmente quem confirma é o tutor do animal perdido ou os autores; aqui a ONG pode decidir. Compare as fotos antes.
                     </p>
                     <div id="lf-merges" style="padding: 0 16px 16px;">Carregando…</div>
                 </div>
@@ -1729,7 +1771,7 @@
                     <div class="header-content">
                         <div>
                             <h1 class="header-title">Nota Fiscal Paulista</h1>
-                            <p class="header-subtitle">Quem doa as notas para a Liga: passo a passo no app e conferência pela lista de doadores</p>
+                            <p class="header-subtitle">Quem doa as notas para a ONG: passo a passo no app e conferência pela lista de doadores</p>
                         </div>
                         <div class="header-actions"></div>
                     </div>
@@ -2085,7 +2127,7 @@
             </div>
             <div class="modal-body">
                 <p style="margin: 0 0 12px; color: #64748B; font-size: 0.9rem;">
-                    Quem tiver acesso entra no <strong>App Liga do Bem Parceiros</strong> para validar carteirinhas.
+                    Quem tiver acesso entra no <strong>app SóciONG Parceiros</strong> para validar carteirinhas.
                     O <strong>responsável</strong> também edita os dados da empresa, cria promoções e cadastra funcionários.
                     Ao criar o acesso, aparece um <strong>código de 6 dígitos</strong> para você mandar pelo WhatsApp: com ele a pessoa cria a senha no app.
                 </p>
@@ -2115,7 +2157,7 @@
             <div class="modal-header">
                 <div>
                     <h3 class="modal-title" id="companyFormTitle">Nova empresa parceira</h3>
-                    <p class="fx-subtitle" id="companyFormSubtitle">Os dados abaixo aparecem para os membros no app Liga do Bem, na lista e no mapa de parceiros.</p>
+                    <p class="fx-subtitle" id="companyFormSubtitle">Os dados abaixo aparecem para os membros no app SóciONG, na lista e no mapa de parceiros.</p>
                 </div>
                 <button type="button" class="modal-close" aria-label="Fechar" onclick="CompanyForm.close()">&times;</button>
             </div>
@@ -2137,7 +2179,7 @@
                                     <option>Ração e alimentação</option><option>Outros serviços</option>
                                 </select><span class="fx-error"></span></div>
                             <div class="fx-field fx-col-6"><label for="cf-description">Descrição <span class="fx-optional">(opcional)</span></label>
-                                <textarea id="cf-description" name="description" class="fx-input" maxlength="2000" placeholder="O que a empresa oferece e qual o benefício para quem é membro da Liga."></textarea>
+                                <textarea id="cf-description" name="description" class="fx-input" maxlength="2000" placeholder="O que a empresa oferece e qual o benefício para quem é sócio da ONG."></textarea>
                                 <span class="fx-hint">Aparece na página da empresa no app.</span><span class="fx-error"></span></div>
                             <div class="fx-field fx-col-6"><label for="cf-logo">Logo <span class="fx-optional">(opcional)</span></label>
                                 <input id="cf-logo" name="logo" class="fx-input" type="url" placeholder="https://… link da imagem do logo">
@@ -2340,7 +2382,7 @@
                             <label class="fx-role"><input type="radio" name="mf-role" value="PARTNER"><strong>Parceiro</strong><span>Funcionário de empresa parceira. Para dar acesso ao App Parceiros, use "Acessos" na empresa.</span></label>
                             <label class="fx-role"><input type="radio" name="mf-role" value="ADMIN"><strong>Administrador</strong><span>Acesso total a este painel.</span></label>
                         </div>
-                        <div class="fx-callout" id="mf-admin-warning" hidden>Administradores veem e alteram tudo no painel, inclusive pagamentos. Dê esse perfil só a quem for da equipe da Liga.</div>
+                        <div class="fx-callout" id="mf-admin-warning" hidden>Administradores veem e alteram tudo no painel, inclusive pagamentos. Dê esse perfil só a quem for da equipe da ONG.</div>
                     </section>
                     <section class="fx-section">
                         <label class="fx-switch">
@@ -2837,6 +2879,8 @@
                 loadHelpInfo();
             } else if (sectionId === 'settings') {
                 loadSettingsSection();
+            } else if (sectionId === 'texts') {
+                loadTexts();
             } else if (sectionId === 'payments') {
                 loadPaymentStats();
                 loadPayments(1);
@@ -3065,7 +3109,7 @@
                     document.getElementById('settingsContactPhone').value = cfg['org.contactPhone'] || '';
                     document.getElementById('settingsMembershipDisclaimer').value = cfg['membership.disclaimer'] || '';
                     document.getElementById('pixKey').value = cfg['donation.pixKey'] || '';
-                    document.getElementById('pixHolderName').value = cfg['donation.pixHolderName'] || 'Liga do Bem Botucatu';
+                    document.getElementById('pixHolderName').value = cfg['donation.pixHolderName'] || (currentOrg && (currentOrg.legalName || currentOrg.name)) || '';
                     document.getElementById('pixCity').value = cfg['donation.pixCity'] || 'Botucatu';
                 }
             } catch (e) {
@@ -3316,7 +3360,7 @@
             document.getElementById('targetType').value = 'event';
             document.getElementById('targetType').disabled = true;
             
-            document.getElementById('notificationTitle').value = 'Novo Evento da Liga do Bem!';
+            document.getElementById('notificationTitle').value = `Novo evento da ${orgLabel()}!`;
             document.getElementById('notificationBody').value = 'Não perca nosso próximo evento de adoção. Venha conhecer nossos animais que estão esperando por um lar cheio de amor!';
             loadEventsForNotification();
         }
@@ -3349,7 +3393,7 @@
             
             // Preencher template
             document.getElementById('notificationTitle').value = 'Nova Promoção Exclusiva!';
-            document.getElementById('notificationBody').value = 'Parceiro da Liga do Bem está oferecendo desconto especial para membros. Aproveite essa oportunidade!';
+            document.getElementById('notificationBody').value = `Parceiro da ${orgLabel()} está oferecendo desconto especial para membros. Aproveite essa oportunidade!`;
         }
 
         function setupPaymentNotification() {
@@ -3360,7 +3404,7 @@
             
             // Preencher template
             document.getElementById('notificationTitle').value = 'Lembrete de Pagamento';
-            document.getElementById('notificationBody').value = 'Olá! Este é um lembrete amigável sobre o pagamento da sua mensalidade da Liga do Bem.';
+            document.getElementById('notificationBody').value = `Olá! Este é um lembrete amigável sobre o pagamento da sua mensalidade da ${orgLabel()}.`;
         }
 
         function setupRoleNotification(role) {
@@ -3370,7 +3414,7 @@
             document.getElementById('targetType').disabled = true;
             
             document.getElementById('notificationTitle').value = `Mensagem para ${role === 'MEMBER' ? 'Membros' : role === 'VOLUNTEER' ? 'Voluntários' : 'Parceiros'}`;
-            document.getElementById('notificationBody').value = 'Mensagem importante da Liga do Bem para você.';
+            document.getElementById('notificationBody').value = `Mensagem importante da ${orgLabel()} para você.`;
         }
 
         function setupAllUsersNotification() {
@@ -3378,8 +3422,8 @@
             document.getElementById('targetType').value = 'all';
             document.getElementById('targetType').disabled = true;
             
-            document.getElementById('notificationTitle').value = 'Comunicado da Liga do Bem';
-            document.getElementById('notificationBody').value = 'Mensagem importante para toda a comunidade da Liga do Bem.';
+            document.getElementById('notificationTitle').value = `Comunicado da ${orgLabel()}`;
+            document.getElementById('notificationBody').value = `Mensagem importante para toda a comunidade da ${orgLabel()}.`;
         }
 
         function setupGeneralNotification() {
@@ -3870,7 +3914,7 @@
             }
         }
 
-        console.log('🛠️ Painel Administrativo Liga do Bem carregado!');
+        console.log('🛠️ Painel SóciONG carregado!');
         console.log('📊 Dashboard: Visão geral da plataforma');
         console.log('🏢 Empresas: Gestão de parceiros');
         console.log('👥 Membros: Gestão de usuários + carteirinhas');
@@ -4771,7 +4815,7 @@
         async function loadDashboardData() {
             const token = localStorage.getItem('admin_token');
             if (!token) return;
-            let adminName = 'equipe da Liga';
+            let adminName = 'equipe da ONG';
             try { adminName = (JSON.parse(localStorage.getItem('admin_user') || '{}').name || adminName).split(' ')[0]; } catch (e) { /* sem nome */ }
             document.getElementById('helloGreeting').textContent = greetingText();
             document.getElementById('helloName').textContent = adminName;
@@ -4958,6 +5002,121 @@
         let platformOrgs = [];
         let currentOrg = null;
         function currentOrgName() { return currentOrg ? currentOrg.name : 'selecionada'; }
+        // ========== Textos e contatos da ONG (Sobre, termos, privacidade, adoção) ==========
+        let docsState = { list: [], kind: 'about', current: null };
+        async function docsApi(method, path, body) {
+            const r = await fetch(`${API_BASE_URL}/api/admin/docs${path}`, { method, headers: adminHeaders(), body: body ? JSON.stringify(body) : undefined });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.error || 'Erro');
+            return d;
+        }
+        async function loadTexts() {
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/org`, { headers: adminHeaders() });
+                const d = await r.json();
+                const c = (d.org && d.org.contacts) || {};
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                set('tc-whatsapp', c.whatsapp); set('tc-phone', c.phone); set('tc-email', c.email); set('tc-privacyEmail', c.privacyEmail);
+                set('tc-instagram', c.instagram); set('tc-facebook', c.facebook); set('tc-website', c.website); set('tc-address', c.address);
+            } catch { /* segue para os textos */ }
+            try {
+                const d = await docsApi('GET', '');
+                docsState.list = d.docs;
+                renderDocTabs();
+                await openDoc(docsState.kind);
+            } catch (e) { document.getElementById('docEditor').innerHTML = `<p style="color:#B91C1C">${escHtml(e.message)}</p>`; }
+        }
+        async function saveTextContacts() {
+            const v = (id) => document.getElementById(id).value.trim();
+            const msg = document.getElementById('tcMsg');
+            try {
+                const r = await fetch(`${API_BASE_URL}/api/admin/org`, { method: 'PATCH', headers: adminHeaders(), body: JSON.stringify({ contacts: {
+                    whatsapp: v('tc-whatsapp'), phone: v('tc-phone'), email: v('tc-email'), privacyEmail: v('tc-privacyEmail'),
+                    instagram: v('tc-instagram'), facebook: v('tc-facebook'), website: v('tc-website'), address: v('tc-address'),
+                } }) });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(d.error || 'Erro ao salvar');
+                msg.innerHTML = '<span style="color:#047857">Contatos salvos. Já aparecem no app.</span>';
+                loadTexts();
+            } catch (e) { msg.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`; }
+        }
+        function renderDocTabs() {
+            document.getElementById('docTabs').innerHTML = docsState.list.map(x =>
+                `<button class="btn ${x.kind === docsState.kind ? 'btn-primary' : 'btn-secondary'}" onclick="openDoc('${x.kind}')">${escHtml(x.label)}${x.isDefault ? ' <span style="opacity:.75;font-weight:400">(padrão)</span>' : ` <span style="opacity:.75;font-weight:400">v${x.version}</span>`}</button>`).join('');
+        }
+        function mdPreview(md) {
+            const esc = (t) => escHtml(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+            const out = []; let list = null; let para = [];
+            const fp = () => { if (para.length) out.push(`<p>${esc(para.join(' '))}</p>`); para = []; };
+            const cl = () => { if (list) out.push(`</${list}>`); list = null; };
+            String(md || '').split(/\r?\n/).forEach(raw => {
+                const line = raw.trim(); let m;
+                if (!line) { fp(); cl(); }
+                else if ((m = line.match(/^(#{1,3})\s+(.*)$/))) { fp(); cl(); out.push(`<h${m[1].length === 3 ? 5 : 4} style="margin:14px 0 4px">${esc(m[2])}</h${m[1].length === 3 ? 5 : 4}>`); }
+                else if ((m = line.match(/^(?:[-*]|\d+[.)])\s+(.*)$/))) { fp(); const k = /^\d/.test(line) ? 'ol' : 'ul'; if (list !== k) { cl(); out.push(`<${k} style="padding-left:20px">`); list = k; } out.push(`<li>${esc(m[1])}</li>`); }
+                else { cl(); para.push(line); }
+            });
+            fp(); cl();
+            return out.join('');
+        }
+        function fillPh(text) {
+            const ph = (docsState.current && docsState.current.placeholders) || {};
+            return String(text || '').replace(/\{([A-Z_]+)\}/g, (a, k) => (k in ph ? ph[k] : a));
+        }
+        function refreshDocPreview() {
+            const t = document.getElementById('docTitle').value;
+            const b = document.getElementById('docBody').value;
+            document.getElementById('docPreview').innerHTML = `<h3 style="margin:0 0 8px">${escHtml(fillPh(t))}</h3>${mdPreview(fillPh(b))}`;
+            document.getElementById('docCount').textContent = `${b.length.toLocaleString('pt-BR')} caracteres`;
+        }
+        async function openDoc(kind) {
+            docsState.kind = kind;
+            renderDocTabs();
+            const box = document.getElementById('docEditor');
+            box.innerHTML = '<p class="muted">Carregando…</p>';
+            try {
+                const d = await docsApi('GET', `/${kind}`);
+                docsState.current = d;
+                const slug = (currentOrg && currentOrg.slug) || '';
+                const web = { about: 'sobre', terms: 'termos', privacy: 'privacidade', adoption: 'termos-adocao' }[kind];
+                const hist = (d.history || []).map(h => `<li>v${h.version} · ${new Date(h.createdAt).toLocaleString('pt-BR')}${h.createdBy ? ' · ' + escHtml(h.createdBy) : ''}</li>`).join('');
+                box.innerHTML = `
+                    <p class="muted" style="margin:0 0 10px;">${d.isDefault ? 'Ainda é o <strong>texto padrão</strong>, montado com os dados da ONG. Ajuste e publique para ter o texto próprio.' : `Publicado: <strong>versão ${d.version}</strong>. Cada publicação guarda a anterior.`}
+                    Use os marcadores <code>{ONG}</code> <code>{RAZAO_SOCIAL}</code> <code>{CNPJ}</code> <code>{CIDADE}</code> <code>{UF}</code> <code>{EMAIL}</code> <code>{EMAIL_PRIVACIDADE}</code> <code>{WHATSAPP}</code> <code>{DATA}</code>: eles viram os dados da ONG no app.</p>
+                    <div class="form-group"><label class="form-label" for="docTitle">Título</label><input id="docTitle" class="form-input" maxlength="160" value="${escHtml(d.title)}" oninput="refreshDocPreview()"></div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px;">
+                        <div class="form-group"><label class="form-label" for="docBody">Texto <span class="muted" style="font-weight:400">— # título, ## seção, - item, 1. item, **negrito**</span></label>
+                            <textarea id="docBody" class="form-input" rows="22" style="font-family:ui-monospace,Menlo,monospace; font-size:.85rem; line-height:1.5;" oninput="refreshDocPreview()">${escHtml(d.body)}</textarea>
+                            <div class="muted" id="docCount" style="font-size:.8rem; margin-top:4px;"></div></div>
+                        <div><div class="form-label">Como fica no app</div><div id="docPreview" style="border:1px solid #E5E7EB; border-radius:12px; padding:14px 16px; max-height:520px; overflow:auto; background:#FFFDF8;"></div></div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                        <button class="btn btn-primary" onclick="publishDoc()">Publicar versão nova</button>
+                        <button class="btn btn-secondary" onclick="resetDocToDefault()">Carregar o texto padrão</button>
+                        ${slug ? `<a class="btn btn-secondary" href="${API_BASE_URL}/api/${web}?org=${encodeURIComponent(slug)}" target="_blank" rel="noopener">Ver página na web</a>` : ''}
+                    </div>
+                    <div id="docMsg" style="margin-top:10px;"></div>
+                    ${hist ? `<details style="margin-top:12px;"><summary class="muted" style="cursor:pointer;">Versões publicadas</summary><ul class="muted" style="font-size:.85rem;">${hist}</ul></details>` : ''}`;
+                refreshDocPreview();
+            } catch (e) { box.innerHTML = `<p style="color:#B91C1C">${escHtml(e.message)}</p>`; }
+        }
+        function resetDocToDefault() {
+            const d = docsState.current; if (!d) return;
+            if (!confirm('Trocar o texto do editor pelo modelo padrão? Nada muda no app até você publicar.')) return;
+            document.getElementById('docTitle').value = d.defaultTitle;
+            document.getElementById('docBody').value = d.defaultBody;
+            refreshDocPreview();
+        }
+        async function publishDoc() {
+            const msg = document.getElementById('docMsg');
+            try {
+                const r = await docsApi('PUT', `/${docsState.kind}`, { title: document.getElementById('docTitle').value, body: document.getElementById('docBody').value });
+                msg.innerHTML = `<span style="color:#047857">${r.unchanged ? 'Nada mudou desde a última versão.' : `Versão ${r.version} publicada. Já aparece no app.`}</span>`;
+                const d = await docsApi('GET', ''); docsState.list = d.docs; renderDocTabs();
+            } catch (e) { msg.innerHTML = `<span style="color:#B91C1C">${escHtml(e.message)}</span>`; }
+        }
+
+        const orgLabel = () => (currentOrg && currentOrg.name) || 'ONG';
         function applyOrgBanner(org) {
             currentOrg = org;
             const color = (org.branding && org.branding.primary) || '#0E7C66';
@@ -5403,7 +5562,7 @@
                 headers: adminHeaders(),
                 body: JSON.stringify({
                     pixKey: document.getElementById('pixKey').value.trim(),
-                    pixHolderName: document.getElementById('pixHolderName').value.trim() || 'Liga do Bem Botucatu',
+                    pixHolderName: document.getElementById('pixHolderName').value.trim() || (currentOrg && (currentOrg.legalName || currentOrg.name)) || '',
                     pixCity: document.getElementById('pixCity').value.trim() || 'Botucatu',
                 }),
             });
@@ -5434,7 +5593,7 @@
                         <td><strong>${escHtml(i.label)}</strong></td>
                         <td>${escHtml(i.categoryLabel)}</td>
                         <td>${Number(i.offers || 0)}</td>
-                        <td>${i.custom ? `Sugerido por ${escHtml(i.partnerName || 'parceiro')}` : 'Catálogo da Liga'}</td>
+                        <td>${i.custom ? `Sugerido por ${escHtml(i.partnerName || 'parceiro')}` : 'Catálogo padrão'}</td>
                         <td style="white-space:nowrap">${actions}</td></tr>`;
                 }).join('') || '<tr><td colspan="5">Catálogo vazio.</td></tr>';
             } catch (e) {
@@ -6988,7 +7147,7 @@
                         </tbody>
                     </table>
                     <div class="footer">
-                        <p>Liga do Bem Botucatu - Lista gerada em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+                        <p>${escHtml((currentOrg && (currentOrg.legalName || currentOrg.name)) || 'ONG')} - Lista gerada em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
                     </div>
                 </body>
                 </html>
@@ -7129,7 +7288,7 @@
                             
                             <div class="form-group">
                                 <label class="form-label">Título *</label>
-                                <input type="text" class="form-input" name="title" required placeholder="Ex: Liga do Bem">
+                                <input type="text" class="form-input" name="title" required placeholder="Ex: Como doar">
                             </div>
                             
                             <div class="form-group">

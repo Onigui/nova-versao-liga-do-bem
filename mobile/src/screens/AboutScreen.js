@@ -1,274 +1,108 @@
+/**
+ * "Sobre a ONG": texto e contatos vêm do painel de cada ONG (Textos e contatos).
+ * Nada fixo de uma ONG específica: a mesma tela serve para todas.
+ */
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Linking,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {F} from '../theme/home';
+import MarkdownText from '../components/MarkdownText';
+import {useDoc, useOrg, formatPhone} from '../utils/org';
+import {appVersionLabel} from '../utils/appVersion';
 
-export default function AboutScreen() {
-  const handleContact = (type, value) => {
-    switch (type) {
-      case 'phone':
-        Linking.openURL(`tel:${value}`);
-        break;
-      case 'email':
-        Linking.openURL(`mailto:${value}`);
-        break;
-      case 'website':
-        Linking.openURL(value);
-        break;
-      default:
-        break;
-    }
-  };
+const open = url => Linking.openURL(url).catch(() => {});
+const shortUrl = u => String(u || '').replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+
+export function contactRows(org) {
+  const c = org?.contacts || {};
+  const rows = [];
+  if (c.whatsapp) rows.push({key: 'whatsapp', icon: 'logo-whatsapp', color: '#25D366', label: 'WhatsApp', value: formatPhone(c.whatsapp), url: `https://wa.me/${String(c.whatsapp).replace(/\D/g, '').replace(/^(?!55)/, '55')}`});
+  if (c.phone) rows.push({key: 'phone', icon: 'call', color: '#6D28D9', label: 'Telefone', value: formatPhone(c.phone), url: `tel:${String(c.phone).replace(/\D/g, '')}`});
+  if (c.email) rows.push({key: 'email', icon: 'mail', color: '#6D28D9', label: 'E-mail', value: c.email, url: `mailto:${c.email}`});
+  if (c.website) rows.push({key: 'website', icon: 'globe', color: '#6D28D9', label: 'Site', value: shortUrl(c.website), url: c.website});
+  if (c.instagram) rows.push({key: 'instagram', icon: 'logo-instagram', color: '#E4405F', label: 'Instagram', value: shortUrl(c.instagram).replace(/^instagram\.com\//i, '@'), url: c.instagram});
+  if (c.facebook) rows.push({key: 'facebook', icon: 'logo-facebook', color: '#1877F2', label: 'Facebook', value: shortUrl(c.facebook), url: c.facebook});
+  const place = c.address || [org?.city, org?.state].filter(Boolean).join(' - ');
+  if (place) rows.push({key: 'address', icon: 'location', color: '#6D28D9', label: 'Endereço', value: place, url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`});
+  return rows;
+}
+
+export default function AboutScreen({fetchImpl}) {
+  const org = useOrg({fetchImpl});
+  const {doc, loading} = useDoc('about', {fetchImpl});
+  const rows = contactRows(org);
 
   return (
     <ScrollView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Sobre a Liga do Bem</Text>
-        <Text style={styles.headerSubtitle}>
-          Conheça nossa missão e história
+        <Text style={styles.headerTitle} testID="sobre-titulo">
+          {doc?.title || `Sobre a ${org.name}`}
         </Text>
+        {org.city ? (
+          <Text style={styles.headerSubtitle}>
+            {org.city}
+            {org.state ? ` - ${org.state}` : ''}
+          </Text>
+        ) : null}
       </View>
 
-      {/* Mission */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Nossa Missão</Text>
-        <Text style={styles.sectionText}>
-          Promover o bem-estar animal através de adoções responsáveis, cuidados
-          veterinários e conscientização da comunidade de Botucatu. Trabalhamos
-          para garantir que todos os animais tenham uma vida digna e um lar
-          cheio de amor.
-        </Text>
+      <View style={styles.card}>
+        {doc?.body ? (
+          <MarkdownText source={doc.body} skipFirstHeading testID="sobre-texto" />
+        ) : loading ? (
+          <ActivityIndicator color="#5B21B6" />
+        ) : (
+          <Text style={styles.muted}>Não foi possível carregar agora. Tente de novo mais tarde.</Text>
+        )}
       </View>
 
-      {/* Values */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Nossos Valores</Text>
-        <View style={styles.valuesList}>
-          <View style={styles.valueItem}>
-            <Ionicons name="heart" size={24} color="#6D28D9" />
-            <Text style={styles.valueText}>Amor pelos animais</Text>
-          </View>
-          <View style={styles.valueItem}>
-            <Ionicons name="shield-checkmark" size={24} color="#10B981" />
-            <Text style={styles.valueText}>Responsabilidade</Text>
-          </View>
-          <View style={styles.valueItem}>
-            <Ionicons name="people" size={24} color="#F59E0B" />
-            <Text style={styles.valueText}>Comunidade</Text>
-          </View>
-          <View style={styles.valueItem}>
-            <Ionicons name="eye" size={24} color="#EF4444" />
-            <Text style={styles.valueText}>Transparência</Text>
+      {rows.length ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Fale com a {org.name}</Text>
+          <View style={styles.contactList}>
+            {rows.map((r, i) => (
+              <TouchableOpacity
+                key={r.key}
+                style={[styles.contactItem, i === rows.length - 1 && {borderBottomWidth: 0}]}
+                onPress={() => open(r.url)}
+                testID={`contato-${r.key}`}>
+                <Ionicons name={r.icon} size={22} color={r.color} />
+                <View style={styles.contactInfo}>
+                  <Text style={styles.contactLabel}>{r.label}</Text>
+                  <Text style={styles.contactValue}>{r.value}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
-      </View>
+      ) : null}
 
-      {/* Contact */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Contato</Text>
-        <View style={styles.contactList}>
-          <TouchableOpacity
-            style={styles.contactItem}
-            onPress={() => handleContact('phone', '+5514999999999')}>
-            <Ionicons name="call" size={24} color="#6D28D9" />
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactLabel}>Telefone</Text>
-              <Text style={styles.contactValue}>(14) 99999-9999</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.contactItem}
-            onPress={() => handleContact('email', 'contato@ligadobem.com')}>
-            <Ionicons name="mail" size={24} color="#6D28D9" />
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactLabel}>Email</Text>
-              <Text style={styles.contactValue}>contato@ligadobem.com</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.contactItem}
-            onPress={() => handleContact('website', 'https://ligadobem.com')}>
-            <Ionicons name="globe" size={24} color="#6D28D9" />
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactLabel}>Website</Text>
-              <Text style={styles.contactValue}>ligadobem.com</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.contactItem}>
-            <Ionicons name="location" size={24} color="#6D28D9" />
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactLabel}>Endereço</Text>
-              <Text style={styles.contactValue}>Botucatu - SP</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Social Media */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Redes Sociais</Text>
-        <View style={styles.socialList}>
-          <TouchableOpacity style={styles.socialItem}>
-            <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-            <Text style={styles.socialText}>Facebook</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.socialItem}>
-            <Ionicons name="logo-instagram" size={24} color="#E4405F" />
-            <Text style={styles.socialText}>Instagram</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.socialItem}>
-            <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
-            <Text style={styles.socialText}>WhatsApp</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Version */}
       <View style={styles.versionContainer}>
-        <Text style={styles.versionText}>Versão 1.0.0</Text>
-        <Text style={styles.versionText}>© 2025 Liga do Bem Botucatu</Text>
+        <Text style={styles.versionText}>
+          © {new Date().getFullYear()} {org.legalName}
+          {org.cnpj ? ` · CNPJ ${org.cnpj}` : ''}
+        </Text>
+        <Text style={styles.versionText}>Aplicativo SóciONG · {appVersionLabel()}</Text>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F5FB',
-  },
-  header: {
-    padding: 20,
-    paddingTop: 10,
-  },
-  headerTitle: {
-    fontSize: 24,
-    ...F.bold,
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    ...F.regular,
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  section: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    ...F.semibold,
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  sectionText: {
-    ...F.regular,
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#4B5563',
-  },
-  valuesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  valueItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    width: '48%',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  valueText: {
-    marginLeft: 12,
-    fontSize: 14,
-    ...F.semibold,
-    color: '#1F2937',
-    flex: 1,
-  },
-  contactList: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  contactInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  contactLabel: {
-    ...F.regular,
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  contactValue: {
-    fontSize: 16,
-    ...F.semibold,
-    color: '#1F2937',
-  },
-  socialList: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  socialItem: {
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  socialText: {
-    marginTop: 8,
-    fontSize: 14,
-    ...F.semibold,
-    color: '#1F2937',
-  },
-  versionContainer: {
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 40,
-  },
-  versionText: {
-    ...F.regular,
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginBottom: 4,
-  },
+  container: {flex: 1, backgroundColor: '#F6F5FB'},
+  header: {padding: 20, paddingTop: 10},
+  headerTitle: {fontSize: 24, ...F.bold, color: '#1F2937', marginBottom: 4},
+  headerSubtitle: {...F.regular, fontSize: 15, color: '#6B7280'},
+  card: {backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginHorizontal: 20, marginBottom: 20},
+  muted: {...F.regular, fontSize: 14, color: '#6B7280'},
+  section: {paddingHorizontal: 20},
+  sectionTitle: {fontSize: 18, ...F.semibold, color: '#1F2937', marginBottom: 12},
+  contactList: {backgroundColor: 'white', borderRadius: 16, overflow: 'hidden'},
+  contactItem: {flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6'},
+  contactInfo: {flex: 1, marginLeft: 12},
+  contactLabel: {...F.regular, fontSize: 13, color: '#6B7280', marginBottom: 2},
+  contactValue: {fontSize: 15, ...F.semibold, color: '#1F2937'},
+  versionContainer: {alignItems: 'center', padding: 20, paddingTop: 32},
+  versionText: {...F.regular, fontSize: 13, color: '#9CA3AF', marginBottom: 4, textAlign: 'center'},
 });
