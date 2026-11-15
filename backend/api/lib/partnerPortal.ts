@@ -1,5 +1,5 @@
 /**
- * Portal do parceiro (backend do App Liga do Bem Parceiros) + gestão de acessos no admin.
+ * Portal do parceiro (backend do app SóciONG Parceiros) + gestão de acessos no admin.
  *
  * Um usuário é ligado a uma empresa parceira pela tabela partner_accounts
  * (OWNER = dono, pode editar tudo e cadastrar funcionários; STAFF = só valida carteirinhas).
@@ -14,6 +14,7 @@ import { isMembershipCurrentlyActive } from './membershipBilling';
 import { sendEmail, isEmailDeliveryConfigured, escapeHtml } from './email';
 import { handlePartnerPushRoutes, handleAdminPushRoutes } from './partnerPush';
 import { issueManualAccessCode, accessCodeMessage } from './accessCode';
+import { currentOrgNames } from './orgs';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
 
 type Ctx = {
@@ -327,22 +328,23 @@ export async function createPartnerAccess(
   if (isEmailDeliveryConfigured()) {
     const appUrl = process.env.PARTNER_APP_URL || '';
     const pName = escapeHtml(partner.name);
+    const ong = await currentOrgNames(db);
     const steps = created
-      ? `Para entrar, abra o app <strong>Liga do Bem Parceiros</strong>, toque em <strong>Primeiro acesso / Esqueci a senha</strong> e informe este e-mail. Você vai receber um código para criar sua senha.`
-      : `Entre no app <strong>Liga do Bem Parceiros</strong> com o mesmo e-mail e senha que você já usa na Liga do Bem.`;
+      ? `Para entrar, abra o app <strong>SóciONG Parceiros</strong>, toque em <strong>Primeiro acesso / Esqueci a senha</strong> e informe este e-mail. Você vai receber um código para criar sua senha.`
+      : `Entre no app <strong>SóciONG Parceiros</strong> com o mesmo e-mail e senha que você já usa no app SóciONG.`;
     const r = await sendEmail({
       to: email,
       subject: `Seu acesso de parceiro — ${partner.name}`,
       text:
-        `Você recebeu acesso ${role === 'OWNER' ? 'de responsável' : 'de funcionário'} da empresa ${partner.name} na Liga do Bem.\n\n` +
+        `Você recebeu acesso ${role === 'OWNER' ? 'de responsável' : 'de funcionário'} da empresa ${partner.name}, parceira da ${ong.name} no SóciONG.\n\n` +
         (created
-          ? 'Para entrar, abra o app Liga do Bem Parceiros, toque em "Primeiro acesso / Esqueci a senha" e informe este e-mail. Você vai receber um código para criar sua senha.'
-          : 'Entre no app Liga do Bem Parceiros com o mesmo e-mail e senha que você já usa na Liga do Bem.') +
+          ? 'Para entrar, abra o app SóciONG Parceiros, toque em "Primeiro acesso / Esqueci a senha" e informe este e-mail. Você vai receber um código para criar sua senha.'
+          : 'Entre no app SóciONG Parceiros com o mesmo e-mail e senha que você já usa no app SóciONG.') +
         (appUrl ? `\n\nBaixe o app: ${appUrl}` : ''),
       html:
-        `<p>Você recebeu acesso <strong>${role === 'OWNER' ? 'de responsável' : 'de funcionário'}</strong> da empresa <strong>${pName}</strong> na Liga do Bem.</p>` +
+        `<p>Você recebeu acesso <strong>${role === 'OWNER' ? 'de responsável' : 'de funcionário'}</strong> da empresa <strong>${pName}</strong>, parceira da <strong>${escapeHtml(ong.name)}</strong> no SóciONG.</p>` +
         `<p>${steps}</p>` +
-        (appUrl ? `<p><a href="${escapeHtml(appUrl)}">Baixar o app Liga do Bem Parceiros</a></p>` : ''),
+        (appUrl ? `<p><a href="${escapeHtml(appUrl)}">Baixar o app SóciONG Parceiros</a></p>` : ''),
     });
     emailSent = r.ok;
     if (!r.ok) console.warn('⚠️ E-mail de acesso do parceiro não enviado:', r.error);
@@ -399,7 +401,7 @@ async function newCodeForAccount(db: any, accountId: string, partnerId: string |
   if (!a) throw new HttpError(404, 'Acesso não encontrado');
   // O responsável só gera código para contas criadas como parceiro (nunca para a conta de um membro)
   if (source === 'PARTNER_OWNER' && a.userRole !== 'PARTNER') {
-    throw new HttpError(403, 'Esta pessoa já tem conta na Liga do Bem e entra com a própria senha. Se esqueceu, ela usa "Esqueci a senha".', 'EXISTING_ACCOUNT');
+    throw new HttpError(403, 'Esta pessoa já tem conta no SóciONG e entra com a própria senha. Se esqueceu, ela usa "Esqueci a senha".', 'EXISTING_ACCOUNT');
   }
   const c = await issueManualAccessCode(db, a.email, source);
   return {
@@ -637,7 +639,7 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
     const { userId } = ctx.authUser();
     const acc = await partnerAccountOf(db, userId);
     if (!acc.partnerActive) {
-      throw new HttpError(403, 'Esta empresa está desativada na Liga do Bem. Fale com a administração.', 'PARTNER_INACTIVE');
+      throw new HttpError(403, 'Esta empresa está desativada no SóciONG. Fale com a ONG.', 'PARTNER_INACTIVE');
     }
 
     if (path === '/api/partner/me' && method === 'GET') {

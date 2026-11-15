@@ -300,7 +300,7 @@ async function partnerAccount(db: any, userId: string) {
   );
   const acc = rows[0];
   if (!acc) throw new HttpError(403, 'Este usuário não tem acesso de parceiro.', 'NOT_PARTNER');
-  if (!acc.partnerActive) throw new HttpError(403, 'Esta empresa está desativada na Liga do Bem.', 'PARTNER_INACTIVE');
+  if (!acc.partnerActive) throw new HttpError(403, 'Esta empresa está desativada no SóciONG. Fale com a ONG.', 'PARTNER_INACTIVE');
   return acc;
 }
 

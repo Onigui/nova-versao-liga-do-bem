@@ -85,7 +85,7 @@ export function parsePetToken(raw: unknown, secret: Buffer, nowMs = Date.now()):
 export const PET_TOKEN_ERRORS: Record<string, string> = {
   EXPIRED: 'Este QR expirou. Peça para o tutor abrir o pet no app de novo.',
   INVALID_SIGNATURE: 'QR inválido ou adulterado.',
-  UNRECOGNIZED: 'Este não é o QR de um pet da Liga do Bem.',
+  UNRECOGNIZED: 'Este não é o QR de um pet do SóciONG.',
   CARD_QR:
     'Este é o QR da carteirinha do membro. Para carimbar, peça o QR do pet: Meus Pets → escolha o pet → "Mostrar ao veterinário".',
 };
@@ -303,7 +303,7 @@ async function partnerAccount(db: any, userId: string) {
   );
   const acc = rows[0];
   if (!acc) throw new HttpError(403, 'Este usuário não tem acesso de parceiro.', 'NOT_PARTNER');
-  if (!acc.partnerActive) throw new HttpError(403, 'Esta empresa está desativada na Liga do Bem.', 'PARTNER_INACTIVE');
+  if (!acc.partnerActive) throw new HttpError(403, 'Esta empresa está desativada no SóciONG. Fale com a ONG.', 'PARTNER_INACTIVE');
   return acc;
 }
 
@@ -318,7 +318,7 @@ async function requireVet(db: any, accountId: string) {
     throw new HttpError(
       403,
       vet?.status === 'PENDING'
-        ? 'Seu CRMV ainda está em análise pela Liga do Bem.'
+        ? 'Seu CRMV ainda está em análise pela ONG.'
         : 'Só veterinários com CRMV aprovado pela Liga podem carimbar. Cadastre seu CRMV em Empresa → Veterinário.',
       'VET_REQUIRED',
     );

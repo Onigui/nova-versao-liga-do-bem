@@ -50,7 +50,7 @@ import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
 import { handleAccount, isAccountPath } from './lib/account';
-import { handleOrgs, isOrgPath, isPlatformAdmin, userOrgId, ensureOrgSchema } from './lib/orgs';
+import { handleOrgs, isOrgPath, isPlatformAdmin, userOrgId, ensureOrgSchema, currentOrgNames } from './lib/orgs';
 import { HOMOLOG_PATH, captureHomologWebhook, loadLatest, reportToText, runHomologation } from './lib/pagbankHomolog';
 import { handleHome } from './lib/home';
 import { audienceFilter } from './lib/inbox';
@@ -217,7 +217,7 @@ async function ensureAppVersionChannels(db: any) {
 async function sendPasswordResetEmail(to: string, code: string): Promise<{ ok: boolean; error?: string }> {
   return sendEmail({
     to,
-    subject: 'Código para redefinir sua senha — Liga do Bem',
+    subject: `Seu código de acesso — SóciONG`,
     text: `Seu código de recuperação é: ${code}\n\nEle vale por 15 minutos.\nSe você não pediu isso, ignore este e-mail.`,
     html: `<p>Seu código de recuperação é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p><p>Ele vale por <strong>15 minutos</strong>.</p><p>Se você não pediu isso, ignore este e-mail.</p>`,
   });
@@ -1675,11 +1675,12 @@ async function handleRequest(req: any, res: any) {
         );
         let emailSent = false;
         if (body?.sendInvite !== false && isEmailDeliveryConfigured()) {
+          const ong = await currentOrgNames(db);
           const r = await sendEmail({
             to: email,
-            subject: 'Seu acesso à Liga do Bem',
-            text: `Olá, ${name}!\n\nCriamos sua conta na Liga do Bem Botucatu com este e-mail.\nPara entrar, abra o app Liga do Bem, toque em "Esqueci minha senha" e informe este e-mail: você vai receber um código para criar sua senha.`,
-            html: `<p>Olá, ${name.replace(/[<>&"]/g, '')}!</p><p>Criamos sua conta na <strong>Liga do Bem Botucatu</strong> com este e-mail.</p><p>Para entrar, abra o app Liga do Bem, toque em <strong>Esqueci minha senha</strong> e informe este e-mail: você vai receber um código para criar sua senha.</p>`,
+            subject: `Seu acesso ao SóciONG — ${ong.name}`,
+            text: `Olá, ${name}!\n\nA ${ong.legal} criou sua conta no app SóciONG com este e-mail.\nPara entrar, abra o app SóciONG, toque em "Esqueci minha senha" e informe este e-mail: você vai receber um código para criar sua senha.`,
+            html: `<p>Olá, ${name.replace(/[<>&"]/g, '')}!</p><p>A <strong>${ong.legal.replace(/[<>&"]/g, '')}</strong> criou sua conta no app <strong>SóciONG</strong> com este e-mail.</p><p>Para entrar, abra o app SóciONG, toque em <strong>Esqueci minha senha</strong> e informe este e-mail: você vai receber um código para criar sua senha.</p>`,
           });
           emailSent = r.ok;
           if (!r.ok) console.warn('⚠️ Convite de novo usuário não enviado:', r.error);
@@ -1833,7 +1834,7 @@ async function handleRequest(req: any, res: any) {
       );
       const u = rows[0];
       if (!u || u.isActive === false) {
-        return res.status(401).json({ error: 'Conta inativa. Fale com a Liga do Bem.', code: 'USER_INACTIVE' });
+        return res.status(401).json({ error: 'Conta inativa. Fale com a sua ONG.', code: 'USER_INACTIVE' });
       }
       const cpf = u.cpf && String(u.cpf).trim() !== '' && u.cpf !== '00000000000' ? u.cpf : null;
       return res.status(200).json({
@@ -2172,7 +2173,7 @@ async function handleRequest(req: any, res: any) {
           console.error('❌ Recuperação de senha: SMTP/Resend não configurado');
           return res.status(503).json({
             error:
-              'Não conseguimos enviar o e-mail agora. Peça um código de acesso à Liga do Bem (ou ao responsável da sua empresa) e toque em "Já tenho um código".',
+              'Não conseguimos enviar o e-mail agora. Peça um código de acesso à sua ONG (ou ao responsável da sua empresa) e toque em "Já tenho um código".',
             code: 'EMAIL_UNAVAILABLE',
             emailRequired: true,
           });
@@ -2219,7 +2220,7 @@ async function handleRequest(req: any, res: any) {
           console.error('❌ Falha ao enviar e-mail de recuperação:', mail.error);
           return res.status(503).json({
             error:
-              'Não conseguimos enviar o e-mail agora. Peça um código de acesso à Liga do Bem (ou ao responsável da sua empresa) e toque em "Já tenho um código".',
+              'Não conseguimos enviar o e-mail agora. Peça um código de acesso à sua ONG (ou ao responsável da sua empresa) e toque em "Já tenho um código".',
             code: 'EMAIL_UNAVAILABLE',
           });
         }
@@ -5516,7 +5517,7 @@ async function handleRequest(req: any, res: any) {
           order = await createGatewayOrder({
             referenceId: `DON-${paymentId.slice(0, 8)}`,
             amountCents: Math.round(amount * 100),
-            description: 'Doação — Liga do Bem Botucatu',
+            description: `Doação — ${(await currentOrgNames(db)).legal}`,
             customer: { name: donorName, email: donorEmail, taxId, phone: donorPhone },
             method: payMethod as any,
             notificationUrl: gatewayNotificationUrl(apiBase),
@@ -5525,7 +5526,7 @@ async function handleRequest(req: any, res: any) {
               : undefined,
             installments: 1,
             address,
-            instructionLines: ['Doação para a Liga do Bem Botucatu', 'Obrigado por ajudar os animais!'],
+            instructionLines: [`Doação para a ${(await currentOrgNames(db)).legal}`, 'Obrigado por ajudar os animais!'],
           });
         } catch (e: any) {
           console.error('❌ Gateway doação:', e?.payload || e?.message);
@@ -7481,7 +7482,7 @@ async function handleRequest(req: any, res: any) {
             referenceId,
             amountCents: chargeAmountCents,
             itemAmountCents: plan.amountCents,
-            description: `Assinatura ${plan.name} — Liga do Bem`,
+            description: `Assinatura ${plan.name} — ${(await currentOrgNames(db)).name}`,
             customer: {
               name: user.name,
               email: user.email,
