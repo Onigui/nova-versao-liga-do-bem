@@ -1,7 +1,7 @@
 /**
  * App Parceiros → Dados da empresa.
  * Edição guiada (logo por foto, categoria em chips, CEP automático, grade de horários)
- * com prévia ao vivo de como a empresa aparece para os membros no app Liga do Bem.
+ * com prévia ao vivo de como a empresa aparece para os sócios no app SóciONG.
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {

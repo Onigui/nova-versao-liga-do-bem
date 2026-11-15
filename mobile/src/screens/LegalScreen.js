@@ -1,72 +1,74 @@
-import React from 'react';
-import {View, Text, StyleSheet, ScrollView, Linking} from 'react-native';
-import {API_BASE_PATH} from '../config/apiConfig';
+/**
+ * Termos de uso, política de privacidade e termos de adoção da ONG da pessoa.
+ * Os textos vêm do painel (Textos e contatos): cada ONG tem os seus e muda sem nova versão do app.
+ * route.params.section: 'terms' | 'privacy' | 'adoption' | 'both' (termos + privacidade, o padrão).
+ */
+import React, {useEffect, useState} from 'react';
+import {View, Text, StyleSheet, ScrollView, Linking, Pressable, ActivityIndicator} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {API_BASE_URL} from '../config/apiConfig';
 import {F} from '../theme/home';
+import MarkdownText from '../components/MarkdownText';
+import {useDoc, useOrg} from '../utils/org';
 
-export default function LegalScreen({route}) {
+const TABS = [
+  {kind: 'terms', label: 'Termos de uso'},
+  {kind: 'privacy', label: 'Privacidade'},
+  {kind: 'adoption', label: 'Adoção'},
+];
+
+export default function LegalScreen({route, fetchImpl}) {
   const section = route?.params?.section || 'both';
-  const showTerms = section === 'terms' || section === 'both';
-  const showPrivacy = section === 'privacy' || section === 'both';
+  const [kind, setKind] = useState(section === 'both' ? 'terms' : section);
+  useEffect(() => {
+    if (section !== 'both') setKind(section);
+  }, [section]);
+  const org = useOrg({fetchImpl});
+  const {doc, loading} = useDoc(kind, {fetchImpl});
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <Ionicons name="shield-checkmark" size={28} color="#FFFFFF" />
-        <Text style={styles.headerTitle}>Termos e Privacidade</Text>
-        <Text style={styles.headerSubtitle}>Liga do Bem Botucatu</Text>
+        <Text style={styles.headerTitle}>Termos e privacidade</Text>
+        <Text style={styles.headerSubtitle}>{org.legalName}</Text>
       </LinearGradient>
 
-      <View style={styles.content}>
-        {showTerms ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Termos de Uso</Text>
-            <Text style={styles.paragraph}>
-              Ao utilizar o aplicativo da Liga do Bem Botucatu, você concorda em
-              usar a plataforma de forma responsável, fornecendo informações
-              verdadeiras no cadastro e respeitando as regras de adoção,
-              doações e uso do cartão de membro.
-            </Text>
-            <Text style={styles.paragraph}>
-              O cartão digital e os descontos em parceiros são benefícios
-              destinados a membros ativos. O uso indevido do QR Code ou de dados
-              de terceiros pode resultar na suspensão da conta.
-            </Text>
-            <Text style={styles.paragraph}>
-              Solicitações de adoção, inscrição em eventos e cadastro de
-              voluntariado estão sujeitos à análise da organização.
-            </Text>
-          </View>
-        ) : null}
+      <View style={styles.tabs}>
+        {TABS.map(t => (
+          <Pressable
+            key={t.kind}
+            onPress={() => setKind(t.kind)}
+            style={[styles.tab, kind === t.kind && styles.tabActive]}
+            accessibilityRole="tab"
+            accessibilityState={{selected: kind === t.kind}}
+            testID={`aba-${t.kind}`}>
+            <Text style={[styles.tabText, kind === t.kind && styles.tabTextActive]}>{t.label}</Text>
+          </Pressable>
+        ))}
+      </View>
 
-        {showPrivacy ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Política de Privacidade</Text>
-            <Text style={styles.paragraph}>
-              Coletamos dados necessários para o funcionamento do app, como
-              nome, e-mail, telefone, CPF (obrigatório, uma conta por pessoa),
-              localização (com a sua permissão), fotos que você envia e
-              informações de pets/vacinas que você cadastrar.
-            </Text>
-            <Text style={styles.paragraph}>
-              Esses dados são usados para autenticação, comunicação sobre
-              adoções/eventos, emissão do cartão de membro e melhoria dos
-              serviços. Não vendemos seus dados pessoais.
-            </Text>
-            <Text style={styles.paragraph}>
-              Doações via PIX são registradas no sistema para transparência e
-              histórico do usuário. Você pode corrigir seus dados no Perfil e
-              excluir sua conta a qualquer momento em Perfil → Excluir minha
-              conta.
-            </Text>
-            <Text style={styles.paragraph}>
-              CNPJ: 27.644.955/0001-38 — Botucatu/SP.
-            </Text>
-            <Text style={styles.link} onPress={() => Linking.openURL(`${API_BASE_PATH}/privacidade`)} testID="politica-completa">
-              Ler a política de privacidade completa
-            </Text>
-          </View>
+      <View style={styles.content}>
+        <View style={styles.section}>
+          {doc?.body && doc.kind === kind ? (
+            <>
+              <Text style={styles.sectionTitle}>{doc.title}</Text>
+              <MarkdownText source={doc.body} skipFirstHeading testID={`texto-${kind}`} />
+              {doc.webUrl ? (
+                <Text style={styles.link} onPress={() => Linking.openURL(`${API_BASE_URL}${doc.webUrl}`).catch(() => {})} testID="politica-completa">
+                  Abrir no navegador
+                </Text>
+              ) : null}
+            </>
+          ) : loading ? (
+            <ActivityIndicator color="#5B21B6" />
+          ) : (
+            <Text style={styles.paragraph}>Não foi possível carregar agora. Tente de novo mais tarde.</Text>
+          )}
+        </View>
+        {kind === 'privacy' ? (
+          <Text style={styles.paragraph}>Para excluir sua conta: Perfil → Excluir minha conta.</Text>
         ) : null}
       </View>
     </ScrollView>
@@ -75,42 +77,17 @@ export default function LegalScreen({route}) {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#F6F5FB'},
-  header: {paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center',
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    overflow: 'hidden',
-  },
-  headerTitle: {
-    fontSize: 22,
-    ...F.bold,
-    color: '#FFFFFF',
-    marginTop: 6,
-  },
-  headerSubtitle: {
-    ...F.regular,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 4,
-  },
+  header: {paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden'},
+  headerTitle: {fontSize: 22, ...F.bold, color: '#FFFFFF', marginTop: 6},
+  headerSubtitle: {...F.regular, fontSize: 14, color: 'rgba(255,255,255,0.9)', marginTop: 4, textAlign: 'center'},
+  tabs: {flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 16},
+  tab: {flex: 1, paddingVertical: 10, borderRadius: 12, backgroundColor: '#EDE9FE', alignItems: 'center'},
+  tabActive: {backgroundColor: '#5B21B6'},
+  tabText: {...F.semibold, fontSize: 13, color: '#5B21B6'},
+  tabTextActive: {color: '#FFFFFF'},
   content: {padding: 20, paddingBottom: 40},
-  section: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    ...F.bold,
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  link: {...F.bold, fontSize: 14, color: '#5B21B6', textDecorationLine: 'underline'},
-  paragraph: {
-    ...F.regular,
-    fontSize: 14,
-    color: '#4B5563',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
+  section: {backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginBottom: 16},
+  sectionTitle: {fontSize: 18, ...F.bold, color: '#1F2937', marginBottom: 12},
+  link: {...F.bold, fontSize: 14, color: '#5B21B6', textDecorationLine: 'underline', marginTop: 4},
+  paragraph: {...F.regular, fontSize: 14, color: '#4B5563', lineHeight: 22, marginBottom: 12},
 });

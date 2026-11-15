@@ -47,8 +47,8 @@ export function whatsappUrl(report) {
   if (!report?.whatsapp) return null;
   const what =
     report.type === 'LOST'
-      ? `Oi! Vi no app Liga do Bem o aviso de ${report.petName || 'pet perdido'} (${speciesLabel(report.species).toLowerCase()}, ${report.colors}).`
-      : `Oi! Vi no app Liga do Bem o aviso do ${speciesLabel(report.species).toLowerCase()} ${report.type === 'FOUND' ? 'encontrado' : 'visto solto'} (${report.colors}).`;
+      ? `Oi! Vi no app SóciONG o aviso de ${report.petName || 'pet perdido'} (${speciesLabel(report.species).toLowerCase()}, ${report.colors}).`
+      : `Oi! Vi no app SóciONG o aviso do ${speciesLabel(report.species).toLowerCase()} ${report.type === 'FOUND' ? 'encontrado' : 'visto solto'} (${report.colors}).`;
   return `https://wa.me/${report.whatsapp}?text=${encodeURIComponent(what)}`;
 }
 

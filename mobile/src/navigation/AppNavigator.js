@@ -238,7 +238,7 @@ export function AppStack() {
         component={AboutScreen}
         options={{
           headerShown: true, ...HEADER,
-          title: 'Sobre Nós',
+          title: 'Sobre a ONG',
         }}
       />
       <Stack.Screen 

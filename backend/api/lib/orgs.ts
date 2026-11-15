@@ -306,7 +306,16 @@ function publicOrg(o: any) {
     branding: o.branding || {},
     about: (o.settings || {}).about || null,
     cities: (o.settings || {}).cities || (o.city ? [o.city] : []),
-    contacts: { whatsapp: contacts.whatsapp || null, email: contacts.email || null, privacyEmail: contacts.privacyEmail || null },
+    contacts: {
+      whatsapp: contacts.whatsapp || null,
+      email: contacts.email || null,
+      privacyEmail: contacts.privacyEmail || null,
+      phone: contacts.phone || null,
+      website: contacts.website || null,
+      instagram: contacts.instagram || null,
+      facebook: contacts.facebook || null,
+      address: contacts.address || null,
+    },
     features: { nfp: o.state === 'SP' && (o.settings || {}).nfp !== false },
   };
 }
@@ -651,8 +660,18 @@ function pickEditable(b: any, platform: boolean): { data?: any; error?: string }
   }
   if (b.contacts) {
     if (b.contacts.whatsapp !== undefined) out.contacts.whatsapp = String(b.contacts.whatsapp || '').replace(/\D/g, '').slice(0, 13) || null;
-    for (const k of ['email', 'privacyEmail', 'privacyName']) {
+    if (b.contacts.phone !== undefined) out.contacts.phone = String(b.contacts.phone || '').replace(/\D/g, '').slice(0, 13) || null;
+    for (const k of ['email', 'privacyEmail', 'privacyName', 'address']) {
       if (b.contacts[k] !== undefined) out.contacts[k] = String(b.contacts[k] || '').trim().slice(0, 160) || null;
+    }
+    // Redes e site: só https://; Instagram aceita @usuario
+    for (const k of ['website', 'instagram', 'facebook']) {
+      if (b.contacts[k] === undefined) continue;
+      let v = String(b.contacts[k] || '').trim().slice(0, 200);
+      if (k === 'instagram' && /^@?[\w.]{1,30}$/.test(v)) v = `https://instagram.com/${v.replace(/^@/, '')}`;
+      if (v && !/^https?:\/\//i.test(v)) v = `https://${v}`;
+      if (v && !/^https?:\/\/[^\s<>"]+$/i.test(v)) return { error: `Link inválido em ${k}` };
+      out.contacts[k] = v || null;
     }
   }
   if (b.about !== undefined) {

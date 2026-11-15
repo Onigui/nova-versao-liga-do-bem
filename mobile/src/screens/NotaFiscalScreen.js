@@ -1,5 +1,5 @@
 /**
- * Nota Fiscal Paulista → Liga do Bem: passo a passo da doação automática, "já fiz" e situação
+ * Nota Fiscal Paulista → ONG: passo a passo da doação automática, "já fiz" e situação
  * (aguardando conferência, confirmado pela lista de doadores da Liga ou não encontrado).
  * O app nunca pede a senha da Nota Fiscal Paulista: o vínculo é feito no site da Sefaz-SP.
  */

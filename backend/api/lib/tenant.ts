@@ -219,6 +219,7 @@ export const GLOBAL_TABLES: Record<string, 'all' | 'read' | 'liga-write' | 'none
   organizations: 'read',
   org_onboarding: 'none',
   org_secrets: 'none',
+  org_documents: 'none',
   pagbank_homolog: 'none',
   platform_kv: 'none',
   org_report_users: 'none',

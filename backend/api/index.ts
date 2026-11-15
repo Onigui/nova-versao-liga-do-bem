@@ -58,6 +58,8 @@ import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
 import { currentOrgId, ensureIsolationSchema, isolationOn, orgScope, scopeDb } from './lib/tenant';
 import { withTenant } from './lib/tenantRequest';
 import { handlePartnerRequests, isPartnerRequestPath } from './lib/partnerRequests';
+import { handleOrgDocs, isOrgDocsPath } from './lib/orgDocs';
+import { orgIdForRequest } from './lib/orgs';
 import { handleOngReport, isOngReportPath } from './lib/ongReport';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
@@ -633,7 +635,25 @@ async function handleRequest(req: any, res: any) {
       if (handled) return;
     }
 
-    // Exclusão de conta (app e página web) e política de privacidade pública
+    // Textos de cada ONG (Sobre, termos, privacidade, adoção) e dados públicos da ONG para o app
+    if (isOrgDocsPath(path)) {
+      const tokenOf = () => {
+        for (const t of [extractBearerToken(req), readHeader(req, 'x-admin-token')]) {
+          if (!t || !JWT_SECRET) continue;
+          try { return jwt.verify(t, JWT_SECRET) as any; } catch { /* próximo */ }
+        }
+        return null;
+      };
+      const isAdmin = isAdminRequest(req);
+      const handled = await handleOrgDocs({
+        req, res, path, method, body, db: getPrisma(), isAdmin,
+        auth: tokenOf,
+        adminOrgId: () => orgIdForRequest(req, tokenOf(), isAdmin),
+      });
+      if (handled) return;
+    }
+
+    // Exclusão de conta (app e página web)
     if (isAccountPath(path)) {
       const handled = await handleAccount({ req, res, path, method, body, db: getPrisma(), authUser: () => decodeAuthUser(req) });
       if (handled) return;

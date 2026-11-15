@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {F} from '../theme/home';
+import {useOrg} from '../utils/org';
 
 export default function SearchPartnerScreen() {
+  const org = useOrg();
   const [cnpj, setCnpj] = useState('');
   const [searching, setSearching] = useState(false);
   const [partnerData, setPartnerData] = useState(null);
@@ -214,7 +216,7 @@ export default function SearchPartnerScreen() {
           </View>
 
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Parceiro da Liga do Bem</Text>
+            <Text style={styles.sectionTitle}>Parceiro da {org.name}</Text>
             <View style={styles.memberInfo}>
               <Text style={styles.memberText}>
                 Membro desde:{' '}

@@ -73,7 +73,7 @@ export default function EventsCalendarScreen({navigation}) {
           title: 'Workshop: Adestramento Positivo',
           date: '2025-10-25',
           time: '14:00 - 17:00',
-          location: 'Sede da Liga do Bem',
+          location: 'Sede da ONG',
           category: 'Educação',
           vacancies: 20,
           registered: 12,

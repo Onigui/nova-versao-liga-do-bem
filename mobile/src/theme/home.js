@@ -46,7 +46,7 @@ export function planName(months) {
   if (m === 6) return 'Plano Semestral';
   if (m === 3) return 'Plano Trimestral';
   if (m === 1) return 'Plano Mensal';
-  return m ? `Plano de ${m} meses` : 'Membro Liga do Bem';
+  return m ? `Plano de ${m} meses` : 'Sócio';
 }
 
 export function dateBR(d) {
@@ -109,6 +109,7 @@ export const SERVICE_GROUPS = [
       {id: 'meusavisos', label: 'Meus avisos', icon: 'megaphone', bg: '#F1F0F6', fg: '#1E1B2E', screen: 'LostFoundMine', keywords: 'achados perdidos'},
       {id: 'perfil', label: 'Perfil', icon: 'person', bg: '#F1F0F6', fg: '#1E1B2E', screen: 'Perfil', keywords: 'dados conta senha'},
       {id: 'ajuda', label: 'Ajuda e contatos', icon: 'information-circle', bg: '#F1F0F6', fg: '#1E1B2E', screen: 'Info', keywords: 'contato whatsapp sobre'},
+      {id: 'sobre', label: 'Sobre a ONG', icon: 'heart-circle', bg: '#F1F0F6', fg: '#1E1B2E', screen: 'About', keywords: 'quem somos missao contato instagram'},
       {id: 'termos', label: 'Termos e privacidade', icon: 'document', bg: '#F1F0F6', fg: '#1E1B2E', screen: 'Legal', keywords: 'lgpd privacidade'},
     ],
   },

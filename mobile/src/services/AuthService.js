@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Alert, AppState, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {clearOrgCache} from '../utils/org';
 import NotificationService from './NotificationService';
 import { API_BASE_PATH } from '../config/apiConfig';
 import { IS_PARTNER_APP } from '../config/appVariant';
@@ -273,6 +274,7 @@ export const AuthProvider = ({ children }) => {
         }
         
         await AsyncStorage.setItem('auth_token', authToken);
+        clearOrgCache(); // dados da ONG desta conta
         await AsyncStorage.setItem('user_data', JSON.stringify(userData));
         await AsyncStorage.setItem('auth_refreshed_at', String(Date.now()));
         
@@ -337,6 +339,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('guest_mode'); // Limpar caso exista de versões antigas
       await AsyncStorage.removeItem('app_last_active'); // Limpar timestamp
       await clearSessionMarks();
+      await clearOrgCache(); // outra conta pode ser de outra ONG
       setToken(null);
       setUser(null);
     } catch (error) {

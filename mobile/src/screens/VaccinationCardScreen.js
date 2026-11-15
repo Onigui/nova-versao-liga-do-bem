@@ -17,6 +17,7 @@ import { API_BASE_PATH } from '../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {F} from '../theme/home';
 import {calendarDate, daysUntil, formatBR} from '../utils/dates';
+import {useOrg} from '../utils/org';
 
 const CATEGORY_LABEL = {VACCINE: 'Vacina', DEWORMER: 'Vermífugo', ANTIPARASITIC: 'Antipulgas/carrapatos'};
 
@@ -42,6 +43,7 @@ export function latestByName(list) {
 }
 
 export default function VaccinationCardScreen({navigation, route}) {
+  const org = useOrg();
   const {petId} = route.params || {};
   const [pet, setPet] = useState(null);
   const [vaccinations, setVaccinations] = useState([]);
@@ -112,7 +114,7 @@ export default function VaccinationCardScreen({navigation, route}) {
       if (!r.ok) throw new Error(data.error || 'Não foi possível gerar o link');
       setPet(p => (p ? {...p, share: {url: data.url}} : p));
       await Share.share({
-        message: `Carteira de vacinação de ${pet?.name || 'meu pet'} (Liga do Bem): ${data.url}`,
+        message: `Carteira de vacinação de ${pet?.name || 'meu pet'} (app SóciONG): ${data.url}`,
       });
     } catch (e) {
       if (e?.message !== 'User did not share') Alert.alert('Compartilhar', e.message);
@@ -268,7 +270,10 @@ export default function VaccinationCardScreen({navigation, route}) {
             {/* Título */}
             <View style={styles.cardTitleSection}>
               <Text style={styles.cardTitle}>CARTEIRA DE VACINAÇÃO</Text>
-              <Text style={styles.cardSubtitle}>Liga do Bem - Botucatu</Text>
+              <Text style={styles.cardSubtitle}>
+                {org.name}
+                {org.city ? ` - ${org.city}` : ''}
+              </Text>
             </View>
 
             {/* Resumo */}
