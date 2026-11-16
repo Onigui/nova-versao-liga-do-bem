@@ -111,40 +111,49 @@ export function useOrg({fetchImpl} = {}) {
   return org;
 }
 
-/** Texto da ONG (Markdown já com os dados da ONG). */
-export async function fetchDoc(kind, {fetchImpl = fetch} = {}) {
+/**
+ * Texto da ONG (Markdown já com os dados da ONG).
+ * `org` (slug ou id): só antes do login, quando a pessoa escolhe a ONG (ex.: cadastro de parceiro).
+ * Com login, a API usa a ONG da conta.
+ */
+export async function fetchDoc(kind, {fetchImpl = fetch, org = null} = {}) {
+  const key = org ? `${kind}@${org}` : kind;
   try {
-    const r = await fetchImpl(`${API_BASE_PATH}/app/docs/${kind}`, {headers: await authHeaders()});
+    const q = org ? `?org=${encodeURIComponent(org)}` : '';
+    const r = await fetchImpl(`${API_BASE_PATH}/app/docs/${kind}${q}`, {headers: org ? {} : await authHeaders()});
     const d = await r.json();
     if (r.ok && d?.body) {
-      memDocs[kind] = d;
-      writeCache(DOC_KEY(kind), d);
-      if (d.org?.name) memOrg = {...FALLBACK_ORG, ...d.org, contacts: d.org.contacts || {}};
+      memDocs[key] = d;
+      if (!org) {
+        writeCache(DOC_KEY(kind), d);
+        if (d.org?.name) memOrg = {...FALLBACK_ORG, ...d.org, contacts: d.org.contacts || {}};
+      }
       return d;
     }
   } catch {
     /* sem rede */
   }
-  return memDocs[kind] || (await readCache(DOC_KEY(kind))) || null;
+  return memDocs[key] || (org ? null : await readCache(DOC_KEY(kind))) || null;
 }
 
 /** Hook: { doc, loading, error } para um texto. */
-export function useDoc(kind, {fetchImpl} = {}) {
-  const [state, setState] = useState({doc: memDocs[kind] || null, loading: !memDocs[kind], error: false});
+export function useDoc(kind, {fetchImpl, org = null} = {}) {
+  const key = org ? `${kind}@${org}` : kind;
+  const [state, setState] = useState({doc: memDocs[key] || null, loading: !memDocs[key], error: false});
   useEffect(() => {
     let alive = true;
-    if (!memDocs[kind]) {
+    if (!memDocs[key] && !org) {
       readCache(DOC_KEY(kind)).then(c => {
         if (alive && c) setState(s => (s.doc ? s : {doc: c, loading: true, error: false}));
       });
     }
-    fetchDoc(kind, {fetchImpl}).then(d => {
+    fetchDoc(kind, {fetchImpl, org}).then(d => {
       if (alive) setState({doc: d, loading: false, error: !d});
     });
     return () => {
       alive = false;
     };
-  }, [kind, fetchImpl]);
+  }, [kind, key, org, fetchImpl]);
   return state;
 }
 

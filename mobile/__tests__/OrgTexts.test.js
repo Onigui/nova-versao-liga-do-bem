@@ -103,3 +103,14 @@ test('abre direto na privacidade quando pedido', async () => {
   expect(allText(tree.root)).toContain('Política de privacidade');
   expect(allText(tree.root)).toContain('Excluir minha conta');
 });
+
+test('app dos parceiros: só Termos e Privacidade, e antes do login usa a ONG escolhida', async () => {
+  let tree;
+  await act(async () => {
+    tree = renderer.create(<LegalScreen route={{params: {section: 'terms', tabs: ['terms', 'privacy'], org: 'patas-unidas'}}} fetchImpl={api} />);
+  });
+  await flush();
+  expect(tree.root.findAll(x => x.props.testID === 'aba-adoption')).toHaveLength(0);
+  expect(api).toHaveBeenCalledWith('https://api.test/api/app/docs/terms?org=patas-unidas', {headers: {}});
+  expect(allText(tree.root)).toContain('Associação Patas Unidas');
+});

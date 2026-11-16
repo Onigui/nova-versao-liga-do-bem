@@ -4,6 +4,7 @@ import {createStackNavigator} from '@react-navigation/stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import LegalScreen from '../screens/LegalScreen';
 import {COLORS, PartnerProvider, usePartner} from './PartnerContext';
 import {Button, Card, styles as ui} from './ui';
 import PartnerLoginScreen from './screens/PartnerLoginScreen';
@@ -53,6 +54,7 @@ export function PartnerAuthStack() {
         component={PartnerSignupScreen}
         options={{...header, headerShown: true, title: 'Quero ser parceiro'}}
       />
+      <Stack.Screen name="Legal" component={LegalScreen} options={{...header, headerShown: true, title: 'Termos e privacidade'}} />
     </Stack.Navigator>
   );
 }
@@ -256,6 +258,11 @@ export function PartnerAppStack() {
           name="Reviews"
           component={ReviewsScreen}
           options={{title: 'Avaliações'}}
+        />
+        <Stack.Screen
+          name="Legal"
+          component={LegalScreen}
+          options={{title: 'Termos e privacidade'}}
         />
         <Stack.Screen
           name="PartnerNotifications"

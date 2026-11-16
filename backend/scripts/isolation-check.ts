@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { instrumentDb } from '../api/lib/dbTiming';
 import { ensureOrgSchema } from '../api/lib/orgs';
 import { grossByMonth, listInvoices, syncFeeInvoices, withFee } from '../api/lib/platformFees';
+import { ensurePartnerPushSchema, listSlots, slotTaken } from '../api/lib/partnerPush';
 import { ensureIsolationSchema, forceIsolation, isolationSelfTest, runAsSystem, runWithOrg, scopeDb } from '../api/lib/tenant';
 
 let pass = 0;
@@ -132,6 +133,31 @@ async function main() {
   );
   await syncFeeInvoices(db);
   check('cobrança paga não muda depois', (await listInvoices(db, 'org_b'))[0]?.feeCents === 12500);
+
+  // Notificação paga: horário e público separados por ONG
+  await runAsSystem(() => ensurePartnerPushSchema(db));
+  await ensureIsolationSchema(db, true);
+  const mkPartner = (org: string, id: string) =>
+    runWithOrg(org, () => db.partner.create({ data: { id, name: id, category: 'Pet shop', address: 'Rua 1', city: 'X', state: 'SP', zipCode: '00000000' } }));
+  await mkPartner('org_liga', 'p_liga');
+  await mkPartner('org_b', 'p_b');
+  const slotAt = new Date(Date.now() + 3 * 864e5);
+  slotAt.setUTCHours(15, 0, 0, 0);
+  await runWithOrg('org_liga', () =>
+    db.$executeRawUnsafe(
+      `INSERT INTO partner_push_campaigns (id, "partnerId", "createdById", title, body, "priceCents", status, "scheduledFor", "orgId")
+       VALUES ('camp_liga', 'p_liga', 'u', 'Promo', 'Texto', 1990, 'SCHEDULED', $1, 'org_liga')`,
+      slotAt,
+    ),
+  );
+  check('horário pego por parceiro da Liga fica ocupado para a Liga', await runAsSystem(() => slotTaken(db, slotAt, undefined, 'org_liga')));
+  check('mesmo horário continua livre para a ONG B', !(await runAsSystem(() => slotTaken(db, slotAt, undefined, 'org_b'))));
+  check('B não enxerga a campanha da Liga', (await runWithOrg('org_b', () => db.$queryRawUnsafe(`SELECT id FROM partner_push_campaigns`))).length === 0);
+  const hhmm = `${String((slotAt.getUTCHours() + 21) % 24).padStart(2, '0')}:00`; // 15h UTC = 12h em Brasília
+  const daysB = await runWithOrg('org_b', () => listSlots(db, { slots: [hhmm] }));
+  const daysL = await runWithOrg('org_liga', () => listSlots(db, { slots: [hhmm] }));
+  const slotIn = (days: any[]) => days.flatMap((d: any) => d.slots).find((x: any) => new Date(x.at).getTime() === slotAt.getTime());
+  check('lista de horários: livre na B, ocupado na Liga', slotIn(daysB)?.available === true && slotIn(daysL)?.available === false, { b: slotIn(daysB), l: slotIn(daysL) });
 
   const st = await isolationSelfTest(db);
   check('autoteste', st.ok, st.checks.filter((c) => !c.ok));

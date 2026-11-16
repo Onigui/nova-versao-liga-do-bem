@@ -2,6 +2,8 @@
  * Termos de uso, política de privacidade e termos de adoção da ONG da pessoa.
  * Os textos vêm do painel (Textos e contatos): cada ONG tem os seus e muda sem nova versão do app.
  * route.params.section: 'terms' | 'privacy' | 'adoption' | 'both' (termos + privacidade, o padrão).
+ * route.params.tabs: quais abas mostrar (o app dos parceiros não mostra a de adoção).
+ * route.params.org: slug da ONG, só antes do login (cadastro de parceiro, quando a ONG foi escolhida).
  */
 import React, {useEffect, useState} from 'react';
 import {View, Text, StyleSheet, ScrollView, Linking, Pressable, ActivityIndicator} from 'react-native';
@@ -20,12 +22,15 @@ const TABS = [
 
 export default function LegalScreen({route, fetchImpl}) {
   const section = route?.params?.section || 'both';
-  const [kind, setKind] = useState(section === 'both' ? 'terms' : section);
+  const orgRef = route?.params?.org || null;
+  const tabs = TABS.filter(t => !route?.params?.tabs || route.params.tabs.includes(t.kind));
+  const [kind, setKind] = useState(section === 'both' ? tabs[0].kind : section);
   useEffect(() => {
     if (section !== 'both') setKind(section);
   }, [section]);
-  const org = useOrg({fetchImpl});
-  const {doc, loading} = useDoc(kind, {fetchImpl});
+  const myOrg = useOrg({fetchImpl});
+  const {doc, loading} = useDoc(kind, {fetchImpl, org: orgRef});
+  const org = orgRef && doc?.org ? doc.org : myOrg;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -36,7 +41,7 @@ export default function LegalScreen({route, fetchImpl}) {
       </LinearGradient>
 
       <View style={styles.tabs}>
-        {TABS.map(t => (
+        {tabs.map(t => (
           <Pressable
             key={t.kind}
             onPress={() => setKind(t.kind)}
