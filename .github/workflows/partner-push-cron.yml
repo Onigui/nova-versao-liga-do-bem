@@ -1,12 +1,13 @@
-# Agendador gratuito (o plano Hobby da Vercel só tem cron diário). Os endpoints são públicos e
-# idempotentes: só enviam o que já está na hora.
+# RESERVA MANUAL. O agendador oficial agora roda no Supabase (pg_cron + pg_net, job
+# "sociong-agendador", função public.sociong_agendador(), a cada 10 minutos), que é grátis e não
+# depende do GitHub (nem dos minutos de Actions quando o repositório ficar privado).
+# Este workflow só roda à mão ("Run workflow"), se o Supabase estiver fora do ar.
+# Os endpoints são públicos e idempotentes: só enviam o que já está na hora.
 #  - notificações pagas aprovadas cujo horário chegou
 #  - lembretes da próxima dose de vacina (o servidor só envia das 9h às 20h)
 name: Agendador (notificações e lembretes)
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions: {}
