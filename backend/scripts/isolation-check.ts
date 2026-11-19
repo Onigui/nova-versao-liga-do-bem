@@ -9,6 +9,7 @@ import { instrumentDb } from '../api/lib/dbTiming';
 import { ensureOrgSchema } from '../api/lib/orgs';
 import { grossByMonth, listInvoices, syncFeeInvoices, withFee } from '../api/lib/platformFees';
 import { ensurePartnerPushSchema, listSlots, slotTaken } from '../api/lib/partnerPush';
+import { decideAdminAccess, canManageAdmins } from '../api/lib/adminAccess';
 import { ensureIsolationSchema, forceIsolation, isolationSelfTest, runAsSystem, runWithOrg, scopeDb } from '../api/lib/tenant';
 
 let pass = 0;
@@ -158,6 +159,17 @@ async function main() {
   const daysL = await runWithOrg('org_liga', () => listSlots(db, { slots: [hhmm] }));
   const slotIn = (days: any[]) => days.flatMap((d: any) => d.slots).find((x: any) => new Date(x.at).getTime() === slotAt.getTime());
   check('lista de horários: livre na B, ocupado na Liga', slotIn(daysB)?.available === true && slotIn(daysL)?.available === false, { b: slotIn(daysB), l: slotIn(daysL) });
+
+  // Perfis de administrador da ONG
+  const can = (path: string, method: string, scope: any, isPlatform = false) => decideAdminAccess({ path, method, scope, isPlatform }).ok;
+  check('Conteúdo cria evento', can('/api/admin/events', 'POST', 'CONTEUDO'));
+  check('Conteúdo não vê pagamentos', !can('/api/admin/membership-payments', 'GET', 'CONTEUDO'));
+  check('Financeiro vê relatórios e não mexe em membros', can('/api/admin/financial-reports', 'GET', 'FINANCEIRO') && !can('/api/admin/members', 'POST', 'FINANCEIRO'));
+  check('Atendimento edita membro e não cadastra empresa', can('/api/admin/members/x', 'PUT', 'ATENDIMENTO') && !can('/api/admin/companies', 'POST', 'ATENDIMENTO'));
+  check('Gestor da ONG não publica versão do app nem entra na plataforma', !can('/api/admin/app/versions', 'POST', 'GESTOR') && !can('/api/platform/orgs', 'GET', 'GESTOR'));
+  check('Gestor lê a ajuda, mas só a plataforma escreve', can('/api/admin/help-info', 'GET', 'GESTOR') && !can('/api/admin/help-info', 'POST', 'GESTOR') && can('/api/admin/help-info', 'POST', 'GESTOR', true));
+  check('Só Gestor ou plataforma criam administradores', canManageAdmins(false, 'GESTOR') && canManageAdmins(true, 'CONTEUDO') && !canManageAdmins(false, 'ATENDIMENTO'));
+  check('Qualquer perfil vê o início', can('/api/admin/dashboard', 'GET', 'FINANCEIRO') && can('/api/admin/verify', 'GET', 'CONTEUDO'));
 
   const st = await isolationSelfTest(db);
   check('autoteste', st.ok, st.checks.filter((c) => !c.ok));
