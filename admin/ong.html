@@ -63,7 +63,7 @@
   <!-- Entrar -->
   <form class="card auth" id="formLogin" hidden onsubmit="entrar(event)">
     <h1>Relatório da ONG</h1>
-    <p class="muted" style="margin:0">Acompanhe sócios, receita, doações e o crescimento da sua ONG.</p>
+    <p class="muted" style="margin:0">Acompanhe associados, receita, doações e o crescimento da sua ONG.</p>
     <label for="email">E-mail</label>
     <input id="email" type="email" autocomplete="username" required>
     <label for="senha">Senha</label>
@@ -106,19 +106,19 @@
     <div class="kpis" id="kpis"></div>
     <section class="card fee" id="taxa">
       <h2 style="margin:0;font-size:1.05rem">Taxa SóciONG (<span id="taxaPct">10%</span> do valor bruto)</h2>
-      <p class="muted" style="margin:4px 0 12px">Calculada sobre tudo o que entrou pelo app: mensalidades dos sócios, doações e pagamentos dos parceiros. Cada mês fechado vira uma cobrança.</p>
+      <p class="muted" style="margin:4px 0 12px">Calculada sobre tudo o que entrou pelo app: mensalidades dos associados, doações e pagamentos dos parceiros. Cada mês fechado vira uma cobrança.</p>
       <div class="kpis" style="margin:0" id="taxaCards"></div>
       <div id="taxaLista"></div>
     </section>
     <div class="charts">
       <section class="card chart"><h2>Receita de mensalidades</h2><p class="muted" style="margin:0" id="totReceita"></p><div class="bars" id="chReceita" role="img"></div></section>
-      <section class="card chart"><h2>Novos sócios</h2><p class="muted" style="margin:0" id="totSocios"></p><div class="bars" id="chSocios" role="img"></div></section>
+      <section class="card chart"><h2>Novos associados</h2><p class="muted" style="margin:0" id="totSocios"></p><div class="bars" id="chSocios" role="img"></div></section>
       <section class="card chart"><h2>Doações</h2><p class="muted" style="margin:0" id="totDoacoes"></p><div class="bars" id="chDoacoes" role="img"></div></section>
       <section class="card chart"><h2>Descontos usados nos parceiros</h2><p class="muted" style="margin:0" id="totUsos"></p><div class="bars" id="chUsos" role="img"></div></section>
     </div>
     <section class="card" style="margin-top:14px">
       <h2 style="margin:0;font-size:1.05rem">Mês a mês</h2>
-      <div class="tablebox"><table><thead><tr><th scope="col">Mês</th><th scope="col">Novos sócios</th><th scope="col">Mensalidades</th><th scope="col">Doações</th><th scope="col">Parceiros</th><th scope="col">Total bruto</th><th scope="col">Taxa SóciONG</th><th scope="col">Descontos usados</th><th scope="col">Adoções</th></tr></thead><tbody id="tabela"></tbody></table></div>
+      <div class="tablebox"><table><thead><tr><th scope="col">Mês</th><th scope="col">Novos associados</th><th scope="col">Mensalidades</th><th scope="col">Doações</th><th scope="col">Parceiros</th><th scope="col">Total bruto</th><th scope="col">Taxa SóciONG</th><th scope="col">Descontos usados</th><th scope="col">Adoções</th></tr></thead><tbody id="tabela"></tbody></table></div>
     </section>
   </main>
   <p class="err" id="errGeral" role="alert"></p>
@@ -202,12 +202,12 @@
       document.getElementById('atualizado').textContent = `Atualizado em ${new Date(d.generatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`;
       const k = d.kpis;
       const cards = [
-        ['Sócios ativos', int(k.activeMembers), ''],
-        ['Novos sócios (30 dias)', int(k.newMembers30d), trend(k.newMembersTrend)],
+        ['Associados ativos', int(k.activeMembers), ''],
+        ['Novos associados (30 dias)', int(k.newMembers30d), trend(k.newMembersTrend)],
         ['Mensalidades no mês', brl(k.revenueMonth), trend(k.revenueTrend)],
         ['Doações no mês', brl(k.donationsMonth), ''],
         ['Parceiros ativos', int(k.activePartners), ''],
-        ['Descontos usados (30 dias)', int(k.cardUses30d), `<span class="muted">${int(k.membersUsingCard30d)} sócios usaram</span>`],
+        ['Descontos usados (30 dias)', int(k.cardUses30d), `<span class="muted">${int(k.membersUsingCard30d)} associados usaram</span>`],
         ['Adoções concluídas', int(k.adoptionsCompleted), `<span class="muted">${int(k.animalsAvailable)} esperando um lar</span>`],
         ['Nota dos parceiros', k.ratingAvg == null ? '—' : Number(k.ratingAvg).toFixed(1).replace('.', ','), `<span class="muted">${int(k.ratingCount)} avaliações</span>`],
       ];

@@ -1,7 +1,7 @@
 /**
  * App Parceiros → Dados da empresa.
  * Edição guiada (logo por foto, categoria em chips, CEP automático, grade de horários)
- * com prévia ao vivo de como a empresa aparece para os sócios no app SóciONG.
+ * com prévia ao vivo de como a empresa aparece para os associados no app SóciONG.
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
@@ -625,7 +625,7 @@ export default function CompanyEditScreen({navigation}) {
               onChangeText={v => set({description: v})}
               multiline
               maxLength={DESCRIPTION_MAX}
-              placeholder="O que a empresa oferece e qual o benefício para quem é sócio da ONG."
+              placeholder="O que a empresa oferece e qual o benefício para quem é associado da ONG."
               hint={`${form.description.length}/${DESCRIPTION_MAX} · aparece em "Benefício" na página da empresa`}
               style={{marginBottom: 0}}
             />

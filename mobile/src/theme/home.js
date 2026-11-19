@@ -46,7 +46,7 @@ export function planName(months) {
   if (m === 6) return 'Plano Semestral';
   if (m === 3) return 'Plano Trimestral';
   if (m === 1) return 'Plano Mensal';
-  return m ? `Plano de ${m} meses` : 'Sócio';
+  return m ? `Plano de ${m} meses` : 'Associado';
 }
 
 export function dateBR(d) {

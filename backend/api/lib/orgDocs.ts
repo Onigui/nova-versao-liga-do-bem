@@ -188,7 +188,7 @@ Promover o bem-estar animal por meio de adoções responsáveis, cuidados veteri
 - Transparência
 
 ## Como ajudar
-- **Seja sócio:** a mensalidade mantém o trabalho da ONG e ainda dá descontos nos parceiros.
+- **Seja associado:** a mensalidade mantém o trabalho da ONG e ainda dá descontos nos parceiros.
 - **Doe:** pelo app, por PIX, boleto ou cartão.
 - **Adote:** veja os animais esperando um lar na aba Adoção.`,
     };
@@ -196,10 +196,10 @@ Promover o bem-estar animal por meio de adoções responsáveis, cuidados veteri
   if (kind === 'terms') {
     return {
       title: 'Termos de uso',
-      body: `Estes termos valem para quem usa o aplicativo SóciONG como sócio, apoiador ou parceiro da **{RAZAO_SOCIAL}** (CNPJ {CNPJ}, {CIDADE}/{UF}). Última atualização: {DATA}.
+      body: `Estes termos valem para quem usa o aplicativo SóciONG como associado, apoiador ou parceiro da **{RAZAO_SOCIAL}** (CNPJ {CNPJ}, {CIDADE}/{UF}). Última atualização: {DATA}.
 
 ## O aplicativo
-O SóciONG é a plataforma que a {ONG} usa para sócios, doações, parceiros, adoções e achados e perdidos. A {ONG} é responsável pelo atendimento, pelas regras de adoção e pelo uso do dinheiro arrecadado.
+O SóciONG é a plataforma que a {ONG} usa para associados, doações, parceiros, adoções e achados e perdidos. A {ONG} é responsável pelo atendimento, pelas regras de adoção e pelo uso do dinheiro arrecadado.
 
 ## Sua conta
 - Use dados verdadeiros. O CPF é obrigatório e vale uma conta por pessoa.
@@ -207,7 +207,7 @@ O SóciONG é a plataforma que a {ONG} usa para sócios, doações, parceiros, a
 - A conta pode ser suspensa em caso de fraude, uso de dados de terceiros ou desrespeito a outras pessoas.
 
 ## Carteirinha e descontos
-- A carteirinha digital e os descontos valem só para sócios com a mensalidade em dia.
+- A carteirinha digital e os descontos valem só para associados com a mensalidade em dia.
 - O QR Code muda a cada poucos minutos e é pessoal. Mostrar a carteirinha de outra pessoa pode suspender as duas contas.
 - Os descontos são oferecidos pelos parceiros, que podem mudar as condições. A {ONG} intermedeia, mas não responde pelo produto ou serviço do parceiro.
 
@@ -233,7 +233,7 @@ Pedidos de adoção, inscrições em eventos e cadastro de voluntários passam p
       body: `Esta política explica como a **{RAZAO_SOCIAL}** (CNPJ {CNPJ}, {CIDADE}/{UF}) trata os dados pessoais de quem usa o aplicativo SóciONG e o aplicativo SóciONG Parceiros, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018). Última atualização: {DATA}.
 
 ## Quem trata os dados
-A {ONG} é a controladora dos dados dos seus sócios, doadores e parceiros. A SóciONG fornece a tecnologia do aplicativo e trata os dados em nome da {ONG}, só para fazer o app funcionar.
+A {ONG} é a controladora dos dados dos seus associados, doadores e parceiros. A SóciONG fornece a tecnologia do aplicativo e trata os dados em nome da {ONG}, só para fazer o app funcionar.
 
 ## Dados que coletamos
 - **Cadastro:** nome, e-mail, telefone, CPF e senha (guardada criptografada). O CPF garante uma conta por pessoa e valida a carteirinha.
@@ -246,7 +246,7 @@ A {ONG} é a controladora dos dados dos seus sócios, doadores e parceiros. A S�
 
 ## Para que usamos
 - Criar e proteger sua conta e emitir a carteirinha;
-- Liberar descontos nos parceiros para sócios em dia;
+- Liberar descontos nos parceiros para associados em dia;
 - Processar mensalidades e doações e prestar contas;
 - Avisar sobre adoções, eventos, campanhas e animais perdidos perto de você;
 - Combater fraudes e abusos.
@@ -254,7 +254,7 @@ A {ONG} é a controladora dos dados dos seus sócios, doadores e parceiros. A S�
 Não vendemos seus dados e não os usamos para publicidade de terceiros.
 
 ## Com quem compartilhamos
-- **Parceiros:** ao validar a carteirinha, o parceiro vê seu nome e se você é sócio em dia; em orçamentos, vê só o que você enviar.
+- **Parceiros:** ao validar a carteirinha, o parceiro vê seu nome e se você é associado em dia; em orçamentos, vê só o que você enviar.
 - **Outros usuários:** avisos de achados e perdidos, avistamentos e comentários que você publica.
 - **Prestadores de serviço:** Asaas (pagamentos), Supabase (banco de dados), Vercel (servidor), Google Firebase (notificações) e Resend (e-mails).
 - Autoridades, quando a lei exigir.

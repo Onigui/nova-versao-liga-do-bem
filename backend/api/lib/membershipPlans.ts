@@ -1,5 +1,5 @@
 /**
- * Regra da plataforma SóciONG: nenhum plano de sócio pode sair por menos de R$ 20,00 por mês
+ * Regra da plataforma SóciONG: nenhum plano de associado pode sair por menos de R$ 20,00 por mês
  * (vale para todas as ONGs, as que existem e as que entrarem). O mensal é R$ 24,90 e o anual
  * chega a R$ 20,00 por mês.
  */

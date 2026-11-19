@@ -145,7 +145,7 @@ function Gate() {
           </Text>
           <Text style={[ui.muted, {marginBottom: 16}]}>
             {notPartner
-              ? 'Use o e-mail cadastrado para a sua empresa. Se você é sócio de uma ONG, use o app SóciONG.'
+              ? 'Use o e-mail cadastrado para a sua empresa. Se você é associado de uma ONG, use o app SóciONG.'
               : error?.message || 'Verifique sua internet.'}
           </Text>
           {!notPartner && !inactive ? (

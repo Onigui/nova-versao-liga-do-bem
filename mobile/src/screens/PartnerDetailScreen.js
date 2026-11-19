@@ -63,7 +63,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
     category: 'Pet Shop',
     discount: '20%',
     description:
-      'Desconto de 20% em todos os produtos para sócios.',
+      'Desconto de 20% em todos os produtos para associados.',
     address: 'Rua Exemplo, 123 - Centro',
     phone: '(14) 3811-1234',
     whatsapp: '14981234567',
@@ -335,7 +335,7 @@ export default function PartnerDetailScreen({route, navigation, partner: partner
                   <Text style={styles.stepNumberText}>2</Text>
                 </View>
                 <Text style={styles.stepText}>
-                  Diga que é sócio e mostre a carteirinha
+                  Diga que é associado e mostre a carteirinha
                 </Text>
               </View>
               <View style={styles.stepItem}>

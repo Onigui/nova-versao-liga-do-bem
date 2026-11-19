@@ -229,7 +229,7 @@ export default function PartnersScreen({navigation, route}) {
           <View style={styles.searchContainer}>
             <Text style={styles.heroTitle} maxFontSizeMultiplier={1.15}>Parceiros</Text>
             <Text style={styles.heroSub} maxFontSizeMultiplier={1.15}>
-              {partners.length ? `${partners.length} lugares com desconto para membros` : 'Descontos para sócios'}
+              {partners.length ? `${partners.length} lugares com desconto para membros` : 'Descontos para associados'}
             </Text>
             <View style={styles.searchBar}>
               <Ionicons name="search" size={18} color="#9CA3AF" />

@@ -152,7 +152,7 @@ export default function PushCampaignsScreen({navigation}) {
         style={{backgroundColor: COLORS.primarySoft, borderColor: '#99F6E4'}}>
         <Text
           style={{fontSize: 16, fontWeight: '800', color: COLORS.primaryDark}}>
-          Fale com todos os sócios da {org?.name || 'sua ONG'}
+          Fale com todos os associados da {org?.name || 'sua ONG'}
         </Text>
         <Text style={{color: COLORS.primaryDark, marginTop: 4}}>
           {data
@@ -270,7 +270,7 @@ export default function PushCampaignsScreen({navigation}) {
             onChangeText={setBody}
             maxLength={limits.bodyMax}
             multiline
-            placeholder="Ex.: Só nesta semana, sócios da ONG têm 20% no banho e tosa. Mostre a carteirinha!"
+            placeholder="Ex.: Só nesta semana, associados da ONG têm 20% no banho e tosa. Mostre a carteirinha!"
             testID="push-mensagem"
           />
           <Text style={[ui.label, {fontSize: 15, marginTop: 4}]}>Quando enviar?</Text>

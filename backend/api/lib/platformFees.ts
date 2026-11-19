@@ -1,6 +1,6 @@
 /**
  * Taxa da plataforma SóciONG: 10% do valor BRUTO de tudo o que a ONG arrecada pelo app
- * (mensalidades dos sócios, doações e pagamentos dos parceiros), sem teto.
+ * (mensalidades dos associados, doações e pagamentos dos parceiros), sem teto.
  *
  * - Calculada sozinha, mês a mês, dentro de cada ONG.
  * - Ao virar o mês, o mês fechado vira uma cobrança (platform_fee_invoices) "a pagar":

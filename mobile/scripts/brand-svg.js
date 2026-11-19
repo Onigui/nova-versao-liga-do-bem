@@ -1,5 +1,5 @@
 /**
- * Arte do ícone do SóciONG (conceito B: carteirinha de sócio), em SVG.
+ * Arte do ícone do SóciONG (conceito B: carteirinha de associado), em SVG.
  * Fonte única para os ícones do Android, iOS, lojas e telas do app (scripts/brand-icons.js).
  *
  * variant: 'member' (fundo laranja) | 'partner' (fundo verde, para diferenciar no celular)

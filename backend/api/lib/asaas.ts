@@ -7,7 +7,7 @@
  *   (ASAAS_PLATFORM_WALLET_ID). Sem carteira definida, não há split e a taxa continua sendo
  *   cobrada pela fatura mensal (platformFees).
  * - Cartão: o app NÃO recebe o número do cartão. A cobrança gera a página de pagamento do Asaas
- *   (invoiceUrl) e o sócio digita o cartão lá. Nada de cartão passa pelo nosso servidor.
+ *   (invoiceUrl) e o associado digita o cartão lá. Nada de cartão passa pelo nosso servidor.
  * - Ambiente: deduzido da própria chave ($aact_prod_… = produção; $aact_hmlg_… = sandbox),
  *   com ASAAS_ENV como reserva.
  *
@@ -191,7 +191,7 @@ function toResult(p: any, extra: Partial<PagBankOrderResult> = {}): PagBankOrder
 /**
  * Cria a cobrança na conta Asaas da ONG. Devolve o mesmo formato do PagBank, para o resto
  * do sistema não precisar saber qual é o gateway.
- * Cartão (crédito ou débito): sem dados de cartão; o sócio paga na página do Asaas (paymentLink).
+ * Cartão (crédito ou débito): sem dados de cartão; o associado paga na página do Asaas (paymentLink).
  */
 export async function createAsaasPayment(
   input: CreateOrderInput & { feeRate?: number },

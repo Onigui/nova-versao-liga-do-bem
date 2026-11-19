@@ -152,8 +152,8 @@ async function issueLink(db: any, userId: string, email: string, orgName: string
   const mail = await sendEmail({
     to: email,
     subject: `SóciONG: ${title}`,
-    text: `${title}.\n\nCrie sua senha neste link (vale ${INVITE_HOURS} horas):\n${url}\n\nNo relatório você acompanha sócios, receita, doações e o crescimento da ONG. Equipe SóciONG`,
-    html: `<p>${escapeHtml(title)}.</p><p><a href="${url}" style="background:#0E7C66;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Criar minha senha</a></p><p style="color:#4B5E59;font-size:13px">O link vale ${INVITE_HOURS} horas. No relatório você acompanha sócios, receita, doações e o crescimento da ONG.</p><p>Equipe SóciONG</p>`,
+    text: `${title}.\n\nCrie sua senha neste link (vale ${INVITE_HOURS} horas):\n${url}\n\nNo relatório você acompanha associados, receita, doações e o crescimento da ONG. Equipe SóciONG`,
+    html: `<p>${escapeHtml(title)}.</p><p><a href="${url}" style="background:#0E7C66;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Criar minha senha</a></p><p style="color:#4B5E59;font-size:13px">O link vale ${INVITE_HOURS} horas. No relatório você acompanha associados, receita, doações e o crescimento da ONG.</p><p>Equipe SóciONG</p>`,
   }).catch(() => ({ ok: false }));
   return { url, emailed: !!(mail as any)?.ok };
 }
