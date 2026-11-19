@@ -13,6 +13,7 @@ process.env.PLATFORM_ADMIN_EMAILS = 'plataforma@sociong.test';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { runAsSystem } from '../api/lib/tenant';
+import { clearTenantCaches } from '../api/lib/tenantRequest';
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
 const failures: string[] = [];
@@ -92,6 +93,8 @@ async function main() {
       );
     }
   });
+
+  clearTenantCaches(); // a lista de ONGs fica 1 min em cache: a ONG Teste acabou de nascer
 
   const T = {
     platform: tok({ userId: ids.platform, email: 'plataforma@sociong.test', role: 'ADMIN', orgId: 'org_liga' }),
