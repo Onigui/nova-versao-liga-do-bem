@@ -21,7 +21,7 @@ const word = (dark) =>
 const PAGES = {
   'logo-horizontal.png': {w: 1200, h: 360, html: `<div style="width:1200px;height:360px;display:flex;align-items:center;justify-content:center;gap:48px">${icon(240)}<div style="font-size:150px;letter-spacing:-3px">${word(false)}</div></div>`, transparent: true},
   'logo-horizontal-escuro.png': {w: 1200, h: 360, html: `<div style="width:1200px;height:360px;background:#10231F;display:flex;align-items:center;justify-content:center;gap:48px">${icon(240)}<div style="font-size:150px;letter-spacing:-3px">${word(true)}</div></div>`},
-  'store/feature-graphic-1024x500.png': {w: 1024, h: 500, html: `<div style="width:1024px;height:500px;background:#0E7C66;display:flex;align-items:center;gap:44px;padding:0 72px">${icon(220)}<div style="display:flex;flex-direction:column;gap:18px"><div style="font-size:96px;letter-spacing:-2px;line-height:1"><span style="font-weight:600;color:#FFFFFF">Sóci</span><span style="font-weight:800;color:#FFD2BC">ONG</span></div><div style="font-size:34px;font-weight:600;color:#E6F6F1;line-height:1.25">Seja sócio de uma ONG.<br>Ganhe vantagens nos parceiros.</div></div></div>`},
+  'store/feature-graphic-1024x500.png': {w: 1024, h: 500, html: `<div style="width:1024px;height:500px;background:#0E7C66;display:flex;align-items:center;gap:44px;padding:0 72px">${icon(220)}<div style="display:flex;flex-direction:column;gap:18px"><div style="font-size:96px;letter-spacing:-2px;line-height:1"><span style="font-weight:600;color:#FFFFFF">Sóci</span><span style="font-weight:800;color:#FFD2BC">ONG</span></div><div style="font-size:34px;font-weight:600;color:#E6F6F1;line-height:1.25">Seja associado de uma ONG.<br>Ganhe vantagens nos parceiros.</div></div></div>`},
 };
 
 (async () => {

@@ -389,7 +389,7 @@ async function sendCampaign(db: any, id: string) {
     Number(recipients) || 0,
     push.success,
   );
-  await notifyPartner(db, c.partnerId, 'Sua notificação foi enviada! 🎉', `"${c.title}" foi enviada para os sócios da ${await orgName(db, org)}.`);
+  await notifyPartner(db, c.partnerId, 'Sua notificação foi enviada! 🎉', `"${c.title}" foi enviada para os associados da ${await orgName(db, org)}.`);
   return { recipients: Number(recipients) || 0, pushAttempted: push.attempted, pushSuccess: push.success };
 }
 
@@ -659,7 +659,7 @@ export async function handlePartnerPushRoutes(
       order = await createGatewayOrder({
         referenceId: `PUSH-${paymentId.slice(0, 8)}`,
         amountCents,
-        description: `Notificação para sócios — ${await orgName(db)}`,
+        description: `Notificação para associados — ${await orgName(db)}`,
         customer: { name: payer?.name || campaign.partnerName, email: payer?.email, taxId, phone: payer?.phone },
         method: payMethod as any,
         notificationUrl: gatewayNotificationUrl(apiBase),

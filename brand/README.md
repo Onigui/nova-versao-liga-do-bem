@@ -1,8 +1,8 @@
 # Marca SóciONG
 
-- **Ícone**: conceito "carteirinha de sócio". Arte em `mobile/scripts/brand-svg.js`.
+- **Ícone**: conceito "carteirinha de associado". Arte em `mobile/scripts/brand-svg.js`.
   - App dos membros: fundo laranja `#FF7A3D`. App Parceiros: fundo verde `#0E7C66`.
-- **Cores**: verde sócio `#0E7C66`, laranja calor `#FF7A3D`, verde fundo `#0A5C4C`, tinta `#10231F`.
+- **Cores**: verde SóciONG `#0E7C66`, laranja calor `#FF7A3D`, verde fundo `#0A5C4C`, tinta `#10231F`.
 - **Fonte**: Outfit (gratuita, Google Fonts). "Sóci" peso 600 + "ONG" peso 800 em verde.
 
 | Arquivo | Uso |

@@ -103,7 +103,7 @@ export default function PartnerSignupScreen({navigation, fetchImpl = fetch}) {
       <ScrollView style={ui.screen} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <Text style={ui.title}>Quero ser parceiro</Text>
         <Text style={[ui.muted, {marginBottom: 12}]}>
-          Sua empresa dá desconto aos sócios de uma ONG e aparece no app para eles. Escolha a ONG e mande seus dados: nossa equipe entra em contato.
+          Sua empresa dá desconto aos associados de uma ONG e aparece no app para eles. Escolha a ONG e mande seus dados: nossa equipe entra em contato.
         </Text>
 
         <Card>

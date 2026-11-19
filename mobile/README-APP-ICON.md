@@ -1,6 +1,6 @@
 # Ícone do app
 
-O ícone é o da plataforma **SóciONG** (conceito "carteirinha de sócio") e fica versionado no repositório.
+O ícone é o da plataforma **SóciONG** (conceito "carteirinha de associado") e fica versionado no repositório.
 Ele não muda por ONG: a marca de cada ONG aparece dentro do app (carteirinha, cores, textos).
 
 - Arte: `scripts/brand-svg.js` (membros: fundo laranja; Parceiros: fundo verde).

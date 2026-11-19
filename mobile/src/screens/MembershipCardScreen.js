@@ -294,7 +294,7 @@ export default function MembershipCardScreen({navigation}) {
 
           <View style={styles.memberInfo}>
             <Text style={styles.memberName}>
-              {user?.name || `Sócio da ${org.name}`}
+              {user?.name || `Associado da ${org.name}`}
             </Text>
             <Text style={styles.memberEmail}>
               {user?.email || 'membro@ligadobem.com'}
