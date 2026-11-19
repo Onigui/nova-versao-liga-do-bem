@@ -36,3 +36,5 @@ jobs:
       - run: npm ci
       - run: npx prisma db push --skip-generate --accept-data-loss
       - run: npx --yes tsx@4.19.2 scripts/isolation-check.ts
+      # Segunda ONG de mentira ("ONG Teste") passando pelas rotas de verdade com a separação ligada
+      - run: npx --yes tsx@4.19.2 scripts/two-orgs-smoke.ts
