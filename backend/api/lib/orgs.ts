@@ -12,6 +12,7 @@
  */
 import crypto from 'crypto';
 import { ensureIsolationSchema, isolationOn, isolationSelfTest, runAsSystem } from './tenant';
+import { areasFor, normalizeScope } from './adminAccess';
 
 export const DEFAULT_ORG_ID = 'org_liga';
 
@@ -223,6 +224,10 @@ export function ensureOrgSchema(db: any, force = false): Promise<void> {
         console.warn('⚠️ orgId não adicionado em', table_name, String(e?.message || e).slice(0, 100));
       });
     }
+    // Perfil do administrador da ONG (GESTOR, CONTEUDO, FINANCEIRO, ATENDIMENTO); vazio = GESTOR
+    await db.$executeRawUnsafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "adminScope" TEXT`).catch((e: any) => {
+      console.warn('⚠️ adminScope não adicionado:', String(e?.message || e).slice(0, 100));
+    });
   }).catch((e) => {
     schemaReady = null;
     throw e;
@@ -410,7 +415,10 @@ export async function handleOrgs(ctx: Ctx): Promise<boolean> {
     if (method === 'GET') {
       const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM organizations WHERE id = $1`, orgId);
       if (!rows[0]) return send(res, 404, { error: 'ONG não encontrada' }), true;
-      return send(res, 200, { org: { ...publicOrg(rows[0]), status: rows[0].status }, platformAdmin: isPlatformAdmin(auth, ctx.isAdmin) }), true;
+      const acc = (ctx.req as any)?.__adminAccess || null;
+      const platformAdmin = isPlatformAdmin(auth, ctx.isAdmin);
+      const adminScope = platformAdmin ? 'GESTOR' : String(acc?.scope || 'GESTOR');
+      return send(res, 200, { org: { ...publicOrg(rows[0]), status: rows[0].status }, platformAdmin, adminScope, areas: areasFor(normalizeScope(adminScope)) }), true;
     }
     if (method === 'PATCH') {
       const patch = pickEditable(body, false);

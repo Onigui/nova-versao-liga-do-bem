@@ -55,7 +55,7 @@ import { HOMOLOG_PATH, captureHomologWebhook, loadLatest, reportToText, runHomol
 import { handleHome } from './lib/home';
 import { audienceFilter } from './lib/inbox';
 import { dbDiagnostics, dbStatsStore, instrumentDb } from './lib/dbTiming';
-import { currentOrgId, ensureIsolationSchema, isolationOn, orgScope, scopeDb } from './lib/tenant';
+import { currentOrgId, ensureIsolationSchema, isolationOn, orgScope, scopeDb, runAsSystem } from './lib/tenant';
 import { withTenant } from './lib/tenantRequest';
 import { handlePartnerRequests, isPartnerRequestPath } from './lib/partnerRequests';
 import { handleOrgDocs, isOrgDocsPath } from './lib/orgDocs';
@@ -63,6 +63,7 @@ import { orgIdForRequest } from './lib/orgs';
 import { handleOngReport, isOngReportPath } from './lib/ongReport';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './lib/schemaOnce';
 import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
+import { decideAdminAccess, normalizeScope, isValidScope, canManageAdmins, areasFor, SCOPE_LABELS, ADMIN_SCOPES, type AdminScope } from './lib/adminAccess';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
 import { isPushConfigured, onDeadTokens, pushConfigInfo, sendFcmDetailed, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
@@ -119,6 +120,49 @@ function isAdminRequest(req: any): boolean {
     }
   }
   return false;
+}
+
+type AdminAccess = { userId: string | null; email: string | null; orgId: string; isPlatform: boolean; scope: AdminScope; inactive?: boolean };
+const adminScopeCache = new Map<string, { scope: AdminScope; active: boolean; at: number }>();
+
+/** Perfil atual do administrador no banco (cache de 1 min). Desativado ou rebaixado perde o acesso já. */
+async function lookupAdminScope(userId: string): Promise<{ scope: AdminScope; active: boolean }> {
+  const hit = adminScopeCache.get(userId);
+  if (hit && Date.now() - hit.at < 60_000) return hit;
+  const db = getPrisma();
+  if (!db) return { scope: 'GESTOR', active: true };
+  try {
+    const rows: any[] = await runAsSystem(() =>
+      db.$queryRawUnsafe(`SELECT "adminScope", "isActive", role::text AS role FROM users WHERE id = $1`, userId),
+    );
+    const r = rows[0];
+    const out = r && r.isActive && String(r.role).toUpperCase() === 'ADMIN'
+      ? { scope: normalizeScope(r.adminScope), active: true }
+      : { scope: 'GESTOR' as AdminScope, active: false };
+    adminScopeCache.set(userId, { ...out, at: Date.now() });
+    return out;
+  } catch {
+    return { scope: 'GESTOR', active: true }; // coluna ainda não criada: mantém o comportamento antigo
+  }
+}
+
+/** Quem é o administrador desta requisição: equipe da plataforma ou um perfil dentro da ONG. */
+async function resolveAdminAccess(req: any): Promise<AdminAccess | null> {
+  const candidates = [extractBearerToken(req), readHeader(req, 'x-admin-token')].filter(Boolean) as string[];
+  for (const token of candidates) {
+    if (isDemoAdminToken(token)) return { userId: null, email: null, orgId: 'org_liga', isPlatform: true, scope: 'GESTOR' };
+    if (!JWT_SECRET) continue;
+    let decoded: any;
+    try { decoded = jwt.verify(token, JWT_SECRET); } catch { continue; }
+    if (String(decoded?.role || '').toUpperCase() !== 'ADMIN') continue;
+    const orgId = decoded.orgId || 'org_liga';
+    const isPlatform = isPlatformAdmin({ orgId, email: decoded.email, role: 'ADMIN' }, true);
+    const userId = decoded.userId || decoded.id || null;
+    if (isPlatform || !userId) return { userId, email: decoded.email || null, orgId, isPlatform, scope: 'GESTOR' };
+    const { scope, active } = await lookupAdminScope(userId);
+    return { userId, email: decoded.email || null, orgId, isPlatform: false, scope, inactive: !active };
+  }
+  return null;
 }
 
 /**
@@ -448,6 +492,16 @@ async function handleRequest(req: any, res: any) {
     path.startsWith('/api/platform/');
   if (isAdminRoute && !isAdminRequest(req)) {
     return res.status(401).json({ error: 'Não autorizado' });
+  }
+  // Perfis de administrador: a equipe da plataforma passa; a ONG só entra nas áreas do perfil dela
+  if (isAdminRoute || path === '/api/app/versions/publish') {
+    const access = await resolveAdminAccess(req);
+    (req as any).__adminAccess = access;
+    if (access?.inactive) return res.status(401).json({ error: 'Seu acesso de administrador foi desativado' });
+    if (access) {
+      const decision = decideAdminAccess({ path, method, isPlatform: access.isPlatform, scope: access.scope });
+      if (!decision.ok) { const d = decision as { status: number; error: string }; return res.status(d.status).json({ error: d.error }); }
+    }
   }
   // Várias ONGs: cria a tabela de ONGs e a coluna "orgId" (uma vez por instância; não bloqueia)
   {
@@ -1182,7 +1236,12 @@ async function handleRequest(req: any, res: any) {
         if (String(auth.role || '').toUpperCase() !== 'ADMIN') {
           return res.status(403).json({ error: 'Não autorizado' });
         }
-        return res.status(200).json({ ok: true, userId: auth.userId, role: 'ADMIN' });
+        const acc: AdminAccess | null = (req as any).__adminAccess || null;
+        const scope = acc?.scope || 'GESTOR';
+        return res.status(200).json({
+          ok: true, userId: auth.userId, role: 'ADMIN',
+          isPlatform: !!acc?.isPlatform, adminScope: scope, areas: acc?.isPlatform ? areasFor('GESTOR') : areasFor(scope),
+        });
       } catch (e: any) {
         const token = extractBearerToken(req) || '';
         if (isDemoAdminToken(token)) {
@@ -1216,12 +1275,31 @@ async function handleRequest(req: any, res: any) {
         if (!email || !['ADMIN', 'MEMBER', 'VOLUNTEER', 'PARTNER'].includes(role)) {
           return res.status(400).json({ error: 'email e role válidos são obrigatórios' });
         }
+        const acc: AdminAccess | null = (req as any).__adminAccess || null;
+        if (acc && !canManageAdmins(acc.isPlatform, acc.scope)) {
+          return res.status(403).json({ error: 'Só o Gestor da ONG muda perfis de acesso' });
+        }
+        if (body?.adminScope !== undefined && body?.adminScope !== null && body?.adminScope !== '' && !isValidScope(body.adminScope)) {
+          return res.status(400).json({ error: 'Tipo de acesso inválido', field: 'adminScope' });
+        }
+        // A ONG só mexe em quem é dela; a equipe da plataforma mexe em qualquer um
+        const found: any[] = await runAsSystem(() => db.$queryRawUnsafe(
+          `SELECT id, COALESCE("orgId", 'org_liga') AS "orgId" FROM users WHERE lower(email) = $1 LIMIT 1`, email));
+        if (!found[0] || (acc && !acc.isPlatform && found[0].orgId !== acc.orgId)) {
+          return res.status(404).json({ error: 'Usuário não encontrado nesta ONG' });
+        }
+        if (acc && acc.userId === found[0].id && role !== 'ADMIN') {
+          return res.status(400).json({ error: 'Você não pode tirar o seu próprio acesso de administrador' });
+        }
         const user = await db.user.update({
           where: { email },
           data: { role: role as any },
           select: { id: true, email: true, name: true, role: true },
         });
-        return res.status(200).json({ message: 'Perfil atualizado', user });
+        const scope = role === 'ADMIN' ? normalizeScope(body?.adminScope) : null;
+        await db.$executeRawUnsafe(`UPDATE users SET "adminScope" = $2 WHERE id = $1`, user.id, scope).catch(() => null);
+        adminScopeCache.delete(user.id);
+        return res.status(200).json({ message: 'Perfil atualizado', user: { ...user, adminScope: scope } });
       } catch (error: any) {
         return res.status(500).json({ error: error?.message || 'Erro ao atualizar perfil' });
       }
@@ -1655,7 +1733,19 @@ async function handleRequest(req: any, res: any) {
             updatedAt: true,
           }
         });
-        return res.status(200).json({ members, total: members.length });
+        // Só gente da ONG atual (mesmo com a separação de dados desligada) e o tipo de acesso dos administradores
+        let extra: any[] = [];
+        try {
+          extra = await runAsSystem(() => db.$queryRawUnsafe(
+            `SELECT id, COALESCE("orgId", 'org_liga') AS "orgId", "adminScope" FROM users WHERE id = ANY($1::text[])`,
+            members.map((m: any) => m.id)));
+        } catch { extra = []; }
+        const byId = new Map(extra.map((r: any) => [r.id, r]));
+        const org = currentOrgId();
+        const list = members
+          .filter((m: any) => !byId.size || (byId.get(m.id)?.orgId || 'org_liga') === org)
+          .map((m: any) => ({ ...m, adminScope: String(m.role).toUpperCase() === 'ADMIN' ? normalizeScope(byId.get(m.id)?.adminScope) : null }));
+        return res.status(200).json({ members: list, total: list.length, adminScopes: ADMIN_SCOPES.map((k) => ({ key: k, label: SCOPE_LABELS[k] })) });
       }
       return res.status(200).json({ members: [], total: 0 });
     }
@@ -1674,6 +1764,14 @@ async function handleRequest(req: any, res: any) {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'E-mail inválido', field: 'email' });
         if (cpfDigits && !isValidCpf(cpfDigits)) return res.status(400).json({ error: 'CPF inválido', field: 'cpf' });
         if (!['MEMBER', 'VOLUNTEER', 'PARTNER', 'ADMIN'].includes(role)) return res.status(400).json({ error: 'Perfil inválido', field: 'role' });
+        const accNew: AdminAccess | null = (req as any).__adminAccess || null;
+        if (role === 'ADMIN' && accNew && !canManageAdmins(accNew.isPlatform, accNew.scope)) {
+          return res.status(403).json({ error: 'Só o Gestor da ONG cadastra administradores', field: 'role' });
+        }
+        if (role === 'ADMIN' && body?.adminScope && !isValidScope(body.adminScope)) {
+          return res.status(400).json({ error: 'Tipo de acesso inválido', field: 'adminScope' });
+        }
+        const newAdminScope = role === 'ADMIN' ? normalizeScope(body?.adminScope) : null;
 
         const dup: any[] = await db.$queryRawUnsafe(
           `SELECT lower(email) = $1 AS "sameEmail" FROM users WHERE lower(email) = $1 OR ($2::text IS NOT NULL AND cpf = $2) LIMIT 1`,
@@ -1689,10 +1787,11 @@ async function handleRequest(req: any, res: any) {
         // Senha aleatória inutilizável até a pessoa criar a dela
         const unusable = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
         await db.$executeRawUnsafe(
-          `INSERT INTO users (id, email, password, name, phone, cpf, role, "isActive", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, $6, $7::"UserRole", $8, NOW(), NOW())`,
-          id, email, unusable, name, phone, cpfDigits || null, role, body?.isActive !== false,
+          `INSERT INTO users (id, email, password, name, phone, cpf, role, "isActive", "orgId", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7::"UserRole", $8, $9, NOW(), NOW())`,
+          id, email, unusable, name, phone, cpfDigits || null, role, body?.isActive !== false, currentOrgId(),
         );
+        if (newAdminScope) await db.$executeRawUnsafe(`UPDATE users SET "adminScope" = $2 WHERE id = $1`, id, newAdminScope).catch(() => null);
         let emailSent = false;
         if (body?.sendInvite !== false && isEmailDeliveryConfigured()) {
           const ong = await currentOrgNames(db);
@@ -1709,7 +1808,7 @@ async function handleRequest(req: any, res: any) {
         const access = await issueManualAccessCode(db, email, 'ADMIN');
         return res.status(201).json({
           message: 'Usuário cadastrado',
-          member: { id, name, email, phone, role, isActive: body?.isActive !== false },
+          member: { id, name, email, phone, role, adminScope: newAdminScope, isActive: body?.isActive !== false },
           emailSent,
           accessCode: access.code,
           accessCodeExpiresAt: access.expiresAt,
@@ -1775,6 +1874,21 @@ async function handleRequest(req: any, res: any) {
           if (c && !isValidCpf(c)) return res.status(400).json({ error: 'CPF inválido', field: 'cpf' });
           updateData.cpf = c || null;
         }
+        // Mexer em administrador (ou promover alguém a administrador) é só do Gestor ou da plataforma
+        const accUpd: AdminAccess | null = (req as any).__adminAccess || null;
+        const target: any[] = await runAsSystem(() => db.$queryRawUnsafe(
+          `SELECT role::text AS role, COALESCE("orgId", 'org_liga') AS "orgId" FROM users WHERE id = $1`, memberId));
+        if (!target[0] || (accUpd && !accUpd.isPlatform && target[0].orgId !== accUpd.orgId)) {
+          return res.status(404).json({ error: 'Membro não encontrado' });
+        }
+        const touchesAdmin = String(target[0].role).toUpperCase() === 'ADMIN' || String(role || '').toUpperCase() === 'ADMIN' || body?.adminScope !== undefined;
+        if (touchesAdmin && accUpd && !canManageAdmins(accUpd.isPlatform, accUpd.scope)) {
+          return res.status(403).json({ error: 'Só o Gestor da ONG altera administradores' });
+        }
+        if (accUpd && accUpd.userId === memberId && role && String(role).toUpperCase() !== 'ADMIN') {
+          return res.status(400).json({ error: 'Você não pode tirar o seu próprio acesso de administrador', field: 'role' });
+        }
+        if (body?.adminScope && !isValidScope(body.adminScope)) return res.status(400).json({ error: 'Tipo de acesso inválido', field: 'adminScope' });
         if (role) {
           if (!['MEMBER', 'VOLUNTEER', 'PARTNER', 'ADMIN'].includes(String(role).toUpperCase())) return res.status(400).json({ error: 'Perfil inválido', field: 'role' });
           updateData.role = String(role).toUpperCase();
@@ -1790,6 +1904,13 @@ async function handleRequest(req: any, res: any) {
           where: { id: memberId },
           data: updateData
         });
+        const finalRole = String(updateData.role || target[0].role).toUpperCase();
+        if (finalRole !== 'ADMIN') {
+          await db.$executeRawUnsafe(`UPDATE users SET "adminScope" = NULL WHERE id = $1`, memberId).catch(() => null);
+        } else if (body?.adminScope !== undefined || String(target[0].role).toUpperCase() !== 'ADMIN') {
+          await db.$executeRawUnsafe(`UPDATE users SET "adminScope" = $2 WHERE id = $1`, memberId, normalizeScope(body?.adminScope)).catch(() => null);
+        }
+        adminScopeCache.delete(memberId);
         return res.status(200).json({ message: 'Membro atualizado com sucesso', member });
       } catch (error: any) {
         console.error('❌ Erro ao atualizar membro:', error);

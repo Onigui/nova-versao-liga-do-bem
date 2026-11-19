@@ -583,8 +583,15 @@
       this.form.addEventListener('input', () => { this.dirty = true; this.note.textContent = ''; this.note.classList.remove('bad'); });
       $('mf-cpf').addEventListener('input', (e) => { e.target.value = Mask.cpf(e.target.value); });
       $('mf-phone').addEventListener('input', (e) => { e.target.value = Mask.phone(e.target.value); });
-      this.form.querySelectorAll('input[name="mf-role"]').forEach((r) =>
-        r.addEventListener('change', () => { $('mf-admin-warning').hidden = this.role() !== 'ADMIN'; }));
+      this.form.querySelectorAll('input[name="mf-role"]').forEach((r) => r.addEventListener('change', () => this.syncScope()));
+      $('mf-scope').addEventListener('change', () => this.syncScope());
+    },
+
+    // Tipo de acesso só aparece para administrador; o aviso forte só para o Gestor
+    syncScope() {
+      const isAdmin = this.role() === 'ADMIN';
+      $('mf-scope-row').hidden = !isAdmin;
+      $('mf-admin-warning').hidden = !(isAdmin && $('mf-scope').value === 'GESTOR');
     },
 
     role() {
@@ -613,7 +620,13 @@
         const radio = this.form.querySelector(`input[name="mf-role"][value="${member.role || 'MEMBER'}"]`);
         if (radio) radio.checked = true;
       }
-      $('mf-admin-warning').hidden = this.role() !== 'ADMIN';
+      $('mf-scope').value = (member && member.adminScope) || 'GESTOR';
+      // Só o Gestor (ou a plataforma) cria ou altera administradores
+      const canAdmins = !window.ADMIN_ACCESS || window.ADMIN_ACCESS.canManageAdmins;
+      $('mf-role-admin').hidden = !canAdmins && !(member && member.role === 'ADMIN');
+      this.form.querySelectorAll('input[name="mf-role"]').forEach((r) => { r.disabled = !canAdmins && member && member.role === 'ADMIN'; });
+      $('mf-scope').disabled = !canAdmins;
+      this.syncScope();
       this.dirty = false;
       this.drawer.show();
       setTimeout(() => $('mf-name').focus(), 50);
@@ -638,7 +651,8 @@
 
     async save() {
       if (!this.validate()) return;
-      if (this.role() === 'ADMIN' && !confirm('Confirmar acesso de ADMINISTRADOR para esta pessoa?')) return;
+      const scopeLabel = $('mf-scope').selectedOptions[0]?.textContent.split(':')[0] || 'Gestor';
+      if (this.role() === 'ADMIN' && !$('mf-scope').disabled && !confirm(`Confirmar acesso de administrador (${scopeLabel}) para esta pessoa?`)) return;
       const btn = this.submitBtn;
       const label = btn.textContent;
       btn.disabled = true;
@@ -651,6 +665,7 @@
         role: this.role(),
         isActive: $('mf-active').checked,
       };
+      if (body.role === 'ADMIN' && !$('mf-scope').disabled) body.adminScope = $('mf-scope').value;
       if (this.mode === 'create') body.sendInvite = $('mf-invite').checked;
       try {
         const url = this.mode === 'edit' ? `${API_BASE_URL}/api/admin/members/${encodeURIComponent(this.id)}` : `${API_BASE_URL}/api/admin/members`;

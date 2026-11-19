@@ -1486,7 +1486,7 @@
                     </div>
                 </div>
 
-                <div class="dashboard-grid" style="margin-bottom: 1.5rem;">
+                <div class="dashboard-grid platform-only" style="margin-bottom: 1.5rem;">
                     <div class="dashboard-card">
                         <div class="card-header"><h3 class="card-title">Pagamentos</h3></div>
                         <div class="card-value" id="statusPagbank" style="font-size:1.25rem;">—</div>
@@ -1508,13 +1508,13 @@
                     </div>
                 </div>
 
-                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                <div class="dashboard-card platform-only" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">Velocidade do banco de dados</h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Mede quanto tempo a API leva para falar com o banco (ida e volta) e para onde ela está conectando. Não mostra senha.</p>
                     <button class="btn btn-secondary" onclick="runDbDiagnostics()" id="dbDiagBtn">Testar agora</button>
                     <div id="dbDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
                 </div>
-                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                <div class="dashboard-card platform-only" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">Teste de avisos (push)</h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Manda um aviso de teste para os celulares de uma pessoa (nos dois apps) e mostra a resposta do Firebase para cada aparelho. Feche o app no celular antes de testar.</p>
                     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -1523,7 +1523,7 @@
                     </div>
                     <div id="pushDiagResult" style="margin-top:12px; font-size:.9rem;"></div>
                 </div>
-                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                <div class="dashboard-card platform-only" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">Homologação PagBank (sandbox) <span class="muted" style="font-weight:400; font-size:.85rem;">· legado: a Liga agora cobra pelo Asaas</span></h3>
                     <p class="header-subtitle" style="margin:8px 0 16px;">Roda no ambiente de teste do PagBank o mesmo pagamento do app (PIX, boleto, cartão aprovado e recusado, consulta e estorno) e gera o arquivo de requisições e respostas que o PagBank pede no questionário (campo "Anexo"). Usa só o token de sandbox, com dados de teste do próprio PagBank. Nenhum membro é cobrado.</p>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -1578,11 +1578,20 @@
                     </div>
                     <div class="form-group">
                         <label>Perfil</label>
-                        <select id="settingsPromoteRole" class="form-input">
-                            <option value="ADMIN">ADMIN</option>
-                            <option value="MEMBER">MEMBER</option>
-                            <option value="VOLUNTEER">VOLUNTEER</option>
-                            <option value="PARTNER">PARTNER</option>
+                        <select id="settingsPromoteRole" class="form-input" onchange="document.getElementById('settingsPromoteScopeBox').hidden = this.value !== 'ADMIN'">
+                            <option value="ADMIN">Administrador</option>
+                            <option value="MEMBER">Membro</option>
+                            <option value="VOLUNTEER">Voluntário</option>
+                            <option value="PARTNER">Parceiro</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="settingsPromoteScopeBox">
+                        <label>Tipo de acesso</label>
+                        <select id="settingsPromoteScope" class="form-input">
+                            <option value="GESTOR">Gestor (tudo da ONG)</option>
+                            <option value="CONTEUDO">Conteúdo (eventos, adoção, notificações e textos)</option>
+                            <option value="FINANCEIRO">Financeiro (pagamentos e relatórios)</option>
+                            <option value="ATENDIMENTO">Atendimento (membros e moderação)</option>
                         </select>
                     </div>
                     <button class="btn btn-primary" onclick="saveUserRole()">Atualizar perfil</button>
@@ -2380,9 +2389,18 @@
                             <label class="fx-role"><input type="radio" name="mf-role" value="MEMBER" checked><strong>Membro</strong><span>Usa o app, a carteirinha e os descontos dos parceiros.</span></label>
                             <label class="fx-role"><input type="radio" name="mf-role" value="VOLUNTEER"><strong>Voluntário</strong><span>Membro que também recebe as convocações de voluntariado.</span></label>
                             <label class="fx-role"><input type="radio" name="mf-role" value="PARTNER"><strong>Parceiro</strong><span>Funcionário de empresa parceira. Para dar acesso ao App Parceiros, use "Acessos" na empresa.</span></label>
-                            <label class="fx-role"><input type="radio" name="mf-role" value="ADMIN"><strong>Administrador</strong><span>Acesso total a este painel.</span></label>
+                            <label class="fx-role" id="mf-role-admin"><input type="radio" name="mf-role" value="ADMIN"><strong>Administrador</strong><span>Entra neste painel. Escolha abaixo o que a pessoa pode fazer.</span></label>
                         </div>
-                        <div class="fx-callout" id="mf-admin-warning" hidden>Administradores veem e alteram tudo no painel, inclusive pagamentos. Dê esse perfil só a quem for da equipe da ONG.</div>
+                        <div class="fx-field" id="mf-scope-row" hidden style="margin-top:12px;">
+                            <label for="mf-scope">Tipo de acesso ao painel</label>
+                            <select id="mf-scope" class="fx-input">
+                                <option value="GESTOR">Gestor: tudo da ONG, inclusive pagamentos e outros administradores</option>
+                                <option value="CONTEUDO">Conteúdo: eventos, adoção, achados e perdidos, notificações e textos</option>
+                                <option value="FINANCEIRO">Financeiro: pagamentos, mensalidades, doações e relatórios</option>
+                                <option value="ATENDIMENTO">Atendimento: membros, voluntários, moderação e orçamentos</option>
+                            </select>
+                        </div>
+                        <div class="fx-callout" id="mf-admin-warning" hidden>O Gestor vê e altera tudo no painel, inclusive pagamentos. Dê esse tipo de acesso só a quem responde pela ONG.</div>
                     </section>
                     <section class="fx-section">
                         <label class="fx-switch">
@@ -2814,6 +2832,7 @@
                             <div>
                                 <div style="font-weight: 600; color: var(--text-dark);">${userData.name || 'Administrador'}</div>
                                 <div style="font-size: 0.75rem; color: var(--text-gray);">${userData.email || ''}</div>
+                                <div id="adminScopeBadge" style="font-size: 0.7rem; color: var(--text-gray);" hidden></div>
                             </div>
                         </div>
                         <button onclick="logout()" style="background: var(--error-red); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 0.875rem; cursor: pointer;">
@@ -3072,7 +3091,7 @@
                     <td>${member.email}</td>
                     <td>${member.phone || 'N/A'}</td>
                     <td><span class="status-badge status-${member.isActive ? 'active' : 'inactive'}">${member.isActive ? 'Ativo' : 'Inativo'}</span></td>
-                    <td>${({ADMIN:'Administrador',MEMBER:'Membro',VOLUNTEER:'Voluntário',PARTNER:'Parceiro'})[member.role] || member.role || '—'}</td>
+                    <td>${({ADMIN:'Administrador',MEMBER:'Membro',VOLUNTEER:'Voluntário',PARTNER:'Parceiro'})[member.role] || member.role || '—'}${member.role === 'ADMIN' && member.adminScope ? `<div class="muted" style="font-size:.75rem;">${ADMIN_SCOPE_SHORT[member.adminScope] || ''}</div>` : ''}</td>
                     <td>${new Date(member.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td>
                         <div style="display: flex; gap: 8px;">
@@ -3143,10 +3162,11 @@
             const response = await fetch(`${API_BASE_URL}/api/admin/users/role`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, role }),
+                body: JSON.stringify({ email, role, adminScope: role === 'ADMIN' ? document.getElementById('settingsPromoteScope').value : null }),
             });
             const data = await response.json().catch(() => ({}));
-            alert(response.ok ? `Perfil de ${email} atualizado para ${role}` : (data.error || 'Erro ao atualizar'));
+            const label = role === 'ADMIN' ? `Administrador · ${ADMIN_SCOPE_LABELS[document.getElementById('settingsPromoteScope').value] || ''}` : role;
+            alert(response.ok ? `Perfil de ${email} atualizado: ${label}` : (data.error || 'Erro ao atualizar'));
         }
 
         // Inicializar tabelas (removido - consolidado no DOMContentLoaded principal)
@@ -5218,10 +5238,41 @@
             }
         }
 
+        // Perfis de administrador da ONG: o menu mostra só as áreas do perfil (o servidor também barra)
+        const ADMIN_SCOPE_LABELS = { GESTOR: 'Gestor', CONTEUDO: 'Conteúdo', FINANCEIRO: 'Financeiro', ATENDIMENTO: 'Atendimento' };
+        const ADMIN_SCOPE_SHORT = { GESTOR: 'Gestor (tudo)', CONTEUDO: 'Conteúdo', FINANCEIRO: 'Financeiro', ATENDIMENTO: 'Atendimento' };
+        const SECTION_AREA = {
+            members: 'atendimento', volunteers: 'atendimento', moderation: 'atendimento', quotes: 'atendimento',
+            animals: 'conteudo', events: 'conteudo', notifications: 'conteudo', texts: 'conteudo',
+            payments: 'financeiro', nfp: 'financeiro', reports: 'financeiro',
+            companies: 'gestao', discounts: 'gestao', vets: 'gestao', settings: 'gestao',
+            'help-support': 'plataforma', 'app-versions': 'plataforma',
+        };
+        function applyAdminAccess(d) {
+            const isPlatform = !!d.platformAdmin;
+            const areas = isPlatform ? ['conteudo', 'financeiro', 'atendimento', 'gestao', 'plataforma'] : (d.areas || ['conteudo', 'financeiro', 'atendimento', 'gestao']);
+            window.ADMIN_ACCESS = { isPlatform, scope: d.adminScope || 'GESTOR', areas, canManageAdmins: isPlatform || (d.adminScope || 'GESTOR') === 'GESTOR' };
+            document.querySelectorAll('.sidebar .nav-link[href^="#"]').forEach((a) => {
+                const area = SECTION_AREA[a.getAttribute('href').slice(1)];
+                if (!area) return;
+                const li = a.closest('li');
+                if (li && li.id !== 'navItemCentral' && li.id !== 'navItemPlatform') li.hidden = !areas.includes(area);
+            });
+            document.querySelectorAll('.platform-only').forEach((el) => { el.hidden = !isPlatform; });
+            const promoteCard = document.getElementById('settingsPromoteEmail')?.closest('.dashboard-card');
+            if (promoteCard) promoteCard.hidden = !window.ADMIN_ACCESS.canManageAdmins;
+            const badge = document.getElementById('adminScopeBadge');
+            if (badge) { badge.textContent = isPlatform ? 'Equipe SóciONG' : `Acesso: ${ADMIN_SCOPE_LABELS[window.ADMIN_ACCESS.scope] || 'Gestor'}`; badge.hidden = false; }
+            // Se abriu direto numa área sem acesso, volta para o início
+            const cur = (location.hash || '#dashboard').slice(1);
+            if (SECTION_AREA[cur] && !areas.includes(SECTION_AREA[cur])) showSection('dashboard');
+        }
+
         async function initPlatformNav() {
             try {
                 const r = await fetch(`${API_BASE_URL}/api/admin/org`, { headers: adminHeaders() });
                 const d = await r.json();
+                if (r.ok) applyAdminAccess(d);
                 const on = r.ok && d.platformAdmin;
                 document.getElementById('navGroupPlatform').hidden = !on;
                 document.getElementById('navItemPlatform').hidden = !on;
