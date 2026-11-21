@@ -17,6 +17,8 @@ import MembershipCheckoutScreen from '../screens/MembershipCheckoutScreen';
 import PartnersScreen from '../screens/PartnersScreen';
 import AdoptionsScreen from '../screens/AdoptionsScreen';
 import DonationScreen from '../screens/DonationScreen';
+import CampaignsScreen from '../screens/CampaignsScreen';
+import CampaignDetailScreen from '../screens/CampaignDetailScreen';
 import AboutScreen from '../screens/AboutScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -224,6 +226,22 @@ export function AppStack() {
         options={{
           headerShown: true, ...HEADER,
           title: 'Fazer Doação',
+        }}
+      />
+      <Stack.Screen
+        name="Campaigns"
+        component={CampaignsScreen}
+        options={{
+          headerShown: true, ...HEADER,
+          title: 'Vaquinhas',
+        }}
+      />
+      <Stack.Screen
+        name="CampaignDetail"
+        component={CampaignDetailScreen}
+        options={{
+          headerShown: true, ...HEADER,
+          title: 'Vaquinha',
         }}
       />
       <Stack.Screen

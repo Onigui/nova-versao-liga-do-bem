@@ -124,6 +124,10 @@ export default function DiscountsScreen({navigation}) {
                   : `Desde ${formatDateBR(d.validFrom)} · sem data de fim`}
                 {` · usada ${d.uses || 0}x`}
               </Text>
+              <Text style={[ui.muted, {marginTop: 2, fontSize: 13}]} testID={`limite-${d.id}`}>
+                {d.limitLabel || '1 por associado'}
+                {d.totalLimit ? ` · restam ${Math.max(0, d.totalLimit - (d.uses || 0))}` : ''}
+              </Text>
             </Card>
           </Pressable>
         );

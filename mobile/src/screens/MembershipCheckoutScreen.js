@@ -316,6 +316,7 @@ export default function MembershipCheckoutScreen({navigation, route}) {
             cpf: taxId,
             recurring: Boolean(route?.params?.recurring),
             description: route?.params?.description,
+            ...(route?.params?.campaignId ? {campaignId: route.params.campaignId} : {}),
             ...(hasToken ? {} : {donor: {name: donor.name.trim(), email: donor.email.trim()}}),
           }
         : {
@@ -448,7 +449,11 @@ export default function MembershipCheckoutScreen({navigation, route}) {
           <View style={[styles.planCard, styles.planCardActive]}>
             <View style={{flex: 1}}>
               <Text style={styles.planName}>
-                {route?.params?.recurring ? 'Doação mensal' : 'Doação única'}
+                {route?.params?.campaignTitle
+                  ? `Vaquinha: ${route.params.campaignTitle}`
+                  : route?.params?.recurring
+                  ? 'Doação mensal'
+                  : 'Doação única'}
               </Text>
             </View>
             <Text style={styles.planPrice}>{formatMoney(donationAmount)}</Text>

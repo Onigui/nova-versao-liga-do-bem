@@ -56,7 +56,7 @@ export function isPlatformOnlyRoute(path: string, method: string): boolean {
 }
 
 const AREA_ROUTES: [AdminArea, RegExp][] = [
-  ['conteudo', /^\/api\/admin\/(events|animals|adoptions|lostfound|notifications|docs)(\/|$)/],
+  ['conteudo', /^\/api\/admin\/(events|animals|adoptions|lostfound|notifications|docs|campaigns)(\/|$)/],
   ['conteudo', /^\/api\/notifications\/admin\//],
   ['financeiro', /^\/api\/admin\/(memberships|membership-payments|donations|financial-reports|nfp|partner-push-campaigns)(\/|$)/],
   ['atendimento', /^\/api\/admin\/(members|volunteers|reviews|partner-validations|quotes)(\/|$)/],

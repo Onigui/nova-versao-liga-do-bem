@@ -60,7 +60,7 @@ describe('helpers', () => {
 
   test('promoção: monta o corpo e valida', () => {
     const base = {name: 'Banho', description: '', type: 'percent', value: '10', validFrom: '', validUntil: '', isActive: true};
-    expect(buildDiscountPayload(base).body).toEqual({name: 'Banho', description: null, isActive: true, kind: 'PERCENT', validUntil: null, percentage: 10});
+    expect(buildDiscountPayload(base).body).toEqual({name: 'Banho', description: null, isActive: true, kind: 'PERCENT', validUntil: null, percentage: 10, perMemberLimit: 1, totalLimit: null});
     expect(buildDiscountPayload({...base, type: 'fixed', value: '15,50'}).body.fixedAmount).toBe(15.5);
     expect(buildDiscountPayload({...base, value: '150'}).error).toMatch(/100%/);
     expect(buildDiscountPayload({...base, name: ' '}).error).toMatch(/nome/);
@@ -133,7 +133,7 @@ describe('resultado da validação', () => {
     const btn = root.findAll(n => n.props.testID === 'registrar' && n.props.onPress)[0];
     await act(async () => btn.props.onPress());
     await flush();
-    expect(mockCtx.api).toHaveBeenLastCalledWith('PATCH', '/partner/validations/v1', {discountId: 'd1', amount: '120.50'});
+    expect(mockCtx.api).toHaveBeenLastCalledWith('PATCH', '/partner/validations/v1', {items: [{discountId: 'd1', quantity: 1}], discountId: 'd1', amount: '120.50'});
     expect(textOf(root)).toContain('Atendimento registrado');
   });
 

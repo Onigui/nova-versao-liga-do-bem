@@ -91,6 +91,7 @@ export const SERVICE_GROUPS = [
     title: 'AJUDAR A LIGA',
     items: [
       {id: 'doar', label: 'Doar', icon: 'heart', bg: '#FFE4E6', fg: '#BE123C', screen: 'Donation', keywords: 'doacao pix ajudar'},
+      {id: 'vaquinhas', label: 'Vaquinhas', icon: 'medkit', bg: '#FCE7F3', fg: '#BE185D', screen: 'Campaigns', keywords: 'vaquinha campanha cirurgia tratamento ajudar animal doacao meta'},
       {id: 'nfp', label: 'Nota Fiscal Paulista', icon: 'receipt', bg: '#D1FAE5', fg: '#047857', screen: 'NotaFiscal', keywords: 'nota fiscal cpf doacao automatica', isNew: true},
       {id: 'adotar', label: 'Adotar', icon: 'home', bg: '#FFEDD5', fg: '#C2410C', screen: 'Adoções', keywords: 'adocao adotar animal'},
       {id: 'voluntario', label: 'Voluntariado', icon: 'people', bg: '#E0F2FE', fg: '#0369A1', screen: 'Volunteer', keywords: 'voluntario ajudar'},
