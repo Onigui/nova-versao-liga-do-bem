@@ -19,11 +19,13 @@ const ICON = {
 
 export default function PromoCard({discount: d, accent = '#7C3AED', soft = '#F5F3FF'}) {
   const p = describePromo(d);
+  // Vem do servidor quando o associado está logado: promoção já aproveitada ou esgotada
+  const used = d?.available === false || (d?.soldOut && d?.available !== true);
   const until = d?.validUntil
     ? new Date(d.validUntil).toLocaleDateString('pt-BR', {timeZone: 'America/Sao_Paulo'})
     : null;
   return (
-    <View style={[styles.card, {borderColor: soft}]} testID={`promo-${p.kind}`}>
+    <View style={[styles.card, {borderColor: soft}, used && styles.cardUsed]} testID={`promo-${p.kind}`}>
       <View style={[styles.value, {backgroundColor: soft}]}>
         <Ionicons name={ICON[p.kind]} size={16} color={accent} />
         {p.original ? <Text style={styles.original}>De {p.original}</Text> : null}
@@ -48,6 +50,24 @@ export default function PromoCard({discount: d, accent = '#7C3AED', soft = '#F5F
         <Text style={styles.name}>{d?.name}</Text>
         {d?.description ? <Text style={styles.desc}>{d.description}</Text> : null}
         {until ? <Text style={styles.until}>Válida até {until}</Text> : null}
+        {d?.limitLabel ? (
+          <Text style={styles.until} testID="promo-limite">
+            {d.limitLabel}
+            {d.remainingTotal != null && d.remainingTotal > 0 ? ` · restam ${d.remainingTotal}` : ''}
+          </Text>
+        ) : null}
+        {used ? (
+          <View style={styles.usedPill} testID="promo-usada">
+            <Ionicons name={d.unavailableReason === 'SOLD_OUT' ? 'close-circle' : 'checkmark-circle'} size={13} color="#6B7280" />
+            <Text style={styles.usedText}>
+              {d.unavailableReason === 'SOLD_OUT'
+                ? 'Esgotada'
+                : `Você já usou${d.lastUsedAt ? ` em ${new Date(d.lastUsedAt).toLocaleDateString('pt-BR', {timeZone: 'America/Sao_Paulo'})}` : ''}`}
+            </Text>
+          </View>
+        ) : d?.usedByMember > 0 && d?.remainingForMember > 0 ? (
+          <Text style={styles.until}>Você ainda pode usar {d.remainingForMember}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -80,6 +100,11 @@ const styles = StyleSheet.create({
   savings: {borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 6},
   savingsText: {color: '#FFFFFF', fontSize: 10, ...F.heavy, },
   info: {flex: 1, padding: 12, justifyContent: 'center'},
+  cardUsed: {opacity: 0.6},
+  usedPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+    backgroundColor: '#F3F4F6', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6},
+  usedText: {...F.bold, fontSize: 11, color: '#6B7280'},
   name: {fontSize: 15, ...F.bold, color: '#1F2937'},
   desc: {
     ...F.regular, fontSize: 13, color: '#4B5563', marginTop: 4},

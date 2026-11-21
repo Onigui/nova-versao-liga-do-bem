@@ -622,6 +622,7 @@
                 <li class="nav-item"><a href="#animals" class="nav-link" onclick="showSection('animals'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="8" r="1.8"/><circle cx="12" cy="5.5" r="1.8"/><circle cx="17" cy="8" r="1.8"/><circle cx="19.2" cy="13" r="1.6"/><path d="M12 11c-3 0-6 4.5-6 7 0 1.7 1.3 2.5 3 2.5 1.2 0 2-.6 3-.6s1.8.6 3 .6c1.7 0 3-.8 3-2.5 0-2.5-3-7-6-7z"/></svg></span>Adoção<span class="nav-count" id="navCountAnimals" hidden></span></a></li>
                 <li class="nav-group">Comunidade</li>
                 <li class="nav-item"><a href="#events" class="nav-link" onclick="showSection('events'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>Eventos</a></li>
+                <li class="nav-item"><a href="#campaigns" class="nav-link" onclick="showSection('campaigns'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M12 8v6M9 11h6"/></svg></span>Vaquinhas</a></li>
                 <li class="nav-item"><a href="#notifications" class="nav-link" onclick="showSection('notifications'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span>Notificações</a></li>
                 <li class="nav-group">Acompanhar</li>
                 <li class="nav-item"><a href="#moderation" class="nav-link" onclick="showSection('moderation'); return false;"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg></span>Moderação<span class="nav-count" id="navCountModeration" hidden></span></a></li>
@@ -944,6 +945,22 @@
             </section>
 
 
+            <!-- Vaquinhas: campanhas de arrecadação (ex.: cirurgia de um animal) -->
+            <section id="campaigns-section" class="content-section">
+                <div class="header">
+                    <div class="header-content">
+                        <div>
+                            <h1 class="header-title">Vaquinhas</h1>
+                            <p class="header-subtitle">Campanhas para uma causa específica, como a cirurgia de um animal. As pessoas doam pelo app com Pix, boleto ou cartão e acompanham a meta.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary" onclick="openCampaignModal()"><span>➕</span> Nova vaquinha</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="campaignsList" class="campaigns-grid"><p style="color:#64748B">Carregando…</p></div>
+            </section>
+
             <!-- Outras seções serão adicionadas aqui -->
             <section id="discounts-section" class="content-section">
                 <div class="header">
@@ -1063,6 +1080,16 @@
                         <div class="form-group">
                             <label>Válido até (opcional)</label>
                             <input id="discountValidUntil" type="date" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Vezes que cada associado pode usar</label>
+                            <input id="discountPerMember" type="number" min="1" max="99" step="1" class="form-input" value="1">
+                            <small style="color:#64748B">Padrão 1: cada associado aproveita uma vez (evita comprar para os outros).</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Quantidade total disponível (opcional)</label>
+                            <input id="discountTotal" type="number" min="1" step="1" class="form-input" placeholder="Sem limite">
+                            <small style="color:#64748B">Ex.: brinde para os 50 primeiros.</small>
                         </div>
                         <div class="form-group">
                             <label><input type="checkbox" id="discountActive" checked> Ativo</label>
@@ -1565,6 +1592,11 @@
                     <div class="form-group">
                         <label>Aviso de associação (cartão / doação)</label>
                         <textarea id="settingsMembershipDisclaimer" class="form-input" rows="3" placeholder="Doações não ativam o cartão de membro..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Avisar no app quantos dias antes da carteirinha vencer</label>
+                        <input id="settingsRenewWarnDays" type="number" min="0" max="60" step="1" class="form-input" value="7">
+                        <small style="color:#64748B">Ao abrir o app, o associado vê um aviso com o botão Renovar. 0 desliga o aviso.</small>
                     </div>
                     <button class="btn btn-primary" onclick="saveSettingsOrg()">Salvar contato</button>
                 </div>
@@ -2560,6 +2592,78 @@
     </div>
 
     <!-- Event Modal -->
+    <div id="campaignModal" class="modal-overlay">
+        <div class="modal" style="max-width: 760px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="campaignModalTitle">Nova vaquinha</h3>
+                <button class="modal-close" onclick="closeModal('campaignModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="campaignId">
+                <div class="form-group">
+                    <label class="form-label">Título *</label>
+                    <input id="campaignTitle" class="form-input" maxlength="80" placeholder="Ex.: Cirurgia da pata do Thor">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Resumo (aparece no card)</label>
+                    <input id="campaignSummary" class="form-input" maxlength="160" placeholder="Ex.: O Thor foi atropelado e precisa operar a pata traseira.">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">História completa</label>
+                    <textarea id="campaignStory" class="form-input" rows="6" maxlength="5000" placeholder="Conte o que aconteceu, quanto custa cada parte do tratamento e o que muda na vida dele com a ajuda."></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Animal (opcional)</label>
+                        <select id="campaignAnimal" class="form-input"><option value="">— Nenhum (campanha geral) —</option></select>
+                        <small style="color:#64748B">Sem capa, usamos a foto do animal.</small>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Meta (R$) *</label>
+                        <input id="campaignGoal" class="form-input" inputmode="decimal" placeholder="3.500,00">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Prazo (opcional)</label>
+                        <input id="campaignEndsAt" type="date" class="form-input">
+                        <small style="color:#64748B">No fim do dia a vaquinha encerra sozinha.</small>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Recebido por fora do app (R$)</label>
+                        <input id="campaignOffline" class="form-input" inputmode="decimal" placeholder="0,00">
+                        <small style="color:#64748B">Pix direto, dinheiro em evento… soma na barra de progresso.</small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="campaignAllowOver" checked> Continuar recebendo depois de bater a meta</label><br>
+                    <label><input type="checkbox" id="campaignShowDonors" checked> Mostrar a lista de apoiadores no app (anônimos aparecem como "Anônimo")</label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Capa (opcional)</label>
+                    <input id="campaignCover" type="file" accept="image/jpeg,image/png,image/webp" class="form-input">
+                    <div id="campaignCoverPreview" style="margin-top:8px"></div>
+                </div>
+                <p id="campaignMsg" style="margin:0;color:#B91C1C"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('campaignModal')">Cancelar</button>
+                <button class="btn btn-secondary" id="campaignSaveDraftBtn" onclick="saveCampaign(false)">Salvar rascunho</button>
+                <button class="btn btn-primary" id="campaignPublishBtn" onclick="saveCampaign(true)">Salvar e publicar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="campaignDetailModal" class="modal-overlay">
+        <div class="modal" style="max-width: 860px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="campaignDetailTitle">Vaquinha</h3>
+                <button class="modal-close" onclick="closeModal('campaignDetailModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="campaignDetailBody"></div>
+        </div>
+    </div>
+
     <div id="eventModal" class="modal-overlay">
         <div class="modal" style="max-width: 800px;">
             <div class="modal-header">
@@ -2880,6 +2984,8 @@
                 loadAdoptionsAdmin();
             } else if (sectionId === 'events') {
                 loadEvents();
+            } else if (sectionId === 'campaigns') {
+                loadCampaignsAdmin();
             } else if (sectionId === 'discounts') {
                 loadDiscountsAdmin();
                 loadCatalogAdmin();
@@ -3127,6 +3233,7 @@
                     document.getElementById('settingsContactEmail').value = cfg['org.contactEmail'] || '';
                     document.getElementById('settingsContactPhone').value = cfg['org.contactPhone'] || '';
                     document.getElementById('settingsMembershipDisclaimer').value = cfg['membership.disclaimer'] || '';
+                    document.getElementById('settingsRenewWarnDays').value = cfg['membership.renewWarnDays'] ?? 7;
                     document.getElementById('pixKey').value = cfg['donation.pixKey'] || '';
                     document.getElementById('pixHolderName').value = cfg['donation.pixHolderName'] || (currentOrg && (currentOrg.legalName || currentOrg.name)) || '';
                     document.getElementById('pixCity').value = cfg['donation.pixCity'] || 'Botucatu';
@@ -3145,6 +3252,7 @@
                     contactEmail: document.getElementById('settingsContactEmail').value,
                     contactPhone: document.getElementById('settingsContactPhone').value,
                     membershipDisclaimer: document.getElementById('settingsMembershipDisclaimer').value,
+                    renewWarnDays: Number(document.getElementById('settingsRenewWarnDays').value || 0),
                 }),
             });
             const data = await response.json().catch(() => ({}));
@@ -5243,7 +5351,7 @@
         const ADMIN_SCOPE_SHORT = { GESTOR: 'Gestor (tudo)', CONTEUDO: 'Conteúdo', FINANCEIRO: 'Financeiro', ATENDIMENTO: 'Atendimento' };
         const SECTION_AREA = {
             members: 'atendimento', volunteers: 'atendimento', moderation: 'atendimento', quotes: 'atendimento',
-            animals: 'conteudo', events: 'conteudo', notifications: 'conteudo', texts: 'conteudo',
+            animals: 'conteudo', events: 'conteudo', campaigns: 'conteudo', notifications: 'conteudo', texts: 'conteudo',
             payments: 'financeiro', nfp: 'financeiro', reports: 'financeiro',
             companies: 'gestao', discounts: 'gestao', vets: 'gestao', settings: 'gestao',
             'help-support': 'plataforma', 'app-versions': 'plataforma',
@@ -6167,6 +6275,8 @@
             document.getElementById('discountValidFrom').value = discount?.validFrom ? String(discount.validFrom).slice(0, 10) : new Date().toISOString().slice(0, 10);
             document.getElementById('discountValidUntil').value = discount?.validUntil ? String(discount.validUntil).slice(0, 10) : '';
             document.getElementById('discountActive').checked = discount?.isActive !== false;
+            document.getElementById('discountPerMember').value = discount?.perMemberLimit || 1;
+            document.getElementById('discountTotal').value = discount?.totalLimit || '';
             openModal('discountModal');
         }
 
@@ -6202,6 +6312,8 @@
                 validFrom: document.getElementById('discountValidFrom').value,
                 validUntil: document.getElementById('discountValidUntil').value || null,
                 isActive: document.getElementById('discountActive').checked,
+                perMemberLimit: Number(document.getElementById('discountPerMember').value) || 1,
+                totalLimit: document.getElementById('discountTotal').value === '' ? null : Number(document.getElementById('discountTotal').value),
             };
             if (!payload.partnerId || !payload.name) {
                 alert('Parceiro e nome são obrigatórios');
@@ -8103,5 +8215,6 @@
 
     </script>
     <script src="admin-forms.js"></script>
+    <script src="admin-campaigns.js"></script>
 </body>
 </html>

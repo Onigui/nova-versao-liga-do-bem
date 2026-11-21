@@ -14,6 +14,8 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import CampaignCard from '../components/CampaignCard';
+import {fetchCampaigns} from '../utils/campaigns';
 import { API_BASE_PATH } from '../config/apiConfig';
 import {useAuth} from '../services/AuthService';
 import DateField from '../components/DateField';
@@ -67,6 +69,19 @@ export default function AnimalDetailScreen({route, navigation}) {
   const [editContact, setEditContact] = useState(false);
   const [sending, setSending] = useState(false);
   const [visitForm, setVisitForm] = useState(EMPTY_FORM);
+  // Vaquinha aberta para este animal (ex.: cirurgia): aparece logo abaixo da descrição
+  const [campaign, setCampaign] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!animalId) return undefined;
+    fetchCampaigns(fetch, `?animalId=${encodeURIComponent(animalId)}`)
+      .then(list => alive && setCampaign(list.find(c => c.acceptingDonations) || null))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [animalId]);
 
   useEffect(() => {
     const loadAnimal = async () => {
@@ -255,6 +270,16 @@ export default function AnimalDetailScreen({route, navigation}) {
             <Text style={styles.sectionTitle}>Sobre {animalData.name}</Text>
             <Text style={styles.description}>{animalData.description}</Text>
           </View>
+
+          {campaign ? (
+            <View style={styles.section} testID="animal-vaquinha">
+              <Text style={styles.sectionTitle}>Ajude {animalData.name}</Text>
+              <CampaignCard
+                campaign={campaign}
+                onPress={() => navigation.navigate('CampaignDetail', {campaignId: campaign.id})}
+              />
+            </View>
+          ) : null}
 
           {/* Special Needs */}
           {animalData.hasSpecialNeeds && animalData.specialNeeds && (

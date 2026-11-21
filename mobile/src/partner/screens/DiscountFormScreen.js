@@ -66,6 +66,19 @@ export function buildDiscountPayload(form) {
   }
   body.validUntil = validUntil;
   if (validFrom) body.validFrom = validFrom;
+
+  // Limite: quantas vezes cada associado pode usar (padrão 1) e quantas existem no total (opcional)
+  const per = String(form.perMemberLimit ?? '').trim() === '' ? 1 : Number(form.perMemberLimit);
+  if (!Number.isInteger(per) || per < 1 || per > 99) return {error: 'Vezes por associado: de 1 a 99.'};
+  body.perMemberLimit = per;
+  const totalText = String(form.totalLimit ?? '').trim();
+  if (totalText) {
+    const total = Number(totalText);
+    if (!Number.isInteger(total) || total < 1) return {error: 'Quantidade total inválida.'};
+    body.totalLimit = total;
+  } else {
+    body.totalLimit = null;
+  }
   return {body};
 }
 
@@ -86,6 +99,8 @@ export function previewDiscount(form) {
     originalPrice: kind === 'FINAL_PRICE' && Number.isFinite(orig) ? orig : null,
     benefitText: kind === 'OTHER' ? form.benefitText : null,
     validUntil: parseDateBR(form.validUntil, true) || null,
+    perMemberLimit: Number(form.perMemberLimit) || 1,
+    totalLimit: Number(form.totalLimit) || null,
   };
 }
 
@@ -139,6 +154,8 @@ export default function DiscountFormScreen({route, navigation}) {
     validFrom: existing ? formatDateBR(existing.validFrom) : '',
     validUntil: existing?.validUntil ? formatDateBR(existing.validUntil) : '',
     isActive: existing ? !!existing.isActive : true,
+    perMemberLimit: String(existing?.perMemberLimit || 1),
+    totalLimit: existing?.totalLimit ? String(existing.totalLimit) : '',
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -311,6 +328,28 @@ export default function DiscountFormScreen({route, navigation}) {
             optional
             accent={COLORS.primary}
             testID="promo-fim"
+          />
+        </View>
+        <View style={{flexDirection: 'row', gap: 10}}>
+          <Field
+            style={{flex: 1}}
+            label="Vezes por associado"
+            placeholder="1"
+            keyboardType="number-pad"
+            value={form.perMemberLimit}
+            onChangeText={v => set({perMemberLimit: v.replace(/\D/g, '').slice(0, 2)})}
+            hint="Cada associado só aproveita isso"
+            testID="limite-associado"
+          />
+          <Field
+            style={{flex: 1}}
+            label="Total disponível (opcional)"
+            placeholder="Sem limite"
+            keyboardType="number-pad"
+            value={form.totalLimit}
+            onChangeText={v => set({totalLimit: v.replace(/\D/g, '').slice(0, 6)})}
+            hint="Ex.: os 50 primeiros"
+            testID="limite-total"
           />
         </View>
         <View style={[ui.row, {justifyContent: 'space-between', marginBottom: 4}]}>

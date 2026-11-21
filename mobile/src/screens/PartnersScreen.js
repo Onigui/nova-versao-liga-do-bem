@@ -123,8 +123,10 @@ export default function PartnersScreen({navigation, route}) {
 
   const loadPartners = useCallback(async () => {
     try {
+      // Com login, cada promoção diz se o associado já usou (limite por associado)
+      const token = await AsyncStorage.getItem('auth_token').catch(() => null);
       const response = await fetch(`${API_BASE_PATH}/partners`, {
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Bearer ${token}`} : {})},
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const apiData = await response.json();

@@ -16,6 +16,8 @@ import {NOTIFICATION_EVENT} from '../services/notificationEvents';
 import {SESSION_EVENT, reportUnauthorized} from '../services/session';
 import {C, F, HOME_SHORTCUTS, MONTHS_ABBR, dateBR, findService, greeting, money, planName} from '../theme/home';
 import {useTour} from '../components/Tour';
+import CampaignCard from '../components/CampaignCard';
+import RenewReminder from '../components/RenewReminder';
 import {TOURS} from '../tours';
 
 function useAuthSafe() {
@@ -139,6 +141,8 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
   }
 
   return (
+    <>
+    <RenewReminder membership={m} userId={user?.id} onRenew={() => go('MembershipCheckout')} />
     <ScrollView
       {...tour.scrollProps}
       style={styles.container}
@@ -305,6 +309,18 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
         </View>
       ) : null}
 
+      {/* Vaquinhas abertas */}
+      {data.campaigns?.length ? (
+        <View testID="home-vaquinhas">
+          <Section title="Vaquinhas" action="Ver todas" onAction={() => go('Campaigns')} testID="ver-vaquinhas" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20}}>
+            {data.campaigns.map(c => (
+              <CampaignCard key={c.id} campaign={c} compact onPress={() => go('CampaignDetail', {campaignId: c.id})} />
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
       {/* Meus pets */}
       <View ref={tour.ref('pets')} collapsable={false}>
         <Section title="Meus pets" action={data.pets?.length ? 'Ver todos' : null} onAction={() => go('Pets')} testID="ver-pets" />
@@ -441,6 +457,7 @@ export default function HomeScreen({navigation, fetchImpl = fetch}) {
 
       {data.offline ? <Text style={[styles.offline, F.regular]}>Sem conexão. Puxe para atualizar.</Text> : null}
     </ScrollView>
+    </>
   );
 }
 

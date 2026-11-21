@@ -16,6 +16,18 @@ import { handlePartnerPushRoutes, handleAdminPushRoutes } from './partnerPush';
 import { issueManualAccessCode, accessCodeMessage } from './accessCode';
 import { currentOrgNames } from './orgs';
 import { markSchemaApplied, schemaApplied, schemaFingerprint } from './schemaOnce';
+import {
+  PROMO_LIMIT_SCHEMA_SQL,
+  PromoLimitError,
+  annotateWithUsage,
+  limitLabel,
+  normalizePerMemberLimit,
+  normalizeTotalLimit,
+  normalizeUseItems,
+  perMemberLimitOf,
+  registerUses,
+  totalLimitOf,
+} from './promoLimits';
 
 type Ctx = {
   req: any;
@@ -34,6 +46,8 @@ const MANUAL_LOOKUPS_PER_HOUR = 30;
 const VALIDATIONS_PER_MINUTE = 30;
 const EDIT_WINDOW_MINUTES = 30;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Quantas vezes a promoção d foi usada (soma das quantidades registradas). */
+const USES_SQL = `(SELECT COALESCE(SUM(u.quantity), 0)::int FROM partner_discount_uses u WHERE u."discountId" = d.id)`;
 
 // ---------------------------------------------------------------- schema
 
@@ -73,13 +87,40 @@ export async function ensurePartnerPortalSchema(db: any, force = false) {
     `ALTER TABLE partner_discounts ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3)`,
     ...PROMO_SCHEMA_SQL,
     `ALTER TABLE partners ADD COLUMN IF NOT EXISTS "geocodeTriedAt" TIMESTAMP(3)`,
+    ...PROMO_LIMIT_SCHEMA_SQL,
   ];
   const fp = schemaFingerprint(statements);
   if (force || !(await schemaApplied(db, 'partnerPortal', fp))) {
     for (const sql of statements) await db.$executeRawUnsafe(sql);
+    await backfillLegacyUses(db);
     await markSchemaApplied(db, 'partnerPortal', fp);
   }
   schemaEnsuredAt = Date.now();
+}
+
+/**
+ * Atendimentos registrados antes do limite (partner_validations com discountId) passam a contar
+ * no limite do associado. Idempotente: o id do uso é derivado do id do atendimento.
+ */
+async function backfillLegacyUses(db: any) {
+  try {
+    const cols: any[] = await db.$queryRawUnsafe(
+      `SELECT table_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND column_name = 'orgId' AND table_name IN ('partner_validations', 'partner_discount_uses')`,
+    );
+    const withOrg = cols.length === 2;
+    await db.$executeRawUnsafe(
+      `INSERT INTO partner_discount_uses (id, "discountId", "partnerId", "userId", "validationId", quantity, "registeredById", "createdAt"${withOrg ? ', "orgId"' : ''})
+       SELECT 'legacy-' || v.id, v."discountId", v."partnerId", v."userId", v.id, 1, v."validatedById", v."validatedAt"${withOrg ? ', v."orgId"' : ''}
+         FROM partner_validations v
+         JOIN partner_discounts d ON d.id = v."discountId"
+        WHERE v."discountId" IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM partner_discount_uses u WHERE u."validationId" = v.id)
+       ON CONFLICT (id) DO NOTHING`,
+    );
+  } catch (e: any) {
+    console.warn('⚠️ Não deu para migrar os usos antigos de promoções:', e?.message || e);
+  }
 }
 
 // ---------------------------------------------------------------- helpers
@@ -153,6 +194,10 @@ export function formatDiscount(d: any) {
     isActive: d.isActive,
     validFrom: d.validFrom,
     validUntil: d.validUntil,
+    /** Quantas vezes cada associado pode usar (padrão 1) e quantas existem no total (null = sem limite). */
+    perMemberLimit: perMemberLimitOf(d),
+    totalLimit: totalLimitOf(d),
+    limitLabel: limitLabel(d),
     /** Selo do cartão no app do membro: "20% OFF", "R$ 10 OFF", "Por R$ 69,90", "Leve 3, pague 2". */
     badge: p.badge,
     /** Linha principal: "20% de desconto", "De R$ 89,90 por R$ 69,90"… */
@@ -177,6 +222,14 @@ export async function saveDiscount(db: any, partnerId: string, current: any | nu
   const validFrom = date(body.validFrom, 'Data de início');
   const validUntil = date(body.validUntil, 'Data de fim');
   const isActive = body.isActive === undefined ? undefined : Boolean(body.isActive);
+  let perMemberLimit: number;
+  let totalLimit: number | null;
+  try {
+    perMemberLimit = normalizePerMemberLimit(body.perMemberLimit, current?.perMemberLimit);
+    totalLimit = normalizeTotalLimit(body.totalLimit, current?.totalLimit);
+  } catch (e: any) {
+    throw new HttpError(400, e.message);
+  }
   const pick = (v: any, cur: any) => (v !== undefined ? v : cur ?? null);
 
   // Tipo: o que veio no corpo vence; senão, deduz pelo campo enviado; senão, mantém o atual.
@@ -231,11 +284,11 @@ export async function saveDiscount(db: any, partnerId: string, current: any | nu
     await db.$executeRawUnsafe(
       `INSERT INTO partner_discounts
          (id, "partnerId", name, description, percentage, "fixedAmount", "isActive", "validFrom", "validUntil",
-          kind, "promoPrice", "originalPrice", "benefitText", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+          kind, "promoPrice", "originalPrice", "benefitText", "perMemberLimit", "totalLimit", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
       id, partnerId, merged.name, merged.description, merged.percentage, merged.fixedAmount,
       merged.isActive, merged.validFrom, merged.validUntil,
-      merged.kind, merged.promoPrice, merged.originalPrice, merged.benefitText,
+      merged.kind, merged.promoPrice, merged.originalPrice, merged.benefitText, perMemberLimit, totalLimit,
     );
     const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM partner_discounts WHERE id = $1`, id);
     return { created: true, discount: formatDiscount(rows[0]) };
@@ -243,11 +296,12 @@ export async function saveDiscount(db: any, partnerId: string, current: any | nu
     await db.$executeRawUnsafe(
       `UPDATE partner_discounts SET name = $1, description = $2, percentage = $3, "fixedAmount" = $4,
               "isActive" = $5, "validFrom" = $6, "validUntil" = $7,
-              kind = $10, "promoPrice" = $11, "originalPrice" = $12, "benefitText" = $13, "updatedAt" = NOW()
+              kind = $10, "promoPrice" = $11, "originalPrice" = $12, "benefitText" = $13,
+              "perMemberLimit" = $14, "totalLimit" = $15, "updatedAt" = NOW()
         WHERE id = $8 AND "partnerId" = $9`,
       merged.name, merged.description, merged.percentage, merged.fixedAmount,
       merged.isActive, merged.validFrom, merged.validUntil, current.id, partnerId,
-      merged.kind, merged.promoPrice, merged.originalPrice, merged.benefitText,
+      merged.kind, merged.promoPrice, merged.originalPrice, merged.benefitText, perMemberLimit, totalLimit,
     );
     const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM partner_discounts WHERE id = $1`, current.id);
     return { created: false, discount: formatDiscount(rows[0]) };
@@ -480,7 +534,8 @@ async function validateCard(ctx: Ctx, acc: { id: string; partnerId: string }, us
     active,
   );
 
-  const discounts = active ? await listCurrentDiscounts(db, [acc.partnerId]) : [];
+  // Cada promoção já vem com o que ESTE associado ainda pode usar (as gastas aparecem bloqueadas)
+  const discounts = active ? await annotateWithUsage(db, await listCurrentDiscounts(db, [acc.partnerId]), m.userId) : [];
   return {
     status: 200,
     json: {
@@ -750,7 +805,7 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
 
     if (path === '/api/partner/discounts' && method === 'GET') {
       const rows: any[] = await db.$queryRawUnsafe(
-        `SELECT d.*, (SELECT COUNT(*)::int FROM partner_validations v WHERE v."discountId" = d.id) AS uses
+        `SELECT d.*, ${USES_SQL} AS uses
            FROM partner_discounts d
           WHERE d."partnerId" = $1 AND d."archivedAt" IS NULL
           ORDER BY d."isActive" DESC, d."createdAt" DESC`,
@@ -801,7 +856,7 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
     const valMatch = path.match(/^\/api\/partner\/validations\/([^/]+)$/);
     if (valMatch && method === 'PATCH') {
       const rows: any[] = await db.$queryRawUnsafe(
-        `SELECT id, "membershipActive", "validatedAt" FROM partner_validations
+        `SELECT id, "userId", "membershipActive", "validatedAt" FROM partner_validations
           WHERE id = $1 AND "partnerId" = $2
             AND "validatedAt" > NOW() - ($3 || ' minutes')::interval`,
         valMatch[1],
@@ -811,20 +866,25 @@ export async function handlePartnerPortal(ctx: Ctx): Promise<boolean> {
       const v = rows?.[0];
       if (!v) throw new HttpError(404, 'Validação não encontrada ou fora do prazo para registrar o desconto');
       if (!v.membershipActive) throw new HttpError(400, 'Carteirinha inativa: não é possível aplicar desconto');
-      let discountId: string | null = null;
-      if (body.discountId) {
-        const ok: any[] = await db.$queryRawUnsafe(
-          `SELECT id FROM partner_discounts WHERE id = $1 AND "partnerId" = $2 AND "archivedAt" IS NULL`,
-          String(body.discountId),
-          acc.partnerId,
-        );
-        if (!ok?.[0]) throw new HttpError(400, 'Promoção inválida');
-        discountId = ok[0].id;
+      let items;
+      try {
+        items = normalizeUseItems(body);
+      } catch (e: any) {
+        throw new HttpError(400, e.message);
       }
       const amount = num(body.amount, 'Valor da compra', 0, 1000000) ?? 0;
+      try {
+        await registerUses(db, { validationId: v.id, partnerId: acc.partnerId, userId: v.userId, registeredById: userId, items });
+      } catch (e: any) {
+        if (e instanceof PromoLimitError) {
+          res.status(409).json({ error: e.message, code: e.code, discountId: e.discountId || null });
+          return true;
+        }
+        throw e;
+      }
       await db.$executeRawUnsafe(
         `UPDATE partner_validations SET "discountId" = $1, amount = $2 WHERE id = $3`,
-        discountId,
+        items[0]?.discountId || null,
         amount,
         v.id,
       );

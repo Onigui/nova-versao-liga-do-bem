@@ -5,6 +5,18 @@
  */
 import { currentOrgId } from './tenant';
 import { isMembershipCurrentlyActive, listMembershipPlans } from './membershipBilling';
+import { formatCampaign } from './campaigns';
+
+export const DEFAULT_RENEW_WARN_DAYS = 7;
+
+/** Dias de calendário (Brasília) até a data de vencimento: vence hoje = 0, amanhã = 1. */
+export function daysUntil(end: Date | string, now: number | Date = Date.now()) {
+  const day = (d: Date) => {
+    const s = d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    return Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)));
+  };
+  return Math.round((day(new Date(end)) - day(new Date(now))) / 86400000);
+}
 import { ensurePartnerPortalSchema, listCurrentDiscounts } from './partnerPortal';
 
 type Ctx = { req: any; res: any; path: string; method: string; db: any; authUser: () => { userId: string } };
@@ -69,7 +81,7 @@ async function sharedBlocks(db: any) {
   const org = currentOrgId();
   const hit = shared.get(org);
   if (hit && Date.now() - hit.at < SHARED_TTL) return hit.data;
-  const [tables, partners, nextEvent, adoption, plan] = await Promise.all([
+  const [tables, partners, nextEvent, adoption, plan, campaigns] = await Promise.all([
     safe(async () => {
       const r: any[] = await db.$queryRawUnsafe(
         `SELECT t AS name FROM unnest($1::text[]) t WHERE to_regclass('public.' || t) IS NOT NULL`,
@@ -101,8 +113,25 @@ async function sharedBlocks(db: any) {
       monthly.sort((x: any, y: any) => x.perMonth - y.perMonth);
       return monthly[0] ? { fromPerMonth: monthly[0].perMonth } : null;
     }, null),
+    // Vaquinhas abertas (até 3) para o card do Início
+    safe(async () => {
+      const ok: any[] = await db.$queryRawUnsafe(`SELECT to_regclass('public.campaigns') IS NOT NULL AS ok`);
+      if (!ok?.[0]?.ok) return [];
+      const rows: any[] = await db.$queryRawUnsafe(
+        `SELECT c.*, (SELECT COALESCE(SUM(d.amount), 0) FROM donations d WHERE d."campaignId" = c.id AND d.status = 'APPROVED') AS "raisedOnline",
+                (SELECT COUNT(*)::int FROM donations d WHERE d."campaignId" = c.id AND d.status = 'APPROVED') AS "donorsCount",
+                a.name AS "animalName", a.image AS "animalImage", a.species AS "animalSpecies", a."isAdopted" AS "animalAdopted"
+           FROM campaigns c LEFT JOIN animals a ON a.id = c."animalId"
+          WHERE c.status = 'ACTIVE' ORDER BY c."publishedAt" DESC NULLS LAST LIMIT 10`,
+      );
+      return rows
+        .map((r) => formatCampaign(r))
+        .filter((c) => c.acceptingDonations)
+        .slice(0, 3)
+        .map(({ story, ...c }) => c);
+    }, [] as any[]),
   ]);
-  const data = { tables, partners, nextEvent, adoption, plan };
+  const data = { tables, partners, nextEvent, adoption, plan, campaigns };
   shared.set(org, { at: Date.now(), data });
   return data;
 }
@@ -111,7 +140,7 @@ async function sharedBlocks(db: any) {
 export const LOST_BADGE_KM = 1;
 
 export async function buildHome(db: any, userId: string | null, where: { lat: number; lng: number } | null, now = Date.now()) {
-  const out: any = { user: null, membership: null, counters: {}, forYou: [], pets: [], promos: [], nextEvent: null, adoption: null, plan: null };
+  const out: any = { user: null, membership: null, counters: {}, forYou: [], pets: [], promos: [], nextEvent: null, adoption: null, plan: null, campaigns: [] };
   const S = await sharedBlocks(db);
   const has = (t: string) => S.tables.has(t);
   out.nextEvent = S.nextEvent;
@@ -146,8 +175,19 @@ export async function buildHome(db: any, userId: string | null, where: { lat: nu
             new Date(new Date(now).getFullYear(), 0, 1),
           );
           if (!m) return { active: false };
+          const active = isMembershipCurrentlyActive({ status: m.status, endDate: m.endDate });
+          // Aviso de vencimento no app: dias que faltam e a antecedência escolhida pela ONG (padrão 7)
+          const warnCfg: any[] = await db.$queryRawUnsafe(
+            `SELECT value FROM system_config WHERE key = 'membership.renewWarnDays' LIMIT 1`,
+          ).catch(() => []);
+          const warnRaw = Number(warnCfg?.[0]?.value);
+          const renewWarnDays = Number.isInteger(warnRaw) && warnRaw >= 0 && warnRaw <= 60 ? warnRaw : DEFAULT_RENEW_WARN_DAYS;
+          const daysLeft = active && m.endDate ? daysUntil(m.endDate, now) : null;
           return {
-            active: isMembershipCurrentlyActive({ status: m.status, endDate: m.endDate }),
+            active,
+            daysLeft,
+            renewWarnDays,
+            renewSoon: daysLeft != null && renewWarnDays > 0 && daysLeft <= renewWarnDays,
             status: m.status,
             endDate: m.endDate,
             planCode: m.planCode,
@@ -258,6 +298,7 @@ export async function buildHome(db: any, userId: string | null, where: { lat: nu
   }
   out.forYou.sort((a: any, b: any) => Number(!!b.urgent) - Number(!!a.urgent));
 
+  out.campaigns = S.campaigns || [];
   if (!out.membership?.active && S.plan) out.plan = { ...S.plan, partners: S.partners.count };
   return out;
 }

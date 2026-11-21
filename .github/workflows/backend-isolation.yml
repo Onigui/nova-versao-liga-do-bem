@@ -38,3 +38,5 @@ jobs:
       - run: npx --yes tsx@4.19.2 scripts/isolation-check.ts
       # Segunda ONG de mentira ("ONG Teste") passando pelas rotas de verdade com a separação ligada
       - run: npx --yes tsx@4.19.2 scripts/two-orgs-smoke.ts
+      # Limite das promoções (corrida entre caixas), vaquinhas e aviso de vencimento pelas rotas de verdade
+      - run: npx --yes tsx@4.19.2 scripts/promo-campaign-smoke.ts

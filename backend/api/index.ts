@@ -39,6 +39,7 @@ import { approveDonationFromPayment } from './lib/donations';
 import { sendEmail, isEmailDeliveryConfigured } from './lib/email';
 import { createAccessCode, verifyAccessCode, issueManualAccessCode, accessCodeMessage, ensureAccessCodeSchema } from './lib/accessCode';
 import { handlePartnerPortal, ensurePartnerPortalSchema, listCurrentDiscounts, createPartnerAccess, formatDiscount, saveDiscount } from './lib/partnerPortal';
+import { annotateWithUsage } from './lib/promoLimits';
 import { backfillPartnerCoords, refreshPartnerCoords } from './lib/geocode';
 import { describePromo } from './lib/promo';
 import { dispatchDuePushCampaigns } from './lib/partnerPush';
@@ -49,6 +50,7 @@ import { handleHealth, isHealthPath } from './lib/health';
 import { handleReviews, isReviewPath, partnerRatings } from './lib/reviews';
 import { handleNfp, isNfpPath } from './lib/nfp';
 import { handleLostFound, isLostFoundPath } from './lib/lostfound';
+import { handleCampaigns, isCampaignPath, campaignForDonation } from './lib/campaigns';
 import { handleAccount, isAccountPath } from './lib/account';
 import { handleOrgs, isOrgPath, isPlatformAdmin, userOrgId, ensureOrgSchema, currentOrgNames } from './lib/orgs';
 import { HOMOLOG_PATH, captureHomologWebhook, loadLatest, reportToText, runHomologation } from './lib/pagbankHomolog';
@@ -710,6 +712,16 @@ async function handleRequest(req: any, res: any) {
     // Exclusão de conta (app e página web)
     if (isAccountPath(path)) {
       const handled = await handleAccount({ req, res, path, method, body, db: getPrisma(), authUser: () => decodeAuthUser(req) });
+      if (handled) return;
+    }
+
+    // Vaquinhas: campanhas de arrecadação da ONG (ex.: cirurgia de um animal)
+    if (isCampaignPath(path)) {
+      const handled = await handleCampaigns({
+        req, res, path, method, body, db: getPrisma(),
+        isAdmin: isAdminRequest(req),
+        authUser: () => decodeAuthUser(req),
+      });
       if (handled) return;
     }
 
@@ -2489,7 +2501,19 @@ async function handleRequest(req: any, res: any) {
 
         // Promoções vigentes e notas de cada parceiro: as duas buscas ao mesmo tempo
         const ids = partners.map((p: any) => p.id);
-        const [discountsRes, ratingsRes] = await Promise.allSettled([listCurrentDiscounts(db, ids), partnerRatings(db, ids)]);
+        // Logado (opcional): cada promoção diz se o associado ainda pode usar ("Você já usou")
+        let viewerId: string | null = null;
+        if (extractBearerToken(req)) {
+          try {
+            viewerId = decodeAuthUser(req).userId;
+          } catch {
+            viewerId = null;
+          }
+        }
+        const [discountsRes, ratingsRes] = await Promise.allSettled([
+          listCurrentDiscounts(db, ids).then((list) => annotateWithUsage(db, list, viewerId)),
+          partnerRatings(db, ids),
+        ]);
         let discountsByPartner: Record<string, any[]> = {};
         if (discountsRes.status === 'fulfilled') {
           for (const d of discountsRes.value) (discountsByPartner[d.partnerId] ||= []).push(d);
@@ -3743,6 +3767,13 @@ async function handleRequest(req: any, res: any) {
             type: 'STRING',
             isPublic: true,
           });
+        }
+        if (body?.renewWarnDays !== undefined) {
+          const d = Number(body.renewWarnDays);
+          if (!Number.isInteger(d) || d < 0 || d > 60) {
+            return res.status(400).json({ error: 'Aviso de vencimento: de 0 a 60 dias (0 desliga).' });
+          }
+          configsToUpdate.push({ key: 'membership.renewWarnDays', value: String(d), type: 'NUMBER', isPublic: true });
         }
         if (body?.membershipDisclaimer !== undefined) {
           configsToUpdate.push({
@@ -5584,6 +5615,15 @@ async function handleRequest(req: any, res: any) {
         if (!['PIX', 'BOLETO', 'CREDIT_CARD'].includes(payMethod)) {
           return res.status(400).json({ error: 'Forma de pagamento inválida. Use PIX, BOLETO ou CREDIT_CARD.' });
         }
+        // Doação para uma vaquinha específica (ex.: cirurgia de um animal)
+        let campaign: any = null;
+        if (body?.campaignId) {
+          try {
+            campaign = await campaignForDonation(db, String(body.campaignId));
+          } catch (e: any) {
+            return res.status(e?.status || 500).json({ error: e?.message || 'Campanha indisponível', code: e?.code || null });
+          }
+        }
         const hostedCard = paymentsInfo().hostedCard;
         if (payMethod === 'CREDIT_CARD' && !hostedCard && !body?.card?.encrypted) {
           return res.status(400).json({
@@ -5637,6 +5677,7 @@ async function handleRequest(req: any, res: any) {
         const isAnonymous = !!body?.isAnonymous;
         const descParts: string[] = [];
         if (body?.recurring) descParts.push('Doação mensal (intenção)');
+        if (campaign) descParts.push(`Vaquinha: ${campaign.title}`.slice(0, 120));
         if (body?.description) descParts.push(String(body.description).slice(0, 180));
         const description = descParts.join(' — ') || 'Doação pelo app';
 
@@ -5646,10 +5687,10 @@ async function handleRequest(req: any, res: any) {
         await db.$executeRawUnsafe(
           `INSERT INTO donations
             (id, "userId", amount, method, status, "transactionId", description, "isAnonymous",
-             "donorName", "donorEmail", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4::"PaymentMethod", 'PENDING', $5, $6, $7, $8, $9, NOW(), NOW())`,
+             "donorName", "donorEmail", "createdAt", "updatedAt"${campaign ? ', "campaignId"' : ''})
+           VALUES ($1, $2, $3, $4::"PaymentMethod", 'PENDING', $5, $6, $7, $8, $9, NOW(), NOW()${campaign ? ', $10' : ''})`,
           donationId, userId, amount, payMethod, paymentId, description, isAnonymous,
-          donorName, donorEmail
+          donorName, donorEmail, ...(campaign ? [campaign.id] : [])
         );
 
         const apiBase = process.env.API_PUBLIC_URL || process.env.BACKEND_URL || 'https://nova-versao-liga-do-bem.vercel.app';
@@ -5658,7 +5699,9 @@ async function handleRequest(req: any, res: any) {
           order = await createGatewayOrder({
             referenceId: `DON-${paymentId.slice(0, 8)}`,
             amountCents: Math.round(amount * 100),
-            description: `Doação — ${(await currentOrgNames(db)).legal}`,
+            description: campaign
+              ? `Vaquinha: ${campaign.title}`.slice(0, 60)
+              : `Doação — ${(await currentOrgNames(db)).legal}`,
             customer: { name: donorName, email: donorEmail, taxId, phone: donorPhone },
             method: payMethod as any,
             notificationUrl: gatewayNotificationUrl(apiBase),
@@ -5706,7 +5749,7 @@ async function handleRequest(req: any, res: any) {
         }
 
         return res.status(200).json({
-          donation: { id: donationId, amount, status, method: payMethod },
+          donation: { id: donationId, amount, status, method: payMethod, campaignId: campaign?.id || null },
           payment: {
             id: paymentId,
             status,

@@ -13,8 +13,10 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import {F} from '../theme/home';
 
-export default function DonationScreen({navigation}) {
+export default function DonationScreen({navigation, route}) {
   const {user} = useAuth();
+  // Doação para uma vaquinha (vem da tela da campanha): sem opção "mensal"
+  const campaign = route?.params?.campaign || null;
   const [donationType, setDonationType] = useState('single'); // 'single' or 'recurring'
   const [amount, setAmount] = useState('');
   const [customAmount, setCustomAmount] = useState('');
@@ -70,9 +72,13 @@ export default function DonationScreen({navigation}) {
       kind: 'donation',
       amount: value,
       method: METHOD_IDS[paymentMethod] || 'PIX',
-      recurring: donationType === 'recurring',
-      description:
-        donationType === 'recurring' ? 'Doação mensal via app' : 'Doação única via app',
+      recurring: !campaign && donationType === 'recurring',
+      description: campaign
+        ? 'Doação para vaquinha via app'
+        : donationType === 'recurring'
+        ? 'Doação mensal via app'
+        : 'Doação única via app',
+      ...(campaign ? {campaignId: campaign.id, campaignTitle: campaign.title} : {}),
     });
   };
 
@@ -80,9 +86,9 @@ export default function DonationScreen({navigation}) {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#3B1A78', '#5B21B6']} style={styles.header}>
         <Ionicons name="heart" size={28} color="#FFFFFF" />
-        <Text style={styles.headerTitle}>Fazer Doação</Text>
-        <Text style={styles.headerSubtitle}>
-          Sua generosidade transforma vidas!
+        <Text style={styles.headerTitle}>{campaign ? 'Doar para a vaquinha' : 'Fazer Doação'}</Text>
+        <Text style={styles.headerSubtitle} testID="doacao-campanha">
+          {campaign ? campaign.title : 'Sua generosidade transforma vidas!'}
         </Text>
         {user?.name ? (
           <Text style={styles.headerUser}>Olá, {user.name.split(' ')[0]}</Text>
@@ -97,6 +103,7 @@ export default function DonationScreen({navigation}) {
             parceiros, entre em Cartão e assine um plano.
           </Text>
         </View>
+        {!campaign ? <>
         <Text style={styles.sectionTitle}>Tipo de Doação</Text>
         <View style={styles.typeSelector}>
           <TouchableOpacity
@@ -145,6 +152,7 @@ export default function DonationScreen({navigation}) {
             agora; a cobrança automática mensal ainda não está disponível.
           </Text>
         ) : null}
+        </> : null}
       </View>
 
       <View style={styles.section}>
