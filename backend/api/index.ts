@@ -2511,7 +2511,8 @@ async function handleRequest(req: any, res: any) {
           }
         }
         const [discountsRes, ratingsRes] = await Promise.allSettled([
-          listCurrentDiscounts(db, ids).then((list) => annotateWithUsage(db, list, viewerId)),
+          // Esgotadas somem da vitrine do associado
+          listCurrentDiscounts(db, ids, { hideSoldOut: true }).then((list) => annotateWithUsage(db, list, viewerId)),
           partnerRatings(db, ids),
         ]);
         let discountsByPartner: Record<string, any[]> = {};

@@ -188,6 +188,24 @@ async function main() {
   const pubAnon = await call(handler, 'GET', '/api/partners', { org: 'liga-do-bem' });
   const anonD1 = (pubAnon.body?.partners || []).flatMap((p: any) => p.discounts || []).find((d: any) => d.id === d1);
   check('sem login: só o limite, sem dados de uso', anonD1?.limitLabel === '1 por associado' && anonD1?.available === undefined, anonD1);
+  // Esgotou (3 de 3): some da vitrine do associado e do Início, continua no balcão como esgotada
+  const pubAll = await call(handler, 'GET', '/api/partners', { org: 'liga-do-bem' });
+  const allIds = (pubAll.body?.partners || []).flatMap((p: any) => p.discounts || []).map((d: any) => d.id);
+  check('promoção esgotada some do app do associado', !allIds.includes(d2) && allIds.includes(d1), allIds);
+  const homeSold = await call(handler, 'GET', '/api/home', { token: T.ana });
+  const homeIds = (homeSold.body?.promos || []).flatMap((p: any) => (p.discounts || []).map((d: any) => d.id));
+  check('e do Início', !homeIds.includes(d2), homeIds);
+  const vSold = await call(handler, 'POST', '/api/partner/validate', { token: T.owner, body: { code: card(U.caio) } });
+  const soldAtCounter = (vSold.body?.discounts || []).find((d: any) => d.id === d2);
+  check('no balcão aparece como esgotada', soldAtCounter?.soldOut === true && soldAtCounter?.available === false, soldAtCounter);
+  const shrink = await call(handler, 'PUT', `/api/partner/discounts/${d2}`, { token: T.owner, body: { totalLimit: 2 } });
+  check('parceiro não diminui o total depois de entregar', shrink.status === 400 && shrink.body?.code === 'TOTAL_ONLY_UP', shrink);
+  const limitLater = await call(handler, 'PUT', `/api/partner/discounts/${d1}`, { token: T.owner, body: { totalLimit: 5 } });
+  check('nem limita depois de usada sem limite', limitLater.status === 400, limitLater);
+  const grow = await call(handler, 'PUT', `/api/partner/discounts/${d2}`, { token: T.owner, body: { totalLimit: 10 } });
+  check('aumentar o total pode (repôs estoque)', grow.status === 200 && grow.body?.discount?.totalLimit === 10, grow);
+  const pubBack = await call(handler, 'GET', '/api/partners', { org: 'liga-do-bem' });
+  check('com estoque reposto volta a aparecer', (pubBack.body?.partners || []).flatMap((p: any) => p.discounts || []).some((d: any) => d.id === d2 && d.remainingTotal === 7));
   const mine = await call(handler, 'GET', '/api/partner/discounts', { token: T.owner });
   const m2 = (mine.body?.discounts || []).find((d: any) => d.id === d2);
   check('parceiro vê quantas vezes foi usada (soma das quantidades)', m2?.uses === 3, m2);

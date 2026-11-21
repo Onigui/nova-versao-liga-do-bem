@@ -279,6 +279,26 @@ export async function saveDiscount(db: any, partnerId: string, current: any | nu
     throw new HttpError(400, 'A data de fim é anterior à de início');
   }
 
+  // Total disponível: depois que alguém usou, só pode aumentar (nunca menos do que já foi entregue).
+  // Protege o associado de "eram 50, agora são 10" no meio da promoção.
+  if (!isNew && body.totalLimit !== undefined) {
+    const usedRows: any[] = await db.$queryRawUnsafe(
+      `SELECT COALESCE(SUM(quantity), 0)::int AS n FROM partner_discount_uses WHERE "discountId" = $1`,
+      current.id,
+    );
+    const used = usedRows?.[0]?.n || 0;
+    const before = totalLimitOf(current);
+    if (used > 0 && totalLimit != null && (before == null || totalLimit < before)) {
+      throw new HttpError(
+        400,
+        before == null
+          ? 'Esta promoção já foi usada sem limite de quantidade: não dá para limitar agora. Crie uma promoção nova.'
+          : `Já foram entregues ${used}. O total só pode aumentar (mínimo ${before}).`,
+        'TOTAL_ONLY_UP',
+      );
+    }
+  }
+
   if (isNew) {
     const id = crypto.randomUUID();
     await db.$executeRawUnsafe(
@@ -308,8 +328,12 @@ export async function saveDiscount(db: any, partnerId: string, current: any | nu
   }
 }
 
-/** Descontos que o membro vê no app principal agora. */
-export async function listCurrentDiscounts(db: any, partnerIds?: string[]) {
+/**
+ * Descontos vigentes. Com hideSoldOut (vitrine do associado), a promoção que já entregou
+ * todas as unidades do "total disponível" some sozinha: ninguém vai até a loja à toa e a loja
+ * não pode dizer que acabou antes da hora (o app mostra quantas restam).
+ */
+export async function listCurrentDiscounts(db: any, partnerIds?: string[], opts: { hideSoldOut?: boolean } = {}) {
   const params: any[] = [];
   let where = `"isActive" = true AND "archivedAt" IS NULL AND "validFrom" <= NOW()
                AND ("validUntil" IS NULL OR "validUntil" >= NOW())`;
@@ -318,8 +342,11 @@ export async function listCurrentDiscounts(db: any, partnerIds?: string[]) {
     params.push(partnerIds);
     where += ` AND "partnerId" = ANY($1::text[])`;
   }
+  const soldOut = opts.hideSoldOut
+    ? ` AND ("totalLimit" IS NULL OR "totalLimit" > (SELECT COALESCE(SUM(u.quantity), 0) FROM partner_discount_uses u WHERE u."discountId" = partner_discounts.id))`
+    : '';
   const rows: any[] = await db.$queryRawUnsafe(
-    `SELECT * FROM partner_discounts WHERE ${where} ORDER BY "createdAt" DESC`,
+    `SELECT * FROM partner_discounts WHERE ${where}${soldOut} ORDER BY "createdAt" DESC`,
     ...params,
   );
   return rows.map((r) => ({ ...formatDiscount(r), partnerId: r.partnerId }));

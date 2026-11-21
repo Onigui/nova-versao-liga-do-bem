@@ -348,7 +348,7 @@ export default function DiscountFormScreen({route, navigation}) {
             keyboardType="number-pad"
             value={form.totalLimit}
             onChangeText={v => set({totalLimit: v.replace(/\D/g, '').slice(0, 6)})}
-            hint="Ex.: os 50 primeiros"
+            hint={existing?.uses ? `Já entregues: ${existing.uses}. Só pode aumentar.` : 'Ao acabar, some do app sozinha'}
             testID="limite-total"
           />
         </View>
