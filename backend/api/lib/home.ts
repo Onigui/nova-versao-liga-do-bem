@@ -92,7 +92,7 @@ async function sharedBlocks(db: any) {
     safe(async () => {
       await ensurePartnerPortalSchema(db);
       const rows: any[] = await db.$queryRawUnsafe(`SELECT id, name, category, logo, latitude, longitude, hours, address FROM partners WHERE "isActive" = true`);
-      const discounts = await listCurrentDiscounts(db, rows.map((p) => p.id));
+      const discounts = await listCurrentDiscounts(db, rows.map((p) => p.id), { hideSoldOut: true });
       const byPartner = new Map<string, any[]>();
       for (const d of discounts) byPartner.set(d.partnerId, [...(byPartner.get(d.partnerId) || []), d]);
       return { count: rows.length, withPromo: rows.filter((p) => byPartner.get(p.id)?.length).map((p) => ({ ...p, discounts: byPartner.get(p.id) })) };

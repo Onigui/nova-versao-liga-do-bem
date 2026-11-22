@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,26 @@ import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAuth} from '../services/AuthService';
 import {F} from '../theme/home';
+import CampaignCard from '../components/CampaignCard';
+import {fetchCampaigns} from '../utils/campaigns';
 
 export default function DonationScreen({navigation, route}) {
   const {user} = useAuth();
   // Doação para uma vaquinha (vem da tela da campanha): sem opção "mensal"
   const campaign = route?.params?.campaign || null;
   const [donationType, setDonationType] = useState('single'); // 'single' or 'recurring'
+  // Doação geral: mostra as vaquinhas abertas (causas específicas) antes do formulário
+  const [openCampaigns, setOpenCampaigns] = useState([]);
+  useEffect(() => {
+    if (campaign) return undefined;
+    let alive = true;
+    fetchCampaigns()
+      .then(list => alive && setOpenCampaigns(list.filter(c => c.acceptingDonations).slice(0, 5)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [campaign]);
   const [amount, setAmount] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState(null); // 'pix', 'card', 'boleto'
@@ -94,6 +108,22 @@ export default function DonationScreen({navigation, route}) {
           <Text style={styles.headerUser}>Olá, {user.name.split(' ')[0]}</Text>
         ) : null}
       </LinearGradient>
+
+      {!campaign && openCampaigns.length ? (
+        <View style={[styles.section, {paddingRight: 0}]} testID="doar-vaquinhas">
+          <Text style={styles.sectionTitle}>Vaquinhas abertas</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {openCampaigns.map(c => (
+              <CampaignCard
+                key={c.id}
+                campaign={c}
+                compact
+                onPress={() => navigation.navigate('CampaignDetail', {campaignId: c.id})}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <View style={styles.section}>
         <View style={styles.membershipNote}>

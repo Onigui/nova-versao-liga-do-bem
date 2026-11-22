@@ -68,7 +68,7 @@ import { handleAdminOverview, isAdminOverviewPath } from './lib/adminOverview';
 import { decideAdminAccess, normalizeScope, isValidScope, canManageAdmins, areasFor, SCOPE_LABELS, ADMIN_SCOPES, type AdminScope } from './lib/adminAccess';
 import { checkCpf, cpfInUse, isValidCpf as isValidCpfStrict } from './lib/cpf';
 import { readRawBody, verifyPagBankWebhook, webhookSignatureMode } from './lib/pagbankWebhook';
-import { isPushConfigured, onDeadTokens, pushConfigInfo, sendFcmDetailed, sendFcmToTokens, sendFcmToTopic, subscribeTokenToAllTopic, ALL_USERS_TOPIC } from './lib/push';
+import { isPushConfigured, onDeadTokens, pushConfigInfo, sendFcmDetailed, sendFcmToTokens } from './lib/push';
 
 // Cloudinary para upload de imagens
 let cloudinary: any = null;
@@ -1343,7 +1343,7 @@ async function handleRequest(req: any, res: any) {
           token,
           isPartnerApp ? 'android-partner' : platform === 'ios' ? 'ios' : 'android',
         );
-        if (!isPartnerApp) subscribeTokenToAllTopic(token).catch(() => {});
+        // Não inscreve mais no tópico geral: ele é de todas as ONGs e os avisos vão pelos aparelhos de cada usuário.
         return res.status(200).json({ message: 'Token registrado', ok: true });
       } catch (error: any) {
         return res.status(error?.status || 500).json({
@@ -2511,7 +2511,8 @@ async function handleRequest(req: any, res: any) {
           }
         }
         const [discountsRes, ratingsRes] = await Promise.allSettled([
-          listCurrentDiscounts(db, ids).then((list) => annotateWithUsage(db, list, viewerId)),
+          // Esgotadas somem da vitrine do associado
+          listCurrentDiscounts(db, ids, { hideSoldOut: true }).then((list) => annotateWithUsage(db, list, viewerId)),
           partnerRatings(db, ids),
         ]);
         let discountsByPartner: Record<string, any[]> = {};
@@ -6404,28 +6405,28 @@ async function handleRequest(req: any, res: any) {
           // Aparelhos do App Parceiros só recebem o que é enviado "para parceiros".
           const partnerAudience = path.includes('send-to-role') && /PARTNER/i.test(String(body?.role || ''));
           const tokenRows: any[] = await db.$queryRawUnsafe(
-            `SELECT token FROM device_tokens
+            `SELECT DISTINCT token FROM device_tokens
              WHERE "isActive" = true AND "userId" IN (${placeholders})
                ${partnerAudience ? '' : `AND platform <> 'android-partner'`}`,
             ...userIds,
           );
-          const tokens = (tokenRows || []).map((t) => t.token).filter(Boolean);
+          const tokens = [...new Set((tokenRows || []).map((t) => t.token).filter(Boolean))];
+          // Tocar no push abre a tela pedida (ex.: a vaquinha); FCM só aceita textos no data.
+          const pushData: Record<string, string> = { type: notifType, screen: 'Notifications' };
+          if (body?.data && typeof body.data === 'object') {
+            for (const [k, v] of Object.entries(body.data)) {
+              if (v != null && ['string', 'number', 'boolean'].includes(typeof v)) pushData[k] = String(v).slice(0, 200);
+            }
+          }
+          // Só pelos aparelhos dos destinatários. Antes ia também para o tópico geral: quem estava
+          // nos dois recebia em dobro, e o tópico é de todas as ONGs (vazaria aviso para outra ONG).
           const pushResult = await sendFcmToTokens(tokens, {
             title,
             body: message,
-            data: { type: notifType, screen: 'Notifications' },
+            data: pushData,
           });
           pushAttempted = pushResult.attempted;
           pushSuccess = pushResult.success;
-          if (path.includes('send-to-all') || path === '/api/admin/notifications/send') {
-            const topicResult = await sendFcmToTopic(ALL_USERS_TOPIC, {
-              title,
-              body: message,
-              data: { type: notifType, screen: 'Notifications' },
-            });
-            pushAttempted += topicResult.attempted;
-            pushSuccess += topicResult.success;
-          }
         } catch (pushErr) {
           console.warn('⚠️ Push FCM falhou:', pushErr);
         }

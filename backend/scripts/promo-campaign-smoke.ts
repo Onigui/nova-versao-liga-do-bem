@@ -188,6 +188,24 @@ async function main() {
   const pubAnon = await call(handler, 'GET', '/api/partners', { org: 'liga-do-bem' });
   const anonD1 = (pubAnon.body?.partners || []).flatMap((p: any) => p.discounts || []).find((d: any) => d.id === d1);
   check('sem login: só o limite, sem dados de uso', anonD1?.limitLabel === '1 por associado' && anonD1?.available === undefined, anonD1);
+  // Esgotou (3 de 3): some da vitrine do associado e do Início, continua no balcão como esgotada
+  const pubAll = await call(handler, 'GET', '/api/partners', { org: 'liga-do-bem' });
+  const allIds = (pubAll.body?.partners || []).flatMap((p: any) => p.discounts || []).map((d: any) => d.id);
+  check('promoção esgotada some do app do associado', !allIds.includes(d2) && allIds.includes(d1), allIds);
+  const homeSold = await call(handler, 'GET', '/api/home', { token: T.ana });
+  const homeIds = (homeSold.body?.promos || []).flatMap((p: any) => (p.discounts || []).map((d: any) => d.id));
+  check('e do Início', !homeIds.includes(d2), homeIds);
+  const vSold = await call(handler, 'POST', '/api/partner/validate', { token: T.owner, body: { code: card(U.caio) } });
+  const soldAtCounter = (vSold.body?.discounts || []).find((d: any) => d.id === d2);
+  check('no balcão aparece como esgotada', soldAtCounter?.soldOut === true && soldAtCounter?.available === false, soldAtCounter);
+  const shrink = await call(handler, 'PUT', `/api/partner/discounts/${d2}`, { token: T.owner, body: { totalLimit: 2 } });
+  check('parceiro não diminui o total depois de entregar', shrink.status === 400 && shrink.body?.code === 'TOTAL_ONLY_UP', shrink);
+  const limitLater = await call(handler, 'PUT', `/api/partner/discounts/${d1}`, { token: T.owner, body: { totalLimit: 5 } });
+  check('nem limita depois de usada sem limite', limitLater.status === 400, limitLater);
+  const grow = await call(handler, 'PUT', `/api/partner/discounts/${d2}`, { token: T.owner, body: { totalLimit: 10 } });
+  check('aumentar o total pode (repôs estoque)', grow.status === 200 && grow.body?.discount?.totalLimit === 10, grow);
+  const pubBack = await call(handler, 'GET', '/api/partners', { org: 'liga-do-bem' });
+  check('com estoque reposto volta a aparecer', (pubBack.body?.partners || []).flatMap((p: any) => p.discounts || []).some((d: any) => d.id === d2 && d.remainingTotal === 7));
   const mine = await call(handler, 'GET', '/api/partner/discounts', { token: T.owner });
   const m2 = (mine.body?.discounts || []).find((d: any) => d.id === d2);
   check('parceiro vê quantas vezes foi usada (soma das quantidades)', m2?.uses === 3, m2);
@@ -274,6 +292,25 @@ async function main() {
   const badCfg = await call(handler, 'PUT', '/api/admin/app/config', { token: T.admin, body: { renewWarnDays: 99 } });
   check('antecedência fora de 0–60 é recusada', badCfg.status === 400, badCfg);
   check('dias até o vencimento contam pelo calendário de Brasília', daysUntil('2026-11-24T02:59:59.000Z', Date.parse('2026-11-21T12:00:00Z')) === 2);
+
+  // ------------------------------------------------------------ 4. achados e perdidos: renovar volta ao mapa
+  console.log('\nAchados e perdidos');
+  await call(handler, 'GET', '/api/lostfound', { org: 'liga-do-bem' }); // cria as tabelas
+  const lfId = id('lf_velho');
+  await runAsSystem(() =>
+    db.$executeRawUnsafe(
+      `INSERT INTO lf_reports (id, "userId", type, status, species, "petName", lat, lng, "publicLat", "publicLng", "happenedAt", "expiresAt", "createdAt", "orgId")
+       VALUES ($1, $2, 'LOST', 'EXPIRED', 'DOG', 'Bolinha', -22.88, -48.44, -22.88, -48.44, NOW() - INTERVAL '45 days', NOW() - INTERVAL '5 days', NOW() - INTERVAL '45 days', 'org_liga')`,
+      lfId,
+      U.ana,
+    ),
+  );
+  const before = await call(handler, 'GET', '/api/lostfound', { org: 'liga-do-bem' });
+  check('aviso vencido (de 45 dias atrás) fora do mapa', !(before.body?.reports || []).some((r: any) => r.id === lfId));
+  const ren = await call(handler, 'POST', `/api/lostfound/${lfId}/renew`, { token: T.ana });
+  check('dono renova por mais 30 dias', ren.status === 200, ren);
+  const after = await call(handler, 'GET', '/api/lostfound', { org: 'liga-do-bem' });
+  check('aviso renovado volta para o mapa', (after.body?.reports || []).some((r: any) => r.id === lfId), (after.body?.reports || []).map((r: any) => r.id));
 
   await db.$disconnect();
   console.log(`\n${passed} ok, ${failures.length} falha(s)`);

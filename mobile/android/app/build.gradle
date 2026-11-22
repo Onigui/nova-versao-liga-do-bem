@@ -85,8 +85,8 @@ android {
         applicationId "br.com.sociong.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 69
-        versionName "1.2.67"
+        versionCode 70
+        versionName "1.2.68"
         multiDexEnabled true
     }
     
