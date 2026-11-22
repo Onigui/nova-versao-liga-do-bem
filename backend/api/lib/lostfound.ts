@@ -898,7 +898,10 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       const from = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0) ? { lat, lng } : null;
       const radius = Math.min(50, Math.max(0.5, Number(q.radiusKm) || 15));
       const days = Math.min(180, Math.max(1, Number(q.days) || 30));
-      const where = [`r.status = 'ACTIVE'`, `r.hidden = false`, `r."expiresAt" > NOW()`, `r."createdAt" > NOW() - ($1 || ' days')::interval`];
+      // "Recente" conta da última publicação OU renovação: renovar devolve o aviso ao mapa
+      // (expiresAt - ACTIVE_DAYS = quando foi publicado/renovado pela última vez).
+      const fresh = `GREATEST(r."createdAt", r."expiresAt" - INTERVAL '${ACTIVE_DAYS} days')`;
+      const where = [`r.status = 'ACTIVE'`, `r.hidden = false`, `r."expiresAt" > NOW()`, `${fresh} > NOW() - ($1 || ' days')::interval`];
       const params: any[] = [String(days)];
       const type = String(q.type || '').toUpperCase();
       if ((LF_TYPES as readonly string[]).includes(type)) {
@@ -920,7 +923,7 @@ export async function handleLostFound(ctx: Ctx): Promise<boolean> {
       }
       const rows: any[] = await db.$queryRawUnsafe(
         `SELECT r.*, u.name AS "userName" FROM lf_reports r JOIN users u ON u.id = r."userId" WHERE ${where.join(' AND ')}
-          ORDER BY r."createdAt" DESC LIMIT 300`,
+          ORDER BY ${fresh} DESC LIMIT 300`,
         ...params,
       );
       const list = rows.map((r) => publicView(r, { viewerId: viewer, from }));

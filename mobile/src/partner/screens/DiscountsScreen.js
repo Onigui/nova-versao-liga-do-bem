@@ -12,6 +12,9 @@ export function discountStatus(d, now = Date.now()) {
     return {text: 'Agendada', tone: 'warn'};
   if (d.validUntil && new Date(d.validUntil).getTime() < now)
     return {text: 'Encerrada', tone: 'muted'};
+  // Total disponível entregue: some do app dos associados sozinha
+  if (d.totalLimit && (d.uses || 0) >= d.totalLimit)
+    return {text: 'Esgotada', tone: 'muted'};
   return {text: 'No ar', tone: 'ok'};
 }
 

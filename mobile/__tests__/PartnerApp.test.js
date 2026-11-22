@@ -83,6 +83,8 @@ describe('helpers', () => {
     expect(discountStatus({isActive: true, validFrom: '2026-10-20'}, now).text).toBe('Agendada');
     expect(discountStatus({isActive: true, validFrom: '2026-01-01', validUntil: '2026-10-01'}, now).text).toBe('Encerrada');
     expect(discountStatus({isActive: true, validFrom: '2026-01-01'}, now).text).toBe('No ar');
+    expect(discountStatus({isActive: true, validFrom: '2026-01-01', totalLimit: 50, uses: 50}, now).text).toBe('Esgotada');
+    expect(discountStatus({isActive: true, validFrom: '2026-01-01', totalLimit: 50, uses: 49}, now).text).toBe('No ar');
   });
 
   test('cliente da API traduz erros', async () => {
